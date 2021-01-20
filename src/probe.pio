@@ -1,0 +1,24 @@
+.program probe
+.side_set 1 opt
+
+public out_negedge:
+    set pindirs, 1 side 0x0 ; Init OE clock 0
+    pull           ; Pull number of bits to shift -1 from tx fifo and put into output shift register
+    mov x, osr     ; mov bits to shift -1 from output shift register into x
+    pull           ; Pull data to shift out
+out_negedge_bitloop:
+    out pins, 1                  side 0x0 ; clock data out on falling edge
+    jmp  x-- out_negedge_bitloop side 0x1 ; data is present for posedge
+    set pins, 0                  side 0x0 ; Drive data low
+    push                                 ; Push to rx fifo just so processor knows when done
+    jmp out_negedge                      ; Wait for next transaction
+
+public in_posedge:
+    set pindirs, 0 side 0x0 ; INIT IE clock 0
+    pull                   ; Pull number of bits to shift -1 from tx fifo and put into output shift register
+    mov x, osr             ; mov bits to shift -1 from output shift register into x into x
+in_posedge_bitloop:
+    in pins, 1                        side 0x1 ; Generate posedge and read data
+    jmp x-- in_posedge_bitloop        side 0x0 ;
+    push                                      ; Push to rx fifo when done
+    jmp in_posedge                            ; Jump back to start
