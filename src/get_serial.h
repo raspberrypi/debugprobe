@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * Copyright (c) 2021 Federico Zuccardi Merli
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,36 +23,13 @@
  *
  */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
+#ifndef GET_SERIAL_H_
+#define GET_SERIAL_H_
 
-#include "bsp/board.h"
-#include "tusb.h"
+/* Contains unique serial number string (NUL terminated) after call to init_usb_serial */
+extern char usb_serial[];
 
-#include "picoprobe_config.h"
-#include "probe.h"
-#include "cdc_uart.h"
-#include "get_serial.h"
+/* Fills unique_serial with the flash unique id */
+extern void usb_serial_init(void);
 
-// UART0 for Picoprobe debug
-// UART1 for picoprobe to target device
-
-int main(void) {
-
-    board_init();
-    usb_serial_init();
-    cdc_uart_init();
-    tusb_init();
-    probe_init();
-
-    picoprobe_info("Welcome to Picoprobe!\n");
-
-    while (1) {
-        tud_task(); // tinyusb device task
-        cdc_task();
-        probe_task();
-    }
-
-    return 0;
-}
+#endif
