@@ -31,4 +31,7 @@
 #define PICOPROBE_UART_TX 4
 #define PICOPROBE_UART_RX 5
 
+// LED config
+#define PICOPROBE_LED 25
+
 #endif

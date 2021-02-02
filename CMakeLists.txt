@@ -7,6 +7,7 @@ project(picoprobe)
 pico_sdk_init()
 
 add_executable(picoprobe
+        src/led.c
         src/main.c
         src/usb_descriptors.c
         src/probe.c
