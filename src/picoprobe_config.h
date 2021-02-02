@@ -32,6 +32,6 @@
 #define PICOPROBE_UART_RX 5
 
 // LED config
-#define PICOPROBE_LED 25
+#define PICOPROBE_LED PICO_DEFAULT_LED_PIN
 
 #endif
