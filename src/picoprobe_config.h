@@ -32,6 +32,16 @@
 #define PICOPROBE_UART_RX 5
 
 // LED config
+#ifndef PICOPROBE_LED
+
+#ifndef PICO_DEFAULT_LED_PIN
+#error PICO_DEFAULT_LED_PIN is not defined, run PICOPROBE_LED=<led_pin> cmake
+#elif PICO_DEFAULT_LED_PIN == -1
+#error PICO_DEFAULT_LED_PIN is defined as -1, run PICOPROBE_LED=<led_pin> cmake
+#else
 #define PICOPROBE_LED PICO_DEFAULT_LED_PIN
+#endif
+
+#endif
 
 #endif
