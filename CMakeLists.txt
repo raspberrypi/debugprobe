@@ -7,12 +7,18 @@ project(picoprobe)
 pico_sdk_init()
 
 add_executable(picoprobe
+        src/led.c
         src/main.c
         src/usb_descriptors.c
         src/probe.c
         src/cdc_uart.c
         src/get_serial.c
 )
+
+if (DEFINED ENV{PICOPROBE_LED})
+        message("PICOPROBE_LED is defined as " $ENV{PICOPROBE_LED})
+        target_compile_definitions(picoprobe PRIVATE PICOPROBE_LED=$ENV{PICOPROBE_LED})
+endif()
 
 set(DBG_PIN_COUNT=4)
 
