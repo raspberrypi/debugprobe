@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * Copyright (c) 2021 Federico Zuccardi Merli
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,39 +23,28 @@
  *
  */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-
-#include "bsp/board.h"
-#include "tusb.h"
-
-#include "picoprobe_config.h"
-#include "probe.h"
-#include "cdc_uart.h"
+#include <stdint.h>
+#include "pico/unique_id.h"
 #include "get_serial.h"
-#include "led.h"
 
-// UART0 for Picoprobe debug
-// UART1 for picoprobe to target device
+/* C string for iSerialNumber in USB Device Descriptor, two chars per byte + terminating NUL */
+char usb_serial[PICO_UNIQUE_BOARD_ID_SIZE_BYTES * 2 + 1];
 
-int main(void) {
+/* Why a uint8_t[8] array inside a struct instead of an uint64_t an inquiring mind might wonder */
+static pico_unique_board_id_t uID;
 
-    board_init();
-    usb_serial_init();
-    cdc_uart_init();
-    tusb_init();
-    probe_init();
-    led_init();
+void usb_serial_init(void)
+{
+    pico_get_unique_board_id(&uID);
 
-    picoprobe_info("Welcome to Picoprobe!\n");
-
-    while (1) {
-        tud_task(); // tinyusb device task
-        cdc_task();
-        probe_task();
-        led_task();
+    for (int i = 0; i < PICO_UNIQUE_BOARD_ID_SIZE_BYTES * 2; i++)
+    {
+        /* Byte index inside the uid array */
+        int bi = i / 2;
+        /* Use high nibble first to keep memory order (just cosmetics) */
+        uint8_t nibble = (uID.id[bi] >> 4) & 0x0F;
+        uID.id[bi] <<= 4;
+        /* Binary to hex digit */
+        usb_serial[i] = nibble < 10 ? nibble + '0' : nibble + 'A' - 10;
     }
-
-    return 0;
 }

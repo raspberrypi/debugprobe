@@ -11,6 +11,7 @@
 #include <hardware/clocks.h>
 #include <hardware/gpio.h>
 
+#include "led.h"
 #include "picoprobe_config.h"
 #include "probe.pio.h"
 #include "tusb.h"
@@ -172,6 +173,9 @@ void probe_handle_read(uint total_bits) {
 
 void probe_handle_write(uint8_t *data, uint total_bits) {
     picoprobe_debug("Write %d bits\n", total_bits);
+
+    led_signal_activity(total_bits);
+
     probe_write_mode();
 
     uint chunk;

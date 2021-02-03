@@ -24,6 +24,7 @@
  */
 
 #include "tusb.h"
+#include "get_serial.h"
 
 
 //--------------------------------------------------------------------+
@@ -106,7 +107,7 @@ char const* string_desc_arr [] =
   (const char[]) { 0x09, 0x04 }, // 0: is supported language is English (0x0409)
   "Raspberry Pi", // 1: Manufacturer
   "Picoprobe",    // 2: Product
-  "123456",       // 3: Serials, should use chip ID
+  usb_serial,     // 3: Serial, uses flash unique ID
 };
 
 static uint16_t _desc_str[32];
