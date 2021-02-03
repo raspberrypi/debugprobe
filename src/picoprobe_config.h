@@ -1,7 +1,7 @@
 #ifndef PICOPROBE_H_
 #define PICOPROBE_H_
 
-#if true
+#if false
 #define picoprobe_info(format,args...) printf(format, ## args)
 #else
 #define picoprobe_info(format,...) ((void)0)
