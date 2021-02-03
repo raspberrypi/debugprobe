@@ -33,6 +33,7 @@
 #include "picoprobe_config.h"
 #include "probe.h"
 #include "cdc_uart.h"
+#include "led.h"
 
 // UART0 for Picoprobe debug
 // UART1 for picoprobe to target device
@@ -43,6 +44,7 @@ int main(void) {
     cdc_uart_init();
     tusb_init();
     probe_init();
+    led_init();
 
     picoprobe_info("Welcome to Picoprobe!\n");
 
@@ -50,6 +52,7 @@ int main(void) {
         tud_task(); // tinyusb device task
         cdc_task();
         probe_task();
+        led_task();
     }
 
     return 0;
