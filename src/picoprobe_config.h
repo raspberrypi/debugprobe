@@ -30,6 +30,8 @@
 // UART config
 #define PICOPROBE_UART_TX 4
 #define PICOPROBE_UART_RX 5
+#define PICOPROBE_UART_INTERFACE uart1
+#define PICOPROBE_UART_BAUDRATE 115200
 
 // LED config
 #ifndef PICOPROBE_LED
@@ -40,8 +42,6 @@
 #error PICO_DEFAULT_LED_PIN is defined as -1, run PICOPROBE_LED=<led_pin> cmake
 #else
 #define PICOPROBE_LED PICO_DEFAULT_LED_PIN
-#endif
-
 #endif
 
 #endif

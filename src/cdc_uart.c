@@ -7,7 +7,7 @@
 void cdc_uart_init(void) {
     gpio_set_function(PICOPROBE_UART_TX, GPIO_FUNC_UART);
     gpio_set_function(PICOPROBE_UART_RX, GPIO_FUNC_UART);
-    uart_init(uart1, 115200);
+    uart_init(PICOPROBE_UART_INTERFACE, PICOPROBE_UART_BAUDRATE);
 }
 
 #define MAX_UART_PKT 64
@@ -17,8 +17,8 @@ void cdc_task(void) {
 
     // Consume uart fifo regardless even if not connected
     uint rx_len = 0;
-    while(uart_is_readable(uart1) && (rx_len < MAX_UART_PKT)) {
-        rx_buf[rx_len++] = uart_getc(uart1);
+    while(uart_is_readable(PICOPROBE_UART_INTERFACE) && (rx_len < MAX_UART_PKT)) {
+        rx_buf[rx_len++] = uart_getc(PICOPROBE_UART_INTERFACE);
     }
 
     if (tud_cdc_connected()) {
@@ -33,12 +33,12 @@ void cdc_task(void) {
         if (tud_cdc_available()) {
             // Is there any data from the host for us to tx
             uint tx_len = tud_cdc_read(tx_buf, sizeof(tx_buf));
-            uart_write_blocking(uart1, tx_buf, tx_len);
+            uart_write_blocking(PICOPROBE_UART_INTERFACE, tx_buf, tx_len);
         }
     }
 }
 
 void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding) {
     picoprobe_info("New baud rate %d\n", line_coding->bit_rate);
-    uart_init(uart1, line_coding->bit_rate);
+    uart_init(PICOPROBE_UART_INTERFACE, line_coding->bit_rate);
 }
