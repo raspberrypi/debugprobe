@@ -68,11 +68,12 @@ struct _probe {
 static struct _probe probe;
 
 enum PROBE_CMDS {
-    PROBE_INVALID = 0,    // Invalid command
-    PROBE_WRITE_BITS = 1, // Host wants us to write bits
-    PROBE_READ_BITS = 2,  // Host wants us to read bits
-    PROBE_SET_FREQ = 3,   // Set TCK
-    PROBE_RESET = 4,      // Reset all state
+    PROBE_INVALID      = 0, // Invalid command
+    PROBE_WRITE_BITS   = 1, // Host wants us to write bits
+    PROBE_READ_BITS    = 2, // Host wants us to read bits
+    PROBE_SET_FREQ     = 3, // Set TCK
+    PROBE_RESET        = 4, // Reset all state
+    PROBE_TARGET_RESET = 5, // Reset target
 };
 
 struct __attribute__((__packed__)) probe_cmd_hdr {
@@ -91,6 +92,12 @@ void probe_set_swclk_freq(uint freq_khz) {
     // Worked out with saleae
     uint32_t divider = clk_sys_freq_khz / freq_khz / 2;
     pio_sm_set_clkdiv_int_frac(pio0, PROBE_SM, divider, 0);
+}
+
+static inline void probe_assert_reset(bool state)
+{
+    /* Change the direction to out to drive pin to 0 or to in to emulate open drain */
+    gpio_set_dir(PROBE_PIN_RESET, state);
 }
 
 static inline void probe_write_bits(uint bit_count, uint8_t data_byte) {
@@ -137,11 +144,16 @@ void probe_init() {
     // Make sure SWDIO has a pullup on it. Idle state is high
     gpio_pull_up(PROBE_PIN_SWDIO);
 
+    // Target reset pin: pull up, input to emulate open drain pin
+    gpio_pull_up(PROBE_PIN_RESET);
+    // gpio_init will leave the pin cleared and set as input
+    gpio_init(PROBE_PIN_RESET);
+
     uint offset = pio_add_program(pio0, &probe_program);
     probe.offset = offset;
 
     pio_sm_config sm_config = probe_program_get_default_config(offset);
-    
+
     // Set SWCLK as a sideset pin
     sm_config_set_sideset_pins(&sm_config, PROBE_PIN_SWCLK);
 
@@ -225,7 +237,7 @@ void probe_prepare_read_header(struct probe_cmd_hdr *hdr) {
 void probe_handle_pkt(void) {
     uint8_t *pkt = &probe.rx_buf[0] + sizeof(struct probe_pkt_hdr);
     uint remaining = probe.rx_len - sizeof(struct probe_pkt_hdr);
-    
+
     DEBUG_PINS_SET(probe_timing, DBG_PIN_PKT);
 
     picoprobe_debug("Processing packet of length %d\n", probe.rx_len);
@@ -236,7 +248,7 @@ void probe_handle_pkt(void) {
         uint data_bytes = DIV_ROUND_UP(hdr->bits, 8);
         pkt += sizeof(struct probe_cmd_hdr);
         remaining -= sizeof(struct probe_cmd_hdr);
-        
+
         if (hdr->cmd == PROBE_WRITE_BITS) {
             uint8_t *data = pkt;
             probe_handle_write(data, hdr->bits);
@@ -251,6 +263,8 @@ void probe_handle_pkt(void) {
             // TODO: Is there anything to do after a reset?
             // tx len and rx len should already be 0
             ;
+        } else if (hdr->cmd == PROBE_TARGET_RESET) {
+            probe_assert_reset(hdr->bits);
         }
     }
     probe.rx_len = 0;
@@ -275,7 +289,7 @@ void probe_task(void) {
             return;
         }
         probe.rx_len += count;
-    } 
+    }
 
     if (probe.rx_len >= sizeof(struct probe_pkt_hdr)) {
         struct probe_pkt_hdr *pkt_hdr = (struct probe_pkt_hdr*)&probe.rx_buf[0];
