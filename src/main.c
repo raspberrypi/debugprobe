@@ -33,17 +33,26 @@
 #include "picoprobe_config.h"
 #include "probe.h"
 #include "cdc_uart.h"
+#include "cdc_sump.h"
 #include "get_serial.h"
 #include "led.h"
 
 // UART0 for Picoprobe debug
 // UART1 for picoprobe to target device
 
+void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding) {
+    if (itf == 0)
+        cdc_uart_line_coding(line_coding);
+    else if (itf == 1)
+        cdc_sump_line_coding(line_coding);
+}
+
 int main(void) {
 
     board_init();
     usb_serial_init();
     cdc_uart_init();
+    cdc_sump_init();
     tusb_init();
     probe_init();
     led_init();
@@ -52,7 +61,8 @@ int main(void) {
 
     while (1) {
         tud_task(); // tinyusb device task
-        cdc_task();
+        cdc_uart_task();
+        cdc_sump_task();
         probe_task();
         led_task();
     }

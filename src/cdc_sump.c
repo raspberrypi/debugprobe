@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2021 Raspberry Pi (Trading) Ltd.
+ * Copyright (c) 2021 Jaroslav Kysela <perex@perex.cz>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,11 +23,29 @@
  *
  */
 
-#ifndef CDC_UART_H
-#define CDC_UART_H
+#include <pico/stdlib.h>
 
-void cdc_uart_init(void);
-void cdc_uart_task(void);
-void cdc_uart_line_coding(cdc_line_coding_t const* line_coding);
+#include "tusb.h"
 
-#endif
+#include "picoprobe_config.h"
+#include "cdc_sump.h"
+
+void cdc_sump_init(void)
+{
+}
+
+#define MAX_UART_PKT 64
+void cdc_sump_task(void) {
+    uint8_t tx_buf[MAX_UART_PKT];
+    const char itf = 1;
+
+    if (tud_cdc_n_connected(itf)) {
+        if (tud_cdc_n_available(itf)) {
+            tud_cdc_n_read(itf, tx_buf, sizeof(tx_buf));
+        }
+    }
+}
+
+void cdc_sump_line_coding(cdc_line_coding_t const* line_coding) {
+    picoprobe_info("Sump new baud rate %d\n", line_coding->bit_rate);
+}

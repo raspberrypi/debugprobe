@@ -28,6 +28,7 @@
 #include "tusb.h"
 
 #include "picoprobe_config.h"
+#include "cdc_uart.h"
 
 void cdc_uart_init(void) {
     gpio_set_function(PICOPROBE_UART_TX, GPIO_FUNC_UART);
@@ -36,9 +37,10 @@ void cdc_uart_init(void) {
 }
 
 #define MAX_UART_PKT 64
-void cdc_task(void) {
+void cdc_uart_task(void) {
     uint8_t rx_buf[MAX_UART_PKT];
     uint8_t tx_buf[MAX_UART_PKT];
+    const char itf = 0;
 
     // Consume uart fifo regardless even if not connected
     uint rx_len = 0;
@@ -46,24 +48,22 @@ void cdc_task(void) {
         rx_buf[rx_len++] = uart_getc(PICOPROBE_UART_INTERFACE);
     }
 
-    if (tud_cdc_connected()) {
+    if (tud_cdc_n_connected(itf)) {
         // Do we have anything to display on the host's terminal?
         if (rx_len) {
-            for (uint i = 0; i < rx_len; i++) {
-                tud_cdc_write_char(rx_buf[i]);
-            }
-            tud_cdc_write_flush();
+            tud_cdc_n_write(itf, rx_buf, rx_len);
+            tud_cdc_n_write_flush(itf);
         }
 
-        if (tud_cdc_available()) {
+        if (tud_cdc_n_available(itf)) {
             // Is there any data from the host for us to tx
-            uint tx_len = tud_cdc_read(tx_buf, sizeof(tx_buf));
+            uint tx_len = tud_cdc_n_read(itf, tx_buf, sizeof(tx_buf));
             uart_write_blocking(PICOPROBE_UART_INTERFACE, tx_buf, tx_len);
         }
     }
 }
 
-void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding) {
+void cdc_uart_line_coding(cdc_line_coding_t const* line_coding) {
     picoprobe_info("New baud rate %d\n", line_coding->bit_rate);
     uart_init(PICOPROBE_UART_INTERFACE, line_coding->bit_rate);
 }

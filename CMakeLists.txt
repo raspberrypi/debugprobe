@@ -12,6 +12,7 @@ add_executable(picoprobe
         src/usb_descriptors.c
         src/probe.c
         src/cdc_uart.c
+        src/cdc_sump.c
         src/get_serial.c
 )
 
