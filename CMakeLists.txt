@@ -32,6 +32,8 @@ pico_generate_pio_header(picoprobe ${CMAKE_CURRENT_LIST_DIR}/src/probe.pio)
 
 target_include_directories(picoprobe PRIVATE src)
 
-target_link_libraries(picoprobe PRIVATE pico_stdlib pico_unique_id tinyusb_device tinyusb_board hardware_pio)
+target_link_libraries(picoprobe PRIVATE pico_stdlib pico_unique_id
+		      tinyusb_device tinyusb_board
+		      hardware_pio hardware_dma hardware_pwm)
 
 pico_add_extra_outputs(picoprobe)

@@ -56,7 +56,7 @@
 #define PROBE_PIN_SWDIO PROBE_PIN_OFFSET + 1 // 3
 
 // Target reset config
-#define PROBE_PIN_RESET 6
+#define PROBE_PIN_RESET 28
 
 // UART config
 #define PICOPROBE_UART_TX 4
