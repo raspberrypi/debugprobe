@@ -41,7 +41,11 @@ tusb_desc_device_t const desc_device =
     .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
 
     .idVendor           = 0x2E8A, // Pi
+#if PICO_NO_FLASH
+    .idProduct          = 0xF004, // Picoprobe - debug
+#else
     .idProduct          = 0x0004, // Picoprobe
+#endif
     .bcdDevice          = 0x0100, // Version 01.00
     .iManufacturer      = 0x01,
     .iProduct           = 0x02,
