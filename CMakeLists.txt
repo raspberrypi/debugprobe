@@ -21,6 +21,11 @@ if (DEFINED ENV{PICOPROBE_LED})
         target_compile_definitions(picoprobe PRIVATE PICOPROBE_LED=$ENV{PICOPROBE_LED})
 endif()
 
+if (DEFINED ENV{TURBO_200MHZ})
+        message("TURBO_200MHZ is defined as " $ENV{TURBO_200MHZ})
+        target_compile_definitions(picoprobe PRIVATE TURBO_200MHZ=$ENV{TURBO_200MHZ})
+endif()
+
 set(DBG_PIN_COUNT=4)
 
 pico_generate_pio_header(picoprobe ${CMAKE_CURRENT_LIST_DIR}/src/probe.pio)

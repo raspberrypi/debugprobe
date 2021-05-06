@@ -31,6 +31,10 @@
 #include "tusb.h"
 
 #include "picoprobe_config.h"
+#if TURBO_200MHZ
+#include "pico/stdlib.h"
+#include "hardware/vreg.h"
+#endif
 #include "probe.h"
 #include "cdc_uart.h"
 #include "cdc_sump.h"
@@ -48,6 +52,11 @@ void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding) {
 }
 
 int main(void) {
+
+#if TURBO_200MHZ
+    vreg_set_voltage(VREG_VOLTAGE_1_15);
+    set_sys_clock_khz(200000, true);
+#endif
 
     board_init();
     usb_serial_init();

@@ -45,6 +45,9 @@
 #define picoprobe_dump(format,...) ((void)0)
 #endif
 
+#if false
+#define TURBO_200MHZ 1
+#endif
 
 // PIO config
 #define PROBE_SM 0
