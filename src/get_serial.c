@@ -24,6 +24,7 @@
  */
 
 #include <stdint.h>
+#include "pico.h"
 #include "pico/unique_id.h"
 #include "get_serial.h"
 
