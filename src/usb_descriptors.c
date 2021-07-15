@@ -34,7 +34,7 @@ tusb_desc_device_t const desc_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
-    .bcdUSB             = 0x0110, // // USB Specification version 1.1
+    .bcdUSB             = 0x0210, // // USB Specification version 2.1 (for BOS descriptor support)
     .bDeviceClass       = 0x00, // Each interface specifies its own
     .bDeviceSubClass    = 0x00, // Each interface specifies its own
     .bDeviceProtocol    = 0x00,
@@ -76,6 +76,53 @@ enum
 
 #define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_VENDOR_DESC_LEN)
 
+static uint8_t const desc_ms_os_20[] = 
+{
+  // DESCRIPTOR SET
+  10, 0,                  // length = 10
+  0x00, 0x00,             // MS_OS_20_SET_HEADER_DESCRIPTOR
+  0x00, 0x00, 0x03, 0x06, // Windows version >= 0x06030000
+  174, 0,                 // total length
+  // CONFIGURATION SUBSET
+  8, 0,                   // length = 8
+  0x01, 0x00,             // MS_OS_20_SUBSET_HEADER_CONFIGURATION
+  0x00,                   // configuration index
+  0x00,                   // reserved
+  164, 0,                 // total length
+  // FUNCTION SUBSET
+  8, 0,                   // length = 8
+  0x02, 0x00,             // MS_OS_20_SUBSET_HEADER_FUNCTION
+  ITF_NUM_PROBE,          // interface index
+  0x00,                   // reserved
+  156, 0,                 // total length
+  // FEATURE COMPATIBLE ID
+  20, 0,                  // length = 20
+  0x03, 0x00,             // MS_OS_20_FEATURE_COMPATIBLE_ID
+  'W', 'I', 'N', 'U', 'S', 'B', 0, 0,   // compatible ID
+  0, 0, 0, 0, 0, 0, 0, 0,               // sub compatible ID
+  // REGISTRY PROPERTY
+  128, 0,                 // length = 128
+  0x04, 0x00,             // MS_OS_20_FEATURE_REG_PROPERTY
+  0x01, 0x00,             // property type = STRING
+  40, 0,                  // property name length
+  'D', 0, 'e', 0, 'v', 0, 'i', 0, // property name = DeviceInterfaceGUID\0 
+  'c', 0, 'e', 0, 'I', 0, 'n', 0, //  
+  't', 0, 'e', 0, 'r', 0, 'f', 0, //  
+  'a', 0, 'c', 0, 'e', 0, 'G', 0, //  
+  'U', 0, 'I', 0, 'D', 0,   0, 0, // 
+  78, 0,                  // property data length
+  '{', 0, 'A', 0, '5', 0, 'D', 0, // property data = {A5DCBF10-6530-11D2-901F-00C04FB951ED}\0 
+  'C', 0, 'B', 0, 'F', 0, '1', 0, //  
+  '0', 0, '-', 0, '6', 0, '5', 0, //  
+  '3', 0, '0', 0, '-', 0, '1', 0, //  
+  '1', 0, 'D', 0, '2', 0, '-', 0, //  
+  '9', 0, '0', 0, '1', 0, 'F', 0, //  
+  '-', 0, '0', 0, '0', 0, 'C', 0, //  
+  '0', 0, '4', 0, 'F', 0, 'B', 0, //  
+  '9', 0, '5', 0, '1', 0, 'E', 0, //  
+  'D', 0, '}', 0,   0, 0,         // 
+};
+
 uint8_t const desc_configuration[] =
 {
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
@@ -85,7 +132,13 @@ uint8_t const desc_configuration[] =
 
   // Interface 2
   TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE, 0, PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, 64)
+};
 
+uint8_t const desc_bos[] = 
+{
+  // MS OS 20 descriptor
+  TUD_BOS_DESCRIPTOR(TUD_BOS_DESC_LEN + TUD_BOS_MICROSOFT_OS_DESC_LEN, 1),
+  TUD_BOS_MS_OS_20_DESCRIPTOR(sizeof(desc_ms_os_20), 0x01)
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
@@ -146,4 +199,24 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
   _desc_str[0] = (TUSB_DESC_STRING << 8 ) | (2*chr_count + 2);
 
   return _desc_str;
+}
+
+// Invoked when received GET BOS (Binary Object Store) DESCRIPTOR
+// Application return pointer to descriptor
+// Descriptor contents must exist long enough for transfer to complete
+uint8_t const* tud_descriptor_bos_cb(void)
+{
+  return desc_bos;
+}
+
+// Invoked when control request is arrived.
+bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
+{
+  if (stage != CONTROL_STAGE_SETUP) return true;
+
+  if( request->bmRequestType_bit.type == TUSB_REQ_TYPE_VENDOR && request->bRequest == 0x01 && request->wValue == 0x0000 && request->wIndex == 0x0007 ) {
+    // MS OS 2.0 descriptor request
+    return tud_control_xfer(rhport, request, (void*)desc_ms_os_20, sizeof(desc_ms_os_20));
+  }
+  return false;
 }
