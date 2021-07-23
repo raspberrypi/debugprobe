@@ -79,7 +79,7 @@
 #elif PICO_DEFAULT_LED_PIN == -1
 #error PICO_DEFAULT_LED_PIN is defined as -1, run PICOPROBE_LED=<led_pin> cmake
 #else
-#define PICOPROBE_LED 11 //PICO_DEFAULT_LED_PIN
+#define PICOPROBE_LED PICO_DEFAULT_LED_PIN
 #endif
 
 #endif
