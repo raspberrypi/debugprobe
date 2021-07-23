@@ -36,6 +36,10 @@
 #include "get_serial.h"
 #include "led.h"
 
+#ifdef USE_WS2812
+#include "ws2812.h"
+#endif
+
 // UART0 for Picoprobe debug
 // UART1 for picoprobe to target device
 
@@ -46,7 +50,12 @@ int main(void) {
     cdc_uart_init();
     tusb_init();
     probe_init();
+
+#ifndef USE_WS2812
     led_init();
+#else
+    ws2812_init();
+#endif
 
     picoprobe_info("Welcome to Picoprobe!\n");
 
@@ -54,7 +63,13 @@ int main(void) {
         tud_task(); // tinyusb device task
         cdc_task();
         probe_task();
+
+#ifndef USE_WS2812
         led_task();
+#else
+        ws2812_task();
+#endif
+
     }
 
     return 0;

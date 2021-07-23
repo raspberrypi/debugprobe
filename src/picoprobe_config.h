@@ -48,9 +48,19 @@
 
 // PIO config
 #define PROBE_SM 0
-#define PROBE_PIN_OFFSET 2
-#define PROBE_PIN_SWCLK PROBE_PIN_OFFSET + 0 // 2
-#define PROBE_PIN_SWDIO PROBE_PIN_OFFSET + 1 // 3
+
+#ifndef USE_WS2812
+#define PROBE_PIN_OFFSET 22 // Use the QTPy's QT STEMMA
+#define PROBE_PIN_SWCLK PROBE_PIN_OFFSET + 0 // 22 BLUE
+#define PROBE_PIN_SWDIO PROBE_PIN_OFFSET + 1 // 23 YELLOW
+#else
+#define PROBE_PIN_OFFSET 22 // Use the QTPy's QT STEMMA
+#define PROBE_PIN_SWCLK PROBE_PIN_OFFSET + 0 // 22 BLUE
+#define PROBE_PIN_SWDIO PROBE_PIN_OFFSET + 1 // 23 YELLOW
+#define NEO_SM 1
+#define NEO_PIN_PWR 11
+#define NEO_PIN_DAT 12
+#endif
 
 // Target reset config
 #define PROBE_PIN_RESET 6
@@ -69,7 +79,7 @@
 #elif PICO_DEFAULT_LED_PIN == -1
 #error PICO_DEFAULT_LED_PIN is defined as -1, run PICOPROBE_LED=<led_pin> cmake
 #else
-#define PICOPROBE_LED PICO_DEFAULT_LED_PIN
+#define PICOPROBE_LED 11 //PICO_DEFAULT_LED_PIN
 #endif
 
 #endif

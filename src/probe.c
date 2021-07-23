@@ -35,6 +35,10 @@
 #include "probe.pio.h"
 #include "tusb.h"
 
+#ifdef USE_WS2812
+#include "ws2812.h"
+#endif
+
 #define DIV_ROUND_UP(m, n)	(((m) + (n) - 1) / (n))
 
 // Only want to set / clear one gpio per event so go up in powers of 2
@@ -205,7 +209,11 @@ void probe_handle_read(uint total_bits) {
 void probe_handle_write(uint8_t *data, uint total_bits) {
     picoprobe_debug("Write %d bits\n", total_bits);
 
+#ifndef USE_WS2812
     led_signal_activity(total_bits);
+#else
+    ws2812_signal_activity(total_bits);
+#endif
 
     probe_write_mode();
 
