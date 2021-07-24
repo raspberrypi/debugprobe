@@ -37,6 +37,7 @@
 static uint32_t led_count;
 static uint pio_offset;
 static int sm;
+PIO pio = pio0;
 
 static inline void put_pixel(uint8_t r, uint8_t g, uint8_t b) {
     uint32_t colour = ((uint32_t)(r) << 8) | ((uint32_t)(g) << 16) | (uint32_t)(b);
@@ -45,28 +46,30 @@ static inline void put_pixel(uint8_t r, uint8_t g, uint8_t b) {
 
 void ws2812_init(void) {
     led_count = 0;
+    pio = pio1;
     pio_offset = 0;
     sm = 0;
 
-    // Power up WS2812
+    stdio_init_all();
+
+    // Power up WS2812 via pin 11
     gpio_init(NEO_PIN_PWR);
     gpio_set_dir(NEO_PIN_PWR, GPIO_OUT);
     gpio_put(NEO_PIN_PWR, 1);
 
-    // Set PIO output to feed the WS2182 via pin 13
-    pio_gpio_init(pio1, NEO_PIN_DAT);
-    pio_offset = pio_add_program(pio1, &ws2812_program);
-    ws2812_program_init(pio1, sm, pio_offset, NEO_PIN_DAT, 800000, true);
+    // Set PIO output to feed the WS2182 via pin 12
+    pio_offset = pio_add_program(pio, &ws2812_program);
+    ws2812_program_init(pio, sm, pio_offset, NEO_PIN_DAT, 800000, true);
 
     // Set pixel on
-    put_pixel(0, 0x80, 0);
+    put_pixel(0x20, 0x00, 0x20);
 }
 
 void ws2812_task(void) {
     if (led_count != 0) {
         --led_count;
         bool is_set = !((led_count >> LED_COUNT_SHIFT) & 1);
-        put_pixel(0, (is_set ? 0x80 : 0x00), 0);
+        put_pixel((is_set ? 0x20 : 0x00),0, (is_set ? 0x20 : 0x00));
     }
 }
 

@@ -51,16 +51,16 @@
 
 #ifndef USE_WS2812
 #define PROBE_PIN_OFFSET 2
-#define PROBE_PIN_SWCLK PROBE_PIN_OFFSET + 0 // 2
-#define PROBE_PIN_SWDIO PROBE_PIN_OFFSET + 1 // 3
 #else
 #define PROBE_PIN_OFFSET 22 // Use the QTPy's QT STEMMA
-#define PROBE_PIN_SWCLK PROBE_PIN_OFFSET + 0 // 22 BLUE
-#define PROBE_PIN_SWDIO PROBE_PIN_OFFSET + 1 // 23 YELLOW
+#endif
+
+#define PROBE_PIN_SWCLK PROBE_PIN_OFFSET + 0 // 2
+#define PROBE_PIN_SWDIO PROBE_PIN_OFFSET + 1 // 3
+
 #define NEO_SM 1
 #define NEO_PIN_PWR 11
 #define NEO_PIN_DAT 12
-#endif
 
 // Target reset config
 #define PROBE_PIN_RESET 6
