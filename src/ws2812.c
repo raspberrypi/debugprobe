@@ -33,15 +33,17 @@
 
 #define LED_COUNT_SHIFT 14
 #define LED_COUNT_MAX 5 * (1 << LED_COUNT_SHIFT)
+#define RGB_COLOUR 0x101000 // YELLOW
 
 static uint32_t led_count;
 static uint pio_offset;
 static int sm;
-PIO pio = pio0;
+PIO pio;
 
-static inline void put_pixel(uint8_t r, uint8_t g, uint8_t b) {
-    uint32_t colour = ((uint32_t)(r) << 8) | ((uint32_t)(g) << 16) | (uint32_t)(b);
-    pio_sm_put_blocking(pio1, sm, colour << 8u);
+static inline void put_pixel(uint32_t colour) {
+    // GRB is irrational, so convert 'colour' from RGB
+    uint32_t grb_colour = ((colour & 0xFF0000) >> 8) | ((colour & 0xFF00) << 8) | (colour & 0xFF);
+    pio_sm_put_blocking(pio, sm, grb_colour << 8u);
 }
 
 void ws2812_init(void) {
@@ -62,23 +64,18 @@ void ws2812_init(void) {
     ws2812_program_init(pio, sm, pio_offset, NEO_PIN_DAT, 800000, true);
 
     // Set pixel on
-    put_pixel(0x20, 0x00, 0x20);
+    put_pixel(RGB_COLOUR);
 }
 
 void ws2812_task(void) {
     if (led_count != 0) {
         --led_count;
         bool is_set = !((led_count >> LED_COUNT_SHIFT) & 1);
-        put_pixel((is_set ? 0x20 : 0x00),0, (is_set ? 0x20 : 0x00));
+        put_pixel(is_set ? RGB_COLOUR : 0x00);
     }
 }
 
 void ws2812_signal_activity(uint total_bits) {
-    if (led_count == 0) {
-        put_pixel(0, 0, 0);
-    }
-
-    if (led_count < LED_COUNT_MAX) {
-        led_count += total_bits;
-    }
+    if (led_count == 0) put_pixel(0x00);
+    if (led_count < LED_COUNT_MAX) led_count += total_bits;
 }
