@@ -49,11 +49,11 @@
 // PIO config
 #define PROBE_SM 0
 
-#ifndef USE_QPTY_WS2812
+#ifndef USE_QPTY_SWD
     // Standard Pico SWD values
     #define PROBE_PIN_OFFSET 2
 #else
-    // Use the QTPy RP2040's QT STEMMA
+    // Use the QTPy RP2040's QT STEMMA for SWD
     #define PROBE_PIN_OFFSET 22
 #endif
 

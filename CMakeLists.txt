@@ -6,8 +6,8 @@ project(picoprobe)
 
 pico_sdk_init()
 
-# Uncomment the following line to use QTPy RP2040 WS2812 RGB LED
-add_definitions(-DUSE_QPTY_WS2812)
+# Uncomment the following line to use QTPy RP2040 SWD and WS2812 RGB LED
+#add_definitions(-DUSE_QPTY_SWD -DUSE_QPTY_WS2812)
 
 add_executable(picoprobe
         src/led.c
