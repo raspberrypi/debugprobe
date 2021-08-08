@@ -57,7 +57,7 @@
     #define PROBE_PIN_OFFSET 22
 #endif
 
-// Generic SWD pin definitions, based on
+// Generic SWD pin definitions, based on the above
 #define PROBE_PIN_SWCLK PROBE_PIN_OFFSET + 0
 #define PROBE_PIN_SWDIO PROBE_PIN_OFFSET + 1
 
