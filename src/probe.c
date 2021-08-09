@@ -35,7 +35,7 @@
 #include "probe.pio.h"
 #include "tusb.h"
 
-#ifdef USE_WS2812
+#ifdef USE_QPTY_WS2812
 #include "ws2812.h"
 #endif
 
@@ -209,7 +209,7 @@ void probe_handle_read(uint total_bits) {
 void probe_handle_write(uint8_t *data, uint total_bits) {
     picoprobe_debug("Write %d bits\n", total_bits);
 
-#ifndef USE_WS2812
+#ifndef USE_QPTY_WS2812
     led_signal_activity(total_bits);
 #else
     ws2812_signal_activity(total_bits);

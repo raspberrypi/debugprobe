@@ -35,6 +35,10 @@
 #define LED_COUNT_MAX 5 * (1 << LED_COUNT_SHIFT)
 #define RGB_COLOUR 0x101000 // YELLOW
 
+#define NEO_SM 1
+#define NEO_PIN_PWR 11
+#define NEO_PIN_DAT 12
+
 static uint32_t led_count;
 static uint pio_offset;
 static int sm;

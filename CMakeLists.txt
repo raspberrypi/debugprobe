@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.13)
 
 include(pico_sdk_import.cmake)
 
@@ -7,7 +7,8 @@ project(picoprobe)
 pico_sdk_init()
 
 # Uncomment the following line to use QTPy RP2040 SWD and WS2812 RGB LED
-#add_definitions(-DUSE_QPTY_SWD -DUSE_QPTY_WS2812)
+add_definitions(-DUSE_QPTY_SWD
+                -DUSE_QPTY_WS2812)
 
 add_executable(picoprobe
         src/led.c
@@ -16,11 +17,13 @@ add_executable(picoprobe
         src/probe.c
         src/cdc_uart.c
         src/get_serial.c
+        src/ws2812.c
 )
 
+# This stanza isn't working -- why not?
+# Plan is to include QTPy WS2812-specific Cmakle cmds here
 if (DEFINED USE_QPTY_WS2812)
     pico_generate_pio_header(picoprobe ${CMAKE_CURRENT_LIST_DIR}/src/ws2812.pio)
-
     add_executable(picoprobe
                    src/ws2812.c
     )
@@ -34,6 +37,7 @@ endif()
 set(DBG_PIN_COUNT=4)
 
 pico_generate_pio_header(picoprobe ${CMAKE_CURRENT_LIST_DIR}/src/probe.pio)
+pico_generate_pio_header(picoprobe ${CMAKE_CURRENT_LIST_DIR}/src/ws2812.pio)
 
 target_include_directories(picoprobe PRIVATE src)
 

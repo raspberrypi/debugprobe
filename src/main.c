@@ -36,7 +36,7 @@
 #include "get_serial.h"
 #include "led.h"
 
-#ifdef USE_WS2812
+#ifdef USE_QPTY_WS2812
 #include "ws2812.h"
 #endif
 
@@ -51,7 +51,7 @@ int main(void) {
     tusb_init();
     probe_init();
 
-#ifndef USE_WS2812
+#ifndef USE_QPTY_WS2812
     led_init();
 #else
     ws2812_init();
@@ -64,7 +64,7 @@ int main(void) {
         cdc_task();
         probe_task();
 
-#ifndef USE_WS2812
+#ifndef USE_QPTY_WS2812
         led_task();
 #else
         ws2812_task();

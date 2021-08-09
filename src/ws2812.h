@@ -27,10 +27,6 @@
 #ifndef WS2812_H
 #define WS2812_H
 
-#define NEO_SM 1
-#define NEO_PIN_PWR 11
-#define NEO_PIN_DAT 12
-
 void ws2812_init(void);
 void ws2812_task(void);
 void ws2812_signal_activity(uint total_bits);
