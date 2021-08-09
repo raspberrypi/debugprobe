@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.14)
 
 include(pico_sdk_import.cmake)
 
@@ -6,38 +6,40 @@ project(picoprobe)
 
 pico_sdk_init()
 
-# Uncomment the following line to use QTPy RP2040 SWD and WS2812 RGB LED
-add_definitions(-DUSE_QPTY_SWD
-                -DUSE_QPTY_WS2812)
+# Keep at 0 for Raspberry Pi Pico
+# Set this to 1 for QTPy with WS2812
+# Set this to 2 for QTPy without WS2812
+set(USE_QTPY 0)
 
 add_executable(picoprobe
-        src/led.c
-        src/main.c
-        src/usb_descriptors.c
-        src/probe.c
-        src/cdc_uart.c
-        src/get_serial.c
-        src/ws2812.c
+               src/led.c
+               src/main.c
+               src/usb_descriptors.c
+               src/probe.c
+               src/cdc_uart.c
+               src/get_serial.c
 )
 
-# This stanza isn't working -- why not?
-# Plan is to include QTPy WS2812-specific Cmakle cmds here
-if (DEFINED USE_QPTY_WS2812)
+if (USE_QTPY EQUAL 1)
+    message("Building for Adafruit QTPy RP20204 with WS2812")
+    add_definitions(-DUSE_QPTY_SWD -DUSE_QPTY_WS2812)
+    target_sources(picoprobe PRIVATE src/ws2812.c)
     pico_generate_pio_header(picoprobe ${CMAKE_CURRENT_LIST_DIR}/src/ws2812.pio)
-    add_executable(picoprobe
-                   src/ws2812.c
-    )
+elseif (USE_QTPY EQUAL 2)
+    message("Building for Adafruit QTPy RP20204 without WS2812 (SWD only)")
+    add_definitions(-DUSE_QPTY_SWD)
+else()
+    message("Building for Raspberry Pi Pico")
 endif()
 
 if (DEFINED ENV{PICOPROBE_LED})
-        message("PICOPROBE_LED is defined as " $ENV{PICOPROBE_LED})
-        target_compile_definitions(picoprobe PRIVATE PICOPROBE_LED=$ENV{PICOPROBE_LED})
+    message("PICOPROBE_LED is defined as " $ENV{PICOPROBE_LED})
+    target_compile_definitions(picoprobe PRIVATE PICOPROBE_LED=$ENV{PICOPROBE_LED})
 endif()
 
 set(DBG_PIN_COUNT=4)
 
 pico_generate_pio_header(picoprobe ${CMAKE_CURRENT_LIST_DIR}/src/probe.pio)
-pico_generate_pio_header(picoprobe ${CMAKE_CURRENT_LIST_DIR}/src/ws2812.pio)
 
 target_include_directories(picoprobe PRIVATE src)
 
