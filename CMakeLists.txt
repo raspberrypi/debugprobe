@@ -6,10 +6,10 @@ project(picoprobe)
 
 pico_sdk_init()
 
-# Keep at 0 for Raspberry Pi Pico
-# Set this to 1 for QTPy with WS2812
-# Set this to 2 for QTPy without WS2812
-set(USE_QTPY 0)
+# Keep at PICO for Raspberry Pi Pico
+# Set this to QTPY_WS2812 for QTPy with WS2812
+# Set this to QTPY_NO_WS2812 for QTPy without WS2812
+set(SELECT_HARDWARE "PICO")
 
 add_executable(picoprobe
                src/led.c
@@ -20,13 +20,13 @@ add_executable(picoprobe
                src/get_serial.c
 )
 
-if (USE_QTPY EQUAL 1)
-    message("Building for Adafruit QTPy RP20204 with WS2812")
+if (SELECT_HARDWARE STREQUAL "QTPY_WS2812")
+    message("Building for Adafruit QTPy RP2040 with WS2812")
     add_definitions(-DUSE_QPTY_SWD -DUSE_QPTY_WS2812)
     target_sources(picoprobe PRIVATE src/ws2812.c)
     pico_generate_pio_header(picoprobe ${CMAKE_CURRENT_LIST_DIR}/src/ws2812.pio)
-elseif (USE_QTPY EQUAL 2)
-    message("Building for Adafruit QTPy RP20204 without WS2812 (SWD only)")
+elseif (SELECT_HARDWARE STREQUAL "QTPY_NO_WS2812")
+    message("Building for Adafruit QTPy RP2040 without WS2812 (SWD only)")
     add_definitions(-DUSE_QPTY_SWD)
 else()
     message("Building for Raspberry Pi Pico")
