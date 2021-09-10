@@ -49,12 +49,16 @@
 // PIO config
 #define PROBE_SM 0
 
-#ifndef USE_QPTY_SWD
-    // Standard Pico SWD values
-    #define PROBE_PIN_OFFSET 2
-#else
-    // Use the QTPy RP2040's QT STEMMA for SWD
+#ifdef USE_QTPY_SWD
+    // Use the QTPY RP2040's QT STEMMA for SWD
     #define PROBE_PIN_OFFSET 22
+#elif USE_SFPM_SWD
+    // Use the SparkFun RP20204's QT STEMMA for SWD
+    #define PROBE_PIN_OFFSET 16
+#else
+    // Standard Pico SWD values
+    // Also used by Feather
+    #define PROBE_PIN_OFFSET 2
 #endif
 
 // Generic SWD pin definitions, based on the above

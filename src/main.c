@@ -36,7 +36,7 @@
 #include "get_serial.h"
 #include "led.h"
 
-#ifdef USE_QPTY_WS2812
+#ifdef USE_WS2812
 #include "ws2812.h"
 #endif
 
@@ -51,10 +51,10 @@ int main(void) {
     tusb_init();
     probe_init();
 
-#ifndef USE_QPTY_WS2812
-    led_init();
-#else
+#ifdef USE_WS2812
     ws2812_init();
+#else
+    led_init();
 #endif
 
     picoprobe_info("Welcome to Picoprobe!\n");
@@ -64,10 +64,10 @@ int main(void) {
         cdc_task();
         probe_task();
 
-#ifndef USE_QPTY_WS2812
-        led_task();
-#else
+#ifdef USE_WS2812
         ws2812_task();
+#else
+        led_task();
 #endif
 
     }

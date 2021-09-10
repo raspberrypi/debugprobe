@@ -35,7 +35,7 @@
 #include "probe.pio.h"
 #include "tusb.h"
 
-#ifdef USE_QPTY_WS2812
+#ifdef USE_WS2812
 #include "ws2812.h"
 #endif
 
@@ -209,10 +209,10 @@ void probe_handle_read(uint total_bits) {
 void probe_handle_write(uint8_t *data, uint total_bits) {
     picoprobe_debug("Write %d bits\n", total_bits);
 
-#ifndef USE_QPTY_WS2812
-    led_signal_activity(total_bits);
-#else
+#ifdef USE_WS2812
     ws2812_signal_activity(total_bits);
+#else
+    led_signal_activity(total_bits);
 #endif
 
     probe_write_mode();
@@ -220,12 +220,7 @@ void probe_handle_write(uint8_t *data, uint total_bits) {
     uint chunk;
     uint bits = total_bits;
     while (bits > 0) {
-        if (bits > 8) {
-            chunk = 8;
-        } else {
-            chunk = bits;
-        }
-
+        chunk = bits > 8 ? 8 : bits;
         probe_write_bits(chunk, *data++);
         bits -= chunk;
     }
@@ -293,9 +288,7 @@ void probe_handle_pkt(void) {
 void probe_task(void) {
     if ( tud_vendor_available() ) {
         uint count = tud_vendor_read(&probe.rx_buf[probe.rx_len], 64);
-        if (count == 0) {
-            return;
-        }
+        if (count == 0) return;
         probe.rx_len += count;
     }
 

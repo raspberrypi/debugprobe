@@ -32,17 +32,13 @@
 #include "ws2812.pio.h"
 
 #define LED_COUNT_SHIFT 14
-#define LED_COUNT_MAX 5 * (1 << LED_COUNT_SHIFT)
-#define RGB_COLOUR 0x101000 // YELLOW
-
-#define NEO_SM 1
-#define NEO_PIN_PWR 11
-#define NEO_PIN_DAT 12
+#define LED_COUNT_MAX   5 * (1 << LED_COUNT_SHIFT)
+#define RGB_COLOUR      0x101000 // YELLOW
 
 static uint32_t led_count;
-static uint pio_offset;
-static int sm;
-PIO pio;
+static uint     pio_offset;
+static int      sm;
+PIO             pio;
 
 static inline void put_pixel(uint32_t colour) {
     // GRB is irrational, so convert 'colour' from RGB
@@ -56,14 +52,14 @@ void ws2812_init(void) {
     pio_offset = 0;
     sm = 0;
 
-    stdio_init_all();
-
-    // Power up WS2812 via pin 11
+    #ifdef NEO_PIN_PWR
+    // Power up WS2812
     gpio_init(NEO_PIN_PWR);
     gpio_set_dir(NEO_PIN_PWR, GPIO_OUT);
     gpio_put(NEO_PIN_PWR, 1);
+    #endif
 
-    // Set PIO output to feed the WS2182 via pin 12
+    // Set PIO output to feed the WS2182 via pin NEO_PIN_DAT
     pio_offset = pio_add_program(pio, &ws2812_program);
     ws2812_program_init(pio, sm, pio_offset, NEO_PIN_DAT, 800000, true);
 
