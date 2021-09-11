@@ -36,7 +36,7 @@
 #include "get_serial.h"
 #include "led.h"
 
-#ifdef USE_WS2812
+#ifdef PICO_DEFAULT_WS2812_PIN
 #include "ws2812.h"
 #endif
 
@@ -51,7 +51,7 @@ int main(void) {
     tusb_init();
     probe_init();
 
-#ifdef USE_WS2812
+#ifdef PICO_DEFAULT_WS2812_PIN
     ws2812_init();
 #else
     led_init();
@@ -64,7 +64,7 @@ int main(void) {
         cdc_task();
         probe_task();
 
-#ifdef USE_WS2812
+#ifdef PICO_DEFAULT_WS2812_PIN
         ws2812_task();
 #else
         led_task();

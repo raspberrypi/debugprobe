@@ -4,28 +4,20 @@ include(pico_sdk_import.cmake)
 
 project(picoprobe)
 
+# On the next line, retain "pico" for Raspberry Pi Pico,
+# or set 'PICO_BOARD' to a board name as defined in
+# https://github.com/raspberrypi/pico-sdk/tree/master/src/boards/include/boards
+#
+# For example,
+#    "adafruit_qtpy_rp2040"    for the Adafruit QTPy
+#    "adafruit_feather_rp2040" for the Adafruit Feather RP2040
+#    "sparkfun_promicro"       for the SparkFun Pro Micro RP2040
+
+set(PICO_BOARD "pico")
+set(EXECUTABLE_NAME "picoprobe_${PICO_BOARD}")
 pico_sdk_init()
 
-# On the next line, retain PICO for Raspberry Pi Pico,
-# or set 'SELECT_HARDWARE' to:
-#   QTPY    for Adafruit QTPy with WS2812
-#   FEATHER for Adafruit Feather RP2040 with WS2812
-#   SPARKPM for SparkFun Pro Micro RP2040 with WS2812
-set(SELECT_HARDWARE "PICO")
-
-# PICO  | PIN |
-# ----  | --- |
-# SWDIO | 3   |
-# SWCLK | 2   |
-
-# PIN            | QTPY | FEATHER | SPARKPM |
-# -------------- | ---- | ------- | ------- |
-# STEMMA SWDIO Y | 23   | 3       | 17      |
-# STEMMA SWCLK B | 22   | 2       | 16      |
-# NEOPIXEL PWR   | 11   | N/A     | N/A     |
-# NEOPIXEL IN    | 12   | 16      | 25      |
-
-add_executable(picoprobe
+add_executable(${EXECUTABLE_NAME}
                src/led.c
                src/main.c
                src/usb_descriptors.c
@@ -34,40 +26,34 @@ add_executable(picoprobe
                src/get_serial.c
 )
 
-if (SELECT_HARDWARE STREQUAL "QTPY")
+if (PICO_BOARD STREQUAL "adafruit_qtpy_rp2040")
     message("Building for Adafruit QTPy RP2040 with WS2812")
-    add_definitions(-DUSE_QTPY_SWD -DUSE_WS2812)
-    add_compile_definitions(NEO_PIN_PWR=11;NEO_PIN_DAT=12)
-elseif (SELECT_HARDWARE STREQUAL "FEATHER")
+elseif (PICO_BOARD STREQUAL "adafruit_feather_rp2040")
     message("Building for Adafruit Feather RP2040 with WS2812")
-    add_definitions(-DUSE_WS2812)
-    add_compile_definitions(NEO_PIN_DAT=16)
-elseif (SELECT_HARDWARE STREQUAL "SPARKPM")
+elseif (PICO_BOARD STREQUAL "sparkfun_promicro")
     message("Building for SparkFun Pro Micro RP2040 with WS2812")
-    add_definitions(-DUSE_SFPM_SWD -DUSE_WS2812)
-    add_compile_definitions(NEO_PIN_DAT=25)
 else()
     message("Building for Raspberry Pi Pico")
 endif()
 
-if (NOT SELECT_HARDWARE STREQUAL "PICO")
-    target_sources(picoprobe PRIVATE src/ws2812.c)
-    pico_generate_pio_header(picoprobe ${CMAKE_CURRENT_LIST_DIR}/src/ws2812.pio)
+if (NOT PICO_BOARD STREQUAL "pico")
+    target_sources(${EXECUTABLE_NAME} PRIVATE src/ws2812.c)
+    pico_generate_pio_header(${EXECUTABLE_NAME} ${CMAKE_CURRENT_LIST_DIR}/src/ws2812.pio)
     add_compile_definitions(RGB_COLOUR=0x001010) # CYAN -- Dilute to taste!
 endif()
 
 if (DEFINED ENV{PICOPROBE_LED})
     message("PICOPROBE_LED is defined as " $ENV{PICOPROBE_LED})
-    target_compile_definitions(picoprobe PRIVATE PICOPROBE_LED=$ENV{PICOPROBE_LED})
+    target_compile_definitions(${EXECUTABLE_NAME} PRIVATE PICOPROBE_LED=$ENV{PICOPROBE_LED})
 endif()
 
 set(DBG_PIN_COUNT=4)
 
-pico_generate_pio_header(picoprobe ${CMAKE_CURRENT_LIST_DIR}/src/probe.pio)
+pico_generate_pio_header(${EXECUTABLE_NAME} ${CMAKE_CURRENT_LIST_DIR}/src/probe.pio)
 
-target_include_directories(picoprobe PRIVATE src)
+target_include_directories(${EXECUTABLE_NAME} PRIVATE src)
 
-target_link_libraries(picoprobe
+target_link_libraries(${EXECUTABLE_NAME}
                       PRIVATE
                       pico_stdlib
                       pico_unique_id
@@ -75,4 +61,4 @@ target_link_libraries(picoprobe
                       tinyusb_board
                       hardware_pio)
 
-pico_add_extra_outputs(picoprobe)
+pico_add_extra_outputs(${EXECUTABLE_NAME})

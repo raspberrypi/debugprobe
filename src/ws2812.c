@@ -51,16 +51,16 @@ void ws2812_init(void) {
     pio_offset = 0;
     sm = 0;
 
-    #ifdef NEO_PIN_PWR
-    // Power up WS2812
-    gpio_init(NEO_PIN_PWR);
-    gpio_set_dir(NEO_PIN_PWR, GPIO_OUT);
-    gpio_put(NEO_PIN_PWR, 1);
+    #ifdef PICO_DEFAULT_WS2812_POWER_PIN
+    // Power up WS2812 on QTPY RP2040
+    gpio_init(PICO_DEFAULT_WS2812_POWER_PIN);
+    gpio_set_dir(PICO_DEFAULT_WS2812_POWER_PIN, GPIO_OUT);
+    gpio_put(PICO_DEFAULT_WS2812_POWER_PIN, 1);
     #endif
 
-    // Set PIO output to feed the WS2182 via pin NEO_PIN_DAT
+    // Set PIO output to feed the WS2182 via pin PICO_DEFAULT_WS2812_PIN
     pio_offset = pio_add_program(pio, &ws2812_program);
-    ws2812_program_init(pio, sm, pio_offset, NEO_PIN_DAT, 800000, true);
+    ws2812_program_init(pio, sm, pio_offset, PICO_DEFAULT_WS2812_PIN, 800000, true);
 
     // Set pixel on
     put_pixel(RGB_COLOUR);

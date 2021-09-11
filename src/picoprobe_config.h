@@ -32,7 +32,6 @@
 #define picoprobe_info(format,...) ((void)0)
 #endif
 
-
 #if false
 #define picoprobe_debug(format,args...) printf(format, ## args)
 #else
@@ -49,15 +48,13 @@
 // PIO config
 #define PROBE_SM 0
 
-#ifdef USE_QTPY_SWD
-    // Use the QTPY RP2040's QT STEMMA for SWD
-    #define PROBE_PIN_OFFSET 22
-#elif USE_SFPM_SWD
-    // Use the SparkFun RP20204's QT STEMMA for SWD
-    #define PROBE_PIN_OFFSET 16
+#ifdef ADAFRUIT_QTPY_RP2040
+    #define PROBE_PIN_OFFSET 22     // Doesn't use a #defined pin name
+#elif defined SPARKFUN_PROMICRO
+    #define PROBE_PIN_OFFSET PICO_DEFAULT_I2C_SDA_PIN
 #else
     // Standard Pico SWD values
-    // Also used by Feather
+    // Also used by adafruit_feather_rp2040
     #define PROBE_PIN_OFFSET 2
 #endif
 
@@ -78,9 +75,11 @@
 #ifndef PICOPROBE_LED
 
 #ifndef PICO_DEFAULT_LED_PIN
-#error PICO_DEFAULT_LED_PIN is not defined, run PICOPROBE_LED=<led_pin> cmake
+// #error PICO_DEFAULT_LED_PIN is not defined, run PICOPROBE_LED=<led_pin> cmake
+#define PICOPROBE_LED 0     // To avoid compiler errors -- is there a better way to do this?
 #elif PICO_DEFAULT_LED_PIN == -1
-#error PICO_DEFAULT_LED_PIN is defined as -1, run PICOPROBE_LED=<led_pin> cmake
+// #error PICO_DEFAULT_LED_PIN is defined as -1, run PICOPROBE_LED=<led_pin> cmake
+#define PICOPROBE_LED 0     // See above
 #else
 #define PICOPROBE_LED PICO_DEFAULT_LED_PIN
 #endif

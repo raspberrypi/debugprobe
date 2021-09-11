@@ -35,7 +35,7 @@
 #include "probe.pio.h"
 #include "tusb.h"
 
-#ifdef USE_WS2812
+#ifdef PICO_DEFAULT_WS2812_PIN
 #include "ws2812.h"
 #endif
 
@@ -194,11 +194,7 @@ void probe_handle_read(uint total_bits) {
     uint chunk;
     uint bits = total_bits;
     while (bits > 0) {
-        if (bits > 8) {
-            chunk = 8;
-        } else {
-            chunk = bits;
-        }
+        chunk = bits > 8 ? 8 : bits;
         probe.tx_buf[probe.tx_len] = probe_read_bits(chunk);
         probe.tx_len++;
         // Decrement remaining bits
@@ -209,7 +205,7 @@ void probe_handle_read(uint total_bits) {
 void probe_handle_write(uint8_t *data, uint total_bits) {
     picoprobe_debug("Write %d bits\n", total_bits);
 
-#ifdef USE_WS2812
+#ifdef PICO_DEFAULT_WS2812_PIN
     ws2812_signal_activity(total_bits);
 #else
     led_signal_activity(total_bits);
