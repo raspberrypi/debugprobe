@@ -53,6 +53,7 @@ endif()
 if (NOT SELECT_HARDWARE STREQUAL "PICO")
     target_sources(picoprobe PRIVATE src/ws2812.c)
     pico_generate_pio_header(picoprobe ${CMAKE_CURRENT_LIST_DIR}/src/ws2812.pio)
+    add_compile_definitions(RGB_COLOUR=0x001010) # CYAN -- Dilute to taste!
 endif()
 
 if (DEFINED ENV{PICOPROBE_LED})
