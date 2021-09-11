@@ -29,7 +29,7 @@
 #include "picoprobe_config.h"
 
 #define LED_COUNT_SHIFT 14
-#define LED_COUNT_MAX 5 * (1 << LED_COUNT_SHIFT)
+#define LED_COUNT_MAX   5 * (1 << LED_COUNT_SHIFT)
 
 static uint32_t led_count;
 
@@ -40,8 +40,6 @@ void led_init(void) {
     gpio_set_dir(PICOPROBE_LED, GPIO_OUT);
     gpio_put(PICOPROBE_LED, 1);
 }
-
-
 
 void led_task(void) {
     if (led_count != 0) {

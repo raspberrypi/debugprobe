@@ -33,7 +33,6 @@
 
 #define LED_COUNT_SHIFT 14
 #define LED_COUNT_MAX   5 * (1 << LED_COUNT_SHIFT)
-#define RGB_COLOUR      0x101000 // YELLOW
 
 static uint32_t led_count;
 static uint     pio_offset;
