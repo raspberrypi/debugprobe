@@ -4,6 +4,8 @@ A Picoprobe is a Raspberry Pi RP2040-based Single-Wire Debug (SWB) adaptor. You 
 
 The original version of this code only supported the Pico. This update adds support for three more boards, each of which provides a [STEMMA QT connector](https://learn.adafruit.com/introducing-adafruit-stemma-qt/what-is-stemma-qt)/[Quicc](https://www.sparkfun.com/qwiic) for easy cabling to the application board under test. These connectors are intended for use with I&sup2;C devices, but here we’re using their pins for GPIO and power.
 
+![A Picorporbe build from the Adafruit QTPy RP2040](images/qtpy_picoprobe.jpg)
+
 The code also uses the WS2812 RGB LED on those boards that have one as an SWD activity indicator.
 
 If your chosen board is not one of those so far supported by the Picoprobe code, you should be able to use with just a few small code changes.
