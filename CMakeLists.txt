@@ -4,17 +4,31 @@ include(pico_sdk_import.cmake)
 
 project(picoprobe)
 
-# On the next line, retain "pico" for Raspberry Pi Pico,
-# or set 'PICO_BOARD' to a board name as defined in
-# https://github.com/raspberrypi/pico-sdk/tree/master/src/boards/include/boards
-#
-# For example,
-#    "adafruit_qtpy_rp2040"    for the Adafruit QTPy
-#    "adafruit_feather_rp2040" for the Adafruit Feather RP2040
-#    "sparkfun_promicro"       for the SparkFun Pro Micro RP2040
+# If the env var 'PICO_BOARD' is set in the calling shell
+# eg. export PICO_BOARD=adafruit_qtpy_rp2040
+# then use it here
+if (NOT DEFINED ENV{PICO_BOARD})
+    # Otherwise use PICO_BOARD as defined here, which is handy when
+    # you're running CMake from an IDE (eg. VSCode) rather than the
+    # commmand line.
+    # Set 'PICO_BOARD' to a board name as defined in
+    # https://github.com/raspberrypi/pico-sdk/tree/master/src/boards/include/boards
+    #
+    # For example,
+    #    "adafruit_qtpy_rp2040"    for the Adafruit QTPy
+    #    "adafruit_feather_rp2040" for the Adafruit Feather RP2040
+    #    "sparkfun_promicro"       for the SparkFun Pro Micro RP2040
+    #
+    # The default is "pico"
+    message("Environment variable PICO_BOARD undefined -- using \"pico\"")
+    set(PICO_BOARD "pico")
+else()
+    message("Environment variable PICO_BOARD defined -- using $ENV{PICO_BOARD}")
+    set(PICO_BOARD "$ENV{PICO_BOARD}")
+endif()
 
-set(PICO_BOARD "pico")
 set(EXECUTABLE_NAME "picoprobe_${PICO_BOARD}")
+
 pico_sdk_init()
 
 add_executable(${EXECUTABLE_NAME}
@@ -26,17 +40,17 @@ add_executable(${EXECUTABLE_NAME}
                src/get_serial.c
 )
 
-if (PICO_BOARD STREQUAL "adafruit_qtpy_rp2040")
+if (${PICO_BOARD} STREQUAL "adafruit_qtpy_rp2040")
     message("Building for Adafruit QTPy RP2040 with WS2812")
-elseif (PICO_BOARD STREQUAL "adafruit_feather_rp2040")
+elseif (${PICO_BOARD} STREQUAL "adafruit_feather_rp2040")
     message("Building for Adafruit Feather RP2040 with WS2812")
-elseif (PICO_BOARD STREQUAL "sparkfun_promicro")
+elseif (${PICO_BOARD} STREQUAL "sparkfun_promicro")
     message("Building for SparkFun Pro Micro RP2040 with WS2812")
 else()
     message("Building for Raspberry Pi Pico")
 endif()
 
-if (NOT PICO_BOARD STREQUAL "pico")
+if (NOT ${PICO_BOARD} STREQUAL "pico")
     target_sources(${EXECUTABLE_NAME} PRIVATE src/ws2812.c)
     pico_generate_pio_header(${EXECUTABLE_NAME} ${CMAKE_CURRENT_LIST_DIR}/src/ws2812.pio)
     add_compile_definitions(RGB_COLOUR=0x001010) # CYAN -- Dilute to taste!
