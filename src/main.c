@@ -36,6 +36,10 @@
 #include "get_serial.h"
 #include "led.h"
 
+#ifdef PICO_DEFAULT_WS2812_PIN
+#include "ws2812.h"
+#endif
+
 // UART0 for Picoprobe debug
 // UART1 for picoprobe to target device
 
@@ -46,7 +50,12 @@ int main(void) {
     cdc_uart_init();
     tusb_init();
     probe_init();
+
+#ifdef PICO_DEFAULT_WS2812_PIN
+    ws2812_init();
+#else
     led_init();
+#endif
 
     picoprobe_info("Welcome to Picoprobe!\n");
 
@@ -54,7 +63,13 @@ int main(void) {
         tud_task(); // tinyusb device task
         cdc_task();
         probe_task();
+
+#ifdef PICO_DEFAULT_WS2812_PIN
+        ws2812_task();
+#else
         led_task();
+#endif
+
     }
 
     return 0;
