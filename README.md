@@ -1,10 +1,10 @@
 # Picoprobe
 
-A Picoprobe is a Raspberry Pi RP2040-based Serial Wire Debug (SWB) adaptor. You can make one from a Raspberry Pi Pico — hence the name — or almost any third-party RP2040-based board. Use it to connect your RP2040-based application board to your personal computer for debugging through `gdb`, directly or via an IDE such as Microsoft Visual Studio Code.
+A Picoprobe is a Raspberry Pi RP2040-based Serial Wire Debug (SWD) adaptor. You can make one from a Raspberry Pi Pico — hence the name — or almost any third-party RP2040-based board. Use it to connect your RP2040-based application board to your personal computer for debugging through `gdb`, directly or via an IDE such as Microsoft Visual Studio Code.
 
 This code originally supported only the Pico. It now supports three more boards, each of which provides a [STEMMA QT connector](https://learn.adafruit.com/introducing-adafruit-stemma-qt/what-is-stemma-qt)/[Qwiic](https://www.sparkfun.com/qwiic) for easy cabling to the application board under test. These connectors are intended for use with I&sup2;C devices, but here we’re using their pins for GPIO and power.
 
-![A Picoprorbe build from the Adafruit QTPy RP2040](images/qtpy_picoprobe.jpg)
+![A Picoprobe build from the Adafruit QTPy RP2040](images/qtpy_picoprobe.jpg)
 
 The code also uses the WS2812 RGB LED on those boards that have one as an SWD activity indicator.
 
