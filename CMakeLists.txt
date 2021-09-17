@@ -20,11 +20,14 @@ if (NOT DEFINED ENV{PICO_BOARD})
     #    "sparkfun_promicro"       for the SparkFun Pro Micro RP2040
     #
     # The default is "pico"
-    message("Environment variable PICO_BOARD undefined -- using \"pico\"")
+
+    # Set PICO_BORD here so that the SDK correctly applies it
     set(PICO_BOARD "pico")
+    message("Environment variable PICO_BOARD undefined -- using \"pico\"")
 else()
-    message("Environment variable PICO_BOARD defined -- using $ENV{PICO_BOARD}")
+    # Set PICO_BORD here, from the env var, so that the SDK correctly applies it
     set(PICO_BOARD "$ENV{PICO_BOARD}")
+    message("Environment variable PICO_BOARD defined -- using $ENV{PICO_BOARD}")
 endif()
 
 set(EXECUTABLE_NAME "picoprobe_${PICO_BOARD}")

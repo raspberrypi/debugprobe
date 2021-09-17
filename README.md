@@ -30,7 +30,7 @@ To build the code for your own Picoprobe at the command line:
 
 To install the application:
 
-1. Build your `.uf2` file, which will be located at `build/picoprobe_<YOUR_BOARD_NAME>.uf2`.
+1. Once built, your `.uf2` file will be located at `build/picoprobe_<YOUR_BOARD_NAME>.uf2`.
 1. Hold down the **BOOTSEL** or equivalent button on your Picoprobe board and connect it to your your computer.
 1. Release the button.
 1. Copy your `.uf2` file over to the `RPI-RP2` drive that will appear on your computer’s desktop or via its file system.
