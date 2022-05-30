@@ -2,6 +2,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2021 a-pushkin on GitHub
+ * Copyright (c) 2021 a-smittytone on GitHub
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,22 +24,36 @@
  *
  */
 
-#ifndef LED_H
-#define LED_H
+#include <pico/stdlib.h>
+#include <stdint.h>
 
-#define NEWLED 1
+#include "hardware/pio.h"
+#include "picoprobe_config.h"
+#include "ws2812.pio.h"
 
-void led_init(void);
-void led_task(void);
+static uint     pio_offset;
+static int      sm;
+PIO             pio;
 
-#ifndef NEWLED
-void led_signal_activity(uint total_bits, uint32_t colour);
-#else
-void led_signal_write_swd(uint total_bits);
-void led_signal_read_swd(uint total_bits);
-void led_signal_write_uart(uint total_bytes);
-void led_signal_read_uart(uint total_bytes);
-#endif
+void put_pixel(uint32_t colour) {
+    // GRB is irrational, so convert 'colour' from RGB
+    uint32_t grb_colour = ((colour & 0xFF0000) >> 8) | ((colour & 0xFF00) << 8) | (colour & 0xFF);
+    pio_sm_put_blocking(pio, sm, grb_colour << 8u);
+}
 
-#endif
+void ws2812_init(void) {
+    pio = pio1;
+    pio_offset = 0;
+    sm = 0;
 
+    #ifdef PICO_DEFAULT_WS2812_POWER_PIN
+    // Power up WS2812 on QTPY RP2040
+    gpio_init(PICO_DEFAULT_WS2812_POWER_PIN);
+    gpio_set_dir(PICO_DEFAULT_WS2812_POWER_PIN, GPIO_OUT);
+    gpio_put(PICO_DEFAULT_WS2812_POWER_PIN, 1);
+    #endif
+
+    // Set PIO output to feed the WS2182 via pin PICOPROBE_WS2812
+    pio_offset = pio_add_program(pio, &ws2812_program);
+    ws2812_program_init(pio, sm, pio_offset, PICOPROBE_WS2812, 800000, true);
+}

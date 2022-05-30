@@ -28,19 +28,29 @@
 
 #include "picoprobe_config.h"
 
-#define LED_COUNT_SHIFT 14
-#define LED_COUNT_MAX 5 * (1 << LED_COUNT_SHIFT)
+#ifdef PICOPROBE_WS2812
+#include "ws2812.h"
+#endif
 
 static uint32_t led_count;
+
 
 void led_init(void) {
     led_count = 0xffff; // We can watch this being counted down towards zero with a 'scope
 
+#ifdef PICOPROBE_LED
     gpio_init(PICOPROBE_LED);
     gpio_set_dir(PICOPROBE_LED, GPIO_OUT);
+#endif
+#ifdef PICOPROBE_WS2812
+    ws2812_init();
+    put_pixel(COLOUR_WHITE);
+#endif
+#ifdef PICOPROBE_LED
     gpio_put(PICOPROBE_LED, 1);
     gpio_put(PICOPROBE_LED, 0); // Recognisable timing datum
     gpio_put(PICOPROBE_LED, 1); // Start of 64K countdown
+#endif
 }
 
 /*
@@ -55,32 +65,44 @@ void led_init(void) {
 void led_task(void) {
     if (led_count != 0) {
         led_count -= 1;
-        if (led_count == 32767)
+        if (led_count == 32767) {
+#ifdef PICOPROBE_LED
             gpio_put(PICOPROBE_LED, 0);
+#endif
+#ifdef PICOPROBE_WS2812
+            // Set pixel off
+            put_pixel(COLOUR_BLACK);
+#endif
+        }
     }
 }
 
-void led_signal_activity(uint total_bits) {
+void led_signal_activity(uint total_bits, uint32_t colour) {
     if (led_count == 0) {
         led_count = 65535;
+#ifdef PICOPROBE_LED
         gpio_put(PICOPROBE_LED, 1);
+#endif
+#ifdef PICOPROBE_WS2812
+        put_pixel(colour);
+#endif
     }
 }
 
 
 void led_signal_write_swd(uint total_bits) {
-    led_signal_activity(total_bits);
+    led_signal_activity(total_bits, COLOUR_SWD_W);
 }
 
 void led_signal_read_swd(uint total_bits) {
-    led_signal_activity(total_bits);
+    led_signal_activity(total_bits, COLOUR_SWD_R);
 }
 
 void led_signal_write_uart(uint total_bytes) {
-    led_signal_activity(total_bytes << 3);
+    led_signal_activity(total_bytes << 3, COLOUR_UART_W);
 }
 
 void led_signal_read_uart(uint total_bytes) {
-    led_signal_activity(total_bytes << 3);
+    led_signal_activity(total_bytes << 3, COLOUR_UART_R);
 }
 

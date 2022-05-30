@@ -216,7 +216,7 @@ void probe_handle_write(uint8_t *data, uint total_bits) {
     picoprobe_debug("Write %d bits\n", total_bits);
 
 #ifndef NEWLED
-    led_signal_activity(total_bits);
+    led_signal_activity(total_bits, 1);
 #else
     if (total_bits >= 33)
         led_signal_write_swd(total_bits);

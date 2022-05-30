@@ -2,6 +2,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2021 a-pushkin on GitHub
+ * Copyright (c) 2021 a-smittytone on GitHub
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,22 +24,10 @@
  *
  */
 
-#ifndef LED_H
-#define LED_H
+#ifndef WS2812_H
+#define WS2812_H
 
-#define NEWLED 1
-
-void led_init(void);
-void led_task(void);
-
-#ifndef NEWLED
-void led_signal_activity(uint total_bits, uint32_t colour);
-#else
-void led_signal_write_swd(uint total_bits);
-void led_signal_read_swd(uint total_bits);
-void led_signal_write_uart(uint total_bytes);
-void led_signal_read_uart(uint total_bytes);
-#endif
+void ws2812_init(void);
+void put_pixel(uint32_t colour);
 
 #endif
-

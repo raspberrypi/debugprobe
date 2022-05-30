@@ -32,7 +32,6 @@
 #define picoprobe_info(format,...) ((void)0)
 #endif
 
-
 #if false
 #define picoprobe_debug(format,args...) printf(format, ## args)
 #else
@@ -44,7 +43,6 @@
 #else
 #define picoprobe_dump(format,...) ((void)0)
 #endif
-
 
 // PIO config
 #define PROBE_SM 0
@@ -62,16 +60,53 @@
 #define PICOPROBE_UART_BAUDRATE 115200
 
 // LED config
-#ifndef PICOPROBE_LED
-
-#ifndef PICO_DEFAULT_LED_PIN
-#error PICO_DEFAULT_LED_PIN is not defined, run PICOPROBE_LED=<led_pin> cmake
-#elif PICO_DEFAULT_LED_PIN == -1
-#error PICO_DEFAULT_LED_PIN is defined as -1, run PICOPROBE_LED=<led_pin> cmake
+#ifdef PICOPROBE_LED
+  #define HAS_FLASHER 1
 #else
-#define PICOPROBE_LED PICO_DEFAULT_LED_PIN
+  #if PICO_DEFAULT_LED_PIN == -1
+    #undef PICO_DEFAULT_LED_PIN
+  #endif
+  #ifdef PICO_DEFAULT_LED_PIN
+    #define PICOPROBE_LED PICO_DEFAULT_LED_PIN
+    #define HAS_FLASHER 1
+  #endif
 #endif
+
+// WS2812 confid
+#ifdef PICOPROBE_WS2812
+  #define HAS_FLASHER 1
+#else
+  #if PICO_DEFAULT_WS2812_PIN == -1
+    #undef PICO_DEFAULT_WS2812_PIN
+  #endif
+  #ifdef PICO_DEFAULT_WS2812_PIN
+    #define PICOPROBE_WS2812 PICO_DEFAULT_WS2812_PIN
+    #define HAS_FLASHER 1
+  #endif
+#endif
+
+#ifndef HAS_FLASHER
+  #warning PICO_DEFAULT_LED_PIN is undefined or defined as -1, run PICOPROBE_LED=<led_pin> cmake
+  #warning PICO_DEFAULT_WS2812_PIN is undefined or defined as -1, run PICOPROBE_WS2812=<ws2812_pin> cmake
+  #error Either or both of PICOPROBE_LED or PICOPROBE_WS2812 must be defined, or have sensible defaults from the board definition.
+#endif
+
+// Keep the colours no brighter than necessary to avoid overloading the grain-
+// of-rice voltage regulator since this is also supplying the target board.
+
+#define COLOUR_RED     0x040000
+#define COLOUR_GREEN   0x000300
+#define COLOUR_BLUE    0x000004
+#define COLOUR_CYAN    0x000102
+#define COLOUR_MAGENTA 0x020002
+#define COLOUR_YELLOW  0x020100
+#define COLOUR_WHITE   0x010102
+#define COLOUR_BLACK   0x000000
+
+#define COLOUR_SWD_W   COLOUR_GREEN
+#define COLOUR_SWD_R   COLOUR_MAGENTA
+#define COLOUR_UART_W  COLOUR_YELLOW
+#define COLOUR_UART_R  COLOUR_BLUE
 
 #endif
 
-#endif
