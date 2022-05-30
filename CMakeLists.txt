@@ -13,16 +13,22 @@ add_executable(picoprobe
         src/probe.c
         src/cdc_uart.c
         src/get_serial.c
+        src/ws2812.c
 )
 
 if (DEFINED ENV{PICOPROBE_LED})
         message("PICOPROBE_LED is defined as " $ENV{PICOPROBE_LED})
         target_compile_definitions(picoprobe PRIVATE PICOPROBE_LED=$ENV{PICOPROBE_LED})
 endif()
+if (DEFINED ENV{PICOPROBE_WS2812})
+        message("PICOPROBE_WS2812 is defined as " $ENV{PICOPROBE_WS2812})
+        target_compile_definitions(picoprobe PRIVATE PICOPROBE_WS2812=$ENV{PICOPROBE_WS2812})
+endif()
 
 set(DBG_PIN_COUNT=4)
 
 pico_generate_pio_header(picoprobe ${CMAKE_CURRENT_LIST_DIR}/src/probe.pio)
+pico_generate_pio_header(picoprobe ${CMAKE_CURRENT_LIST_DIR}/src/ws2812.pio)
 
 target_include_directories(picoprobe PRIVATE src)
 
