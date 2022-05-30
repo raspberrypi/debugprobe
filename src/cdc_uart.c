@@ -27,6 +27,7 @@
 
 #include "tusb.h"
 
+#include "led.h"
 #include "picoprobe_config.h"
 
 void cdc_uart_init(void) {
@@ -49,6 +50,9 @@ void cdc_task(void) {
     if (tud_cdc_connected()) {
         // Do we have anything to display on the host's terminal?
         if (rx_len) {
+#ifdef NEWLED
+            led_signal_write_uart(rx_len);
+#endif
             for (uint i = 0; i < rx_len; i++) {
                 tud_cdc_write_char(rx_buf[i]);
             }
@@ -58,6 +62,9 @@ void cdc_task(void) {
         if (tud_cdc_available()) {
             // Is there any data from the host for us to tx
             uint tx_len = tud_cdc_read(tx_buf, sizeof(tx_buf));
+#ifdef NEWLED
+            led_signal_read_uart(tx_len);
+#endif
             uart_write_blocking(PICOPROBE_UART_INTERFACE, tx_buf, tx_len);
         }
     }

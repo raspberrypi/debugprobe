@@ -97,7 +97,9 @@ void probe_set_swclk_freq(uint freq_khz) {
 static inline void probe_assert_reset(bool state)
 {
     /* Change the direction to out to drive pin to 0 or to in to emulate open drain */
+#ifdef PROBE_PIN_RESET
     gpio_set_dir(PROBE_PIN_RESET, state);
+#endif
 }
 
 static inline void probe_write_bits(uint bit_count, uint8_t data_byte) {
@@ -144,10 +146,12 @@ void probe_init() {
     // Make sure SWDIO has a pullup on it. Idle state is high
     gpio_pull_up(PROBE_PIN_SWDIO);
 
+#ifdef PROBE_PIN_RESET
     // Target reset pin: pull up, input to emulate open drain pin
     gpio_pull_up(PROBE_PIN_RESET);
     // gpio_init will leave the pin cleared and set as input
     gpio_init(PROBE_PIN_RESET);
+#endif
 
     uint offset = pio_add_program(pio0, &probe_program);
     probe.offset = offset;
@@ -185,6 +189,12 @@ void probe_init() {
 
 void probe_handle_read(uint total_bits) {
     picoprobe_debug("Read %d bits\n", total_bits);
+
+#ifdef NEWLED
+    if (total_bits >= 38)
+        led_signal_read_swd(total_bits);
+#endif
+
     probe_read_mode();
 
     uint chunk;
@@ -205,7 +215,12 @@ void probe_handle_read(uint total_bits) {
 void probe_handle_write(uint8_t *data, uint total_bits) {
     picoprobe_debug("Write %d bits\n", total_bits);
 
+#ifndef NEWLED
     led_signal_activity(total_bits);
+#else
+    if (total_bits >= 33)
+        led_signal_write_swd(total_bits);
+#endif
 
     probe_write_mode();
 

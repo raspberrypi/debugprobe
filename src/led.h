@@ -26,8 +26,19 @@
 #ifndef LED_H
 #define LED_H
 
+#define NEWLED 1
+
 void led_init(void);
 void led_task(void);
+
+#ifndef NEWLED
 void led_signal_activity(uint total_bits);
+#else
+void led_signal_write_swd(uint total_bits);
+void led_signal_read_swd(uint total_bits);
+void led_signal_write_uart(uint total_bytes);
+void led_signal_read_uart(uint total_bytes);
+#endif
 
 #endif
+

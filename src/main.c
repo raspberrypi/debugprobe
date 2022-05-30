@@ -46,9 +46,21 @@ int main(void) {
     cdc_uart_init();
     tusb_init();
     probe_init();
-    led_init();
+    led_init(); 
 
-    picoprobe_info("Welcome to Picoprobe!\n");
+/*
+ * Keep led_init() at the end, so that the time it takes to count an initial
+ * value down to zero can be checked with a 'scope or logic analyser.
+ */
+
+    picoprobe_info("Welcome to Picoprobe! ");
+#ifdef PROBE_PIN_RESET
+    picoprobe_info("Reset: GP%d ", PROBE_PIN_RESET);
+#endif
+#ifdef PICOPROBE_LED
+    picoprobe_info("LED: GP%d", PICOPROBE_LED);
+#endif
+    picoprobe_info("\n");
 
     while (1) {
         tud_task(); // tinyusb device task
