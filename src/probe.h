@@ -26,7 +26,17 @@
 #ifndef PROBE_H_
 #define PROBE_H_
 
+void probe_set_swclk_freq(uint freq_khz);
+void probe_write_bits(uint bit_count, uint8_t data_byte);
+uint8_t probe_read_bits(uint bit_count);
+
+void probe_read_mode(void);
+void probe_write_mode(void);
+
+void probe_handle_read(uint total_bits);
+void probe_handle_write(uint8_t *data, uint total_bits);
+
 void probe_task(void);
 void probe_init(void);
-
+void probe_deinit(void);
 #endif
