@@ -72,6 +72,15 @@
 #define PICOPROBE_LED PICO_DEFAULT_LED_PIN
 #endif
 
+#define PROTO_OPENOCD_CUSTOM 0
+#define PROTO_DAP_V1 1
+#define PROTO_DAP_V2 2
+
+// Interface config
+#ifndef PICOPROBE_DEBUG_PROTOCOL
+#define PICOPROBE_DEBUG_PROTOCOL PROTO_OPENOCD_CUSTOM
+#endif
+
 #endif
 
 #endif
