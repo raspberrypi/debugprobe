@@ -13,6 +13,7 @@ add_executable(picoprobe
         src/probe.c
         src/cdc_uart.c
         src/get_serial.c
+        src/sw_dp_pio.c
 )
 
 target_sources(picoprobe PRIVATE
@@ -20,7 +21,7 @@ target_sources(picoprobe PRIVATE
         CMSIS_5/CMSIS/DAP/Firmware/Source/JTAG_DP.c
         CMSIS_5/CMSIS/DAP/Firmware/Source/DAP_vendor.c
         CMSIS_5/CMSIS/DAP/Firmware/Source/SWO.c
-        CMSIS_5/CMSIS/DAP/Firmware/Source/SW_DP.c
+        #CMSIS_5/CMSIS/DAP/Firmware/Source/SW_DP.c
         )
 
 target_include_directories(picoprobe PRIVATE
