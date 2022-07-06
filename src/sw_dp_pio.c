@@ -186,8 +186,18 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data) {
   }
 
   if ((ack == DAP_TRANSFER_WAIT) || (ack == DAP_TRANSFER_FAULT)) {
+    if (DAP_Data.swd_conf.data_phase && ((request & DAP_TRANSFER_RnW) != 0U)) {
+      /* Dummy Read RDATA[0:31] + Parity */
+      probe_read_bits(33);
+    }
     probe_read_bits(DAP_Data.swd_conf.turnaround);
     probe_write_mode();
+    if (DAP_Data.swd_conf.data_phase && ((request & DAP_TRANSFER_RnW) == 0U)) {
+      /* Dummy Write WDATA[0:31] + Parity */
+      for (n = 0; n < 32; n += 8)
+        probe_write_bits(8, 0);
+      probe_write_bits(1, 0);
+    }
     return ((uint8_t)ack);
   }
 
