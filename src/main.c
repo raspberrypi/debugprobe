@@ -47,9 +47,40 @@
 static uint8_t TxDataBuffer[CFG_TUD_HID_EP_BUFSIZE];
 static uint8_t RxDataBuffer[CFG_TUD_HID_EP_BUFSIZE];
 
-void dap_task(void);
+#define THREADED 1
+
+#define UART_TASK_PRIO (tskIDLE_PRIORITY + 3)
+#define TUD_TASK_PRIO  (tskIDLE_PRIORITY + 2)
+#define DAP_TASK_PRIO  (tskIDLE_PRIORITY + 1)
+
+static TaskHandle_t dap_taskhandle, tud_taskhandle;
+
+void usb_thread(void *ptr)
+{
+    do {
+        tud_task();
+        // Trivial delay to save power
+        vTaskDelay(1);
+    } while (1);
+}
+
+void dap_thread(void *ptr)
+{
+    uint32_t resp_len;
+    do {
+        if (tud_vendor_available()) {
+            tud_vendor_read(RxDataBuffer, sizeof(RxDataBuffer));
+            resp_len = DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
+            tud_vendor_write(TxDataBuffer, resp_len);
+        } else {
+            // Trivial delay to save power
+            vTaskDelay(2);
+        }
+    } while (1);
+}
 
 int main(void) {
+    uint32_t resp_len;
 
     board_init();
     usb_serial_init();
@@ -64,29 +95,31 @@ int main(void) {
 
     picoprobe_info("Welcome to Picoprobe!\n");
 
-    while (1) {
-        tud_task(); // tinyusb device task
+    if (THREADED) {
+        /* UART needs to preempt USB as if we don't, characters get lost */
+        xTaskCreate(cdc_thread, "UART", configMINIMAL_STACK_SIZE, NULL, UART_TASK_PRIO, &uart_taskhandle);
+        xTaskCreate(usb_thread, "TUD", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, &tud_taskhandle);
+        /* Lowest priority thread is debug - need to shuffle buffers before we can toggle swd... */
+        xTaskCreate(dap_thread, "DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);
+        vTaskStartScheduler();
+    }
+
+    while (!THREADED) {
+        tud_task();
         cdc_task();
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
         probe_task();
         led_task();
 #elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
-        dap_task();
+        if (tud_vendor_available()) {
+            tud_vendor_read(RxDataBuffer, sizeof(RxDataBuffer));
+            resp_len = DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
+            tud_vendor_write(TxDataBuffer, resp_len);
+        }
 #endif
     }
 
     return 0;
-}
-
-void dap_task(void)
-{
-  uint32_t count;
-  uint32_t resp_len;
-  if (tud_vendor_available()) {
-     count = tud_vendor_read(RxDataBuffer, sizeof(RxDataBuffer));
-     resp_len = DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
-     tud_vendor_write(TxDataBuffer, resp_len);
-  }
 }
 
 uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
