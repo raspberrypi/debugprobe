@@ -32,7 +32,7 @@
 /* Slight hack - we're not bitbashing so we need to set baudrate off the DAP's delay cycles.
  * Ideally we don't want calls to udiv everywhere... */
 #define MAKE_KHZ(x) (CPU_CLOCK / (2000 * ((x) + 1)))
-static uint32_t cached_delay;
+volatile uint32_t cached_delay = 0;
 
 // Generate SWJ Sequence
 //   count:  sequence bit count

@@ -63,8 +63,6 @@ struct _probe {
 
     // PIO offset
     uint offset;
-
-    uint cached_freq_khz;
 };
 
 static struct _probe probe;
@@ -89,14 +87,11 @@ struct __attribute__((__packed__)) probe_pkt_hdr {
 };
 
 void probe_set_swclk_freq(uint freq_khz) {
-    if (freq_khz != probe.cached_freq_khz) {
         uint clk_sys_freq_khz = clock_get_hz(clk_sys) / 1000;
         picoprobe_info("Set swclk freq %dKHz sysclk %dkHz\n", freq_khz, clk_sys_freq_khz);
         // Worked out with saleae
         uint32_t divider = clk_sys_freq_khz / freq_khz / 2;
         pio_sm_set_clkdiv_int_frac(pio0, PROBE_SM, divider, 0);
-        probe.cached_freq_khz = freq_khz;
-    }
 }
 
 void probe_assert_reset(bool state)
@@ -141,13 +136,16 @@ void probe_write_mode(void) {
     while(!(pio0->dbg_padoe & (1 << PROBE_PIN_SWDIO)));
 }
 
-void probe_init() {
+void probe_gpio_init()
+{
     // Funcsel pins
     pio_gpio_init(pio0, PROBE_PIN_SWCLK);
     pio_gpio_init(pio0, PROBE_PIN_SWDIO);
     // Make sure SWDIO has a pullup on it. Idle state is high
     gpio_pull_up(PROBE_PIN_SWDIO);
+}
 
+void probe_init() {
     // Target reset pin: pull up, input to emulate open drain pin
     gpio_pull_up(PROBE_PIN_RESET);
     // gpio_init will leave the pin cleared and set as input

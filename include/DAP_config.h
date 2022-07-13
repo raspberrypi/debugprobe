@@ -315,8 +315,11 @@ Configures the DAP Hardware I/O pins for Serial Wire Debug (SWD) mode:
  - SWCLK, SWDIO, nRESET to output mode and set to default high level.
  - TDI, nTRST to HighZ mode (pins are unused in SWD mode).
 */
+// hack - zap our "stop doing divides everywhere" cache
+extern volatile uint32_t cached_delay;
 __STATIC_INLINE void PORT_SWD_SETUP (void) {
   probe_init();
+  cached_delay = 0;
 }
 
 /** Disable JTAG/SWD I/O Pins.
@@ -542,7 +545,7 @@ Status LEDs. In detail the operation of Hardware I/O and LED pins are enabled an
  - LED output pins are enabled and LEDs are turned off.
 */
 __STATIC_INLINE void DAP_SETUP (void) {
-  ;
+  probe_gpio_init();
 }
 
 /** Reset Target Device with custom specific I/O pin or command sequence.

@@ -87,6 +87,7 @@ int main(void) {
     cdc_uart_init();
     tusb_init();
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
+    probe_gpio_init();
     probe_init();
 #else
     DAP_Setup();
