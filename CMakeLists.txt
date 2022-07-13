@@ -47,4 +47,6 @@ target_compile_definitions (picoprobe PRIVATE
 
 target_link_libraries(picoprobe PRIVATE pico_stdlib pico_unique_id tinyusb_device tinyusb_board hardware_pio)
 
+pico_set_binary_type(picoprobe copy_to_ram)
+
 pico_add_extra_outputs(picoprobe)

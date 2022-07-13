@@ -32,6 +32,7 @@
 /* Slight hack - we're not bitbashing so we need to set baudrate off the DAP's delay cycles.
  * Ideally we don't want calls to udiv everywhere... */
 #define MAKE_KHZ(x) (CPU_CLOCK / (2000 * ((x) + 1)))
+static uint32_t cached_delay;
 
 // Generate SWJ Sequence
 //   count:  sequence bit count
@@ -42,8 +43,11 @@ void SWJ_Sequence (uint32_t count, const uint8_t *data) {
   uint32_t bits;
   uint32_t n;
 
-  probe_set_swclk_freq(MAKE_KHZ(DAP_Data.clock_delay));
-  picoprobe_info("SWJ sequence count = %d FDB=0x%2x\n", count, data[0]);
+  if (DAP_Data.clock_delay != cached_delay) {
+    probe_set_swclk_freq(MAKE_KHZ(DAP_Data.clock_delay));
+    cached_delay = DAP_Data.clock_delay;
+  }
+  picoprobe_debug("SWJ sequence count = %d FDB=0x%2x\n", count, data[0]);
   n = count;
   while (n > 0) {
     if (n > 8)
@@ -66,8 +70,11 @@ void SWD_Sequence (uint32_t info, const uint8_t *swdo, uint8_t *swdi) {
   uint32_t bits;
   uint32_t n;
 
-  probe_set_swclk_freq(MAKE_KHZ(DAP_Data.clock_delay));
-  picoprobe_info("SWD sequence\n");
+  if (DAP_Data.clock_delay != cached_delay) {
+    probe_set_swclk_freq(MAKE_KHZ(DAP_Data.clock_delay));
+    cached_delay = DAP_Data.clock_delay;
+  }
+  picoprobe_debug("SWD sequence\n");
   n = info & SWD_SEQUENCE_CLK;
   if (n == 0U) {
     n = 64U;
@@ -108,8 +115,11 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data) {
   uint32_t parity = 0;
   uint32_t n;
 
-  probe_set_swclk_freq(MAKE_KHZ(DAP_Data.clock_delay));
-  picoprobe_info("SWD_transfer\n");
+  if (DAP_Data.clock_delay != cached_delay) {
+    probe_set_swclk_freq(MAKE_KHZ(DAP_Data.clock_delay));
+    cached_delay = DAP_Data.clock_delay;
+  }
+  picoprobe_debug("SWD_transfer\n");
   /* Generate the request packet */
   prq |= (1 << 0); /* Start Bit */
   for (n = 1; n < 5; n++) {
@@ -124,28 +134,25 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data) {
 
   /* Turnaround (ignore read bits) */
   probe_read_mode();
-  probe_read_bits(DAP_Data.swd_conf.turnaround);
 
-  ack = probe_read_bits(3);
+  ack = probe_read_bits(DAP_Data.swd_conf.turnaround + 3);
+  ack >>= DAP_Data.swd_conf.turnaround;
 
   if (ack == DAP_TRANSFER_OK) {
     /* Data transfer phase */
     if (request & DAP_TRANSFER_RnW) {
-      parity = 0;
       /* Read RDATA[0:31] - note probe_read shifts to LSBs */
-      for (n = 0; n < 32; n += 8) {
-        bit = probe_read_bits(8);
-        parity += __builtin_popcount(bit);
-        val |= (bit & 0xff) << n;
-      }
+      val = probe_read_bits(32);
       bit = probe_read_bits(1);
+      parity = __builtin_popcount(val);
       if ((parity ^ bit) & 1U) {
         /* Parity error */
         ack = DAP_TRANSFER_ERROR;
       }
       if (data)
         *data = val;
-
+      picoprobe_debug("Read %02x ack %02x 0x%08x parity %01x\n",
+                      prq, ack, val, bit);
       /* Turnaround for line idle */
       probe_read_bits(DAP_Data.swd_conf.turnaround);
       probe_write_mode();
@@ -156,14 +163,12 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data) {
 
       /* Write WDATA[0:31] */
       val = *data;
-      parity = 0;
-      for (n = 0; n < 32; n += 8) {
-        bit = (val >> n) & 0xff;
-        probe_write_bits(8, bit);
-        parity += __builtin_popcount(bit);
-      }
+      probe_write_bits(32, val);
+      parity = __builtin_popcount(val);
       /* Write Parity Bit */
       probe_write_bits(1, parity & 0x1);
+      picoprobe_debug("write %02x ack %02x 0x%08x parity %01x\n",
+                      prq, ack, val, parity);
     }
     /* Capture Timestamp */
     if (request & DAP_TRANSFER_TIMESTAMP) {
@@ -173,9 +178,9 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data) {
     /* Idle cycles - drive 0 for N clocks */
     if (DAP_Data.transfer.idle_cycles) {
       for (n = DAP_Data.transfer.idle_cycles; n; ) {
-        if (n > 8) {
-          probe_write_bits(8, 0);
-          n -= 8;
+        if (n > 32) {
+          probe_write_bits(32, 0);
+          n -= 32;
         } else {
           probe_write_bits(n, 0);
           n -= n;
@@ -194,8 +199,7 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data) {
     probe_write_mode();
     if (DAP_Data.swd_conf.data_phase && ((request & DAP_TRANSFER_RnW) == 0U)) {
       /* Dummy Write WDATA[0:31] + Parity */
-      for (n = 0; n < 32; n += 8)
-        probe_write_bits(8, 0);
+      probe_write_bits(32, 0);
       probe_write_bits(1, 0);
     }
     return ((uint8_t)ack);

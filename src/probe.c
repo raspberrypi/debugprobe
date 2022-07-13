@@ -105,7 +105,7 @@ void probe_assert_reset(bool state)
     gpio_set_dir(PROBE_PIN_RESET, state);
 }
 
-void probe_write_bits(uint bit_count, uint8_t data_byte) {
+void probe_write_bits(uint bit_count, uint32_t data_byte) {
     DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE);
     pio_sm_put_blocking(pio0, PROBE_SM, bit_count - 1);
     pio_sm_put_blocking(pio0, PROBE_SM, data_byte);
@@ -117,14 +117,13 @@ void probe_write_bits(uint bit_count, uint8_t data_byte) {
     DEBUG_PINS_CLR(probe_timing, DBG_PIN_WRITE);
 }
 
-uint8_t probe_read_bits(uint bit_count) {
+uint32_t probe_read_bits(uint bit_count) {
     DEBUG_PINS_SET(probe_timing, DBG_PIN_READ);
     pio_sm_put_blocking(pio0, PROBE_SM, bit_count - 1);
     uint32_t data = pio_sm_get_blocking(pio0, PROBE_SM);
-    uint8_t data_shifted = data >> 24;
-
-    if (bit_count < 8) {
-        data_shifted = data_shifted >> 8-bit_count;
+    uint32_t data_shifted = data;
+    if (bit_count < 32) {
+        data_shifted = data >> (32 - bit_count);
     }
 
     picoprobe_dump("Read %d bits 0x%x (shifted 0x%x)\n", bit_count, data, data_shifted);
@@ -207,7 +206,7 @@ void probe_handle_read(uint total_bits) {
         } else {
             chunk = bits;
         }
-        probe.tx_buf[probe.tx_len] = probe_read_bits(chunk);
+        probe.tx_buf[probe.tx_len] = (uint8_t)probe_read_bits(chunk);
         probe.tx_len++;
         // Decrement remaining bits
         bits -= chunk;
@@ -230,7 +229,7 @@ void probe_handle_write(uint8_t *data, uint total_bits) {
             chunk = bits;
         }
 
-        probe_write_bits(chunk, *data++);
+        probe_write_bits(chunk, (uint32_t)*data++);
         bits -= chunk;
     }
 }
