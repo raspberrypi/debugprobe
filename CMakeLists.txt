@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.12)
 
 include(pico_sdk_import.cmake)
 
+set(FREERTOS_KERNEL_PATH ${CMAKE_CURRENT_LIST_DIR}/freertos)
+include(FreeRTOS_Kernel_import.cmake)
+
 project(picoprobe)
 
 pico_sdk_init()
@@ -30,6 +33,8 @@ target_include_directories(picoprobe PRIVATE
         include/
         )
 
+target_compile_options(picoprobe PRIVATE -Wall)
+
 if (DEFINED ENV{PICOPROBE_LED})
         message("PICOPROBE_LED is defined as " $ENV{PICOPROBE_LED})
         target_compile_definitions(picoprobe PRIVATE PICOPROBE_LED=$ENV{PICOPROBE_LED})
@@ -45,7 +50,16 @@ target_compile_definitions (picoprobe PRIVATE
 	PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
 )
 
-target_link_libraries(picoprobe PRIVATE pico_stdlib pico_unique_id tinyusb_device tinyusb_board hardware_pio)
+target_link_libraries(picoprobe PRIVATE
+        pico_multicore
+        pico_stdlib
+        pico_unique_id
+        tinyusb_device
+        tinyusb_board
+        hardware_pio
+        FreeRTOS-Kernel
+        FreeRTOS-Kernel-Heap1
+)
 
 pico_set_binary_type(picoprobe copy_to_ram)
 

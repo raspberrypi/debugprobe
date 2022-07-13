@@ -24,7 +24,10 @@
  *
  */
 
-#include <stdlib.h>
+#include "FreeRTOS.h"
+#include "task.h"
+
+#include <pico/stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -148,3 +151,17 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   return false;
 }
 #endif
+
+void vApplicationTickHook (void)
+{
+};
+
+void vApplicationStackOverflowHook(TaskHandle_t Task, char *pcTaskName)
+{
+  panic("stack overflow (not the helpful kind) for %s\n", *pcTaskName);
+}
+
+void vApplicationMallocFailedHook(void)
+{
+  panic("Malloc Failed\n");
+};
