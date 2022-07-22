@@ -26,6 +26,10 @@ pico_generate_pio_header(picoprobe ${CMAKE_CURRENT_LIST_DIR}/src/probe.pio)
 
 target_include_directories(picoprobe PRIVATE src)
 
+target_compile_definitions (picoprobe PRIVATE
+	PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
+)
+
 target_link_libraries(picoprobe PRIVATE pico_stdlib pico_unique_id tinyusb_device tinyusb_board hardware_pio)
 
 pico_add_extra_outputs(picoprobe)
