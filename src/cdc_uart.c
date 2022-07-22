@@ -46,7 +46,7 @@ void cdc_task(void) {
         rx_buf[rx_len++] = uart_getc(PICOPROBE_UART_INTERFACE);
     }
 
-    if (tud_cdc_connected()) {
+    if (tud_ready()) {
         // Do we have anything to display on the host's terminal?
         if (rx_len) {
             for (uint i = 0; i < rx_len; i++) {
