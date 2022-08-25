@@ -137,11 +137,11 @@ char const* string_desc_arr [] =
 {
   (const char[]) { 0x09, 0x04 }, // 0: is supported language is English (0x0409)
   "Raspberry Pi", // 1: Manufacturer
-  "Picoprobe",    // 2: Product
+  "Picoprobe CMSIS-DAP", // 2: Product
   usb_serial,     // 3: Serial, uses flash unique ID
-  "Picoprobe CMSIS-DAP v1", // Interface descriptor for HID transport
-  "Picoprobe CMSIS-DAP v2", // Interface descriptor for Bulk transport
-  "Picoprobe CDC-ACM UART", // Interface descriptor for CDC
+  "Picoprobe CMSIS-DAP v1", // 4: Interface descriptor for HID transport
+  "Picoprobe CMSIS-DAP v2", // 5: Interface descriptor for Bulk transport
+  "Picoprobe CDC-ACM UART", // 6: Interface descriptor for CDC
 };
 
 static uint16_t _desc_str[32];
