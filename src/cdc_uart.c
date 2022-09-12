@@ -36,6 +36,11 @@ TickType_t last_wake, interval = 100;
 
 static uint8_t tx_buf[CFG_TUD_CDC_TX_BUFSIZE];
 static uint8_t rx_buf[CFG_TUD_CDC_RX_BUFSIZE];
+// Actually s^-1 so 25ms
+#define DEBOUNCE_MS 40
+static uint debounce_ticks = 5;
+static uint tx_led_debounce;
+static uint rx_led_debounce;
 
 void cdc_uart_init(void) {
     gpio_set_function(PICOPROBE_UART_TX, GPIO_FUNC_UART);
@@ -61,21 +66,43 @@ void cdc_task(void)
         /* Implicit overflow if we don't write all the bytes to the host.
          * Also throw away bytes if we can't write... */
         if (rx_len) {
+#ifdef PICOPROBE_UART_RX_LED
+          gpio_put(PICOPROBE_UART_RX_LED, 1);
+          rx_led_debounce = debounce_ticks;
+#endif
           written = MIN(tud_cdc_write_available(), rx_len);
           if (written > 0) {
             tud_cdc_write(rx_buf, written);
             tud_cdc_write_flush();
           }
+        } else {
+#ifdef PICOPROBE_UART_RX_LED
+          if (rx_led_debounce)
+            rx_led_debounce--;
+          else
+            gpio_put(PICOPROBE_UART_RX_LED, 0);
+#endif
         }
 
       /* Reading from a firehose and writing to a FIFO. */
       size_t watermark = MIN(tud_cdc_available(), sizeof(tx_buf));
       if (watermark > 0) {
         size_t tx_len;
+#ifdef PICOPROBE_UART_TX_LED
+        gpio_put(PICOPROBE_UART_TX_LED, 1);
+        tx_led_debounce = debounce_ticks;
+#endif
         /* Batch up to half a FIFO of data - don't clog up on RX */
         watermark = MIN(watermark, 16);
         tx_len = tud_cdc_read(tx_buf, watermark);
         uart_write_blocking(PICOPROBE_UART_INTERFACE, tx_buf, tx_len);
+      } else {
+#ifdef PICOPROBE_UART_TX_LED
+          if (tx_led_debounce)
+            tx_led_debounce--;
+          else
+            gpio_put(PICOPROBE_UART_TX_LED, 0);
+#endif
       }
     } else if (was_connected) {
       tud_cdc_write_clear();
@@ -102,10 +129,10 @@ void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding)
    * fill up half a FIFO. Millis is too coarse for integer divide.
    */
   uint32_t micros = (1000 * 1000 * 16 * 10) / MAX(line_coding->bit_rate, 1);
-
   /* Modifying state, so park the thread before changing it. */
   vTaskSuspend(uart_taskhandle);
   interval = MAX(1, micros / ((1000 * 1000) / configTICK_RATE_HZ));
+  debounce_ticks = MAX(1, configTICK_RATE_HZ / (interval * DEBOUNCE_MS));
   picoprobe_info("New baud rate %d micros %d interval %u\n",
                   line_coding->bit_rate, micros, interval);
   uart_deinit(PICOPROBE_UART_INTERFACE);
@@ -119,8 +146,16 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 {
   /* CDC drivers use linestate as a bodge to activate/deactivate the interface.
    * Resume our UART polling on activate, stop on deactivate */
-  if (!dtr && !rts)
+  if (!dtr && !rts) {
     vTaskSuspend(uart_taskhandle);
-  else
+#ifdef PICOPROBE_UART_RX_LED
+    gpio_put(PICOPROBE_UART_RX_LED, 0);
+    rx_led_debounce = 0;
+#endif
+#ifdef PICOPROBE_UART_RX_LED
+    gpio_put(PICOPROBE_UART_TX_LED, 0);
+    tx_led_debounce = 0;
+#endif
+  } else
     vTaskResume(uart_taskhandle);
 }
