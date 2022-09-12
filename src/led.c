@@ -35,13 +35,26 @@ static uint32_t led_count;
 
 void led_init(void) {
     led_count = 0;
-
     gpio_init(PICOPROBE_LED);
     gpio_set_dir(PICOPROBE_LED, GPIO_OUT);
     gpio_put(PICOPROBE_LED, 1);
+#ifdef PICOPROBE_DAP_CONNECTED_LED
+    gpio_init(PICOPROBE_DAP_CONNECTED_LED);
+    gpio_set_dir(PICOPROBE_DAP_CONNECTED_LED, GPIO_OUT);
+#endif
+#ifdef PICOPROBE_DAP_RUNNING_LED
+    gpio_init(PICOPROBE_DAP_RUNNING_LED);
+    gpio_set_dir(PICOPROBE_DAP_RUNNING_LED, GPIO_OUT);
+#endif
+#ifdef PICOPROBE_UART_RX_LED
+    gpio_init(PICOPROBE_UART_RX_LED);
+    gpio_set_dir(PICOPROBE_UART_RX_LED, GPIO_OUT);
+#endif
+#ifdef PICOPROBE_UART_TX_LED
+    gpio_init(PICOPROBE_UART_TX_LED);
+    gpio_set_dir(PICOPROBE_UART_TX_LED, GPIO_OUT);
+#endif
 }
-
-
 
 void led_task(void) {
     if (led_count != 0) {
