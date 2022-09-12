@@ -74,7 +74,7 @@ void dap_thread(void *ptr)
             tud_vendor_write(TxDataBuffer, resp_len);
         } else {
             // Trivial delay to save power
-            vTaskDelay(2);
+            vTaskDelay(1);
         }
     } while (1);
 }
