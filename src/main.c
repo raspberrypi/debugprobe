@@ -59,6 +59,12 @@ void usb_thread(void *ptr)
 {
     do {
         tud_task();
+#ifdef PICOPROBE_USB_CONNECTED_LED
+        if (!gpio_get(PICOPROBE_USB_CONNECTED_LED) && tud_ready())
+            gpio_put(PICOPROBE_USB_CONNECTED_LED, 1);
+        else
+            gpio_put(PICOPROBE_USB_CONNECTED_LED, 0);
+#endif
         // Trivial delay to save power
         vTaskDelay(1);
     } while (1);
