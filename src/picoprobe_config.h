@@ -51,6 +51,7 @@
 #define PROBE_PIN_OFFSET 12
 #define PROBE_PIN_SWCLK (PROBE_PIN_OFFSET + 0) // 2
 #define PROBE_PIN_SWDIO (PROBE_PIN_OFFSET + 2) // 3
+#define PROBE_PIN_SWDI (PROBE_PIN_OFFSET + 1) // 1 - for level-shifted input
 
 // Target reset config
 #define PROBE_PIN_RESET 0
