@@ -163,7 +163,11 @@ void probe_init() {
         // Set SWDIO offset
         sm_config_set_out_pins(&sm_config, PROBE_PIN_SWDIO, 1);
         sm_config_set_set_pins(&sm_config, PROBE_PIN_SWDIO, 1);
+#ifdef PROBE_PIN_SWDI
+        sm_config_set_in_pins(&sm_config, PROBE_PIN_SWDI);
+#else
         sm_config_set_in_pins(&sm_config, PROBE_PIN_SWDIO);
+#endif
 
         // Set SWD and SWDIO pins as output to start. This will be set in the sm
         pio_sm_set_consecutive_pindirs(pio0, PROBE_SM, PROBE_PIN_OFFSET, 2, true);
