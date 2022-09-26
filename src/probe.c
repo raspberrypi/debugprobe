@@ -63,6 +63,7 @@ struct _probe {
 
     // PIO offset
     uint offset;
+    uint initted;
 };
 
 static struct _probe probe;
@@ -150,36 +151,38 @@ void probe_init() {
     gpio_pull_up(PROBE_PIN_RESET);
     // gpio_init will leave the pin cleared and set as input
     gpio_init(PROBE_PIN_RESET);
+    if (!probe.initted) {
+        uint offset = pio_add_program(pio0, &probe_program);
+        probe.offset = offset;
 
-    uint offset = pio_add_program(pio0, &probe_program);
-    probe.offset = offset;
+        pio_sm_config sm_config = probe_program_get_default_config(offset);
 
-    pio_sm_config sm_config = probe_program_get_default_config(offset);
+        // Set SWCLK as a sideset pin
+        sm_config_set_sideset_pins(&sm_config, PROBE_PIN_SWCLK);
 
-    // Set SWCLK as a sideset pin
-    sm_config_set_sideset_pins(&sm_config, PROBE_PIN_SWCLK);
+        // Set SWDIO offset
+        sm_config_set_out_pins(&sm_config, PROBE_PIN_SWDIO, 1);
+        sm_config_set_set_pins(&sm_config, PROBE_PIN_SWDIO, 1);
+        sm_config_set_in_pins(&sm_config, PROBE_PIN_SWDIO);
 
-    // Set SWDIO offset
-    sm_config_set_out_pins(&sm_config, PROBE_PIN_SWDIO, 1);
-    sm_config_set_set_pins(&sm_config, PROBE_PIN_SWDIO, 1);
-    sm_config_set_in_pins(&sm_config, PROBE_PIN_SWDIO);
+        // Set SWD and SWDIO pins as output to start. This will be set in the sm
+        pio_sm_set_consecutive_pindirs(pio0, PROBE_SM, PROBE_PIN_OFFSET, 2, true);
 
-    // Set SWD and SWDIO pins as output to start. This will be set in the sm
-    pio_sm_set_consecutive_pindirs(pio0, PROBE_SM, PROBE_PIN_OFFSET, 2, true);
+        // shift output right, autopull off, autopull threshold
+        sm_config_set_out_shift(&sm_config, true, false, 0);
+        // shift input right as swd data is lsb first, autopush off
+        sm_config_set_in_shift(&sm_config, true, false, 0);
 
-    // shift output right, autopull off, autopull threshold
-    sm_config_set_out_shift(&sm_config, true, false, 0);
-    // shift input right as swd data is lsb first, autopush off
-    sm_config_set_in_shift(&sm_config, true, false, 0);
+        // Init SM with config
+        pio_sm_init(pio0, PROBE_SM, offset, &sm_config);
 
-    // Init SM with config
-    pio_sm_init(pio0, PROBE_SM, offset, &sm_config);
+        // Set up divisor
+        probe_set_swclk_freq(1000);
 
-    // Set up divisor
-    probe_set_swclk_freq(1000);
-
-    // Enable SM
-    pio_sm_set_enabled(pio0, PROBE_SM, 1);
+        // Enable SM
+        pio_sm_set_enabled(pio0, PROBE_SM, 1);
+        probe.initted = 1;
+    }
 
     // Jump to write program
     probe_write_mode();
@@ -188,8 +191,11 @@ void probe_init() {
 void probe_deinit(void)
 {
   probe_read_mode();
-  pio_sm_set_enabled(pio0, PROBE_SM, 0);
-  pio_remove_program(pio0, &probe_program, probe.offset);
+  if (probe.initted) {
+    pio_sm_set_enabled(pio0, PROBE_SM, 0);
+    pio_remove_program(pio0, &probe_program, probe.offset);
+    probe.initted = 0;
+  }
 }
 
 void probe_handle_read(uint total_bits) {
