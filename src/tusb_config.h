@@ -64,7 +64,7 @@
 //------------- CLASS -------------//
 #define CFG_TUD_HID             0
 #define CFG_TUD_CDC             1
-#define CFG_TUD_MSC             0
+#define CFG_TUD_MSC             1
 #define CFG_TUD_MIDI            0
 #define CFG_TUD_VENDOR          1
 
@@ -73,6 +73,9 @@
 
 #define CFG_TUD_VENDOR_RX_BUFSIZE 8192
 #define CFG_TUD_VENDOR_TX_BUFSIZE 8192
+
+// MSC Buffer size
+#define CFG_TUD_MSC_EP_BUFSIZE    512
 
 #ifdef __cplusplus
  }

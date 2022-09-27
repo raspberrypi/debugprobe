@@ -13,6 +13,7 @@ add_executable(picoprobe
         src/probe.c
         src/cdc_uart.c
         src/get_serial.c
+        src/msc_drive.c
 )
 
 if (DEFINED ENV{PICOPROBE_LED})
