@@ -50,7 +50,7 @@ tusb_desc_device_t const desc_device =
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
     .idProduct          = 0x0004, // Picoprobe
 #else
-    .idProduct          = 0x000c, // CMSIS-DAP adapter
+    .idProduct          = 0x000c, // CMSIS-DAP Debug Probe
 #endif
     .bcdDevice          = 0x0101, // Version 01.01
     .iManufacturer      = 0x01,
@@ -137,11 +137,11 @@ char const* string_desc_arr [] =
 {
   (const char[]) { 0x09, 0x04 }, // 0: is supported language is English (0x0409)
   "Raspberry Pi", // 1: Manufacturer
-  "Picoprobe CMSIS-DAP", // 2: Product
+  "Debug Probe (CMSIS-DAP)", // 2: Product
   usb_serial,     // 3: Serial, uses flash unique ID
-  "Picoprobe CMSIS-DAP v1", // 4: Interface descriptor for HID transport
-  "Picoprobe CMSIS-DAP v2", // 5: Interface descriptor for Bulk transport
-  "Picoprobe CDC-ACM UART", // 6: Interface descriptor for CDC
+  "CMSIS-DAP v1 Interface", // 4: Interface descriptor for HID transport
+  "CMSIS-DAP v2 Interface", // 5: Interface descriptor for Bulk transport
+  "CDC-ACM UART Interface", // 6: Interface descriptor for CDC
 };
 
 static uint16_t _desc_str[32];
