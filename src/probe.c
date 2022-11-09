@@ -87,20 +87,20 @@ struct __attribute__((__packed__)) probe_pkt_hdr {
 };
 
 void probe_set_swclk_freq(uint freq_khz) {
-    picoprobe_info("Set swclk freq %dKHz\n", freq_khz);
-    uint clk_sys_freq_khz = clock_get_hz(clk_sys) / 1000;
-    // Worked out with saleae
-    uint32_t divider = clk_sys_freq_khz / freq_khz / 2;
-    pio_sm_set_clkdiv_int_frac(pio0, PROBE_SM, divider, 0);
+        uint clk_sys_freq_khz = clock_get_hz(clk_sys) / 1000;
+        picoprobe_info("Set swclk freq %dKHz sysclk %dkHz\n", freq_khz, clk_sys_freq_khz);
+        // Worked out with saleae
+        uint32_t divider = clk_sys_freq_khz / freq_khz / 2;
+        pio_sm_set_clkdiv_int_frac(pio0, PROBE_SM, divider, 0);
 }
 
-static inline void probe_assert_reset(bool state)
+void probe_assert_reset(bool state)
 {
     /* Change the direction to out to drive pin to 0 or to in to emulate open drain */
     gpio_set_dir(PROBE_PIN_RESET, state);
 }
 
-static inline void probe_write_bits(uint bit_count, uint8_t data_byte) {
+void probe_write_bits(uint bit_count, uint32_t data_byte) {
     DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE);
     pio_sm_put_blocking(pio0, PROBE_SM, bit_count - 1);
     pio_sm_put_blocking(pio0, PROBE_SM, data_byte);
@@ -112,14 +112,13 @@ static inline void probe_write_bits(uint bit_count, uint8_t data_byte) {
     DEBUG_PINS_CLR(probe_timing, DBG_PIN_WRITE);
 }
 
-static inline uint8_t probe_read_bits(uint bit_count) {
+uint32_t probe_read_bits(uint bit_count) {
     DEBUG_PINS_SET(probe_timing, DBG_PIN_READ);
     pio_sm_put_blocking(pio0, PROBE_SM, bit_count - 1);
     uint32_t data = pio_sm_get_blocking(pio0, PROBE_SM);
-    uint8_t data_shifted = data >> 24;
-
-    if (bit_count < 8) {
-        data_shifted = data_shifted >> 8-bit_count;
+    uint32_t data_shifted = data;
+    if (bit_count < 32) {
+        data_shifted = data >> (32 - bit_count);
     }
 
     picoprobe_dump("Read %d bits 0x%x (shifted 0x%x)\n", bit_count, data, data_shifted);
@@ -127,23 +126,26 @@ static inline uint8_t probe_read_bits(uint bit_count) {
     return data_shifted;
 }
 
-static void probe_read_mode(void) {
+void probe_read_mode(void) {
     pio_sm_exec(pio0, PROBE_SM, pio_encode_jmp(probe.offset + probe_offset_in_posedge));
     while(pio0->dbg_padoe & (1 << PROBE_PIN_SWDIO));
 }
 
-static void probe_write_mode(void) {
+void probe_write_mode(void) {
     pio_sm_exec(pio0, PROBE_SM, pio_encode_jmp(probe.offset + probe_offset_out_negedge));
     while(!(pio0->dbg_padoe & (1 << PROBE_PIN_SWDIO)));
 }
 
-void probe_init() {
+void probe_gpio_init()
+{
     // Funcsel pins
     pio_gpio_init(pio0, PROBE_PIN_SWCLK);
     pio_gpio_init(pio0, PROBE_PIN_SWDIO);
     // Make sure SWDIO has a pullup on it. Idle state is high
     gpio_pull_up(PROBE_PIN_SWDIO);
+}
 
+void probe_init() {
     // Target reset pin: pull up, input to emulate open drain pin
     gpio_pull_up(PROBE_PIN_RESET);
     // gpio_init will leave the pin cleared and set as input
@@ -183,6 +185,13 @@ void probe_init() {
     probe_write_mode();
 }
 
+void probe_deinit(void)
+{
+  probe_read_mode();
+  pio_sm_set_enabled(pio0, PROBE_SM, 0);
+  pio_remove_program(pio0, &probe_program, probe.offset);
+}
+
 void probe_handle_read(uint total_bits) {
     picoprobe_debug("Read %d bits\n", total_bits);
     probe_read_mode();
@@ -195,7 +204,7 @@ void probe_handle_read(uint total_bits) {
         } else {
             chunk = bits;
         }
-        probe.tx_buf[probe.tx_len] = probe_read_bits(chunk);
+        probe.tx_buf[probe.tx_len] = (uint8_t)probe_read_bits(chunk);
         probe.tx_len++;
         // Decrement remaining bits
         bits -= chunk;
@@ -218,7 +227,7 @@ void probe_handle_write(uint8_t *data, uint total_bits) {
             chunk = bits;
         }
 
-        probe_write_bits(chunk, *data++);
+        probe_write_bits(chunk, (uint32_t)*data++);
         bits -= chunk;
     }
 }

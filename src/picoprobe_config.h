@@ -49,8 +49,8 @@
 // PIO config
 #define PROBE_SM 0
 #define PROBE_PIN_OFFSET 2
-#define PROBE_PIN_SWCLK PROBE_PIN_OFFSET + 0 // 2
-#define PROBE_PIN_SWDIO PROBE_PIN_OFFSET + 1 // 3
+#define PROBE_PIN_SWCLK (PROBE_PIN_OFFSET + 0) // 2
+#define PROBE_PIN_SWDIO (PROBE_PIN_OFFSET + 1) // 3
 
 // Target reset config
 #define PROBE_PIN_RESET 6
@@ -70,6 +70,15 @@
 #error PICO_DEFAULT_LED_PIN is defined as -1, run PICOPROBE_LED=<led_pin> cmake
 #else
 #define PICOPROBE_LED PICO_DEFAULT_LED_PIN
+#endif
+
+#define PROTO_OPENOCD_CUSTOM 0
+#define PROTO_DAP_V1 1
+#define PROTO_DAP_V2 2
+
+// Interface config
+#ifndef PICOPROBE_DEBUG_PROTOCOL
+#define PICOPROBE_DEBUG_PROTOCOL PROTO_DAP_V2
 #endif
 
 #endif
