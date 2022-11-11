@@ -52,7 +52,7 @@ tusb_desc_device_t const desc_device =
 #else
     .idProduct          = 0x000c, // CMSIS-DAP adapter
 #endif
-    .bcdDevice          = 0x0100, // Version 01.00
+    .bcdDevice          = 0x0101, // Version 01.01
     .iManufacturer      = 0x01,
     .iProduct           = 0x02,
     .iSerialNumber      = 0x03,
