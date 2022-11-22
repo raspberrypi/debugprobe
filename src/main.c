@@ -32,20 +32,20 @@
 #include <string.h>
 
 #include "bsp/board.h"
-#include "tusb.h"
 
-#include "picoprobe_config.h"
-#include "probe.h"
+#include "tusb.h"
+#include "time.h"
 #include "cdc_uart.h"
 #include "get_serial.h"
 #include "led.h"
 #include "DAP.h"
+#include "DAP_config.h"
 
 // UART0 for Picoprobe debug
 // UART1 for picoprobe to target device
 
-static uint8_t TxDataBuffer[CFG_TUD_HID_EP_BUFSIZE];
-static uint8_t RxDataBuffer[CFG_TUD_HID_EP_BUFSIZE];
+static uint8_t TxDataBuffer[CFG_TUD_HID_EP_BUFSIZE * DAP_PACKET_COUNT];
+static uint8_t RxDataBuffer[CFG_TUD_HID_EP_BUFSIZE * DAP_PACKET_COUNT];
 
 #define THREADED 1
 
@@ -66,16 +66,29 @@ void usb_thread(void *ptr)
 
 void dap_thread(void *ptr)
 {
-    uint32_t resp_len;
+    uint32_t ret;
+    int32_t packet_len;
+    uint16_t req_len, resp_len;
+    uint8_t *rx_ptr;
+
     do {
-        if (tud_vendor_available()) {
-            tud_vendor_read(RxDataBuffer, sizeof(RxDataBuffer));
-            resp_len = DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
-            tud_vendor_write(TxDataBuffer, resp_len);
-        } else {
-            // Trivial delay to save power
-            vTaskDelay(2);
+        while (tud_vendor_available()) {
+            rx_ptr = &RxDataBuffer[0];
+            packet_len = tud_vendor_read(rx_ptr, sizeof(RxDataBuffer));
+            picoprobe_debug("Got chunk %u\n", packet_len);
+            do {
+                ret = DAP_ProcessCommand(rx_ptr, TxDataBuffer);
+                resp_len = ret & 0xffff;
+                req_len = ret >> 16;
+                tud_vendor_write(TxDataBuffer, resp_len);
+                rx_ptr += req_len;
+                packet_len -= req_len;
+                picoprobe_debug("Packet decode remaining %u req %u resp %u\n",
+                                packet_len, req_len, resp_len);
+            } while (packet_len > 0);
         }
+        // Trivial delay to save power
+        vTaskDelay(1);
     } while (1);
 }
 
