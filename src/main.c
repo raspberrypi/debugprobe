@@ -80,8 +80,6 @@ void dap_thread(void *ptr)
 }
 
 int main(void) {
-    uint32_t resp_len;
-
     board_init();
     usb_serial_init();
     cdc_uart_init();
@@ -113,6 +111,8 @@ int main(void) {
         led_task();
 #elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
         if (tud_vendor_available()) {
+            uint32_t resp_len;
+
             tud_vendor_read(RxDataBuffer, sizeof(RxDataBuffer));
             resp_len = DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
             tud_vendor_write(TxDataBuffer, resp_len);

@@ -106,7 +106,7 @@ void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding)
   /* Modifying state, so park the thread before changing it. */
   vTaskSuspend(uart_taskhandle);
   interval = MAX(1, micros / ((1000 * 1000) / configTICK_RATE_HZ));
-  picoprobe_info("New baud rate %d micros %d interval %u\n",
+  picoprobe_info("New baud rate %ld micros %ld interval %lu\n",
                   line_coding->bit_rate, micros, interval);
   uart_deinit(PICOPROBE_UART_INTERFACE);
   tud_cdc_write_clear();
