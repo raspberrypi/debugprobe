@@ -26,21 +26,23 @@
 #ifndef PICOPROBE_H_
 #define PICOPROBE_H_
 
-#if false
-#define picoprobe_info(format,args...) printf(format, ## args)
+int cdc_printf(const char* format, ...);
+
+#if 1
+#define picoprobe_info(format,args...) cdc_printf(format, ## args)
 #else
 #define picoprobe_info(format,...) ((void)0)
 #endif
 
 
-#if false
-#define picoprobe_debug(format,args...) printf(format, ## args)
+#if 1
+#define picoprobe_debug(format,args...) cdc_printf(format, ## args)
 #else
 #define picoprobe_debug(format,...) ((void)0)
 #endif
 
-#if false
-#define picoprobe_dump(format,args...) printf(format, ## args)
+#if 0
+#define picoprobe_dump(format,args...) cdc_printf(format, ## args)
 #else
 #define picoprobe_dump(format,...) ((void)0)
 #endif
@@ -78,7 +80,7 @@
 
 // Interface config
 #ifndef PICOPROBE_DEBUG_PROTOCOL
-#define PICOPROBE_DEBUG_PROTOCOL PROTO_DAP_V2
+#define PICOPROBE_DEBUG_PROTOCOL PROTO_DAP_V1
 #endif
 
 #endif
