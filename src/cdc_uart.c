@@ -174,6 +174,11 @@ void cdc_to_fifo(const char *buf, int max_cnt)
 
 
 int cdc_printf(const char* format, ...)
+/**
+ * Debug printf()
+ * Note that at the beginning of each output a timestamp is inserted.  Which means, that each call to cdc_printf()
+ * should output a line.
+ */
 {
   static uint32_t prev_ms;
   static uint32_t base_ms;
@@ -184,10 +189,10 @@ int cdc_printf(const char* format, ...)
   //
   // more or less intelligent time stamp which allows better measurements:
   // - show delta
-  // - reset time if there hase been no activity for 10s
+  // - reset time if there hase been no activity for 5s
   //
   now_ms = (uint32_t)(get_absolute_time() / 1000) - base_ms;
-  if (now_ms - prev_ms > 10000)
+  if (now_ms - prev_ms > 5000)
   {
     base_ms = (uint32_t)(get_absolute_time() / 1000);
     now_ms = 0;
