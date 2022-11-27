@@ -38,7 +38,10 @@ TickType_t last_wake, interval = 100;
 static uint8_t tx_buf[CFG_TUD_CDC_TX_BUFSIZE];
 static uint8_t rx_buf[CFG_TUD_CDC_RX_BUFSIZE];
 
-static uint8_t cdc_buf[CFG_TUD_CDC_TX_BUFSIZE];
+static uint16_t cdc_debug_fifo_read;
+static uint16_t cdc_debug_fifo_write;
+static uint8_t cdc_debug_fifo[1024];
+static uint8_t cdc_debug_buf[CFG_TUD_CDC_RX_BUFSIZE];
 
 void cdc_uart_init(void) {
     gpio_set_function(PICOPROBE_UART_TX, GPIO_FUNC_UART);
@@ -46,7 +49,8 @@ void cdc_uart_init(void) {
     gpio_set_pulls(PICOPROBE_UART_TX, 1, 0);
     gpio_set_pulls(PICOPROBE_UART_RX, 1, 0);
     uart_init(PICOPROBE_UART_INTERFACE, PICOPROBE_UART_BAUDRATE);
-    cdc_buf[0] = 0;
+    cdc_debug_fifo_read = 0;
+    cdc_debug_fifo_write = 0;
 }
 
 void cdc_task(void)
@@ -71,10 +75,20 @@ void cdc_task(void)
                 tud_cdc_write_flush();
             }
         }
-        else if (cdc_buf[0] != 0) {
-            tud_cdc_write(cdc_buf, strnlen((char *)cdc_buf, sizeof(cdc_buf)));
-            tud_cdc_write_flush();
-            cdc_buf[0] = 0;
+        else if (cdc_debug_fifo_read != cdc_debug_fifo_write) {
+          int cnt;
+
+          if (cdc_debug_fifo_read > cdc_debug_fifo_write) {
+            cnt = sizeof(cdc_debug_fifo) - cdc_debug_fifo_read;
+          }
+          else {
+            cnt = cdc_debug_fifo_write - cdc_debug_fifo_read;
+          }
+          cnt = MIN(cnt, sizeof(cdc_debug_buf));
+          memcpy(cdc_debug_buf, cdc_debug_fifo + cdc_debug_fifo_read, cnt);
+          cdc_debug_fifo_read = (cdc_debug_fifo_read + cnt) % sizeof(cdc_debug_fifo);
+          tud_cdc_write(cdc_debug_buf, cnt);
+          tud_cdc_write_flush();
         }
 
         /* Reading from a firehose and writing to a FIFO. */
@@ -138,9 +152,29 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 
 int cdc_printf(const char* format, ...)
 {
+  char buf[256];
+  char *buf_pnt;
+  int max_cnt;
+  int cnt;
   va_list va;
   va_start(va, format);
-  const int ret = vsnprintf((char *)cdc_buf, sizeof(cdc_buf), format, va);
+  const int ret = vsnprintf((char *)buf, sizeof(buf), format, va);
   va_end(va);
+
+  max_cnt = ret;
+  buf_pnt = buf;
+  while (max_cnt > 0  &&  (cdc_debug_fifo_write + 1) % sizeof(cdc_debug_fifo) != cdc_debug_fifo_read) {
+    if (cdc_debug_fifo_read > cdc_debug_fifo_write) {
+      cnt = (cdc_debug_fifo_read - 1) - cdc_debug_fifo_write;
+    }
+    else {
+      cnt = sizeof(cdc_debug_fifo) - cdc_debug_fifo_write;
+    }
+    cnt = MIN(cnt, max_cnt);
+    memcpy(cdc_debug_fifo + cdc_debug_fifo_write, buf_pnt, cnt);
+    buf_pnt += cnt;
+    max_cnt -= cnt;
+    cdc_debug_fifo_write = (cdc_debug_fifo_write + cnt) % sizeof(cdc_debug_fifo);
+  }
   return ret;
 }   // cdc_printf
