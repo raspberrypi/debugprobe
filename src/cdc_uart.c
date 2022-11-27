@@ -150,18 +150,11 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 
 
 
-int cdc_printf(const char* format, ...)
+void cdc_to_fifo(const char *buf, int max_cnt)
 {
-  char buf[256];
-  char *buf_pnt;
-  int max_cnt;
+  const char *buf_pnt;
   int cnt;
-  va_list va;
-  va_start(va, format);
-  const int ret = vsnprintf((char *)buf, sizeof(buf), format, va);
-  va_end(va);
 
-  max_cnt = ret;
   buf_pnt = buf;
   while (max_cnt > 0  &&  (cdc_debug_fifo_write + 1) % sizeof(cdc_debug_fifo) != cdc_debug_fifo_read) {
     if (cdc_debug_fifo_read > cdc_debug_fifo_write) {
@@ -176,5 +169,41 @@ int cdc_printf(const char* format, ...)
     max_cnt -= cnt;
     cdc_debug_fifo_write = (cdc_debug_fifo_write + cnt) % sizeof(cdc_debug_fifo);
   }
+}   // cdc_to_fifo
+
+
+
+int cdc_printf(const char* format, ...)
+{
+  static uint32_t prev_ms;
+  static uint32_t base_ms;
+  uint32_t now_ms;
+  uint32_t tt_ms;
+  char buf[256];
+
+  //
+  // more or less intelligent time stamp which allows better measurements:
+  // - show delta
+  // - reset time if there hase been no activity for 10s
+  //
+  now_ms = (uint32_t)(get_absolute_time() / 1000) - base_ms;
+  if (now_ms - prev_ms > 10000)
+  {
+    base_ms = (uint32_t)(get_absolute_time() / 1000);
+    now_ms = 0;
+    prev_ms = 0;
+  }
+  tt_ms = (uint32_t)(now_ms - prev_ms);
+  tt_ms = MIN(tt_ms, 999);
+  snprintf(buf, sizeof(buf), "%4lu.%03lu (%3lu) - ", now_ms / 1000, now_ms % 1000, tt_ms);
+  cdc_to_fifo(buf, strnlen(buf, sizeof(buf)));
+  prev_ms = now_ms;
+
+  va_list va;
+  va_start(va, format);
+  const int ret = vsnprintf((char *)buf, sizeof(buf), format, va);
+  va_end(va);
+  cdc_to_fifo(buf, ret);
+
   return ret;
 }   // cdc_printf
