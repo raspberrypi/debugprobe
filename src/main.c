@@ -49,11 +49,49 @@ static uint8_t RxDataBuffer[CFG_TUD_HID_EP_BUFSIZE];
 
 #define THREADED 1
 
-#define UART_TASK_PRIO (tskIDLE_PRIORITY + 3)
+#define UART_TASK_PRIO (tskIDLE_PRIORITY + 1)
 #define TUD_TASK_PRIO  (tskIDLE_PRIORITY + 2)
-#define DAP_TASK_PRIO  (tskIDLE_PRIORITY + 1)
+#define DAP_TASK_PRIO  (tskIDLE_PRIORITY + 3)
 
 static TaskHandle_t dap_taskhandle, tud_taskhandle;
+
+
+
+uint32_t DAP_ProcessCommandDebug(char *prefix, const uint8_t *request, uint32_t req_len, uint8_t *response)
+{
+    uint32_t resp_len;
+    bool echo = false;
+
+    switch (request[0])
+    {
+        case 0x00:
+            // ID_DAP_Info
+            picoprobe_info("%s_Exec ID_DAP_Info_00(%d), len %lu\n", prefix, request[1], req_len);
+            echo = true;
+            break;
+
+        case 0x05:
+            // ID_DAP_Transfer, appears very very often
+            break;
+
+        default:
+            picoprobe_info("%s_Exec cmd %0d, len %lu\n", prefix, request[0], req_len);
+            echo = true;
+            break;
+    }
+
+    resp_len = DAP_ProcessCommand(request, response);
+    if (echo)
+    {
+        picoprobe_info("   %s_response, len 0x%lx: ", prefix, resp_len);
+        for (uint32_t u = 0;  u < (resp_len & 0xffff);  ++u)
+            picoprobe_info(" %02x", response[u]);
+        picoprobe_info("\n");
+    }
+    return resp_len;
+}   // DAP_ProcessCommandDebug
+
+
 
 void usb_thread(void *ptr)
 {
@@ -65,13 +103,19 @@ void usb_thread(void *ptr)
 }
 
 void dap_thread(void *ptr)
+/**
+ * used only if DAPv2?
+ */
+// TODO this code is actually doing nothing (never called).  Everything seems to be handled 
 {
-    uint32_t resp_len;
     do {
         if (tud_vendor_available()) {
-            tud_vendor_read(RxDataBuffer, sizeof(RxDataBuffer));
-            resp_len = DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
-            tud_vendor_write(TxDataBuffer, resp_len);
+            uint32_t req_len;
+            uint32_t resp_len;
+
+            req_len = tud_vendor_read(RxDataBuffer, sizeof(RxDataBuffer));
+            resp_len = DAP_ProcessCommandDebug("1", RxDataBuffer, req_len, TxDataBuffer);
+            tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
         } else {
             // Trivial delay to save power
             vTaskDelay(2);
@@ -92,7 +136,16 @@ int main(void) {
 #endif
     led_init();
 
-    picoprobe_info("Welcome to Picoprobe!\n");
+    picoprobe_info("------------------------------------------");
+#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
+    picoprobe_info("Welcome to Picoprobe! (CUSTOM)\n");
+#elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
+    picoprobe_info("Welcome to Picoprobe! (DAP_V1)\n");
+#elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
+    picoprobe_info("Welcome to Picoprobe! (DAP_V2)\n");
+#else
+    picoprobe_info("Welcome to Picoprobe! (UNKNOWN)\n");
+#endif
 
     if (THREADED) {
         /* UART needs to preempt USB as if we don't, characters get lost */
@@ -111,11 +164,12 @@ int main(void) {
         led_task();
 #elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
         if (tud_vendor_available()) {
+            uint32_t req_len;
             uint32_t resp_len;
 
-            tud_vendor_read(RxDataBuffer, sizeof(RxDataBuffer));
-            resp_len = DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
-            tud_vendor_write(TxDataBuffer, resp_len);
+            req_len = tud_vendor_read(RxDataBuffer, sizeof(RxDataBuffer));
+            resp_len = DAP_ProcessCommandDebug("2", RxDataBuffer, req_len, TxDataBuffer);
+            tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
         }
 #endif
     }
@@ -144,8 +198,8 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
   (void) report_id;
   (void) report_type;
 
-  DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
-
+  DAP_ProcessCommandDebug("hid", RxDataBuffer, bufsize, TxDataBuffer);
+//   DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
   tud_hid_report(0, TxDataBuffer, response_size);
 }
 
