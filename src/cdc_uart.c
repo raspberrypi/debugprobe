@@ -152,23 +152,26 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 
 void cdc_to_fifo(const char *buf, int max_cnt)
 {
-  const char *buf_pnt;
-  int cnt;
+    const char *buf_pnt;
+    int cnt;
 
-  buf_pnt = buf;
-  while (max_cnt > 0  &&  (cdc_debug_fifo_write + 1) % sizeof(cdc_debug_fifo) != cdc_debug_fifo_read) {
-    if (cdc_debug_fifo_read > cdc_debug_fifo_write) {
-      cnt = (cdc_debug_fifo_read - 1) - cdc_debug_fifo_write;
+    buf_pnt = buf;
+    while (max_cnt > 0 && (cdc_debug_fifo_write + 1) % sizeof(cdc_debug_fifo) != cdc_debug_fifo_read)
+    {
+        if (cdc_debug_fifo_read > cdc_debug_fifo_write)
+        {
+            cnt = (cdc_debug_fifo_read - 1) - cdc_debug_fifo_write;
+        }
+        else
+        {
+            cnt = sizeof(cdc_debug_fifo) - cdc_debug_fifo_write;
+        }
+        cnt = MIN(cnt, max_cnt);
+        memcpy(cdc_debug_fifo + cdc_debug_fifo_write, buf_pnt, cnt);
+        buf_pnt += cnt;
+        max_cnt -= cnt;
+        cdc_debug_fifo_write = (cdc_debug_fifo_write + cnt) % sizeof(cdc_debug_fifo);
     }
-    else {
-      cnt = sizeof(cdc_debug_fifo) - cdc_debug_fifo_write;
-    }
-    cnt = MIN(cnt, max_cnt);
-    memcpy(cdc_debug_fifo + cdc_debug_fifo_write, buf_pnt, cnt);
-    buf_pnt += cnt;
-    max_cnt -= cnt;
-    cdc_debug_fifo_write = (cdc_debug_fifo_write + cnt) % sizeof(cdc_debug_fifo);
-  }
 }   // cdc_to_fifo
 
 
@@ -180,35 +183,69 @@ int cdc_printf(const char* format, ...)
  * should output a line.
  */
 {
-  static uint32_t prev_ms;
-  static uint32_t base_ms;
-  uint32_t now_ms;
-  uint32_t tt_ms;
-  char buf[256];
+    static uint32_t prev_ms;
+    static uint32_t base_ms;
+    static bool newline = true;
+    uint32_t now_ms;
+    uint32_t d_ms;
+    char buf[256];
+    char tbuf[30];
+    int cnt;
+    int ndx = 0;
+    const char *p;
 
-  //
-  // more or less intelligent time stamp which allows better measurements:
-  // - show delta
-  // - reset time if there hase been no activity for 5s
-  //
-  now_ms = (uint32_t)(get_absolute_time() / 1000) - base_ms;
-  if (now_ms - prev_ms > 5000)
-  {
-    base_ms = (uint32_t)(get_absolute_time() / 1000);
-    now_ms = 0;
-    prev_ms = 0;
-  }
-  tt_ms = (uint32_t)(now_ms - prev_ms);
-  tt_ms = MIN(tt_ms, 999);
-  snprintf(buf, sizeof(buf), "%4lu.%03lu (%3lu) - ", now_ms / 1000, now_ms % 1000, tt_ms);
-  cdc_to_fifo(buf, strnlen(buf, sizeof(buf)));
-  prev_ms = now_ms;
+    //
+    // print formatted text into buffer
+    //
+    va_list va;
+    va_start(va, format);
+    const int total_cnt = vsnprintf((char *)buf, sizeof(buf), format, va);
+    va_end(va);
 
-  va_list va;
-  va_start(va, format);
-  const int ret = vsnprintf((char *)buf, sizeof(buf), format, va);
-  va_end(va);
-  cdc_to_fifo(buf, ret);
+    tbuf[0] = 0;
 
-  return ret;
+    while (ndx < total_cnt)
+    {
+        if (newline)
+        {
+            newline = false;
+
+            if (tbuf[0] == 0)
+            {
+                //
+                // more or less intelligent time stamp which allows better measurements:
+                // - show delta
+                // - reset time if there hase been no activity for 5s
+                //
+                now_ms = (uint32_t)(get_absolute_time() / 1000) - base_ms;
+                if (now_ms - prev_ms > 5000)
+                {
+                    base_ms = (uint32_t)(get_absolute_time() / 1000);
+                    now_ms = 0;
+                    prev_ms = 0;
+                }
+                d_ms = (uint32_t)(now_ms - prev_ms);
+                d_ms = MIN(d_ms, 999);
+                snprintf(tbuf, sizeof(tbuf), "%lu.%03lu (%3lu) - ", now_ms / 1000, now_ms % 1000, d_ms);
+                prev_ms = now_ms;
+            }
+            cdc_to_fifo(tbuf, strnlen(tbuf, sizeof(tbuf)));
+        }
+
+        p = memchr(buf + ndx, '\n', total_cnt - ndx);
+        if (p == NULL)
+        {
+            cnt = total_cnt - ndx;
+        }
+        else {
+            cnt = (p - (buf + ndx)) + 1;
+            newline = true;
+        }
+
+        cdc_to_fifo(buf + ndx, cnt);
+
+        ndx += cnt;
+    }
+
+    return total_cnt;
 }   // cdc_printf
