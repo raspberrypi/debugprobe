@@ -217,10 +217,10 @@ int cdc_printf(const char* format, ...)
                 // - show delta
                 // - reset time if there hase been no activity for 5s
                 //
-                now_ms = (uint32_t)(get_absolute_time() / 1000) - base_ms;
+                now_ms = (uint32_t)(time_us_64() / 1000) - base_ms;
                 if (now_ms - prev_ms > 5000)
                 {
-                    base_ms = (uint32_t)(get_absolute_time() / 1000);
+                    base_ms = (uint32_t)(time_us_64() / 1000);
                     now_ms = 0;
                     prev_ms = 0;
                 }
