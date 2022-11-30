@@ -158,6 +158,7 @@ void dap_thread(void *ptr)
  */
 // TODO this code is actually doing nothing (never called).  Everything seems to be handled 
 {
+#if 0
     uint32_t ret;
     int32_t packet_len;
     uint16_t req_len, resp_len;
@@ -177,6 +178,7 @@ void dap_thread(void *ptr)
                 resp_len = ret & 0xffff;
                 req_len = ret >> 16;
                 tud_vendor_write(TxDataBuffer, resp_len);
+                tud_vendor_flush();
                 rx_ptr += req_len;
                 packet_len -= req_len;
                 picoprobe_debug("Packet decode remaining %u req %u resp %u\n",
@@ -186,6 +188,26 @@ void dap_thread(void *ptr)
         // Trivial delay to save power
         vTaskDelay(1);
     } while (1);
+#else
+   for (;;)
+   {
+        if (tud_vendor_available()) 
+        {
+            uint32_t req_len;
+            uint32_t resp_len;
+
+            req_len = tud_vendor_read(RxDataBuffer, sizeof(RxDataBuffer));
+            resp_len = DAP_ProcessCommandDebug("1", RxDataBuffer, req_len, TxDataBuffer);
+            tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
+            tud_vendor_flush();
+        }
+        else
+        {
+            // Trivial delay to save power
+            vTaskDelay(2);
+        }
+   }
+#endif
 }
 #endif
 
@@ -247,6 +269,7 @@ int main(void)
             resp_len = DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
 #endif
             tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
+            tud_vendor_flush();
         }
 #endif
     }
@@ -295,6 +318,8 @@ extern uint8_t const desc_ms_os_20[];
 
 bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request)
 {
+    picoprobe_info("!!!!!!!!!!!!!!!tud_vendor_control_xfer_cb %d\n", stage);
+
     // nothing to with DATA & ACK stage
     if (stage != CONTROL_STAGE_SETUP)
         return true;
