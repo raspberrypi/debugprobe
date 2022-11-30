@@ -80,11 +80,11 @@ enum
   ITF_NUM_TOTAL
 };
 
-#define CDC_NOTIFICATION_EP_NUM 0x81
-#define CDC_DATA_OUT_EP_NUM 0x02
-#define CDC_DATA_IN_EP_NUM 0x83
-#define PROBE_OUT_EP_NUM 0x04
-#define PROBE_IN_EP_NUM 0x85
+#define CDC_NOTIFICATION_EP_NUM   0x81
+#define CDC_DATA_OUT_EP_NUM       0x02
+#define CDC_DATA_IN_EP_NUM        0x83
+#define PROBE_OUT_EP_NUM          0x04
+#define PROBE_IN_EP_NUM           0x85
 
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
     #define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_HID_INOUT_DESC_LEN)
@@ -108,20 +108,22 @@ enum
 
 uint8_t const desc_configuration[] =
 {
-  TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
-  // Interface 0
+    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+
+    // Interface 0
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
-  // HID (named interface)
-  TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_PROBE, 4, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, CFG_TUD_HID_EP_BUFSIZE, 1),
+    // HID (named interface)
+    TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_PROBE, 4, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, CFG_TUD_HID_EP_BUFSIZE, 1),
 #elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
-  // Bulk (named interface)
-  TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE, 5, PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, 64),
+    // Bulk (named interface)
+    TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE, 5, PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, 64),
 #elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
-  // Bulk
-  TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE, 0, PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, 64),
+    // Bulk
+    TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE, 0, PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, 64),
 #endif
-  // Interface 1 + 2
-  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_COM, 6, CDC_NOTIFICATION_EP_NUM, 64, CDC_DATA_OUT_EP_NUM, CDC_DATA_IN_EP_NUM, 64),
+
+    // Interface 1 + 2
+    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_COM, 6, CDC_NOTIFICATION_EP_NUM, 64, CDC_DATA_OUT_EP_NUM, CDC_DATA_IN_EP_NUM, 64),
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
@@ -129,8 +131,8 @@ uint8_t const desc_configuration[] =
 // Descriptor contents must exist long enough for transfer to complete
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
-  (void) index; // for multiple configurations
-  return desc_configuration;
+    (void) index; // for multiple configurations
+    return desc_configuration;
 }
 
 //--------------------------------------------------------------------+
@@ -149,10 +151,10 @@ char const* string_desc_arr [] =
 #else
     "Picoprobe CMSIS-DAP custom",                  // 2: Product
 #endif
-    usb_serial,     // 3: Serial, uses flash unique ID
-    "Picoprobe CMSIS-DAP v1", // 4: Interface descriptor for HID transport
-    "Picoprobe CMSIS-DAP v2", // 5: Interface descriptor for Bulk transport
-    "Picoprobe CDC-ACM UART", // 6: Interface descriptor for CDC
+    usb_serial,                                    // 3: Serial, uses flash unique ID
+    "Picoprobe CMSIS-DAP v1",                      // 4: Interface descriptor for HID transport
+    "Picoprobe CMSIS-DAP v2",                      // 5: Interface descriptor for Bulk transport
+    "Picoprobe CDC-ACM UART",                      // 6: Interface descriptor for CDC
 };
 
 
