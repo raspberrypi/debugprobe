@@ -57,7 +57,7 @@ static TaskHandle_t dap_taskhandle, tud_taskhandle;
 
 
 
-uint32_t DAP_ProcessCommandDebug(char *prefix, const uint8_t *request, uint32_t req_len, uint8_t *response)
+static uint32_t DAP_ProcessCommandDebug(char *prefix, const uint8_t *request, uint32_t req_len, uint8_t *response)
 {
     uint32_t resp_len;
     bool echo = false;
@@ -66,16 +66,52 @@ uint32_t DAP_ProcessCommandDebug(char *prefix, const uint8_t *request, uint32_t 
     {
         case 0x00:
             // ID_DAP_Info
-            picoprobe_info("%s_Exec ID_DAP_Info_00(%d), len %lu\n", prefix, request[1], req_len);
+            picoprobe_info("%s_exec ID_DAP_Info_00(%d), len %lu\n", prefix, request[1], req_len);
+            echo = true;
+            break;
+
+        case 0x02:
+            // ID_DAP_Connect
+            picoprobe_info("%s_exec ID_DAP_Connect_02(%d), len %lu\n", prefix, request[1], req_len);
+            echo = true;
+            break;
+
+        case 0x03:
+            // ID_DAP_Disconnect
+            picoprobe_info("%s_exec ID_DAP_Disconnect_03\n", prefix);
             echo = true;
             break;
 
         case 0x05:
-            // ID_DAP_Transfer, appears very very often
+            // ID_DAP_Transfer, appears very very often, so suppress it
+            picoprobe_info("%s_exec ID_DAP_Transfer_05(%d)...\n", prefix, request[1]);
+            break;
+
+        case 0x06:
+            // ID_DAP_TransferBlock
+            picoprobe_info("%s_exec ID_DAP_TransferBlock_06, %02x %02x %02x %02x\n", prefix, request[1], request[2], request[3], request[4]);
+            break;
+
+        case 0x11:
+            // ID_DAP_SWJ_Clock
+            picoprobe_info("%s_exec ID_DAP_SWJ_Clock_11(%lu)\n", prefix, 1UL*request[1] + 256UL*request[2] + 65536UL*request[3] + 1048576UL*request[4]);
+            echo = true;
+            break;
+
+        case 0x12:
+            // ID_DAP_SWJ_Sequence
+            picoprobe_info("%s_exec ID_DAP_SWJ_Sequence_12(%d)\n", prefix, request[1]);
+            echo = true;
+            break;
+
+        case 0x1d:
+            // ID_DAP_SWD_Sequence
+            picoprobe_info("%s_exec ID_DAP_SWD_Sequence_1d(%d), len %lu\n", prefix, request[1], req_len);
+            echo = true;
             break;
 
         default:
-            picoprobe_info("%s_Exec cmd %0d, len %lu\n", prefix, request[0], req_len);
+            picoprobe_info("---------%s_Exec cmd %02x, len %lu\n", prefix, request[0], req_len);
             echo = true;
             break;
     }
