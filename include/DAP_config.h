@@ -62,7 +62,6 @@ This information includes:
 /// a Cortex-M0+ processor with high-speed peripheral I/O only 1 processor cycle might be
 /// required.
 #define IO_PORT_WRITE_CYCLES    1U              ///< I/O Cycles: 2=default, 1=Cortex-M0+ fast I/0.
-#define DELAY_SLOW_CYCLES 1U // We don't differentiate between fast/slow, we've got a 16-bit divisor for that
 
 /// Indicate that Serial Wire Debug (SWD) communication mode is available at the Debug Access Port.
 /// This information is returned by the command \ref DAP_Info as part of <b>Capabilities</b>.
@@ -89,13 +88,21 @@ This information includes:
 /// This configuration settings is used to optimize the communication performance with the
 /// debugger and depends on the USB peripheral. Typical vales are 64 for Full-speed USB HID or WinUSB,
 /// 1024 for High-speed USB HID and 512 for High-speed USB WinUSB.
-#define DAP_PACKET_SIZE         64U            ///< Specifies Packet Size in bytes.
+#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
+    #define DAP_PACKET_SIZE     1024U           ///< Specifies Packet Size in bytes.
+#else
+    #define DAP_PACKET_SIZE     64U             ///< Specifies Packet Size in bytes.
+#endif
 
 /// Maximum Package Buffers for Command and Response data.
 /// This configuration settings is used to optimize the communication performance with the
 /// debugger and depends on the USB peripheral. For devices with limited RAM or USB buffer the
 /// setting can be reduced (valid range is 1 .. 255).
-#define DAP_PACKET_COUNT        2U              ///< Specifies number of packets buffered.
+#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
+    #define DAP_PACKET_COUNT    1U              ///< Specifies number of packets buffered.
+#else
+    #define DAP_PACKET_COUNT    2U              ///< Specifies number of packets buffered.
+#endif
 
 /// Indicate that UART Serial Wire Output (SWO) trace is available.
 /// This information is returned by the command \ref DAP_Info as part of <b>Capabilities</b>.

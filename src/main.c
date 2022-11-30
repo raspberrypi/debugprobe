@@ -73,7 +73,7 @@
 
 
 #ifdef DAP_DEBUG
-static uint32_t DAP_ProcessCommandDebug(char *prefix, const uint8_t *request, uint32_t req_len, uint8_t *response)
+static uint32_t DAP_ExecuteCommandDebug(char *prefix, const uint8_t *request, uint32_t req_len, uint8_t *response)
 {
     uint32_t resp_len;
     bool echo = false;
@@ -132,7 +132,7 @@ static uint32_t DAP_ProcessCommandDebug(char *prefix, const uint8_t *request, ui
             break;
     }
 
-    resp_len = DAP_ProcessCommand(request, response);
+    resp_len = DAP_ExecuteCommand(request, response);
     if (echo)
     {
         picoprobe_info("   %s_response, len 0x%lx: ", prefix, resp_len);
@@ -141,7 +141,7 @@ static uint32_t DAP_ProcessCommandDebug(char *prefix, const uint8_t *request, ui
         picoprobe_info("\n");
     }
     return resp_len;
-}   // DAP_ProcessCommandDebug
+}   // DAP_ExecuteCommandDebug
 #endif
 
 
@@ -160,7 +160,6 @@ void usb_thread(void *ptr)
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
 void dap_thread(void *ptr)
 /**
- * used only if DAPv2?
  */
 // TODO this code is actually doing nothing (never called).  Everything seems to be handled 
 {
@@ -172,14 +171,28 @@ void dap_thread(void *ptr)
 
     do {
         while (tud_vendor_available()) {
-            rx_ptr = &RxDataBuffer[0];
-            packet_len = tud_vendor_read(rx_ptr, sizeof(RxDataBuffer));
-            picoprobe_debug("Got chunk %u\n", packet_len);
+            rx_ptr = RxDataBuffer;
+            packet_len = 0;
+            for (;;)
+            {
+                uint32_t len = tud_vendor_read(rx_ptr, sizeof(RxDataBuffer));
+
+                picoprobe_info("  len: %d\n", len);
+
+                packet_len += len;
+                rx_ptr += len;
+                if (len != 64)
+                    break;
+                vTaskDelay(100);
+            }
+            picoprobe_info("Got chunk %u\n", packet_len);
+
+            rx_ptr = RxDataBuffer;
             do {
 #ifdef DAP_DEBUG
-                ret = DAP_ProcessCommandDebug("1", RxDataBuffer, packet_len, TxDataBuffer);
+                ret = DAP_ExecuteCommandDebug("1", RxDataBuffer, packet_len, TxDataBuffer);
 #else
-                ret = DAP_ProcessCommand(rx_ptr, TxDataBuffer);
+                ret = DAP_ExecuteCommand(rx_ptr, TxDataBuffer);
 #endif
                 resp_len = ret & 0xffff;
                 req_len = ret >> 16;
@@ -187,7 +200,7 @@ void dap_thread(void *ptr)
                 tud_vendor_flush();
                 rx_ptr += req_len;
                 packet_len -= req_len;
-                picoprobe_debug("Packet decode remaining %u req %u resp %u\n",
+                picoprobe_debug("Packet decode remaining %d req %u resp %u\n",
                                 packet_len, req_len, resp_len);
             } while (packet_len > 0);
         }
@@ -202,8 +215,22 @@ void dap_thread(void *ptr)
             uint32_t req_len;
             uint32_t resp_len;
 
-            req_len = tud_vendor_read(RxDataBuffer, sizeof(RxDataBuffer));
-            resp_len = DAP_ProcessCommandDebug("1", RxDataBuffer, req_len, TxDataBuffer);
+            req_len = 0;
+            for (;;)
+            {
+                uint32_t len = tud_vendor_read(RxDataBuffer + req_len, sizeof(RxDataBuffer));
+
+                picoprobe_info("  len: %d\n", len);
+
+                req_len += len;
+                if (len != 64)
+                    break;
+                vTaskDelay(100);    // TODO how to find if there are bytes expected
+            }
+            picoprobe_info("Got chunk %u\n", req_len);
+
+            //req_len = tud_vendor_read(RxDataBuffer, sizeof(RxDataBuffer));
+            resp_len = DAP_ExecuteCommandDebug("1", RxDataBuffer, req_len, TxDataBuffer);
             tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
             tud_vendor_flush();
         }
@@ -270,9 +297,9 @@ int main(void)
             uint32_t req_len;
 
             req_len = tud_vendor_read(RxDataBuffer, sizeof(RxDataBuffer));
-            resp_len = DAP_ProcessCommandDebug("2", RxDataBuffer, req_len, TxDataBuffer);
+            resp_len = DAP_ExecuteCommandDebug("2", RxDataBuffer, req_len, TxDataBuffer);
 #else
-            resp_len = DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
+            resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
 #endif
             tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
             tud_vendor_flush();
@@ -313,9 +340,9 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
     (void)report_type;
 
 #ifdef DAP_DEBUG
-    DAP_ProcessCommandDebug("hid", RxDataBuffer, bufsize, TxDataBuffer);
+    DAP_ExecuteCommandDebug("hid", RxDataBuffer, bufsize, TxDataBuffer);
 #else
-    DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
+    DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
 #endif
     tud_hid_report(0, TxDataBuffer, response_size);
 }
