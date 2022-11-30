@@ -324,12 +324,11 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
 
 
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
+
 extern uint8_t const desc_ms_os_20[];
 
 bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request)
 {
-    picoprobe_info("!!!!!!!!!!!!!!!tud_vendor_control_xfer_cb %d\n", stage);
-
     // nothing to with DATA & ACK stage
     if (stage != CONTROL_STAGE_SETUP)
         return true;
@@ -339,7 +338,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
         case TUSB_REQ_TYPE_VENDOR:
             switch (request->bRequest)
             {
-                case 1:
+                case 1:   // VENDOR_REQUEST_WEBUSB
                     if (request->wIndex == 7)
                     {
                         // Get Microsoft OS 2.0 compatible descriptor

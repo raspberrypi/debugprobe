@@ -198,6 +198,9 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
     return _desc_str;
 }
 
+
+
+#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
 /* [incoherent gibbering to make Windows happy] */
 
 //--------------------------------------------------------------------+
@@ -261,5 +264,6 @@ TU_VERIFY_STATIC(sizeof(desc_ms_os_20) == MS_OS_20_DESC_LEN, "Incorrect size");
 
 uint8_t const * tud_descriptor_bos_cb(void)
 {
-  return desc_bos;
+    return desc_bos;
 }
+#endif
