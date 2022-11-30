@@ -44,17 +44,23 @@
 
 #define DAP_DEBUG
 
+#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
+    #define THREADED 0                        // threaded is here not implemented
+#else
+    #define THREADED 1
+#endif
+
 
 // UART1 for picoprobe to target device
 
-static uint8_t TxDataBuffer[CFG_TUD_HID_EP_BUFSIZE * DAP_PACKET_COUNT];
-
-#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
-    static uint8_t RxDataBuffer[CFG_TUD_HID_EP_BUFSIZE * DAP_PACKET_COUNT];
+#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
+    static uint8_t TxDataBuffer[CFG_TUD_HID_EP_BUFSIZE * DAP_PACKET_COUNT];
+#elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
+    static uint8_t TxDataBuffer[DAP_PACKET_SIZE * DAP_PACKET_COUNT];    // TODO correct!?
+    static uint8_t RxDataBuffer[DAP_PACKET_SIZE * DAP_PACKET_COUNT];
     static TaskHandle_t dap_taskhandle;
 #endif
 
-#define THREADED 1
 
 #if (THREADED != 0)
     static TaskHandle_t tud_taskhandle;
@@ -238,16 +244,16 @@ int main(void)
     picoprobe_info("Welcome to Picoprobe! (UNKNOWN)\n");
 #endif
 
-    if (THREADED) {
-        /* UART needs to preempt USB as if we don't, characters get lost */
-        xTaskCreate(cdc_thread, "UART", configMINIMAL_STACK_SIZE, NULL, UART_TASK_PRIO, &uart_taskhandle);
-        xTaskCreate(usb_thread, "TUD", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, &tud_taskhandle);
-        /* Lowest priority thread is debug - need to shuffle buffers before we can toggle swd... */
+#if (THREADED != 0)
+    /* UART needs to preempt USB as if we don't, characters get lost */
+    xTaskCreate(cdc_thread, "UART", configMINIMAL_STACK_SIZE, NULL, UART_TASK_PRIO, &uart_taskhandle);
+    xTaskCreate(usb_thread, "TUD", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, &tud_taskhandle);
+    /* Lowest priority thread is debug - need to shuffle buffers before we can toggle swd... */
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
-        xTaskCreate(dap_thread, "DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);
+    xTaskCreate(dap_thread, "DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);
 #endif
-        vTaskStartScheduler();
-    }
+    vTaskStartScheduler();
+#endif
 
 #if (THREADED == 0)
     for (;;) {
@@ -280,6 +286,7 @@ int main(void)
 
 
 
+#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
 uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
 {
     // TODO not Implemented
@@ -291,9 +298,11 @@ uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t
 
     return 0;
 }
+#endif
 
 
 
+#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
 void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t const *RxDataBuffer, uint16_t bufsize)
 {
     uint32_t response_size = TU_MIN(CFG_TUD_HID_EP_BUFSIZE, bufsize);
@@ -310,6 +319,7 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
 #endif
     tud_hid_report(0, TxDataBuffer, response_size);
 }
+#endif
 
 
 
