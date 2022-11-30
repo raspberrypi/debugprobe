@@ -90,10 +90,10 @@
     #define CFG_TUD_ENDPOINT0_SIZE    64
 #endif
 
-#define CFG_TUD_CDC_RX_BUFSIZE        256
+#define CFG_TUD_CDC_RX_BUFSIZE        256      // TODO don't know how big this should be
 #define CFG_TUD_CDC_TX_BUFSIZE        256
 
-#define CFG_TUD_VENDOR_RX_BUFSIZE     8192
+#define CFG_TUD_VENDOR_RX_BUFSIZE     8192     // TODO don't know how big this should be
 #define CFG_TUD_VENDOR_TX_BUFSIZE     8192
 
 #ifdef __cplusplus

@@ -40,8 +40,8 @@ static uint8_t rx_buf[CFG_TUD_CDC_RX_BUFSIZE];
 
 static uint16_t cdc_debug_fifo_read;
 static uint16_t cdc_debug_fifo_write;
-static uint8_t cdc_debug_fifo[1024];
-static uint8_t cdc_debug_buf[CFG_TUD_CDC_RX_BUFSIZE];
+static uint8_t cdc_debug_fifo[4096];
+static uint8_t cdc_debug_buf[256];
 
 void cdc_uart_init(void) {
     gpio_set_function(PICOPROBE_UART_TX, GPIO_FUNC_UART);
