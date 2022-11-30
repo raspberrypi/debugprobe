@@ -214,18 +214,25 @@ void dap_thread(void *ptr)
         {
             uint32_t req_len;
             uint32_t resp_len;
+            uint32_t len;
 
             req_len = 0;
+            len = tud_vendor_read(RxDataBuffer + req_len, sizeof(RxDataBuffer));
             for (;;)
             {
-                uint32_t len = tud_vendor_read(RxDataBuffer + req_len, sizeof(RxDataBuffer));
-
                 picoprobe_info("  len: %d\n", len);
 
                 req_len += len;
-                if (len != 64)
+                if (len == 0  ||  len % 64 != 0)     // TODO this is just a simple check if there are more bytes to come
                     break;
-                vTaskDelay(100);    // TODO how to find if there are bytes expected
+
+                for (int i = 0;  i < 100;  ++i)
+                {
+                    len = tud_vendor_read(RxDataBuffer + req_len, sizeof(RxDataBuffer));
+                    if (len != 0)
+                        break;
+                    vTaskDelay(1);
+                }
             }
             picoprobe_info("Got chunk %u\n", req_len);
 
