@@ -47,6 +47,7 @@ This information includes:
 #include <hardware/gpio.h>
 
 #include "cmsis_compiler.h"
+#include "tusb_config.h"
 #include "picoprobe_config.h"
 #include "probe.h"
 

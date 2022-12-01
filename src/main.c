@@ -40,6 +40,7 @@
 #include "led.h"
 #include "DAP.h"
 #include "DAP_config.h"
+#include "tusb_config.h"
 
 
 #define DAP_DEBUG

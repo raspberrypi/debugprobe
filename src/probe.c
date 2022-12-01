@@ -34,6 +34,7 @@
 #include "picoprobe_config.h"
 #include "probe.pio.h"
 #include "tusb.h"
+#include "tusb_config.h"
 
 #define DIV_ROUND_UP(m, n)	(((m) + (n) - 1) / (n))
 
