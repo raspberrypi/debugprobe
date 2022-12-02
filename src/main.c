@@ -44,8 +44,6 @@
 #include "dap_util.h"
 
 
-#define xxDAP_DEBUG
-
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
     #define THREADED 0                        // threaded is here not implemented
 #else
@@ -74,132 +72,6 @@
 
 
 
-#ifdef DAP_DEBUG
-static uint32_t DAP_ExecuteCommandDebug(char *prefix, const uint8_t *request, uint32_t req_len, uint8_t *response)
-{
-    static uint8_t checkbuf[8192];
-    uint32_t resp_len;
-    bool echo = false;
-
-    memcpy(checkbuf, request, req_len);
-
-    switch (request[0])
-    {
-        case 0x00:
-            // ID_DAP_Info
-            picoprobe_info("%s_exec ID_DAP_Info_00(%d), len %lu\n", prefix, request[1], req_len);
-            echo = true;
-            break;
-
-        case 0x01:
-            // ID_DAP_HostStatus
-            picoprobe_info("%s_exec ID_DAP_HostStatus_01(%d, %d)\n", prefix, request[1], request[2]);
-            break;
-
-        case 0x02:
-            // ID_DAP_Connect
-            picoprobe_info("%s_exec ID_DAP_Connect_02(%d), len %lu\n", prefix, request[1], req_len);
-            echo = true;
-            break;
-
-        case 0x03:
-            // ID_DAP_Disconnect
-            picoprobe_info("%s_exec ID_DAP_Disconnect_03\n", prefix);
-            echo = true;
-            break;
-
-        case 0x04:
-            // ID_DAP_TransferConfigure
-            picoprobe_info("%s_exec ID_DAP_TransferConfigure_04\n", prefix);
-            break;
-
-        case 0x05:
-            // ID_DAP_Transfer, appears very very often, so suppress it
-#if 1
-            picoprobe_info("%s_exec ID_DAP_Transfer_05(%d, %d)... %d\n", prefix, request[1], request[2], req_len);
-#else
-            picoprobe_info("%s_exec ID_DAP_Transfer_05(%d, %d)... %d %s\n", prefix, request[1], request[2], req_len,
-                           (req_len - 3 - request[2]) % 4 == 0 ? "OK" : "!!!!!!! FAIL !!!!!!!");
-#endif
-            echo = true;
-            break;
-
-        case 0x06:
-            // ID_DAP_TransferBlock
-            picoprobe_info("%s_exec ID_DAP_TransferBlock_06, %02x %02x %02x %02x\n", prefix, request[1], request[2], request[3], request[4]);
-            break;
-
-        case 0x10:
-            // ID_DAP_SWJ_Pins
-            picoprobe_info("%s_exec ID_DAP_SWJ_Pins_10\n", prefix);
-            break;
-
-        case 0x11:
-            // ID_DAP_SWJ_Clock
-            picoprobe_info("%s_exec ID_DAP_SWJ_Clock_11(%lu)\n", prefix, 1UL*request[1] + 256UL*request[2] + 65536UL*request[3] + 1048576UL*request[4]);
-            echo = true;
-            break;
-
-        case 0x12:
-            // ID_DAP_SWJ_Sequence
-            picoprobe_info("%s_exec ID_DAP_SWJ_Sequence_12(%d)\n", prefix, request[1]);
-            echo = true;
-            break;
-
-        case 0x13:
-            // ID_DAP_SWD_Configure
-            picoprobe_info("%s_exec ID_DAP_SWD_Configure_13(%d)\n", prefix, request[1]);
-            break;
-
-        case 0x1d:
-            // ID_DAP_SWD_Sequence
-            picoprobe_info("%s_exec ID_DAP_SWD_Sequence_1d(%d), len %lu\n", prefix, request[1], req_len);
-            echo = true;
-            break;
-
-        default:
-            picoprobe_info("---------%s_Exec cmd %02x, len %lu\n", prefix, request[0], req_len);
-            echo = true;
-            break;
-    }
-
-    resp_len = DAP_ExecuteCommand(request, response);
-
-    if ((resp_len >> 16) != DAP_Check_ExecuteCommand(request, req_len))
-    {
-        picoprobe_error("   !!!!!!!!!!!! Length error: %u != %u (%u)\n", (resp_len >> 16), DAP_Check_ExecuteCommand(request, req_len), req_len);
-        picoprobe_error("   request: ");
-        for (uint32_t u = 0;  u < (resp_len >> 16);  ++u)
-            picoprobe_error(" %02x", request[u]);
-        picoprobe_error("\n");
-        picoprobe_error("   response:");
-        for (uint32_t u = 0;  u < (resp_len & 0xffff);  ++u)
-            picoprobe_error(" %02x", response[u]);
-        picoprobe_error("\n");
-    }
-    else
-    {
-        //echo = false;
-    }
-
-    if (memcmp(checkbuf, request, req_len) != 0)
-    {
-        picoprobe_error("   WHAT HAPPENED HERE!?\n");
-    }
-
-    if (echo)
-    {
-        picoprobe_info("   %s_response, len 0x%lx: ", prefix, resp_len);
-        for (uint32_t u = 0;  u < (resp_len & 0xffff);  ++u)
-            picoprobe_info(" %02x", response[u]);
-        picoprobe_info("\n");
-    }
-    return resp_len;
-}   // DAP_ExecuteCommandDebug
-#endif
-
-
-
 void usb_thread(void *ptr)
 {
     do {
@@ -213,8 +85,6 @@ void usb_thread(void *ptr)
 
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
 void dap_thread(void *ptr)
-/**
- */
 {
     uint32_t rx_len;
     uint32_t resp_len;
