@@ -112,7 +112,12 @@ static uint32_t DAP_ExecuteCommandDebug(char *prefix, const uint8_t *request, ui
 
         case 0x05:
             // ID_DAP_Transfer, appears very very often, so suppress it
-            picoprobe_info("%s_exec ID_DAP_Transfer_05(%d)...\n", prefix, request[1]);
+#if 1
+            picoprobe_info("%s_exec ID_DAP_Transfer_05(%d, %d)... %d\n", prefix, request[1], request[2], req_len);
+#else
+            picoprobe_info("%s_exec ID_DAP_Transfer_05(%d, %d)... %d %s\n", prefix, request[1], request[2], req_len,
+                           (req_len - 3 - request[2]) % 4 == 0 ? "OK" : "!!!!!!! FAIL !!!!!!!");
+#endif
             break;
 
         case 0x06:
@@ -199,46 +204,44 @@ void dap_thread(void *ptr)
  */
 // TODO this code is actually doing nothing (never called).  Everything seems to be handled 
 {
-   for (;;)
-   {
+    uint32_t req_len;
+    uint32_t block_cnt;
+
+    req_len = 0;
+    block_cnt = 0;
+    for (;;)
+    {
         if (tud_vendor_available()) 
         {
-            uint32_t req_len;
             uint32_t resp_len;
             uint32_t len;
 
-            req_len = 0;
             len = tud_vendor_read(RxDataBuffer + req_len, sizeof(RxDataBuffer));
-            for (;;)
+            req_len += len;
+            //picoprobe_info("Got chunk %u\n", req_len);
+
+            if (req_len >= DAP_Check_ExecuteCommand(RxDataBuffer, req_len)  ||  block_cnt > 100)
             {
-                picoprobe_info("  len: %d\n", len);
-
-                req_len += len;
-                if (len == 0  ||  len % 64 != 0)     // TODO this is just a simple check if there are more bytes to come
-                    break;
-
-                for (int i = 0;  i < 100;  ++i)
-                {
-                    len = tud_vendor_read(RxDataBuffer + req_len, sizeof(RxDataBuffer));
-                    if (len != 0)
-                        break;
-                    vTaskDelay(1);
-                }
-            }
-            picoprobe_info("Got chunk %u\n", req_len);
-
 #ifdef DAP_DEBUG
-            resp_len = DAP_ExecuteCommandDebug("1", RxDataBuffer, req_len, TxDataBuffer);
+                resp_len = DAP_ExecuteCommandDebug("1", RxDataBuffer, req_len, TxDataBuffer);
 #else
-            resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
+                resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
 #endif
-            tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
-            tud_vendor_flush();
+                tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
+                tud_vendor_flush();
+                req_len = 0;
+                block_cnt = 0;
+            }
         }
         else
         {
             // Trivial delay to save power
             vTaskDelay(2);
+        }
+
+        if (req_len != 0)
+        {
+            ++block_cnt;
         }
    }
 }
