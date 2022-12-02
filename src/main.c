@@ -216,65 +216,44 @@ void dap_thread(void *ptr)
 /**
  */
 {
-    uint32_t req_len;
+    uint32_t rx_len;
     uint32_t resp_len;
-    uint32_t block_cnt;
 
-    req_len = 0;
-    block_cnt = 0;
+    rx_len = 0;
     for (;;)
     {
         if (tud_vendor_available()) 
         {
-            uint32_t len;
-
-            len = tud_vendor_read(RxDataBuffer + req_len, sizeof(RxDataBuffer));
-            req_len += len;
-
-            while (req_len >= DAP_Check_ExecuteCommand(RxDataBuffer, req_len))
-            {
-                resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
-                tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
-                tud_vendor_flush();
-
-                if (req_len < (resp_len >> 16))
-                {
-                    picoprobe_error("   !!!!!!!! request (%u) was not long enough for interpretation (%u)\n", req_len, resp_len >> 16);
-                    req_len = 0;
-                }
-                else if (req_len == (resp_len >> 16))
-                {
-                    req_len = 0;
-                }
-                else
-                {
-                    memmove(RxDataBuffer, RxDataBuffer + (resp_len >> 16), req_len - (resp_len >> 16));
-                    req_len -= (resp_len >> 16);
-                }
-                block_cnt = 0;
-            }
+            rx_len += tud_vendor_read(RxDataBuffer + rx_len, sizeof(RxDataBuffer));
         }
         else
         {
             // Trivial delay to save power
-            vTaskDelay(2);
+            vTaskDelay(1);
         }
 
-        if (req_len != 0)
+        if (rx_len != 0  &&  rx_len >= DAP_Check_ExecuteCommand(RxDataBuffer, rx_len))
         {
-            ++block_cnt;
+            resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
+            tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
+            tud_vendor_flush();
 
-            if (block_cnt > 100)
+            if (rx_len < (resp_len >> 16))
             {
-                resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
-                tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
-                tud_vendor_flush();
-
-                req_len = 0;
-                block_cnt = 0;
+                picoprobe_error("   !!!!!!!! request (%u) was not long enough for interpretation (%u)\n", rx_len, resp_len >> 16);
+                rx_len = 0;
+            }
+            else if (rx_len == (resp_len >> 16))
+            {
+                rx_len = 0;
+            }
+            else
+            {
+                memmove(RxDataBuffer, RxDataBuffer + (resp_len >> 16), rx_len - (resp_len >> 16));
+                rx_len -= (resp_len >> 16);
             }
         }
-   }
+    }
 }
 #endif
 
