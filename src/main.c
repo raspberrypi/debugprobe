@@ -235,7 +235,7 @@ void dap_thread(void *ptr)
             while (req_len >= DAP_Check_ExecuteCommand(RxDataBuffer, req_len))
             {
 #ifdef DAP_DEBUG
-                picoprobe_error("   REQUEST: ");
+                picoprobe_error("   REQUEST(%d, %d): ", req_len, DAP_Check_ExecuteCommand(RxDataBuffer, req_len));
                 for (uint32_t u = 0;  u < req_len;  ++u)
                     picoprobe_error(" %02x", RxDataBuffer[u]);
                 picoprobe_error("\n");
