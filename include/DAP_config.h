@@ -89,7 +89,7 @@ This information includes:
 /// This configuration settings is used to optimize the communication performance with the
 /// debugger and depends on the USB peripheral. Typical vales are 64 for Full-speed USB HID or WinUSB,
 /// 1024 for High-speed USB HID and 512 for High-speed USB WinUSB.
-// TODO 1024 ok, >= 2048 NOT OK
+/// TODO pyOCD: OK: 64, 128   /   FAIL: 256, 512, 1024   bug in pyOCD?
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
     #define DAP_PACKET_SIZE     512U           ///< Specifies Packet Size in bytes.
 #else
@@ -100,8 +100,9 @@ This information includes:
 /// This configuration settings is used to optimize the communication performance with the
 /// debugger and depends on the USB peripheral. For devices with limited RAM or USB buffer the
 /// setting can be reduced (valid range is 1 .. 255).
+/// 
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
-    #define DAP_PACKET_COUNT    8U              ///< Specifies number of packets buffered.
+    #define DAP_PACKET_COUNT    2U              ///< Specifies number of packets buffered.
 #else
     #define DAP_PACKET_COUNT    2U              ///< Specifies number of packets buffered.
 #endif

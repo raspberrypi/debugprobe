@@ -121,6 +121,7 @@ static uint32_t DAP_ExecuteCommandDebug(char *prefix, const uint8_t *request, ui
             picoprobe_info("%s_exec ID_DAP_Transfer_05(%d, %d)... %d %s\n", prefix, request[1], request[2], req_len,
                            (req_len - 3 - request[2]) % 4 == 0 ? "OK" : "!!!!!!! FAIL !!!!!!!");
 #endif
+            echo = true;
             break;
 
         case 0x06:
