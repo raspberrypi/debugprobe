@@ -41,7 +41,7 @@
 #include "DAP.h"
 #include "DAP_config.h"
 #include "tusb_config.h"
-#include "dap_task.h"
+#include "dap_util.h"
 
 
 #define DAP_DEBUG

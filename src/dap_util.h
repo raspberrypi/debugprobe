@@ -23,8 +23,8 @@
  *
  */
 
-#ifndef DAP_TASK_H
-#define DAP_TASK_H
+#ifndef DAP_UTIL_H
+#define DAP_UTIL_H
 
 #include <stdint.h>
 
