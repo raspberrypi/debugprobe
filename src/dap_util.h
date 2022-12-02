@@ -23,25 +23,13 @@
  *
  */
 
-#ifndef PROBE_H_
-#define PROBE_H_
+#ifndef DAP_UTIL_H
+#define DAP_UTIL_H
 
-void probe_set_swclk_freq(uint freq_khz);
-void probe_write_bits(uint bit_count, uint32_t data_byte);
-uint32_t probe_read_bits(uint bit_count);
+#include <stdint.h>
 
-void probe_read_mode(void);
-void probe_write_mode(void);
+static const uint32_t DAP_CHECK_ABORT = 99999999;
 
-#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
-    void probe_handle_read(uint total_bits);
-    void probe_handle_write(uint8_t *data, uint total_bits);
-
-    void probe_task(void);
-#endif
-
-void probe_gpio_init(void);
-void probe_init(void);
-void probe_deinit(void);
+uint32_t DAP_Check_ExecuteCommand(const uint8_t *request_data, uint32_t request_len);
 
 #endif

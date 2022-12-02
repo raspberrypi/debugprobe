@@ -49,10 +49,12 @@ tusb_desc_device_t const desc_device =
     .idVendor           = 0x2E8A, // Pi
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
     .idProduct          = 0x0004, // Picoprobe
-#else
+#elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
     .idProduct          = 0x000c, // CMSIS-DAP adapter
+#else
+    .idProduct          = 0x000d, // CMSIS-DAP v2 adapter    // TODO other than 0x000c because windows was sometimes offended
 #endif
-    .bcdDevice          = 0x0101, // Version 01.01
+    .bcdDevice          = 0x0102, // Version 01.01
     .iManufacturer      = 0x01,
     .iProduct           = 0x02,
     .iSerialNumber      = 0x03,
@@ -78,45 +80,50 @@ enum
   ITF_NUM_TOTAL
 };
 
-#define CDC_NOTIFICATION_EP_NUM 0x81
-#define CDC_DATA_OUT_EP_NUM 0x02
-#define CDC_DATA_IN_EP_NUM 0x83
-#define PROBE_OUT_EP_NUM 0x04
-#define PROBE_IN_EP_NUM 0x85
+#define CDC_NOTIFICATION_EP_NUM   0x81
+#define CDC_DATA_OUT_EP_NUM       0x02
+#define CDC_DATA_IN_EP_NUM        0x83
+#define PROBE_OUT_EP_NUM          0x04
+#define PROBE_IN_EP_NUM           0x85
 
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
-#define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_HID_INOUT_DESC_LEN)
+    #define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_HID_INOUT_DESC_LEN)
 #else
-#define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_VENDOR_DESC_LEN)
+    #define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_VENDOR_DESC_LEN)
 #endif
 
-static uint8_t const desc_hid_report[] =
-{
-  TUD_HID_REPORT_DESC_GENERIC_INOUT(CFG_TUD_HID_EP_BUFSIZE)
-};
+#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
+    static uint8_t const desc_hid_report[] =
+        {
+            TUD_HID_REPORT_DESC_GENERIC_INOUT(CFG_TUD_HID_EP_BUFSIZE)
+        };
 
-uint8_t const * tud_hid_descriptor_report_cb(uint8_t itf)
-{
-  (void) itf;
-  return desc_hid_report;
-}
+    uint8_t const *tud_hid_descriptor_report_cb(uint8_t itf)
+    {
+        (void)itf;
+        return desc_hid_report;
+    }
+#endif
+
 
 uint8_t const desc_configuration[] =
 {
-  TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
-  // Interface 0
+    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+
+    // Interface 0
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
-  // HID (named interface)
-  TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_PROBE, 4, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, CFG_TUD_HID_EP_BUFSIZE, 1),
+    // HID (named interface)
+    TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_PROBE, 4, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, CFG_TUD_HID_EP_BUFSIZE, 1),
 #elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
-  // Bulk (named interface)
-  TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE, 5, PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, 64),
+    // Bulk (named interface)
+    TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE, 5, PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, 64),
 #elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
-  // Bulk
-  TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE, 0, PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, 64),
+    // Bulk
+    TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE, 0, PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, 64),
 #endif
-  // Interface 1 + 2
-  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_COM, 6, CDC_NOTIFICATION_EP_NUM, 64, CDC_DATA_OUT_EP_NUM, CDC_DATA_IN_EP_NUM, 64),
+
+    // Interface 1 + 2
+    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_COM, 6, CDC_NOTIFICATION_EP_NUM, 64, CDC_DATA_OUT_EP_NUM, CDC_DATA_IN_EP_NUM, 64),
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
@@ -124,8 +131,8 @@ uint8_t const desc_configuration[] =
 // Descriptor contents must exist long enough for transfer to complete
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
-  (void) index; // for multiple configurations
-  return desc_configuration;
+    (void) index; // for multiple configurations
+    return desc_configuration;
 }
 
 //--------------------------------------------------------------------+
@@ -135,14 +142,22 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 // array of pointer to string descriptors
 char const* string_desc_arr [] =
 {
-  (const char[]) { 0x09, 0x04 }, // 0: is supported language is English (0x0409)
-  "Raspberry Pi", // 1: Manufacturer
-  "Picoprobe CMSIS-DAP", // 2: Product
-  usb_serial,     // 3: Serial, uses flash unique ID
-  "Picoprobe CMSIS-DAP v1", // 4: Interface descriptor for HID transport
-  "Picoprobe CMSIS-DAP v2", // 5: Interface descriptor for Bulk transport
-  "Picoprobe CDC-ACM UART", // 6: Interface descriptor for CDC
+    (const char[]) { 0x09, 0x04 }, // 0: is supported language is English (0x0409)
+    "Raspberry Pi",                                // 1: Manufacturer
+#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
+    "Picoprobe CMSIS-DAP",                         // 2: Product
+#elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
+    "Picoprobe CMSIS-DAP v2",                      // 2: Product
+#else
+    "Picoprobe CMSIS-DAP custom",                  // 2: Product
+#endif
+    usb_serial,                                    // 3: Serial, uses flash unique ID
+    "Picoprobe CMSIS-DAP v1",                      // 4: Interface descriptor for HID transport
+    "Picoprobe CMSIS-DAP v2",                      // 5: Interface descriptor for Bulk transport
+    "Picoprobe CDC-ACM UART",                      // 6: Interface descriptor for CDC
 };
+
+
 
 static uint16_t _desc_str[32];
 
@@ -150,38 +165,44 @@ static uint16_t _desc_str[32];
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
 uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 {
-  (void) langid;
+    (void)langid;
 
-  uint8_t chr_count;
+    uint8_t chr_count;
 
-  if ( index == 0)
-  {
-    memcpy(&_desc_str[1], string_desc_arr[0], 2);
-    chr_count = 1;
-  }else
-  {
-    // Convert ASCII string into UTF-16
-
-    if ( !(index < sizeof(string_desc_arr)/sizeof(string_desc_arr[0])) ) return NULL;
-
-    const char* str = string_desc_arr[index];
-
-    // Cap at max char
-    chr_count = strlen(str);
-    if ( chr_count > 31 ) chr_count = 31;
-
-    for(uint8_t i=0; i<chr_count; i++)
+    if (index == 0)
     {
-      _desc_str[1+i] = str[i];
+        memcpy(&_desc_str[1], string_desc_arr[0], 2);
+        chr_count = 1;
     }
-  }
+    else
+    {
+        // Convert ASCII string into UTF-16
 
-  // first byte is length (including header), second byte is string type
-  _desc_str[0] = (TUSB_DESC_STRING << 8 ) | (2*chr_count + 2);
+        if (!(index < sizeof(string_desc_arr) / sizeof(string_desc_arr[0])))
+            return NULL;
 
-  return _desc_str;
+        const char *str = string_desc_arr[index];
+
+        // Cap at max char
+        chr_count = strlen(str);
+        if (chr_count > 31)
+            chr_count = 31;
+
+        for (uint8_t i = 0; i < chr_count; i++)
+        {
+            _desc_str[1 + i] = str[i];
+        }
+    }
+
+    // first byte is length (including header), second byte is string type
+    _desc_str[0] = (TUSB_DESC_STRING << 8) | (2 * chr_count + 2);
+
+    return _desc_str;
 }
 
+
+
+#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
 /* [incoherent gibbering to make Windows happy] */
 
 //--------------------------------------------------------------------+
@@ -245,5 +266,6 @@ TU_VERIFY_STATIC(sizeof(desc_ms_os_20) == MS_OS_20_DESC_LEN, "Incorrect size");
 
 uint8_t const * tud_descriptor_bos_cb(void)
 {
-  return desc_bos;
+    return desc_bos;
 }
+#endif

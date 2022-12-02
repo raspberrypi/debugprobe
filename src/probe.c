@@ -34,6 +34,7 @@
 #include "picoprobe_config.h"
 #include "probe.pio.h"
 #include "tusb.h"
+#include "tusb_config.h"
 
 #define DIV_ROUND_UP(m, n)	(((m) + (n) - 1) / (n))
 
@@ -106,7 +107,7 @@ void probe_write_bits(uint bit_count, uint32_t data_byte) {
     pio_sm_put_blocking(pio0, PROBE_SM, bit_count - 1);
     pio_sm_put_blocking(pio0, PROBE_SM, data_byte);
     DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE_WAIT);
-    picoprobe_dump("Write %d bits 0x%x\n", bit_count, data_byte);
+    picoprobe_dump("Write %d bits 0x%lx\n", bit_count, data_byte);
     // Wait for pio to push garbage to rx fifo so we know it has finished sending
     pio_sm_get_blocking(pio0, PROBE_SM);
     DEBUG_PINS_CLR(probe_timing, DBG_PIN_WRITE_WAIT);
@@ -122,7 +123,7 @@ uint32_t probe_read_bits(uint bit_count) {
         data_shifted = data >> (32 - bit_count);
     }
 
-    picoprobe_dump("Read %d bits 0x%x (shifted 0x%x)\n", bit_count, data, data_shifted);
+    picoprobe_dump("Read %d bits 0x%lx (shifted 0x%lx)\n", bit_count, data, data_shifted);
     DEBUG_PINS_CLR(probe_timing, DBG_PIN_READ);
     return data_shifted;
 }
@@ -198,6 +199,9 @@ void probe_deinit(void)
   }
 }
 
+
+
+#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
 void probe_handle_read(uint total_bits) {
     picoprobe_debug("Read %d bits\n", total_bits);
     probe_read_mode();
@@ -216,7 +220,11 @@ void probe_handle_read(uint total_bits) {
         bits -= chunk;
     }
 }
+#endif
 
+
+
+#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
 void probe_handle_write(uint8_t *data, uint total_bits) {
     picoprobe_debug("Write %d bits\n", total_bits);
 
@@ -237,7 +245,11 @@ void probe_handle_write(uint8_t *data, uint total_bits) {
         bits -= chunk;
     }
 }
+#endif
 
+
+
+#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
 void probe_prepare_read_header(struct probe_cmd_hdr *hdr) {
     // We have a read so need to prefix the data with the cmd header
     if (probe.tx_len == 0) {
@@ -248,7 +260,11 @@ void probe_prepare_read_header(struct probe_cmd_hdr *hdr) {
     memcpy((void*)&probe.tx_buf[probe.tx_len], hdr, sizeof(struct probe_cmd_hdr));
     probe.tx_len += sizeof(struct probe_cmd_hdr);
 }
+#endif
 
+
+
+#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
 void probe_handle_pkt(void) {
     uint8_t *pkt = &probe.rx_buf[0] + sizeof(struct probe_pkt_hdr);
     uint remaining = probe.rx_len - sizeof(struct probe_pkt_hdr);
@@ -295,7 +311,11 @@ void probe_handle_pkt(void) {
 
     DEBUG_PINS_CLR(probe_timing, DBG_PIN_PKT);
 }
+#endif
 
+
+
+#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
 // USB bits
 void probe_task(void) {
     if ( tud_vendor_available() ) {
@@ -313,3 +333,4 @@ void probe_task(void) {
         }
     }
 }
+#endif

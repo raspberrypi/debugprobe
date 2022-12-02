@@ -27,7 +27,7 @@
 #define _TUSB_CONFIG_H_
 
 #ifdef __cplusplus
- extern "C" {
+    extern "C" {
 #endif
 
 //--------------------------------------------------------------------
@@ -36,46 +36,68 @@
 
 // defined by compiler flags for flexibility
 #ifndef CFG_TUSB_MCU
-  #error CFG_TUSB_MCU must be defined
+    #error CFG_TUSB_MCU must be defined
 #endif
 
-#define CFG_TUSB_RHPORT0_MODE     OPT_MODE_DEVICE
+#define CFG_TUSB_RHPORT0_MODE       (OPT_MODE_DEVICE | OPT_MODE_FULL_SPEED)
 
 #ifndef CFG_TUSB_OS
-#define CFG_TUSB_OS                 OPT_OS_PICO
+    #define CFG_TUSB_OS             OPT_OS_PICO
 #endif
 
 #ifndef CFG_TUSB_MEM_SECTION
-#define CFG_TUSB_MEM_SECTION
+    #define CFG_TUSB_MEM_SECTION
 #endif
 
 #ifndef CFG_TUSB_MEM_ALIGN
-#define CFG_TUSB_MEM_ALIGN          __attribute__ ((aligned(4)))
+    #define CFG_TUSB_MEM_ALIGN      __attribute__ ((aligned(4)))
 #endif
 
 //--------------------------------------------------------------------
 // DEVICE CONFIGURATION
 //--------------------------------------------------------------------
 
-#ifndef CFG_TUD_ENDPOINT0_SIZE
-#define CFG_TUD_ENDPOINT0_SIZE    64
+#define PROTO_OPENOCD_CUSTOM        0
+#define PROTO_DAP_V1                1
+#define PROTO_DAP_V2                2
+
+// Interface config
+#ifndef PICOPROBE_DEBUG_PROTOCOL
+    #define PICOPROBE_DEBUG_PROTOCOL PROTO_DAP_V2
 #endif
 
-//------------- CLASS -------------//
-#define CFG_TUD_HID             1
-#define CFG_TUD_CDC             1
-#define CFG_TUD_MSC             0
-#define CFG_TUD_MIDI            0
-#define CFG_TUD_VENDOR          1
+#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
+    #define CFG_TUD_CDC             1
+    #define CFG_TUD_HID             1
+    #define CFG_TUD_MSC             0
+    #define CFG_TUD_MIDI            0
+    #define CFG_TUD_VENDOR          0
+#elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
+    #define CFG_TUD_CDC             1
+    #define CFG_TUD_HID             0
+    #define CFG_TUD_MSC             0
+    #define CFG_TUD_MIDI            0
+    #define CFG_TUD_VENDOR          1
+#elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
+    #define CFG_TUD_CDC             1
+    #define CFG_TUD_HID             0
+    #define CFG_TUD_MSC             0
+    #define CFG_TUD_MIDI            0
+    #define CFG_TUD_VENDOR          1
+#endif
 
-#define CFG_TUD_CDC_RX_BUFSIZE 64
-#define CFG_TUD_CDC_TX_BUFSIZE 64
+#ifndef CFG_TUD_ENDPOINT0_SIZE
+    #define CFG_TUD_ENDPOINT0_SIZE    64
+#endif
 
-#define CFG_TUD_VENDOR_RX_BUFSIZE 8192
-#define CFG_TUD_VENDOR_TX_BUFSIZE 8192
+#define CFG_TUD_CDC_RX_BUFSIZE        1024
+#define CFG_TUD_CDC_TX_BUFSIZE        1024
+
+#define CFG_TUD_VENDOR_RX_BUFSIZE     8192     // TODO don't know how big this should be
+#define CFG_TUD_VENDOR_TX_BUFSIZE     8192
 
 #ifdef __cplusplus
- }
+    }
 #endif
 
 #endif /* _TUSB_CONFIG_H_ */

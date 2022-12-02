@@ -47,6 +47,7 @@ This information includes:
 #include <hardware/gpio.h>
 
 #include "cmsis_compiler.h"
+#include "tusb_config.h"
 #include "picoprobe_config.h"
 #include "probe.h"
 
@@ -61,8 +62,7 @@ This information includes:
 /// require 2 processor cycles for a I/O Port Write operation.  If the Debug Unit uses
 /// a Cortex-M0+ processor with high-speed peripheral I/O only 1 processor cycle might be
 /// required.
-#define IO_PORT_WRITE_CYCLES    1U              ///< I/O Cycles: 2=default, 1=Cortex-M0+ fast I/0.
-#define DELAY_SLOW_CYCLES 1U // We don't differentiate between fast/slow, we've got a 16-bit divisor for that
+#define IO_PORT_WRITE_CYCLES    2U              ///< I/O Cycles: 2=default, 1=Cortex-M0+ fast I/0.
 
 /// Indicate that Serial Wire Debug (SWD) communication mode is available at the Debug Access Port.
 /// This information is returned by the command \ref DAP_Info as part of <b>Capabilities</b>.
@@ -89,13 +89,23 @@ This information includes:
 /// This configuration settings is used to optimize the communication performance with the
 /// debugger and depends on the USB peripheral. Typical vales are 64 for Full-speed USB HID or WinUSB,
 /// 1024 for High-speed USB HID and 512 for High-speed USB WinUSB.
-#define DAP_PACKET_SIZE         64U            ///< Specifies Packet Size in bytes.
+/// TODO pyOCD: OK: 64, 128   /   FAIL: 256, 512, 1024   bug in pyOCD?
+#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
+    #define DAP_PACKET_SIZE     512U           ///< Specifies Packet Size in bytes.
+#else
+    #define DAP_PACKET_SIZE     64U             ///< Specifies Packet Size in bytes.
+#endif
 
 /// Maximum Package Buffers for Command and Response data.
 /// This configuration settings is used to optimize the communication performance with the
 /// debugger and depends on the USB peripheral. For devices with limited RAM or USB buffer the
 /// setting can be reduced (valid range is 1 .. 255).
-#define DAP_PACKET_COUNT        2U              ///< Specifies number of packets buffered.
+/// 
+#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
+    #define DAP_PACKET_COUNT    8U              ///< Specifies number of packets buffered.
+#else
+    #define DAP_PACKET_COUNT    2U              ///< Specifies number of packets buffered.
+#endif
 
 /// Indicate that UART Serial Wire Output (SWO) trace is available.
 /// This information is returned by the command \ref DAP_Info as part of <b>Capabilities</b>.
