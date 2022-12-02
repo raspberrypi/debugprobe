@@ -41,7 +41,8 @@ static uint8_t rx_buf[CFG_TUD_CDC_RX_BUFSIZE];
 static uint16_t cdc_debug_fifo_read;
 static uint16_t cdc_debug_fifo_write;
 static uint8_t cdc_debug_fifo[4096];
-static uint8_t cdc_debug_buf[256];
+static uint8_t cdc_debug_buf[CFG_TUD_CDC_TX_BUFSIZE];
+
 
 void cdc_uart_init(void) {
     gpio_set_function(PICOPROBE_UART_TX, GPIO_FUNC_UART);
@@ -56,7 +57,7 @@ void cdc_uart_init(void) {
 void cdc_task(void)
 {
     static int was_connected = 0;
-    uint rx_len = 0;
+    static uint32_t rx_len = 0;
 
     // Consume uart fifo regardless even if not connected
     while(uart_is_readable(PICOPROBE_UART_INTERFACE) && (rx_len < sizeof(rx_buf))) {
@@ -73,6 +74,8 @@ void cdc_task(void)
             if (written > 0) {
                 tud_cdc_write(rx_buf, written);
                 tud_cdc_write_flush();
+                memmove(rx_buf, rx_buf + written, rx_len - written);
+                rx_len -= written;
             }
         }
         else if (cdc_debug_fifo_read != cdc_debug_fifo_write) {
@@ -85,6 +88,7 @@ void cdc_task(void)
             cnt = cdc_debug_fifo_write - cdc_debug_fifo_read;
           }
           cnt = MIN(cnt, sizeof(cdc_debug_buf));
+          cnt = MIN(tud_cdc_write_available(), cnt);
           memcpy(cdc_debug_buf, cdc_debug_fifo + cdc_debug_fifo_read, cnt);
           cdc_debug_fifo_read = (cdc_debug_fifo_read + cnt) % sizeof(cdc_debug_fifo);
           tud_cdc_write(cdc_debug_buf, cnt);
