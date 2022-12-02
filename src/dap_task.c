@@ -176,7 +176,7 @@ static uint32_t DAP_Check_TransferBlock(const uint8_t *request, uint32_t request
 {
     uint32_t num;
 
-    if (request_len < 1 + 1 + 2 + 1 + 1)
+    if (request_len < 1 + 1 + 2 + 1)
     {
         return DAP_CHECK_ABORT;
     }
@@ -184,12 +184,12 @@ static uint32_t DAP_Check_TransferBlock(const uint8_t *request, uint32_t request
     if ((request[4] & DAP_TRANSFER_RnW) != 0U)
     {
         // Read register block
-        num = 4;
+        num = 5;
     }
     else
     {
         // Write register block
-        num = 4 + 4 * ((uint32_t)request[2]  |  (uint32_t)(request[3] << 8));
+        num = 5 + 4 * ((uint32_t)request[2]  |  (uint32_t)(request[3] << 8));
     }
 
     return num;
@@ -376,7 +376,7 @@ uint32_t DAP_Check_ExecuteCommand(const uint8_t *request, uint32_t request_len)
             num += n;
             request += n;
         }
-        return num;
+        return (num > DAP_CHECK_ABORT) ? DAP_CHECK_ABORT : num;
     }
 
     return DAP_Check_ProcessCommand(request, request_len);
