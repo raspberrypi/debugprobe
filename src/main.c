@@ -87,7 +87,6 @@ void usb_thread(void *ptr)
 void dap_thread(void *ptr)
 {
     uint32_t rx_len;
-    uint32_t resp_len;
 
     rx_len = 0;
     for (;;)
@@ -104,6 +103,8 @@ void dap_thread(void *ptr)
 
         if (rx_len != 0  &&  rx_len >= DAP_Check_ExecuteCommand(RxDataBuffer, rx_len))
         {
+            uint32_t resp_len;
+            
             resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
             tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
             tud_vendor_flush();
@@ -173,13 +174,7 @@ int main(void)
         probe_task();
         led_task();
 #elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
-        if (tud_vendor_available()) {
-            uint32_t resp_len;
-
-            resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
-            tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
-            tud_vendor_flush();
-        }
+        #error "PROTO_DAP_V2 does not work unthreaded"
 #endif
     }
 #endif
