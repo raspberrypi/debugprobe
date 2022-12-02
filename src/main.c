@@ -104,7 +104,7 @@ void dap_thread(void *ptr)
         if (rx_len != 0  &&  rx_len >= DAP_Check_ExecuteCommand(RxDataBuffer, rx_len))
         {
             uint32_t resp_len;
-            
+
             resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
             tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
             tud_vendor_flush();
@@ -144,16 +144,18 @@ int main(void)
 #endif
     led_init();
 
-    picoprobe_info("------------------------------------------");
+    picoprobe_info("\n-------------------------------------\n");
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
-    picoprobe_info("Welcome to Picoprobe! (CUSTOM)\n");
+    picoprobe_info("    Welcome to Picoprobe - CUSTOM\n");
 #elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
-    picoprobe_info("Welcome to Picoprobe! (DAP_V1)\n");
+    picoprobe_info("    Welcome to Picoprobe - DAP_V1\n");
 #elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
-    picoprobe_info("Welcome to Picoprobe! (DAP_V2)\n");
+    picoprobe_info("    Welcome to Picoprobe - DAP_V2\n");
 #else
-    picoprobe_info("Welcome to Picoprobe! (UNKNOWN)\n");
+    picoprobe_info("    Welcome to Picoprobe - UNKNOWN\n");
 #endif
+    picoprobe_info("           Target stopped\n");
+    picoprobe_info("-------------------------------------\n\n");
 
 #if (THREADED != 0)
     /* UART needs to preempt USB as if we don't, characters get lost */
