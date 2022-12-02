@@ -232,9 +232,13 @@ void dap_thread(void *ptr)
             req_len += len;
             //picoprobe_info("Got chunk %u\n", req_len);
 
-            if (req_len >= DAP_Check_ExecuteCommand(RxDataBuffer, req_len))
+            while (req_len >= DAP_Check_ExecuteCommand(RxDataBuffer, req_len))
             {
 #ifdef DAP_DEBUG
+                picoprobe_error("   REQUEST: ");
+                for (uint32_t u = 0;  u < req_len;  ++u)
+                    picoprobe_error(" %02x", RxDataBuffer[u]);
+                picoprobe_error("\n");
                 resp_len = DAP_ExecuteCommandDebug("1", RxDataBuffer, req_len, TxDataBuffer);
 #else
                 resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
@@ -243,11 +247,20 @@ void dap_thread(void *ptr)
                 tud_vendor_flush();
                 //vTaskDelay(500);
 
-                if (req_len != (resp_len >> 16))
+                if (req_len < (resp_len >> 16))
                 {
-                    picoprobe_error("   !!!!!!!! %u != %u\n", req_len, resp_len >> 16);
+                    picoprobe_error("   !!!!!!!! request (%u) was not long enough for interpretation (%u)\n", req_len, resp_len >> 16);
+                    req_len = 0;
                 }
-                req_len = 0;
+                else if (req_len == (resp_len >> 16))
+                {
+                    req_len = 0;
+                }
+                else
+                {
+                    memmove(RxDataBuffer, RxDataBuffer + (resp_len >> 16), req_len - (resp_len >> 16));
+                    req_len -= (resp_len >> 16);
+                }
                 block_cnt = 0;
             }
         }
