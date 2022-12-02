@@ -58,8 +58,8 @@
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
     static uint8_t TxDataBuffer[CFG_TUD_HID_EP_BUFSIZE * DAP_PACKET_COUNT];
 #elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
-    static uint8_t TxDataBuffer[DAP_PACKET_SIZE * DAP_PACKET_COUNT];    // TODO correct!?
-    static uint8_t RxDataBuffer[DAP_PACKET_SIZE * DAP_PACKET_COUNT];
+    static uint8_t TxDataBuffer[8192]; //DAP_PACKET_SIZE * DAP_PACKET_COUNT];    // TODO correct!?
+    static uint8_t RxDataBuffer[8192]; //DAP_PACKET_SIZE * DAP_PACKET_COUNT];
     static TaskHandle_t dap_taskhandle;
 #endif
 
@@ -77,8 +77,11 @@
 #ifdef DAP_DEBUG
 static uint32_t DAP_ExecuteCommandDebug(char *prefix, const uint8_t *request, uint32_t req_len, uint8_t *response)
 {
+    static uint8_t checkbuf[8192];
     uint32_t resp_len;
     bool echo = false;
+
+    memcpy(checkbuf, request, req_len);
 
     switch (request[0])
     {
@@ -163,7 +166,7 @@ static uint32_t DAP_ExecuteCommandDebug(char *prefix, const uint8_t *request, ui
 
     if ((resp_len >> 16) != DAP_Check_ExecuteCommand(request, req_len))
     {
-        picoprobe_error("   !!!!!!!!!!!! Length error: %u != %u\n", (resp_len >> 16), DAP_Check_ExecuteCommand(request, req_len));
+        picoprobe_error("   !!!!!!!!!!!! Length error: %u != %u (%u)\n", (resp_len >> 16), DAP_Check_ExecuteCommand(request, req_len), req_len);
         picoprobe_error("   request: ");
         for (uint32_t u = 0;  u < (resp_len >> 16);  ++u)
             picoprobe_error(" %02x", request[u]);
@@ -175,7 +178,12 @@ static uint32_t DAP_ExecuteCommandDebug(char *prefix, const uint8_t *request, ui
     }
     else
     {
-        echo = false;
+        //echo = false;
+    }
+
+    if (memcmp(checkbuf, request, req_len) != 0)
+    {
+        picoprobe_error("   WHAT HAPPENED HERE!?\n");
     }
 
     if (echo)
@@ -233,6 +241,7 @@ void dap_thread(void *ptr)
 #endif
                 tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
                 tud_vendor_flush();
+                //vTaskDelay(500);
 
                 if (req_len != (resp_len >> 16))
                 {

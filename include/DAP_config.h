@@ -62,7 +62,7 @@ This information includes:
 /// require 2 processor cycles for a I/O Port Write operation.  If the Debug Unit uses
 /// a Cortex-M0+ processor with high-speed peripheral I/O only 1 processor cycle might be
 /// required.
-#define IO_PORT_WRITE_CYCLES    1U              ///< I/O Cycles: 2=default, 1=Cortex-M0+ fast I/0.
+#define IO_PORT_WRITE_CYCLES    2U              ///< I/O Cycles: 2=default, 1=Cortex-M0+ fast I/0.
 
 /// Indicate that Serial Wire Debug (SWD) communication mode is available at the Debug Access Port.
 /// This information is returned by the command \ref DAP_Info as part of <b>Capabilities</b>.
@@ -91,7 +91,7 @@ This information includes:
 /// 1024 for High-speed USB HID and 512 for High-speed USB WinUSB.
 // TODO 1024 ok, >= 2048 NOT OK
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
-    #define DAP_PACKET_SIZE     1024U           ///< Specifies Packet Size in bytes.
+    #define DAP_PACKET_SIZE     512U           ///< Specifies Packet Size in bytes.
 #else
     #define DAP_PACKET_SIZE     64U             ///< Specifies Packet Size in bytes.
 #endif
@@ -101,7 +101,7 @@ This information includes:
 /// debugger and depends on the USB peripheral. For devices with limited RAM or USB buffer the
 /// setting can be reduced (valid range is 1 .. 255).
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
-    #define DAP_PACKET_COUNT    1U              ///< Specifies number of packets buffered.
+    #define DAP_PACKET_COUNT    8U              ///< Specifies number of packets buffered.
 #else
     #define DAP_PACKET_COUNT    2U              ///< Specifies number of packets buffered.
 #endif
