@@ -41,6 +41,7 @@
 #include "DAP.h"
 #include "DAP_config.h"
 #include "tusb_config.h"
+#include "dap_task.h"
 
 
 #define DAP_DEBUG
@@ -87,6 +88,11 @@ static uint32_t DAP_ExecuteCommandDebug(char *prefix, const uint8_t *request, ui
             echo = true;
             break;
 
+        case 0x01:
+            // ID_DAP_HostStatus
+            picoprobe_info("%s_exec ID_DAP_HostStatus_01(%d, %d)\n", prefix, request[1], request[2]);
+            break;
+
         case 0x02:
             // ID_DAP_Connect
             picoprobe_info("%s_exec ID_DAP_Connect_02(%d), len %lu\n", prefix, request[1], req_len);
@@ -99,6 +105,11 @@ static uint32_t DAP_ExecuteCommandDebug(char *prefix, const uint8_t *request, ui
             echo = true;
             break;
 
+        case 0x04:
+            // ID_DAP_TransferConfigure
+            picoprobe_info("%s_exec ID_DAP_TransferConfigure_04\n", prefix);
+            break;
+
         case 0x05:
             // ID_DAP_Transfer, appears very very often, so suppress it
             picoprobe_info("%s_exec ID_DAP_Transfer_05(%d)...\n", prefix, request[1]);
@@ -107,6 +118,11 @@ static uint32_t DAP_ExecuteCommandDebug(char *prefix, const uint8_t *request, ui
         case 0x06:
             // ID_DAP_TransferBlock
             picoprobe_info("%s_exec ID_DAP_TransferBlock_06, %02x %02x %02x %02x\n", prefix, request[1], request[2], request[3], request[4]);
+            break;
+
+        case 0x10:
+            // ID_DAP_SWJ_Pins
+            picoprobe_info("%s_exec ID_DAP_SWJ_Pins_10\n", prefix);
             break;
 
         case 0x11:
@@ -119,6 +135,11 @@ static uint32_t DAP_ExecuteCommandDebug(char *prefix, const uint8_t *request, ui
             // ID_DAP_SWJ_Sequence
             picoprobe_info("%s_exec ID_DAP_SWJ_Sequence_12(%d)\n", prefix, request[1]);
             echo = true;
+            break;
+
+        case 0x13:
+            // ID_DAP_SWD_Configure
+            picoprobe_info("%s_exec ID_DAP_SWD_Configure_13(%d)\n", prefix, request[1]);
             break;
 
         case 0x1d:
@@ -134,6 +155,20 @@ static uint32_t DAP_ExecuteCommandDebug(char *prefix, const uint8_t *request, ui
     }
 
     resp_len = DAP_ExecuteCommand(request, response);
+
+    if ((resp_len >> 16) != DAP_Check_ExecuteCommand(request, req_len))
+    {
+        picoprobe_info("    !!!!!!!!!!!! Length error: %u != %u\n", (resp_len >> 16), DAP_Check_ExecuteCommand(request, req_len));
+        picoprobe_info("   request:");
+        for (uint32_t u = 0;  u < (resp_len >> 16);  ++u)
+            picoprobe_info(" %02x", request[u]);
+        picoprobe_info("\n");
+    }
+    else
+    {
+        //echo = false;
+    }
+
     if (echo)
     {
         picoprobe_info("   %s_response, len 0x%lx: ", prefix, resp_len);
@@ -164,51 +199,6 @@ void dap_thread(void *ptr)
  */
 // TODO this code is actually doing nothing (never called).  Everything seems to be handled 
 {
-#if 0
-    uint32_t ret;
-    int32_t packet_len;
-    uint16_t req_len, resp_len;
-    uint8_t *rx_ptr;
-
-    do {
-        while (tud_vendor_available()) {
-            rx_ptr = RxDataBuffer;
-            packet_len = 0;
-            for (;;)
-            {
-                uint32_t len = tud_vendor_read(rx_ptr, sizeof(RxDataBuffer));
-
-                picoprobe_info("  len: %d\n", len);
-
-                packet_len += len;
-                rx_ptr += len;
-                if (len != 64)
-                    break;
-                vTaskDelay(100);
-            }
-            picoprobe_info("Got chunk %u\n", packet_len);
-
-            rx_ptr = RxDataBuffer;
-            do {
-#ifdef DAP_DEBUG
-                ret = DAP_ExecuteCommandDebug("1", RxDataBuffer, packet_len, TxDataBuffer);
-#else
-                ret = DAP_ExecuteCommand(rx_ptr, TxDataBuffer);
-#endif
-                resp_len = ret & 0xffff;
-                req_len = ret >> 16;
-                tud_vendor_write(TxDataBuffer, resp_len);
-                tud_vendor_flush();
-                rx_ptr += req_len;
-                packet_len -= req_len;
-                picoprobe_debug("Packet decode remaining %d req %u resp %u\n",
-                                packet_len, req_len, resp_len);
-            } while (packet_len > 0);
-        }
-        // Trivial delay to save power
-        vTaskDelay(1);
-    } while (1);
-#else
    for (;;)
    {
         if (tud_vendor_available()) 
@@ -237,8 +227,11 @@ void dap_thread(void *ptr)
             }
             picoprobe_info("Got chunk %u\n", req_len);
 
-            //req_len = tud_vendor_read(RxDataBuffer, sizeof(RxDataBuffer));
+#ifdef DAP_DEBUG
             resp_len = DAP_ExecuteCommandDebug("1", RxDataBuffer, req_len, TxDataBuffer);
+#else
+            resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
+#endif
             tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
             tud_vendor_flush();
         }
@@ -248,7 +241,6 @@ void dap_thread(void *ptr)
             vTaskDelay(2);
         }
    }
-#endif
 }
 #endif
 

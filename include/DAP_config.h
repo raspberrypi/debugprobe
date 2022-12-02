@@ -89,6 +89,7 @@ This information includes:
 /// This configuration settings is used to optimize the communication performance with the
 /// debugger and depends on the USB peripheral. Typical vales are 64 for Full-speed USB HID or WinUSB,
 /// 1024 for High-speed USB HID and 512 for High-speed USB WinUSB.
+// TODO 1024 ok, >= 2048 NOT OK
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
     #define DAP_PACKET_SIZE     1024U           ///< Specifies Packet Size in bytes.
 #else
