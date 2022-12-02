@@ -47,6 +47,12 @@ int cdc_printf(const char* format, ...);
     #define picoprobe_dump(format,...) ((void)0)
 #endif
 
+#if 1
+    #define picoprobe_error(format,args...) cdc_printf(format, ## args)
+#else
+    #define picoprobe_error(format,...) ((void)0)
+#endif
+
 
 // PIO config
 #define PROBE_SM                    0

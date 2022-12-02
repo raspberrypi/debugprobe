@@ -163,15 +163,19 @@ static uint32_t DAP_ExecuteCommandDebug(char *prefix, const uint8_t *request, ui
 
     if ((resp_len >> 16) != DAP_Check_ExecuteCommand(request, req_len))
     {
-        picoprobe_info("    !!!!!!!!!!!! Length error: %u != %u\n", (resp_len >> 16), DAP_Check_ExecuteCommand(request, req_len));
-        picoprobe_info("   request:");
+        picoprobe_error("   !!!!!!!!!!!! Length error: %u != %u\n", (resp_len >> 16), DAP_Check_ExecuteCommand(request, req_len));
+        picoprobe_error("   request: ");
         for (uint32_t u = 0;  u < (resp_len >> 16);  ++u)
-            picoprobe_info(" %02x", request[u]);
-        picoprobe_info("\n");
+            picoprobe_error(" %02x", request[u]);
+        picoprobe_error("\n");
+        picoprobe_error("   response:");
+        for (uint32_t u = 0;  u < (resp_len & 0xffff);  ++u)
+            picoprobe_error(" %02x", response[u]);
+        picoprobe_error("\n");
     }
     else
     {
-        //echo = false;
+        echo = false;
     }
 
     if (echo)
@@ -192,7 +196,7 @@ void usb_thread(void *ptr)
     do {
         tud_task();
         // Trivial delay to save power
-        vTaskDelay(1);
+        vTaskDelay(5);
     } while (1);
 }
 
@@ -205,6 +209,7 @@ void dap_thread(void *ptr)
 // TODO this code is actually doing nothing (never called).  Everything seems to be handled 
 {
     uint32_t req_len;
+    uint32_t resp_len;
     uint32_t block_cnt;
 
     req_len = 0;
@@ -213,14 +218,13 @@ void dap_thread(void *ptr)
     {
         if (tud_vendor_available()) 
         {
-            uint32_t resp_len;
             uint32_t len;
 
             len = tud_vendor_read(RxDataBuffer + req_len, sizeof(RxDataBuffer));
             req_len += len;
             //picoprobe_info("Got chunk %u\n", req_len);
 
-            if (req_len >= DAP_Check_ExecuteCommand(RxDataBuffer, req_len)  ||  block_cnt > 100)
+            if (req_len >= DAP_Check_ExecuteCommand(RxDataBuffer, req_len))
             {
 #ifdef DAP_DEBUG
                 resp_len = DAP_ExecuteCommandDebug("1", RxDataBuffer, req_len, TxDataBuffer);
@@ -229,6 +233,11 @@ void dap_thread(void *ptr)
 #endif
                 tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
                 tud_vendor_flush();
+
+                if (req_len != (resp_len >> 16))
+                {
+                    picoprobe_error("   !!!!!!!! %u != %u\n", req_len, resp_len >> 16);
+                }
                 req_len = 0;
                 block_cnt = 0;
             }
@@ -236,12 +245,37 @@ void dap_thread(void *ptr)
         else
         {
             // Trivial delay to save power
-            vTaskDelay(2);
+            // TODO delay of "1" leads to openocd crash!?  >="2" is ok
+            vTaskDelay(5);
         }
 
         if (req_len != 0)
         {
             ++block_cnt;
+
+            if (block_cnt > 100)
+            {
+                picoprobe_error("   !!!!!!!! unblocking\n");
+#ifdef DAP_DEBUG
+                resp_len = DAP_ExecuteCommandDebug("1", RxDataBuffer, req_len, TxDataBuffer);
+#else
+                resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
+#endif
+                tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
+                tud_vendor_flush();
+
+                picoprobe_error("   request: ");
+                for (uint32_t u = 0;  u < (resp_len >> 16);  ++u)
+                    picoprobe_error(" %02x", RxDataBuffer[u]);
+                picoprobe_error("\n");
+                picoprobe_error("   response:");
+                for (uint32_t u = 0;  u < (resp_len & 0xffff);  ++u)
+                    picoprobe_error(" %02x", TxDataBuffer[u]);
+                picoprobe_error("\n");
+
+                req_len = 0;
+                block_cnt = 0;
+            }
         }
    }
 }
