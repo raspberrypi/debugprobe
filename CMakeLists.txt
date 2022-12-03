@@ -17,6 +17,7 @@ add_executable(picoprobe
         src/cdc_uart.c
         src/get_serial.c
         src/sw_dp_pio.c
+        src/dap_util.c
 )
 
 target_sources(picoprobe PRIVATE
