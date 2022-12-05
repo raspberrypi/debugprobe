@@ -50,7 +50,7 @@ tusb_desc_device_t const desc_device =
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
     .idProduct          = 0x0004, // Picoprobe
 #else
-    .idProduct          = 0x000e, // CMSIS-DAP adapter
+    .idProduct          = 0x000c, // CMSIS-DAP adapter
 #endif
     .bcdDevice          = 0x0101, // Version 01.01
     .iManufacturer      = 0x01,
