@@ -36,6 +36,7 @@
 
 #include "picoprobe_config.h"
 #include "probe.h"
+#include "cdc_debug.h"
 #include "cdc_uart.h"
 #include "get_serial.h"
 #include "led.h"
@@ -49,9 +50,12 @@ static uint8_t RxDataBuffer[CFG_TUD_HID_EP_BUFSIZE];
 
 #define THREADED 1
 
-#define UART_TASK_PRIO (tskIDLE_PRIORITY + 3)
-#define TUD_TASK_PRIO  (tskIDLE_PRIORITY + 2)
-#define DAP_TASK_PRIO  (tskIDLE_PRIORITY + 1)
+#define UART_TASK_PRIO (tskIDLE_PRIORITY + 4)
+#define TUD_TASK_PRIO  (tskIDLE_PRIORITY + 3)
+#define DAP_TASK_PRIO  (tskIDLE_PRIORITY + 2)
+#if !defined(NDEBUG)
+    #define CDC_DEBUG_TASK_PRIO  (tskIDLE_PRIORITY + 1)
+#endif
 
 static TaskHandle_t dap_taskhandle, tud_taskhandle;
 
@@ -102,12 +106,18 @@ int main(void) {
         xTaskCreate(usb_thread, "TUD", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, &tud_taskhandle);
         /* Lowest priority thread is debug - need to shuffle buffers before we can toggle swd... */
         xTaskCreate(dap_thread, "DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);
+#if !defined(NDEBUG)
+        xTaskCreate(cdc_debug_thread, "CDC_DEB", configMINIMAL_STACK_SIZE, NULL, CDC_DEBUG_TASK_PRIO, &cdc_debug_taskhandle);
+#endif
         vTaskStartScheduler();
     }
 
     while (!THREADED) {
         tud_task();
         cdc_task();
+#if !defined(NDEBUG)
+        cdc_debug_task();
+#endif
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
         probe_task();
         led_task();

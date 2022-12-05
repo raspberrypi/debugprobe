@@ -50,7 +50,7 @@ tusb_desc_device_t const desc_device =
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
     .idProduct          = 0x0004, // Picoprobe
 #else
-    .idProduct          = 0x000c, // CMSIS-DAP adapter
+    .idProduct          = 0x000e, // CMSIS-DAP adapter
 #endif
     .bcdDevice          = 0x0101, // Version 01.01
     .iManufacturer      = 0x01,
@@ -75,19 +75,29 @@ enum
   ITF_NUM_PROBE, // Old versions of Keil MDK only look at interface 0
   ITF_NUM_CDC_COM,
   ITF_NUM_CDC_DATA,
+#if !defined(NDEBUG)
+  ITF_NUM_CDC_DEBUG_COM,
+  ITF_NUM_CDC_DEBUG_DATA,
+#endif
   ITF_NUM_TOTAL
 };
 
-#define CDC_NOTIFICATION_EP_NUM 0x81
-#define CDC_DATA_OUT_EP_NUM 0x02
-#define CDC_DATA_IN_EP_NUM 0x83
-#define PROBE_OUT_EP_NUM 0x04
-#define PROBE_IN_EP_NUM 0x85
+#define CDC_NOTIFICATION_EP_NUM     0x81
+#define CDC_DATA_OUT_EP_NUM         0x02
+#define CDC_DATA_IN_EP_NUM          0x83
+#define PROBE_OUT_EP_NUM            0x04
+#define PROBE_IN_EP_NUM             0x85
+
+#if !defined(NDEBUG)
+    #define CDC_DEBUG_NOTIFICATION_EP_NUM   0x86
+    #define CDC_DEBUG_DATA_OUT_EP_NUM       0x07
+    #define CDC_DEBUG_DATA_IN_EP_NUM        0x88
+#endif
 
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
-#define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_HID_INOUT_DESC_LEN)
+    #define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + TUD_HID_INOUT_DESC_LEN)
 #else
-#define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_VENDOR_DESC_LEN)
+    #define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + TUD_VENDOR_DESC_LEN)
 #endif
 
 static uint8_t const desc_hid_report[] =
@@ -117,6 +127,11 @@ uint8_t const desc_configuration[] =
 #endif
   // Interface 1 + 2
   TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_COM, 6, CDC_NOTIFICATION_EP_NUM, 64, CDC_DATA_OUT_EP_NUM, CDC_DATA_IN_EP_NUM, 64),
+
+#if !defined(NDEBUG)
+  // Interface 3 + 4
+  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_DEBUG_COM, 7, CDC_DEBUG_NOTIFICATION_EP_NUM, 64, CDC_DEBUG_DATA_OUT_EP_NUM, CDC_DEBUG_DATA_IN_EP_NUM, 64),
+#endif
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
@@ -135,13 +150,16 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 // array of pointer to string descriptors
 char const* string_desc_arr [] =
 {
-  (const char[]) { 0x09, 0x04 }, // 0: is supported language is English (0x0409)
-  "Raspberry Pi", // 1: Manufacturer
-  "Picoprobe CMSIS-DAP", // 2: Product
-  usb_serial,     // 3: Serial, uses flash unique ID
-  "Picoprobe CMSIS-DAP v1", // 4: Interface descriptor for HID transport
-  "Picoprobe CMSIS-DAP v2", // 5: Interface descriptor for Bulk transport
-  "Picoprobe CDC-ACM UART", // 6: Interface descriptor for CDC
+  (const char[]) { 0x09, 0x04 },  // 0: is supported language is English (0x0409)
+  "Raspberry Pi",                 // 1: Manufacturer
+  "Picoprobe CMSIS-DAP",          // 2: Product
+  usb_serial,                     // 3: Serial, uses flash unique ID
+  "Picoprobe CMSIS-DAP v1",       // 4: Interface descriptor for HID transport
+  "Picoprobe CMSIS-DAP v2",       // 5: Interface descriptor for Bulk transport
+  "Picoprobe CDC-ACM UART",       // 6: Interface descriptor for CDC UART (from target)
+#if !defined(NDEBUG)
+  "Picoprobe CDC-DEBUG",          // 7: Interface descriptor for CDC DEBUG
+#endif
 };
 
 static uint16_t _desc_str[32];
