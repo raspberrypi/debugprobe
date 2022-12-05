@@ -77,7 +77,7 @@ void usb_thread(void *ptr)
     do {
         tud_task();
         // Trivial delay to save power
-        vTaskDelay(5);
+        vTaskDelay(1);
     } while (1);
 }
 
@@ -97,7 +97,7 @@ void dap_thread(void *ptr)
         }
         else
         {
-            // Trivial delay to save power
+            // Trivial delay to save power and allow schedule of other tasks
             vTaskDelay(1);
         }
 
