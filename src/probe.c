@@ -91,8 +91,7 @@ struct __attribute__((__packed__)) probe_pkt_hdr {
     uint32_t total_packet_length;
 };
 
-void probe_set_swclk_freq(uint freq_khz)
-{
+void probe_set_swclk_freq(uint freq_khz) {
     uint clk_sys_freq_khz = clock_get_hz(clk_sys) / 1000;
 
     if (freq_khz > MAX_SWCLK_KHZ)
