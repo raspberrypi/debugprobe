@@ -43,9 +43,8 @@ static uint16_t cdc_debug_fifo_write;
 static uint8_t cdc_debug_fifo[4096];
 static uint8_t cdc_debug_buf[CFG_TUD_CDC_TX_BUFSIZE];
 
-
-
-void cdc_uart_init(void) {
+void cdc_uart_init(void)
+{
     gpio_set_function(PICOPROBE_UART_TX, GPIO_FUNC_UART);
     gpio_set_function(PICOPROBE_UART_RX, GPIO_FUNC_UART);
     gpio_set_pulls(PICOPROBE_UART_TX, 1, 0);
@@ -61,111 +60,106 @@ void cdc_task(void)
     static uint32_t rx_len = 0;
 
     // Consume uart fifo regardless even if not connected
-    while(uart_is_readable(PICOPROBE_UART_INTERFACE) && (rx_len < sizeof(rx_buf))) {
+    while (uart_is_readable(PICOPROBE_UART_INTERFACE) && (rx_len < sizeof(rx_buf))) {
         rx_buf[rx_len++] = uart_getc(PICOPROBE_UART_INTERFACE);
     }
 
     if (tud_cdc_connected()) {
-      was_connected = 1;
-      int written = 0;
-      /* Implicit overflow if we don't write all the bytes to the host.
-       * Also throw away bytes if we can't write... */
-      if (rx_len) {
-        written = MIN(tud_cdc_write_available(), rx_len);
-        if (written > 0) {
-          tud_cdc_write(rx_buf, written);
-          tud_cdc_write_flush();
-          memmove(rx_buf, rx_buf + written, rx_len - written);
-          rx_len -= written;
-        }
-      }
-      else if (cdc_debug_fifo_read != cdc_debug_fifo_write) {
-        int cnt;
+        was_connected = 1;
+        int written = 0;
+        /* Implicit overflow if we don't write all the bytes to the host.
+         * Also throw away bytes if we can't write... */
+        if (rx_len) {
+            written = MIN(tud_cdc_write_available(), rx_len);
+            if (written > 0) {
+                tud_cdc_write(rx_buf, written);
+                tud_cdc_write_flush();
+                memmove(rx_buf, rx_buf + written, rx_len - written);
+                rx_len -= written;
+            }
+        } else if (cdc_debug_fifo_read != cdc_debug_fifo_write) {
+            int cnt;
 
-        if (cdc_debug_fifo_read > cdc_debug_fifo_write) {
-          cnt = sizeof(cdc_debug_fifo) - cdc_debug_fifo_read;
+            if (cdc_debug_fifo_read > cdc_debug_fifo_write) {
+                cnt = sizeof(cdc_debug_fifo) - cdc_debug_fifo_read;
+            } else {
+                cnt = cdc_debug_fifo_write - cdc_debug_fifo_read;
+            }
+            cnt = MIN(cnt, sizeof(cdc_debug_buf));
+            cnt = MIN(tud_cdc_write_available(), cnt);
+            memcpy(cdc_debug_buf, cdc_debug_fifo + cdc_debug_fifo_read, cnt);
+            cdc_debug_fifo_read = (cdc_debug_fifo_read + cnt) % sizeof(cdc_debug_fifo);
+            tud_cdc_write(cdc_debug_buf, cnt);
+            tud_cdc_write_flush();
         }
-        else {
-          cnt = cdc_debug_fifo_write - cdc_debug_fifo_read;
-        }
-        cnt = MIN(cnt, sizeof(cdc_debug_buf));
-        cnt = MIN(tud_cdc_write_available(), cnt);
-        memcpy(cdc_debug_buf, cdc_debug_fifo + cdc_debug_fifo_read, cnt);
-        cdc_debug_fifo_read = (cdc_debug_fifo_read + cnt) % sizeof(cdc_debug_fifo);
-        tud_cdc_write(cdc_debug_buf, cnt);
-        tud_cdc_write_flush();
-      }
 
-      /* Reading from a firehose and writing to a FIFO. */
-      size_t watermark = MIN(tud_cdc_available(), sizeof(tx_buf));
-      if (watermark > 0) {
-        size_t tx_len;
-        /* Batch up to half a FIFO of data - don't clog up on RX */
-        watermark = MIN(watermark, 16);
-        tx_len = tud_cdc_read(tx_buf, watermark);
-        uart_write_blocking(PICOPROBE_UART_INTERFACE, tx_buf, tx_len);
-      }
+        /* Reading from a firehose and writing to a FIFO. */
+        size_t watermark = MIN(tud_cdc_available(), sizeof(tx_buf));
+        if (watermark > 0) {
+            size_t tx_len;
+            /* Batch up to half a FIFO of data - don't clog up on RX */
+            watermark = MIN(watermark, 16);
+            tx_len = tud_cdc_read(tx_buf, watermark);
+            uart_write_blocking(PICOPROBE_UART_INTERFACE, tx_buf, tx_len);
+        }
     } else if (was_connected) {
-      tud_cdc_write_clear();
-      was_connected = 0;
+        tud_cdc_write_clear();
+        was_connected = 0;
     }
 }
 
-void cdc_thread(void *ptr)
+void cdc_thread(void* ptr)
 {
-  BaseType_t delayed;
-  last_wake = xTaskGetTickCount();
-  /* Threaded with a polling interval that scales according to linerate */
-  while (1) {
-    cdc_task();
-    delayed = xTaskDelayUntil(&last_wake, interval);
-    if (delayed == pdFALSE)
-      last_wake = xTaskGetTickCount();
-  }
+    BaseType_t delayed;
+    last_wake = xTaskGetTickCount();
+    /* Threaded with a polling interval that scales according to linerate */
+    while (1) {
+        cdc_task();
+        delayed = xTaskDelayUntil(&last_wake, interval);
+        if (delayed == pdFALSE)
+            last_wake = xTaskGetTickCount();
+    }
 }
 
 void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding)
 {
-  /* Set the tick thread interval to the amount of time it takes to
-   * fill up half a FIFO. Millis is too coarse for integer divide.
-   */
-  uint32_t micros = (1000 * 1000 * 16 * 10) / MAX(line_coding->bit_rate, 1);
+    /* Set the tick thread interval to the amount of time it takes to
+     * fill up half a FIFO. Millis is too coarse for integer divide.
+     */
+    uint32_t micros = (1000 * 1000 * 16 * 10) / MAX(line_coding->bit_rate, 1);
 
-  /* Modifying state, so park the thread before changing it. */
-  vTaskSuspend(uart_taskhandle);
-  interval = MAX(1, micros / ((1000 * 1000) / configTICK_RATE_HZ));
-  picoprobe_info("New baud rate %lu micros %lu interval %lu\n",
-                  line_coding->bit_rate, micros, interval);
-  uart_deinit(PICOPROBE_UART_INTERFACE);
-  tud_cdc_write_clear();
-  tud_cdc_read_flush();
-  uart_init(PICOPROBE_UART_INTERFACE, line_coding->bit_rate);
-  vTaskResume(uart_taskhandle);
+    /* Modifying state, so park the thread before changing it. */
+    vTaskSuspend(uart_taskhandle);
+    interval = MAX(1, micros / ((1000 * 1000) / configTICK_RATE_HZ));
+    picoprobe_info("New baud rate %lu micros %lu interval %lu\n",
+        line_coding->bit_rate, micros, interval);
+    uart_deinit(PICOPROBE_UART_INTERFACE);
+    tud_cdc_write_clear();
+    tud_cdc_read_flush();
+    uart_init(PICOPROBE_UART_INTERFACE, line_coding->bit_rate);
+    vTaskResume(uart_taskhandle);
 }
 
 void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 {
-  /* CDC drivers use linestate as a bodge to activate/deactivate the interface.
-   * Resume our UART polling on activate, stop on deactivate */
-  if (!dtr && !rts)
-    vTaskSuspend(uart_taskhandle);
-  else
-    vTaskResume(uart_taskhandle);
+    /* CDC drivers use linestate as a bodge to activate/deactivate the interface.
+     * Resume our UART polling on activate, stop on deactivate */
+    if (!dtr && !rts)
+        vTaskSuspend(uart_taskhandle);
+    else
+        vTaskResume(uart_taskhandle);
 }
 
-
-
-void cdc_to_fifo(const char *buf, int max_cnt)
+void cdc_to_fifo(const char* buf, int max_cnt)
 {
-    const char *buf_pnt;
+    const char* buf_pnt;
     int cnt;
 
     buf_pnt = buf;
     while (max_cnt > 0 && (cdc_debug_fifo_write + 1) % sizeof(cdc_debug_fifo) != cdc_debug_fifo_read) {
         if (cdc_debug_fifo_read > cdc_debug_fifo_write) {
             cnt = (cdc_debug_fifo_read - 1) - cdc_debug_fifo_write;
-        }
-        else {
+        } else {
             cnt = sizeof(cdc_debug_fifo) - cdc_debug_fifo_write;
         }
         cnt = MIN(cnt, max_cnt);
@@ -174,9 +168,7 @@ void cdc_to_fifo(const char *buf, int max_cnt)
         max_cnt -= cnt;
         cdc_debug_fifo_write = (cdc_debug_fifo_write + cnt) % sizeof(cdc_debug_fifo);
     }
-}   // cdc_to_fifo
-
-
+} // cdc_to_fifo
 
 int cdc_printf(const char* format, ...)
 /**
@@ -194,14 +186,14 @@ int cdc_printf(const char* format, ...)
     char tbuf[30];
     int cnt;
     int ndx = 0;
-    const char *p;
+    const char* p;
 
     //
     // print formatted text into buffer
     //
     va_list va;
     va_start(va, format);
-    const int total_cnt = vsnprintf((char *)buf, sizeof(buf), format, va);
+    const int total_cnt = vsnprintf((char*)buf, sizeof(buf), format, va);
     va_end(va);
 
     tbuf[0] = 0;
@@ -233,8 +225,7 @@ int cdc_printf(const char* format, ...)
         p = memchr(buf + ndx, '\n', total_cnt - ndx);
         if (p == NULL) {
             cnt = total_cnt - ndx;
-        }
-        else {
+        } else {
             cnt = (p - (buf + ndx)) + 1;
             newline = true;
         }
@@ -245,4 +236,4 @@ int cdc_printf(const char* format, ...)
     }
 
     return total_cnt;
-}   // cdc_printf
+} // cdc_printf
