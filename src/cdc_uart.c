@@ -23,6 +23,7 @@
  *
  */
 
+#include <stdarg.h>
 #include <pico/stdlib.h>
 #include "FreeRTOS.h"
 #include "task.h"
@@ -37,18 +38,27 @@ TickType_t last_wake, interval = 100;
 static uint8_t tx_buf[CFG_TUD_CDC_TX_BUFSIZE];
 static uint8_t rx_buf[CFG_TUD_CDC_RX_BUFSIZE];
 
+static uint16_t cdc_debug_fifo_read;
+static uint16_t cdc_debug_fifo_write;
+static uint8_t cdc_debug_fifo[4096];
+static uint8_t cdc_debug_buf[CFG_TUD_CDC_TX_BUFSIZE];
+
+
+
 void cdc_uart_init(void) {
     gpio_set_function(PICOPROBE_UART_TX, GPIO_FUNC_UART);
     gpio_set_function(PICOPROBE_UART_RX, GPIO_FUNC_UART);
     gpio_set_pulls(PICOPROBE_UART_TX, 1, 0);
     gpio_set_pulls(PICOPROBE_UART_RX, 1, 0);
     uart_init(PICOPROBE_UART_INTERFACE, PICOPROBE_UART_BAUDRATE);
+    cdc_debug_fifo_read = 0;
+    cdc_debug_fifo_write = 0;
 }
 
 void cdc_task(void)
 {
     static int was_connected = 0;
-    uint rx_len = 0;
+    static uint32_t rx_len = 0;
 
     // Consume uart fifo regardless even if not connected
     while(uart_is_readable(PICOPROBE_UART_INTERFACE) && (rx_len < sizeof(rx_buf))) {
@@ -56,17 +66,35 @@ void cdc_task(void)
     }
 
     if (tud_cdc_connected()) {
-        was_connected = 1;
-        int written = 0;
-        /* Implicit overflow if we don't write all the bytes to the host.
-         * Also throw away bytes if we can't write... */
-        if (rx_len) {
-          written = MIN(tud_cdc_write_available(), rx_len);
-          if (written > 0) {
-            tud_cdc_write(rx_buf, written);
-            tud_cdc_write_flush();
-          }
+      was_connected = 1;
+      int written = 0;
+      /* Implicit overflow if we don't write all the bytes to the host.
+       * Also throw away bytes if we can't write... */
+      if (rx_len) {
+        written = MIN(tud_cdc_write_available(), rx_len);
+        if (written > 0) {
+          tud_cdc_write(rx_buf, written);
+          tud_cdc_write_flush();
+          memmove(rx_buf, rx_buf + written, rx_len - written);
+          rx_len -= written;
         }
+      }
+      else if (cdc_debug_fifo_read != cdc_debug_fifo_write) {
+        int cnt;
+
+        if (cdc_debug_fifo_read > cdc_debug_fifo_write) {
+          cnt = sizeof(cdc_debug_fifo) - cdc_debug_fifo_read;
+        }
+        else {
+          cnt = cdc_debug_fifo_write - cdc_debug_fifo_read;
+        }
+        cnt = MIN(cnt, sizeof(cdc_debug_buf));
+        cnt = MIN(tud_cdc_write_available(), cnt);
+        memcpy(cdc_debug_buf, cdc_debug_fifo + cdc_debug_fifo_read, cnt);
+        cdc_debug_fifo_read = (cdc_debug_fifo_read + cnt) % sizeof(cdc_debug_fifo);
+        tud_cdc_write(cdc_debug_buf, cnt);
+        tud_cdc_write_flush();
+      }
 
       /* Reading from a firehose and writing to a FIFO. */
       size_t watermark = MIN(tud_cdc_available(), sizeof(tx_buf));
@@ -106,7 +134,7 @@ void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding)
   /* Modifying state, so park the thread before changing it. */
   vTaskSuspend(uart_taskhandle);
   interval = MAX(1, micros / ((1000 * 1000) / configTICK_RATE_HZ));
-  picoprobe_info("New baud rate %d micros %d interval %u\n",
+  picoprobe_info("New baud rate %lu micros %lu interval %lu\n",
                   line_coding->bit_rate, micros, interval);
   uart_deinit(PICOPROBE_UART_INTERFACE);
   tud_cdc_write_clear();
@@ -124,3 +152,97 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
   else
     vTaskResume(uart_taskhandle);
 }
+
+
+
+void cdc_to_fifo(const char *buf, int max_cnt)
+{
+    const char *buf_pnt;
+    int cnt;
+
+    buf_pnt = buf;
+    while (max_cnt > 0 && (cdc_debug_fifo_write + 1) % sizeof(cdc_debug_fifo) != cdc_debug_fifo_read) {
+        if (cdc_debug_fifo_read > cdc_debug_fifo_write) {
+            cnt = (cdc_debug_fifo_read - 1) - cdc_debug_fifo_write;
+        }
+        else {
+            cnt = sizeof(cdc_debug_fifo) - cdc_debug_fifo_write;
+        }
+        cnt = MIN(cnt, max_cnt);
+        memcpy(cdc_debug_fifo + cdc_debug_fifo_write, buf_pnt, cnt);
+        buf_pnt += cnt;
+        max_cnt -= cnt;
+        cdc_debug_fifo_write = (cdc_debug_fifo_write + cnt) % sizeof(cdc_debug_fifo);
+    }
+}   // cdc_to_fifo
+
+
+
+int cdc_printf(const char* format, ...)
+/**
+ * Debug printf()
+ * Note that at the beginning of each output a timestamp is inserted.  Which means, that each call to cdc_printf()
+ * should output a line.
+ */
+{
+    static uint32_t prev_ms;
+    static uint32_t base_ms;
+    static bool newline = true;
+    uint32_t now_ms;
+    uint32_t d_ms;
+    char buf[256];
+    char tbuf[30];
+    int cnt;
+    int ndx = 0;
+    const char *p;
+
+    //
+    // print formatted text into buffer
+    //
+    va_list va;
+    va_start(va, format);
+    const int total_cnt = vsnprintf((char *)buf, sizeof(buf), format, va);
+    va_end(va);
+
+    tbuf[0] = 0;
+
+    while (ndx < total_cnt) {
+        if (newline) {
+            newline = false;
+
+            if (tbuf[0] == 0) {
+                //
+                // more or less intelligent time stamp which allows better measurements:
+                // - show delta
+                // - reset time if there hase been no activity for 5s
+                //
+                now_ms = (uint32_t)(time_us_64() / 1000) - base_ms;
+                if (now_ms - prev_ms > 5000) {
+                    base_ms = (uint32_t)(time_us_64() / 1000);
+                    now_ms = 0;
+                    prev_ms = 0;
+                }
+                d_ms = (uint32_t)(now_ms - prev_ms);
+                d_ms = MIN(d_ms, 999);
+                snprintf(tbuf, sizeof(tbuf), "%lu.%03lu (%3lu) - ", now_ms / 1000, now_ms % 1000, d_ms);
+                prev_ms = now_ms;
+            }
+            cdc_to_fifo(tbuf, strnlen(tbuf, sizeof(tbuf)));
+        }
+
+        p = memchr(buf + ndx, '\n', total_cnt - ndx);
+        if (p == NULL) {
+            cnt = total_cnt - ndx;
+        }
+        else {
+            cnt = (p - (buf + ndx)) + 1;
+            newline = true;
+        }
+
+        cdc_to_fifo(buf + ndx, cnt);
+
+        ndx += cnt;
+    }
+
+    return total_cnt;
+}   // cdc_printf
