@@ -31,7 +31,7 @@
 
 /* Slight hack - we're not bitbashing so we need to set baudrate off the DAP's delay cycles.
  * Ideally we don't want calls to udiv everywhere... */
-#define MAKE_KHZ(x) (CPU_CLOCK / (2000 * ((x) + 1)))
+#define MAKE_KHZ(fast, delay) (fast ? 100000 : (CPU_CLOCK / 2000) / (delay * DELAY_SLOW_CYCLES + IO_PORT_WRITE_CYCLES))
 volatile uint32_t cached_delay = 0;
 
 // Generate SWJ Sequence
@@ -44,7 +44,8 @@ void SWJ_Sequence (uint32_t count, const uint8_t *data) {
   uint32_t n;
 
   if (DAP_Data.clock_delay != cached_delay) {
-    probe_set_swclk_freq(MAKE_KHZ(DAP_Data.clock_delay));
+    picoprobe_info("SWJ_Sequence %lu %d\n", DAP_Data.clock_delay, DAP_Data.fast_clock);
+    probe_set_swclk_freq(MAKE_KHZ(DAP_Data.fast_clock, DAP_Data.clock_delay));
     cached_delay = DAP_Data.clock_delay;
   }
   picoprobe_debug("SWJ sequence count = %d FDB=0x%2x\n", count, data[0]);
@@ -71,7 +72,8 @@ void SWD_Sequence (uint32_t info, const uint8_t *swdo, uint8_t *swdi) {
   uint32_t n;
 
   if (DAP_Data.clock_delay != cached_delay) {
-    probe_set_swclk_freq(MAKE_KHZ(DAP_Data.clock_delay));
+    picoprobe_info("SWD_Sequence\n");
+    probe_set_swclk_freq(MAKE_KHZ(DAP_Data.fast_clock, DAP_Data.clock_delay));
     cached_delay = DAP_Data.clock_delay;
   }
   picoprobe_debug("SWD sequence\n");
@@ -116,7 +118,8 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data) {
   uint32_t n;
 
   if (DAP_Data.clock_delay != cached_delay) {
-    probe_set_swclk_freq(MAKE_KHZ(DAP_Data.clock_delay));
+    picoprobe_info("SWD_Transfer\n");
+    probe_set_swclk_freq(MAKE_KHZ(DAP_Data.fast_clock, DAP_Data.clock_delay));
     cached_delay = DAP_Data.clock_delay;
   }
   picoprobe_debug("SWD_transfer\n");

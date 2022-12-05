@@ -35,7 +35,11 @@
 #include "probe.pio.h"
 #include "tusb.h"
 
+#include "DAP_config.h"
+
 #define DIV_ROUND_UP(m, n)	(((m) + (n) - 1) / (n))
+
+#define MAX_SWCLK_KHZ   20000
 
 // Only want to set / clear one gpio per event so go up in powers of 2
 enum _dbg_pins {
@@ -87,12 +91,16 @@ struct __attribute__((__packed__)) probe_pkt_hdr {
     uint32_t total_packet_length;
 };
 
-void probe_set_swclk_freq(uint freq_khz) {
-        uint clk_sys_freq_khz = clock_get_hz(clk_sys) / 1000;
-        picoprobe_info("Set swclk freq %dKHz sysclk %dkHz\n", freq_khz, clk_sys_freq_khz);
-        // Worked out with saleae
-        uint32_t divider = clk_sys_freq_khz / freq_khz / 2;
-        pio_sm_set_clkdiv_int_frac(pio0, PROBE_SM, divider, 0);
+void probe_set_swclk_freq(uint freq_khz)
+{
+    uint clk_sys_freq_khz = clock_get_hz(clk_sys) / 1000;
+
+    if (freq_khz > MAX_SWCLK_KHZ)
+        freq_khz = MAX_SWCLK_KHZ;
+    picoprobe_info("Set swclk freq %dkHz sysclk %dkHz\n", freq_khz, clk_sys_freq_khz);
+    // Worked out with saleae
+    uint32_t divider = clk_sys_freq_khz / freq_khz / 2;
+    pio_sm_set_clkdiv_int_frac(pio0, PROBE_SM, divider, 0);
 }
 
 void probe_assert_reset(bool state)
@@ -177,7 +185,7 @@ void probe_init() {
         pio_sm_init(pio0, PROBE_SM, offset, &sm_config);
 
         // Set up divisor
-        probe_set_swclk_freq(1000);
+        probe_set_swclk_freq(DAP_DEFAULT_SWJ_CLOCK / 1000);
 
         // Enable SM
         pio_sm_set_enabled(pio0, PROBE_SM, 1);
