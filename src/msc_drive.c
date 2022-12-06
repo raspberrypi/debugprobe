@@ -30,9 +30,11 @@
 #include "hardware/flash.h"
 #include "pico/stdlib.h"
 
-#if CFG_TUD_MSC
+#include "picoprobe_config.h"
 
-#define WP_PIN 14
+
+
+#if CFG_TUD_MSC
 
 #define FLASH_OFFSET_KB 48
 #define FLASH_TARGET_OFFSET (FLASH_OFFSET_KB * 1024)
@@ -44,36 +46,16 @@ enum {
     FLASH_DISK_BLOCK_SIZE = 4096
 };
 
-#if SERIAL_LOG
-char printBuf[100]; // buffer for printing messages to serial
-#endif
 
 static uint8_t lba_buffer[FLASH_DISK_BLOCK_SIZE]; // buffer to write to
 static uint32_t prevWriteLba = -1; // last LBA that's been written to
 
-bool read_wp_pin(void)
-{
-    static bool pin_init = false;
-    if (!pin_init) {
-        gpio_init(WP_PIN);
-        gpio_set_dir(WP_PIN, GPIO_IN);
-        gpio_pull_up(WP_PIN);
-        sleep_ms(10);
-        pin_init = true;
-    }
-    return !gpio_get(WP_PIN);
-}
-
 // Update flash
 void update_flash_block(uint32_t block, uint8_t* data)
 {
-
-#if SERIAL_LOG
     if (tud_cdc_connected()) {
-        sprintf(printBuf, "FLASH: updating block %d\n\r", prevWriteLba);
-        tud_cdc_write_str(printBuf);
+        picoprobe_info("FLASH: updating block %lu\n", prevWriteLba);
     }
-#endif
 
     // write the previous block to flash
     uint32_t ints = save_and_disable_interrupts(); // disable interrupts (needed if running from flash)
@@ -149,18 +131,13 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
 // Copy disk's data to buffer (up to bufsize) and return number of copied bytes.
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
 {
-
-#if SERIAL_LOG
     if (tud_cdc_connected()) {
-        sprintf(printBuf, "LUN%d: read %d bytes from block %d, offset %d, ", lun, bufsize, lba, offset);
-        tud_cdc_write_str(printBuf);
+        picoprobe_info("LUN%d: read %lu bytes from block %lu, offset %lu, ", lun, bufsize, lba, offset);
         if (lba == prevWriteLba)
-            sprintf(printBuf, "from buffer\n\r");
+            picoprobe_info("from buffer\n");
         else
-            sprintf(printBuf, "from flash\n\r");
-        tud_cdc_write_str(printBuf);
+            picoprobe_info("from flash\n");
     }
-#endif
 
     // out of disk
     switch (lun) {
@@ -195,20 +172,16 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
 bool tud_msc_is_writable_cb(uint8_t lun)
 {
     (void)lun;
-    return read_wp_pin(); // we can write to all LUNs
+    return true;
 }
 
 // Callback invoked when received WRITE10 command.
 // Process data in buffer to disk's storage and return number of written bytes
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize)
 {
-
-#if SERIAL_LOG
     if (tud_cdc_connected()) {
-        sprintf(printBuf, "LUN%d: write %d bytes to block %d, offset %d\n\r", lun, bufsize, lba, offset);
-        tud_cdc_write_str(printBuf);
+        picoprobe_info("LUN%d: write %lu bytes to block %lu, offset %lu\n", lun, bufsize, lba, offset);
     }
-#endif
 
     // out of disk
     switch (lun) {
@@ -257,12 +230,9 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, u
         case SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL:
             // Host is about to read/write etc ... better not to disconnect disk
 
-#if SERIAL_LOG
             if (tud_cdc_connected()) {
-                sprintf(printBuf, "Ejected LUN %d\n\r", lun);
-                tud_cdc_write_str(printBuf);
+                picoprobe_info("Ejected LUN %d\n", lun);
             }
-#endif
 
             if (lun == 0 && prevWriteLba > -1) // Flush buffer to flash on eject
                 update_flash_block(prevWriteLba, lba_buffer);
