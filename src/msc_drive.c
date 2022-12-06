@@ -30,8 +30,10 @@
 
 #if CFG_TUD_MSC
 
-#define DWORDA(X)       (X) & 0xff, ((X) & 0xff00) >> 8, ((X) & 0xff0000) >> 16, ((X) & 0xff000000) >> 24
-#define WORDA(X)        (X) & 0xff, ((X) & 0xff00) >> 8
+#define ADWORD(X)       (X) & 0xff, ((X) & 0xff00) >> 8, ((X) & 0xff0000) >> 16, ((X) & 0xff000000) >> 24
+#define AWORD(X)        (X) & 0xff, ((X) & 0xff00) >> 8
+#define ADATE(Y,M,D)    AWORD((((Y)-1980) << 9) + ((M) << 5) + (D))
+#define ATIME(H,M,S)    AWORD(((H) << 11) + ((M) << 5) + ((S) / 2))
 #define SECTORS(BYTES)  (((BYTES) + BPB_BytsPerSec - 1) / BPB_BytsPerSec)
 
 #define README_CONTENTS \
@@ -70,21 +72,21 @@ uint8_t bootsector[BPB_BytsPerSec] =
     {
         0xEB, 0x3C, 0x90,                                 // BS_JmpBoot
         'M',  'S',  'D',  'O',  'S',  '5',  '.',  '0',    // BS_OEMName
-        WORDA(BPB_BytsPerSec),
+        AWORD(BPB_BytsPerSec),
         BPB_SecPerClus,
-        WORDA(BPB_ResvdSecCnt),
+        AWORD(BPB_ResvdSecCnt),
         BPB_NumFATs,
-        WORDA(BPB_RootEntCnt),
-        WORDA(BPB_TotSec16),                              // BPB_TotSec16 / BPB_SecPerClus determines FAT type, there are legal 340 cluster -> FAT12
+        AWORD(BPB_RootEntCnt),
+        AWORD(BPB_TotSec16),                              // BPB_TotSec16 / BPB_SecPerClus determines FAT type, there are legal 340 cluster -> FAT12
         0xF8,                                             // BPB_Media
-        WORDA(BPB_FATSz16),
-        WORDA(1),                                         // BPB_SecPerTrk
-        WORDA(1),                                         // BPB_NumHeads
-        DWORDA(0),                                        // BPB_HiddSec
-        DWORDA(0),                                        // BPB_TotSec32
+        AWORD(BPB_FATSz16),
+        AWORD(1),                                         // BPB_SecPerTrk
+        AWORD(1),                                         // BPB_NumHeads
+        ADWORD(0),                                        // BPB_HiddSec
+        ADWORD(0),                                        // BPB_TotSec32
 
         // byte 36 and more:
-                                0x80, 0x00, 0x29,       DWORDA(BS_VolID),  'P',  'i',  'P',  'r',  'o',
+                                0x80, 0x00, 0x29,       ADWORD(BS_VolID),  'P',  'i',  'P',  'r',  'o',
          'b',  'e',  ' ',  'M',  'S',  'C', 
                                              'F',  'A',  'T',  '1',  '2',  ' ',  ' ',  ' ', 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -117,27 +119,47 @@ uint8_t bootsector[BPB_BytsPerSec] =
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, WORDA(0xaa55)
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, AWORD(0xaa55)
     };
 
 uint8_t fatsector[BPB_BytsPerSec] =
     //------------- Block1: FAT16 Table -------------//
     {
         // 0xF8, 0xFF, 0xFF, 0xFF, 0x0F
-        WORDA(0xffff), WORDA(0xffff), WORDA(0xffff), WORDA(0xffff)
-        // WORDA(0xfff8), WORDA(0xfff8), WORDA(0xfff8) // // first 2 entries must be F8FF, third entry is cluster end of readme file
+        AWORD(0xffff), AWORD(0xffff), AWORD(0xffff), AWORD(0xffff)
+        // AWORD(0xfff8), AWORD(0xfff8), AWORD(0xfff8) // // first 2 entries must be F8FF, third entry is cluster end of readme file
     };
 
 uint8_t rootdirsector[BPB_BytsPerSec] =
     //------------- Block2: Root Directory -------------//
     {
         // first entry is volume label
-         'P',  'i',  'P',  'r',  'o',  'b',  'e',  ' ',  'M',  'S',  'C', 0x08, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x4F, 0x6D, 0x65, 0x43, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        'P', 'i', 'P', 'r', 'o', 'b', 'e', ' ', 'M', 'S', 'C',            // DIR_Name
+        0x08,                                                             // DIR_Attr: ATTR_VOLUME_ID
+        0,                                                                // DIR_NTRes
+        0,                                                                // DIR_CrtTimeTenth
+        AWORD(0),                                                         // DIR_CrtTime
+        AWORD(0),                                                         // DIR_CrtDate
+        AWORD(0),                                                         // DIR_LstAccDate
+        AWORD(0),                                                         // DIR_FstClusHi
+        ATIME(12, 0, 0),                                                  // DIR_WrtTime
+        ADATE(2022, 12, 6),                                               // DIR_WrtDate
+        AWORD(0),                                                         // DIR_FstClusLO
+        ADWORD(0),                                                        // DIR_FileSize
+
         // second entry is readme file
-         'R',  'E',  'A',  'D',  'M',  'E',  ' ',  ' ',  'T',  'X',  'T', 0x20, 0x00, 0xC6, 0x52, 0x6D,
-        0x65, 0x43, 0x65, 0x43, 0x00, 0x00, 0x88, 0x6D, 0x65, 0x43, 0x02, 0x00,
-        DWORDA(sizeof(README_CONTENTS) - 1) // readme's files size (4 Bytes)
+         'R', 'E', 'A', 'D', 'M', 'E', ' ', ' ', 'T', 'X', 'T',
+        0x01,                                                             // DIR_Attr: ATTR_READ_ONLY
+        0,                                                                // DIR_NTRes
+        0xc6,                                                             // DIR_CrtTimeTenth
+        ATIME(12, 0, 0),                                                  // DIR_CrtTime
+        ADATE(2022, 12, 6),                                               // DIR_CrtDate
+        ADATE(2022, 12, 6),                                               // DIR_LstAccDate
+        AWORD(0),                                                         // DIR_FstClusHi
+        ATIME(12, 0, 0),                                                  // DIR_WrtTime
+        ADATE(2022, 12, 6),                                               // DIR_WrtDate
+        AWORD(2),                                                         // DIR_FstClusLO
+        ADWORD(sizeof(README_CONTENTS) - 1),                              // DIR_FileSize
     };
 
 
