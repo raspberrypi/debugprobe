@@ -52,7 +52,8 @@ const uint16_t BPB_ResvdSecCnt = 1;
 const uint8_t  BPB_NumFATs     = 1;
 const uint16_t BPB_FATSz16     = 1;                                             // -> ~340 cluster fit into one sector for FAT12
 const uint32_t BS_VolID        = 0x1234;
-const uint8_t  BPB_Media       = 0xf8;
+const uint8_t  BPB_Media       = 0xf8;                                          // f0=floppy, f8=HDD, fa=RAM disk (format prompt)
+const uint8_t  BS_DrvNum       = 0x80;                                          // 00=floppy, 80=fixed disk
 
 // some calulations
 const uint32_t c_TotalCluster = BPB_TotSec16 / BPB_SecPerClus;                  // -> 256 cluster for 16MB total size and 64KByte cluster size
@@ -78,7 +79,7 @@ const uint32_t c_RP2040Clusters = CLUSTERS(RP2040_IMG_SIZE);
 const uint32_t c_RP2040StartSector = c_FirstSectorofCluster(c_RP2040StartCluster);
 const uint32_t c_RP2040Sectors = BPB_SecPerClus * c_RP2040Clusters;
 
-
+static uint64_t last_write_ms = 0;
 
 uint8_t bootsector[BPB_BytsPerSec] =
     //------------- Block0: Boot Sector -------------//
@@ -100,7 +101,7 @@ uint8_t bootsector[BPB_BytsPerSec] =
         ADWORD(0),                                        // BPB_TotSec32
 
         // byte 36 and more:
-                                0x80, 0x00, 0x29,       ADWORD(BS_VolID),  'P',  'i',  'P',  'r',  'o',
+                           BS_DrvNum, 0x00, 0x29,       ADWORD(BS_VolID),  'P',  'i',  'P',  'r',  'o',
          'b',  'e',  ' ',  'M',  'S',  'C', 
                                              'F',  'A',  'T',  '1',  '2',  ' ',  ' ',  ' ', 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -244,6 +245,15 @@ bool tud_msc_test_unit_ready_cb(uint8_t lun)
 
     // picoprobe_info("tud_msc_test_unit_ready_cb(%d)\n", lun);
     
+    if (last_write_ms != 0) {
+        uint64_t now_ms = time_us_64() / 1000;
+        if (now_ms - last_write_ms > 500) {
+            tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x3a, 0x00);   // or SCSI_SENSE_RECOVERED_ERROR?
+            last_write_ms = 0;
+            return false;
+        }
+    }
+
     return true; // always ready
 }
 
@@ -380,6 +390,8 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
     else {
         picoprobe_info("  OTHER\n");
     }
+
+    last_write_ms = (uint32_t)(time_us_64() / 1000);
 
     return r;
 }
