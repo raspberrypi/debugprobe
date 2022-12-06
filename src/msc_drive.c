@@ -35,6 +35,7 @@
 #define ADATE(Y,M,D)    AWORD((((Y)-1980) << 9) + ((M) << 5) + (D))
 #define ATIME(H,M,S)    AWORD(((H) << 11) + ((M) << 5) + ((S) / 2))
 #define SECTORS(BYTES)  (((BYTES) + BPB_BytsPerSec - 1) / BPB_BytsPerSec)
+#define CLUSTERS(BYTES) (((BYTES) + BPB_BytsPerClus - 1) / BPB_BytsPerClus)
 #define AFAT12(C1,C2)   (C1) & 0xff, (((C1) & 0xf00) >> 8) + (((C2) & 0x0f) << 4), (((C2) & 0xff0) >> 4)
 
 #define README_CONTENTS \
@@ -42,37 +43,39 @@
 - fetch RP2040.BIN to fetch the whole target flash memory\r\n\
 - drop a UF2 file to flash the target device\r\n"
 
-#define RP2040_IMG_SIZE        0x200000
-
-#define BPB_BytsPerSec         512
-const uint16_t BPB_TotSec16    = 32768;
-const uint8_t  BPB_SecPerClus  = SECTORS(65536);                 // cluster size (65536 -> BPB_SecPerClus=128)
-const uint16_t BPB_RootEntCnt  = BPB_BytsPerSec / 32;            // only one sector for root directory
+#define BPB_BytsPerSec         512UL
+#define BPB_BytsPerClus        65536UL
+const uint16_t BPB_TotSec16    = 32768;                                         // 16MB
+const uint8_t  BPB_SecPerClus  = SECTORS(BPB_BytsPerClus);                      // cluster size (65536 -> BPB_SecPerClus=128)
+const uint16_t BPB_RootEntCnt  = BPB_BytsPerSec / 32;                           // only one sector for root directory
 const uint16_t BPB_ResvdSecCnt = 1;
 const uint8_t  BPB_NumFATs     = 1;
-const uint16_t BPB_FATSz16     = 1;                              // -> ~340 cluster fit into one sector for FAT12
+const uint16_t BPB_FATSz16     = 1;                                             // -> ~340 cluster fit into one sector for FAT12
 const uint32_t BS_VolID        = 0x1234;
 
 // some calulations
-const uint32_t c_TotalCluster = BPB_TotSec16 / BPB_SecPerClus;   // -> 256 cluster for 16MB total size and 64KByte cluster size
+const uint32_t c_TotalCluster = BPB_TotSec16 / BPB_SecPerClus;                  // -> 256 cluster for 16MB total size and 64KByte cluster size
 const uint32_t c_BootStartSector = 0;
-const uint32_t c_BootSectors = 1;
+const uint32_t c_BootSectors = 1;                                               // must be 1
 const uint32_t c_FatStartSector = BPB_ResvdSecCnt;
-const uint32_t c_FatSectors = BPB_FATSz16 * BPB_NumFATs;
+const uint32_t c_FatSectors = BPB_FATSz16 * BPB_NumFATs;                        // must be 1
 const uint32_t c_RootDirStartSector = c_FatStartSector + c_FatSectors;
-const uint32_t c_RootDirSectors = SECTORS(32 * BPB_RootEntCnt);
+const uint32_t c_RootDirSectors = SECTORS(32 * BPB_RootEntCnt);                 // must be 1
 const uint32_t c_DataStartSector = c_RootDirStartSector + c_RootDirSectors;
-const uint32_t c_DataSectors = BPB_TotSec16 - c_DataStartSector;
 
 #define c_FirstSectorofCluster(N) (c_DataStartSector + ((N) - 2) * BPB_SecPerClus)
 
+#define RP2040_IMG_SIZE        0x200000
+
 const uint32_t c_ReadmeStartCluster = 2;
+const uint32_t c_ReadmeClusters = 1;
 const uint32_t c_ReadmeStartSector = c_FirstSectorofCluster(c_ReadmeStartCluster);
-const uint32_t c_ReadmeSectors = SECTORS(sizeof(README_CONTENTS) - 1);
+const uint32_t c_ReadmeSectors = BPB_SecPerClus * c_ReadmeClusters;
 
 const uint32_t c_RP2040StartCluster = 4;
+const uint32_t c_RP2040Clusters = CLUSTERS(RP2040_IMG_SIZE);
 const uint32_t c_RP2040StartSector = c_FirstSectorofCluster(c_RP2040StartCluster);
-const uint32_t c_RP2040Sectors = SECTORS(RP2040_IMG_SIZE);
+const uint32_t c_RP2040Sectors = BPB_SecPerClus * c_RP2040Clusters;
 
 
 
@@ -196,6 +199,25 @@ uint8_t rootdirsector[BPB_BytsPerSec] =
 
 
 
+/// Read a single sector from an input buffer.
+/// Note that the input is checked against overflow, but the output buffer must have at least size of a sector.
+int32_t read_sector_from_buffer(void *sector_buffer, const uint8_t *src, uint32_t src_len, uint32_t sector_offs)
+{
+    uint32_t src_offs = BPB_BytsPerSec * sector_offs;
+
+    if (src_offs > src_len) {
+        memset(sector_buffer, 0xff, BPB_BytsPerSec);
+    }
+    else {
+        uint32_t n = MIN(BPB_BytsPerSec, src_len - src_offs);
+        memcpy(sector_buffer, src + src_offs, n);
+        memset(sector_buffer + n, 0, BPB_BytsPerSec - n);
+    }
+    return BPB_BytsPerSec;
+}
+
+
+
 // Invoked when received SCSI_CMD_INQUIRY
 // Application fill vendor id, product id and revision with string up to 8, 16, 4 characters respectively
 void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4])
@@ -276,34 +298,32 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
     if (lba >= BPB_TotSec16)
         return -1;
 
-    if (lba == c_BootStartSector) {
+    if (lba >= c_BootStartSector  &&  lba < c_BootStartSector + c_BootSectors) {
         picoprobe_info("  BOOT\n");
         r = MIN(bufsize, BPB_BytsPerSec);
         memcpy(buffer, bootsector, r);
     }
-    else if (lba == c_FatStartSector) {
+    else if (lba >= c_FatStartSector  &&  lba < c_FatStartSector + c_FatSectors) {
         picoprobe_info("  FAT\n");
         r = MIN(bufsize, BPB_BytsPerSec);
         memcpy(buffer, fatsector, r);
     }
-    else if (lba == c_RootDirStartSector) {
+    else if (lba >= c_RootDirStartSector  &&  lba < c_RootDirStartSector + c_RootDirSectors) {
         picoprobe_info("  ROOTDIR\n");
         r = MIN(bufsize, BPB_BytsPerSec);
         memcpy(buffer, rootdirsector, r);
     }
     else if (lba >= c_ReadmeStartSector  &&  lba < c_ReadmeStartSector + c_ReadmeSectors) {
         picoprobe_info("  README\n");
-        memcpy(buffer, README_CONTENTS, MIN(bufsize, sizeof(README_CONTENTS)-1));
-        r = BPB_BytsPerSec;
+        r = read_sector_from_buffer(buffer, (const uint8_t *)README_CONTENTS, sizeof(README_CONTENTS)-1, lba - c_ReadmeStartSector);
     }
     else if (lba >= c_RP2040StartSector  &&  lba < c_RP2040StartSector + c_RP2040Sectors) {
         picoprobe_info("  RP2040\n");
-        memcpy(buffer, README_CONTENTS, MIN(bufsize, sizeof(README_CONTENTS)-1));
-        r = BPB_BytsPerSec;
+        memset(buffer, lba & 0xff, bufsize);
     }
     else {
         picoprobe_info("  OTHER\n");
-        memset(buffer, lba & 0xff, bufsize);
+        memset(buffer, 0, bufsize);
     }
 
     return r;
@@ -326,6 +346,8 @@ bool tud_msc_is_writable_cb(uint8_t lun)
 // Process data in buffer to disk's storage and return number of written bytes
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize)
 {
+    uint32_t r = bufsize;
+
     (void)lun;
 
     picoprobe_info("tud_msc_write10_cb(%d, %lu, %lu, 0x%p, %lu)\n", lun, lba, offset, buffer, bufsize);
@@ -334,12 +356,31 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
     if (lba >= BPB_TotSec16)
         return -1;
 
-#if 0
-    uint8_t* addr = msc_disk[lba] + offset;
-    memcpy(addr, buffer, bufsize);
-#endif
+    if (lba >= c_BootStartSector  &&  lba < c_BootStartSector + c_BootSectors) {
+        picoprobe_info("  BOOT\n");
+        r = MIN(bufsize, BPB_BytsPerSec);
+    }
+    else if (lba >= c_FatStartSector  &&  lba < c_FatStartSector + c_FatSectors) {
+        picoprobe_info("  FAT\n");
+        r = MIN(bufsize, BPB_BytsPerSec);
+    }
+    else if (lba >= c_RootDirStartSector  &&  lba < c_RootDirStartSector + c_RootDirSectors) {
+        picoprobe_info("  ROOTDIR\n");
+        r = MIN(bufsize, BPB_BytsPerSec);
+    }
+    else if (lba >= c_ReadmeStartSector  &&  lba < c_ReadmeStartSector + c_ReadmeSectors) {
+        picoprobe_info("  README\n");
+        r = BPB_BytsPerSec;
+    }
+    else if (lba >= c_RP2040StartSector  &&  lba < c_RP2040StartSector + c_RP2040Sectors) {
+        picoprobe_info("  RP2040\n");
+        r = BPB_BytsPerSec;
+    }
+    else {
+        picoprobe_info("  OTHER\n");
+    }
 
-    return bufsize;
+    return r;
 }
 
 
