@@ -248,7 +248,9 @@ bool tud_msc_test_unit_ready_cb(uint8_t lun)
     if (last_write_ms != 0) {
         uint64_t now_ms = time_us_64() / 1000;
         if (now_ms - last_write_ms > 500) {
-            tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x3a, 0x00);   // or SCSI_SENSE_RECOVERED_ERROR?
+            // TODO actually it would be enough to force the host to reread directory etc.
+            picoprobe_info("tud_msc_test_unit_ready_cb(%d) - we had a write.  Remount device.\n", lun);
+            tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x3a, 0x00);             // tried a lot of other code -> no change
             last_write_ms = 0;
             return false;
         }
