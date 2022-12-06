@@ -23,17 +23,14 @@
  *
  */
 
-#include "bsp/board.h"
 #include "tusb.h"
-
-#include "hardware/flash.h"
-#include "pico/stdlib.h"
-
 #include "picoprobe_config.h"
 
 
 
 #if CFG_TUD_MSC
+
+#define DWORD_A(X)   (X) & 0xff, ((X) & 0xff00) >> 8, ((X) & 0xff0000) >> 16, ((X) & 0xff000000) >> 24
 
 enum {
     DISK_BLOCK_NUM  = 16,     // 8KB is the smallest size that windows allow to mount
@@ -111,7 +108,7 @@ uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] = {
         // second entry is readme file
         'R', 'E', 'A', 'D', 'M', 'E', ' ', ' ', 'T', 'X', 'T', 0x20, 0x00, 0xC6, 0x52, 0x6D,
         0x65, 0x43, 0x65, 0x43, 0x00, 0x00, 0x88, 0x6D, 0x65, 0x43, 0x02, 0x00,
-        sizeof(README_CONTENTS) - 1, 0x00, 0x00, 0x00 // readme's files size (4 Bytes)
+        DWORD_A(sizeof(README_CONTENTS) - 1) // readme's files size (4 Bytes)
     },
 
     //------------- Block3: Readme Content -------------//
@@ -124,13 +121,15 @@ uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] = {
 // Application fill vendor id, product id and revision with string up to 8, 16, 4 characters respectively
 void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4])
 {
-    char vid[] = "PiProbe";
-    char pid[] = "Target Flash";
-    char rev[] = "1.0";
+    const char vid[] = "PiProbe";
+    const char pid[] = "Target Flash";
+    const char rev[] = "1.0";
 
-    memcpy(vendor_id, vid, strlen(vid));
-    memcpy(product_id, pid, strlen(pid));
-    memcpy(product_rev, rev, strlen(rev));
+    strncpy((char *)vendor_id, vid, 8);
+    strncpy((char *)product_id, pid, 16);
+    strncpy((char *)product_rev, rev, 4);
+
+    picoprobe_info("tud_msc_inquiry_cb(%d, %s, %s, %s)\n", lun, vendor_id, product_id, product_rev);    
 }
 
 
@@ -141,6 +140,8 @@ bool tud_msc_test_unit_ready_cb(uint8_t lun)
 {
     (void)lun;
 
+    // picoprobe_info("tud_msc_test_unit_ready_cb(%d)\n", lun);
+    
     return true; // always ready
 }
 
@@ -154,6 +155,8 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_siz
 
     *block_count = DISK_BLOCK_NUM;
     *block_size = DISK_BLOCK_SIZE;
+
+    picoprobe_info("tud_msc_capacity_cb(%d, %lu, %u\n", lun, *block_count, *block_size);    
 }
 
 
@@ -166,6 +169,8 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
     (void)lun;
     (void)power_condition;
 
+    picoprobe_info("tud_msc_start_stop_cb(%d, %d, %d, %d)\n", lun, power_condition, start, load_eject);
+    
     if (load_eject) {
         if (start) {
             // load disk storage
@@ -185,6 +190,8 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
 {
     (void)lun;
 
+    picoprobe_info("tud_msc_read10_cb(%d, %lu, %lu, 0x%p, %lu)\n", lun, lba, offset, buffer, bufsize);
+
     // out of ramdisk
     if (lba >= DISK_BLOCK_NUM)
         return -1;
@@ -200,6 +207,9 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
 bool tud_msc_is_writable_cb(uint8_t lun)
 {
     (void)lun;
+
+    picoprobe_info("tud_msc_is_writable_cb(%d)\n", lun);
+
 #ifdef CFG_EXAMPLE_MSC_READONLY
     return false;
 #else
@@ -215,6 +225,8 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
 {
     (void)lun;
 
+    picoprobe_info("tud_msc_write10_cb(%d, %lu, %lu, 0x%p, %lu)\n", lun, lba, offset, buffer, bufsize);
+    
     // out of ramdisk
     if (lba >= DISK_BLOCK_NUM)
         return -1;
@@ -238,11 +250,11 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
 // - READ10 and WRITE10 has their own callbacks
 int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize)
 {
-    // read10 & write10 has their own callback and MUST not be handled here
-
     void const* response = NULL;
     int32_t resplen = 0;
 
+    picoprobe_info("tud_msc_scsi_cb(%d, %02x %02x %02x %02x, 0x%p, %u)\n", lun, scsi_cmd[0], scsi_cmd[1], scsi_cmd[2], scsi_cmd[3], buffer, bufsize);
+    
     // most scsi handled is input
     bool in_xfer = true;
 
