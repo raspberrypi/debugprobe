@@ -75,6 +75,9 @@ enum
   ITF_NUM_PROBE, // Old versions of Keil MDK only look at interface 0
   ITF_NUM_CDC_COM,
   ITF_NUM_CDC_DATA,
+#if CFG_TUD_MSC
+  ITF_NUM_MSC,
+#endif
   ITF_NUM_TOTAL
 };
 
@@ -83,11 +86,21 @@ enum
 #define CDC_DATA_IN_EP_NUM 0x83
 #define PROBE_OUT_EP_NUM 0x04
 #define PROBE_IN_EP_NUM 0x85
+#if CFG_TUD_MSC
+    #define MSC_OUT_EP_NUM        0x06
+    #define MSC_IN_EP_NUM         0x87
+#endif
 
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
-#define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_HID_INOUT_DESC_LEN)
+    #define _CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_HID_INOUT_DESC_LEN)
 #else
-#define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_VENDOR_DESC_LEN)
+    #define _CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_VENDOR_DESC_LEN)
+#endif
+
+#if CFG_TUD_MSC
+    #define CONFIG_TOTAL_LEN   (_CONFIG_TOTAL_LEN + TUD_MSC_DESC_LEN)
+#else
+    #define CONFIG_TOTAL_LEN   (_CONFIG_TOTAL_LEN)
 #endif
 
 static uint8_t const desc_hid_report[] =
@@ -117,6 +130,11 @@ uint8_t const desc_configuration[] =
 #endif
   // Interface 1 + 2
   TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_COM, 6, CDC_NOTIFICATION_EP_NUM, 64, CDC_DATA_OUT_EP_NUM, CDC_DATA_IN_EP_NUM, 64),
+
+  // Interface 3 (if MSC is enabled)
+#if CFG_TUD_MSC
+    TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 0, MSC_OUT_EP_NUM, MSC_IN_EP_NUM, 64),
+#endif
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
