@@ -35,15 +35,18 @@
 #define ADATE(Y,M,D)    AWORD((((Y)-1980) << 9) + ((M) << 5) + (D))
 #define ATIME(H,M,S)    AWORD(((H) << 11) + ((M) << 5) + ((S) / 2))
 #define SECTORS(BYTES)  (((BYTES) + BPB_BytsPerSec - 1) / BPB_BytsPerSec)
+#define AFAT12(C1,C2)   (C1) & 0xff, (((C1) & 0xf00) >> 8) + (((C2) & 0x0f) << 4), (((C2) & 0xff0) >> 4)
 
 #define README_CONTENTS \
 "This is the Raspberry Pi Pico Target Flash Drive.\r\n\r\n\
-- fetch TARGET.UF2 to fetch the whole target memory\r\n\
+- fetch RP2040.BIN to fetch the whole target flash memory\r\n\
 - drop a UF2 file to flash the target device\r\n"
 
+#define RP2040_IMG_SIZE        0x200000
+
 #define BPB_BytsPerSec         512
-const uint16_t BPB_TotSec16    = 16384;
-const uint8_t  BPB_SecPerClus  = SECTORS(32768);                 // cluster size (32768 -> BPB_SecPerClus=64)
+const uint16_t BPB_TotSec16    = 32768;
+const uint8_t  BPB_SecPerClus  = SECTORS(65536);                 // cluster size (65536 -> BPB_SecPerClus=128)
 const uint16_t BPB_RootEntCnt  = BPB_BytsPerSec / 32;            // only one sector for root directory
 const uint16_t BPB_ResvdSecCnt = 1;
 const uint8_t  BPB_NumFATs     = 1;
@@ -51,7 +54,7 @@ const uint16_t BPB_FATSz16     = 1;                              // -> ~340 clus
 const uint32_t BS_VolID        = 0x1234;
 
 // some calulations
-const uint32_t c_TotalCluster = BPB_TotSec16 / BPB_SecPerClus;   // -> 256 cluster for 16MB total size and 32KByte cluster size
+const uint32_t c_TotalCluster = BPB_TotSec16 / BPB_SecPerClus;   // -> 256 cluster for 16MB total size and 64KByte cluster size
 const uint32_t c_BootStartSector = 0;
 const uint32_t c_BootSectors = 1;
 const uint32_t c_FatStartSector = BPB_ResvdSecCnt;
@@ -61,8 +64,15 @@ const uint32_t c_RootDirSectors = SECTORS(32 * BPB_RootEntCnt);
 const uint32_t c_DataStartSector = c_RootDirStartSector + c_RootDirSectors;
 const uint32_t c_DataSectors = BPB_TotSec16 - c_DataStartSector;
 
-const uint32_t c_ReadmeStartSector = c_DataStartSector;
+#define c_FirstSectorofCluster(N) (c_DataStartSector + ((N) - 2) * BPB_SecPerClus)
+
+const uint32_t c_ReadmeStartCluster = 2;
+const uint32_t c_ReadmeStartSector = c_FirstSectorofCluster(c_ReadmeStartCluster);
 const uint32_t c_ReadmeSectors = SECTORS(sizeof(README_CONTENTS) - 1);
+
+const uint32_t c_RP2040StartCluster = 4;
+const uint32_t c_RP2040StartSector = c_FirstSectorofCluster(c_RP2040StartCluster);
+const uint32_t c_RP2040Sectors = SECTORS(RP2040_IMG_SIZE);
 
 
 
@@ -125,9 +135,17 @@ uint8_t bootsector[BPB_BytsPerSec] =
 uint8_t fatsector[BPB_BytsPerSec] =
     //------------- Block1: FAT16 Table -------------//
     {
-        // 0xF8, 0xFF, 0xFF, 0xFF, 0x0F
-        AWORD(0xffff), AWORD(0xffff), AWORD(0xffff), AWORD(0xffff)
-        // AWORD(0xfff8), AWORD(0xfff8), AWORD(0xfff8) // // first 2 entries must be F8FF, third entry is cluster end of readme file
+        // cluster 0 & 1
+        AFAT12(0xfff, 0xfff), 
+        
+        // cluster 2 (0_README) & 3 (dummy) - must be c_ReadmeStartCluster
+        AFAT12(0xfff, 0),
+
+        // cluster 4..36 - must be c_RP2040StartCluster
+        AFAT12( 5,  6), AFAT12( 7,  8), AFAT12( 9, 10), AFAT12(11, 12),
+        AFAT12(13, 14), AFAT12(15, 16), AFAT12(17, 18), AFAT12(19, 20),
+        AFAT12(21, 22), AFAT12(23, 24), AFAT12(25, 26), AFAT12(27, 28),
+        AFAT12(29, 30), AFAT12(31, 32), AFAT12(33, 34), AFAT12(35, 0xfff),
     };
 
 uint8_t rootdirsector[BPB_BytsPerSec] =
@@ -148,18 +166,32 @@ uint8_t rootdirsector[BPB_BytsPerSec] =
         ADWORD(0),                                                        // DIR_FileSize
 
         // second entry is readme file
-         'R', 'E', 'A', 'D', 'M', 'E', ' ', ' ', 'T', 'X', 'T',
+        '0', '_', 'R', 'E', 'A', 'D', 'M', 'E', 'T', 'X', 'T',
         0x01,                                                             // DIR_Attr: ATTR_READ_ONLY
         0,                                                                // DIR_NTRes
-        0xc6,                                                             // DIR_CrtTimeTenth
+        0,                                                                // DIR_CrtTimeTenth
         ATIME(12, 0, 0),                                                  // DIR_CrtTime
         ADATE(2022, 12, 6),                                               // DIR_CrtDate
         ADATE(2022, 12, 6),                                               // DIR_LstAccDate
         AWORD(0),                                                         // DIR_FstClusHi
         ATIME(12, 0, 0),                                                  // DIR_WrtTime
         ADATE(2022, 12, 6),                                               // DIR_WrtDate
-        AWORD(2),                                                         // DIR_FstClusLO
+        AWORD(c_ReadmeStartCluster),                                      // DIR_FstClusLO
         ADWORD(sizeof(README_CONTENTS) - 1),                              // DIR_FileSize
+
+        // third entry is the current flash content of the target
+        'R', 'P', '2', '0', '4', '0', ' ', ' ', 'B', 'I', 'N',
+        0x01,                                                             // DIR_Attr: ATTR_READ_ONLY
+        0,                                                                // DIR_NTRes
+        0,                                                                // DIR_CrtTimeTenth
+        ATIME(12, 0, 0),                                                  // DIR_CrtTime
+        ADATE(2022, 12, 6),                                               // DIR_CrtDate
+        ADATE(2022, 12, 6),                                               // DIR_LstAccDate
+        AWORD(0),                                                         // DIR_FstClusHi
+        ATIME(12, 0, 0),                                                  // DIR_WrtTime
+        ADATE(2022, 12, 6),                                               // DIR_WrtDate
+        AWORD(c_RP2040StartCluster),                                      // DIR_FstClusLO
+        ADWORD(RP2040_IMG_SIZE),                                          // DIR_FileSize
     };
 
 
@@ -259,15 +291,19 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
         r = MIN(bufsize, BPB_BytsPerSec);
         memcpy(buffer, rootdirsector, r);
     }
-    else if (lba == c_ReadmeStartSector) {
+    else if (lba >= c_ReadmeStartSector  &&  lba < c_ReadmeStartSector + c_ReadmeSectors) {
         picoprobe_info("  README\n");
+        memcpy(buffer, README_CONTENTS, MIN(bufsize, sizeof(README_CONTENTS)-1));
+        r = BPB_BytsPerSec;
+    }
+    else if (lba >= c_RP2040StartSector  &&  lba < c_RP2040StartSector + c_RP2040Sectors) {
+        picoprobe_info("  RP2040\n");
         memcpy(buffer, README_CONTENTS, MIN(bufsize, sizeof(README_CONTENTS)-1));
         r = BPB_BytsPerSec;
     }
     else {
         picoprobe_info("  OTHER\n");
         memset(buffer, lba & 0xff, bufsize);
-        r = BPB_BytsPerSec;
     }
 
     return r;
@@ -281,7 +317,7 @@ bool tud_msc_is_writable_cb(uint8_t lun)
 
     picoprobe_info("tud_msc_is_writable_cb(%d)\n", lun);
 
-    return false;
+    return true;
 }
 
 
