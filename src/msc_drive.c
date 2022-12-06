@@ -1,7 +1,6 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2022 Vlad Tomoiaga (tvlad1234)
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -36,52 +35,105 @@
 
 #if CFG_TUD_MSC
 
-#define FLASH_OFFSET_KB 48
-#define FLASH_TARGET_OFFSET (FLASH_OFFSET_KB * 1024)
-uint8_t* flash_target_contents = (uint8_t*)(XIP_BASE + FLASH_TARGET_OFFSET);
-
 enum {
-    // FLASH_DISK_BLOCK_NUM = 490,
-    FLASH_DISK_BLOCK_NUM = ((2048 - FLASH_OFFSET_KB) / 4),
-    FLASH_DISK_BLOCK_SIZE = 4096
+    DISK_BLOCK_NUM  = 16,     // 8KB is the smallest size that windows allow to mount
+    DISK_BLOCK_SIZE = 512
 };
 
 
-static uint8_t lba_buffer[FLASH_DISK_BLOCK_SIZE]; // buffer to write to
-static uint32_t prevWriteLba = -1; // last LBA that's been written to
 
-// Update flash
-void update_flash_block(uint32_t block, uint8_t* data)
-{
-    if (tud_cdc_connected()) {
-        picoprobe_info("FLASH: updating block %lu\n", prevWriteLba);
-    }
+#define README_CONTENTS \
+"This is the Raspberry Pi Pico Target Flash Drive.\r\n\r\n\
+- fetch TARGET.UF2 to fetch the whole target memory\r\n\
+- drop a UF2 file to flash the target device\r\n"
 
-    // write the previous block to flash
-    uint32_t ints = save_and_disable_interrupts(); // disable interrupts (needed if running from flash)
-    flash_range_erase(FLASH_TARGET_OFFSET + (FLASH_DISK_BLOCK_SIZE * block), 4096); // need to erase first
-    flash_range_program(FLASH_TARGET_OFFSET + (FLASH_DISK_BLOCK_SIZE * block), data, FLASH_DISK_BLOCK_SIZE);
-    restore_interrupts(ints); // restore interrupts
-}
+#ifdef CFG_EXAMPLE_MSC_READONLY
+const
+#endif
+uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] = {
+    //------------- Block0: Boot Sector -------------//
+    // byte_per_sector    = DISK_BLOCK_SIZE; fat12_sector_num_16  = DISK_BLOCK_NUM;
+    // sector_per_cluster = 1; reserved_sectors = 1;
+    // fat_num            = 1; fat12_root_entry_num = 16;
+    // sector_per_fat     = 1; sector_per_track = 1; head_num = 1; hidden_sectors = 0;
+    // drive_number       = 0x80; media_type = 0xf8; extended_boot_signature = 0x29;
+    // filesystem_type    = "FAT12   "; volume_serial_number = 0x1234; volume_label = "TinyUSB MSC";
+    // FAT magic code at offset 510-511
+    {
+        0xEB, 0x3C, 0x90, 0x4D, 0x53, 0x44, 0x4F, 0x53, 0x35, 0x2E, 0x30, 0x00, 0x02, 0x01, 0x01, 0x00,
+        0x01, 0x10, 0x00, 0x10, 0x00, 0xF8, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x29, 0x34, 0x12, 0x00, 0x00, 'P', 'i', 'P', 'r', 'o',
+        'b', 'e', ' ', 'M', 'S', 'C', 0x46, 0x41, 0x54, 0x31, 0x32, 0x20, 0x20, 0x20, 0x00, 0x00,
 
-// Invoked to determine max LUN
-uint8_t tud_msc_get_maxlun_cb(void)
-{
-    return 1; // we only have 1 LUN
-}
+        // Zero up to 2 last bytes of FAT magic code
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x55, 0xAA },
+
+    //------------- Block1: FAT12 Table -------------//
+    {
+        0xF8, 0xFF, 0xFF, 0xFF, 0x0F // // first 2 entries must be F8FF, third entry is cluster end of readme file
+    },
+
+    //------------- Block2: Root Directory -------------//
+    {
+        // first entry is volume label
+        'P', 'i', 'P', 'r', 'o', 'b', 'e', ' ', 'M', 'S', 'C', 0x08, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x4F, 0x6D, 0x65, 0x43, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        // second entry is readme file
+        'R', 'E', 'A', 'D', 'M', 'E', ' ', ' ', 'T', 'X', 'T', 0x20, 0x00, 0xC6, 0x52, 0x6D,
+        0x65, 0x43, 0x65, 0x43, 0x00, 0x00, 0x88, 0x6D, 0x65, 0x43, 0x02, 0x00,
+        sizeof(README_CONTENTS) - 1, 0x00, 0x00, 0x00 // readme's files size (4 Bytes)
+    },
+
+    //------------- Block3: Readme Content -------------//
+    README_CONTENTS
+};
+
+
 
 // Invoked when received SCSI_CMD_INQUIRY
 // Application fill vendor id, product id and revision with string up to 8, 16, 4 characters respectively
 void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4])
 {
-    char vid[] = "TinyUSB";
-    char pid[] = "Mass Storage";
+    char vid[] = "PiProbe";
+    char pid[] = "Target Flash";
     char rev[] = "1.0";
 
     memcpy(vendor_id, vid, strlen(vid));
     memcpy(product_id, pid, strlen(pid));
     memcpy(product_rev, rev, strlen(rev));
 }
+
+
 
 // Invoked when received Test Unit Ready command.
 // return true allowing host to read/write this LUN e.g SD card inserted
@@ -92,28 +144,26 @@ bool tud_msc_test_unit_ready_cb(uint8_t lun)
     return true; // always ready
 }
 
+
+
 // Invoked when received SCSI_CMD_READ_CAPACITY_10 and SCSI_CMD_READ_FORMAT_CAPACITY to determine the disk size
 // Application update block count and block size
 void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size)
 {
-    switch (lun) {
-        case 0: // Flash
-            *block_count = FLASH_DISK_BLOCK_NUM;
-            *block_size = FLASH_DISK_BLOCK_SIZE;
-            break;
+    (void)lun;
 
-        default:
-            *block_count = 0;
-            *block_count = 0;
-            break;
-    }
+    *block_count = DISK_BLOCK_NUM;
+    *block_size = DISK_BLOCK_SIZE;
 }
+
+
 
 // Invoked when received Start Stop Unit command
 // - Start = 0 : stopped power mode, if load_eject = 1 : unload disk storage
 // - Start = 1 : active mode, if load_eject = 1 : load disk storage
 bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, bool load_eject)
 {
+    (void)lun;
     (void)power_condition;
 
     if (load_eject) {
@@ -127,91 +177,61 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
     return true;
 }
 
+
+
 // Callback invoked when received READ10 command.
 // Copy disk's data to buffer (up to bufsize) and return number of copied bytes.
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
 {
-    if (tud_cdc_connected()) {
-        picoprobe_info("LUN%d: read %lu bytes from block %lu, offset %lu, ", lun, bufsize, lba, offset);
-        if (lba == prevWriteLba)
-            picoprobe_info("from buffer\n");
-        else
-            picoprobe_info("from flash\n");
-    }
+    (void)lun;
 
-    // out of disk
-    switch (lun) {
-        case 0:
-            if (lba >= FLASH_DISK_BLOCK_NUM)
-                return -1;
-            break;
+    // out of ramdisk
+    if (lba >= DISK_BLOCK_NUM)
+        return -1;
 
-        default:
-            return -1;
-            break;
-    }
-
-    uint8_t const* addr;
-    switch (lun) {
-        case 0:
-            if (lba == prevWriteLba)
-                addr = lba_buffer + offset;
-            else
-                addr = flash_target_contents + (FLASH_DISK_BLOCK_SIZE * lba) + offset;
-            break;
-
-        default:
-            return -1;
-            break;
-    }
-
+    uint8_t const* addr = msc_disk[lba] + offset;
     memcpy(buffer, addr, bufsize);
+
     return bufsize;
 }
+
+
 
 bool tud_msc_is_writable_cb(uint8_t lun)
 {
     (void)lun;
+#ifdef CFG_EXAMPLE_MSC_READONLY
+    return false;
+#else
     return true;
+#endif
 }
+
+
 
 // Callback invoked when received WRITE10 command.
 // Process data in buffer to disk's storage and return number of written bytes
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize)
 {
-    if (tud_cdc_connected()) {
-        picoprobe_info("LUN%d: write %lu bytes to block %lu, offset %lu\n", lun, bufsize, lba, offset);
-    }
+    (void)lun;
 
-    // out of disk
-    switch (lun) {
-        case 0:
-            if (lba >= FLASH_DISK_BLOCK_NUM)
-                return -1;
-            break;
+    // out of ramdisk
+    if (lba >= DISK_BLOCK_NUM)
+        return -1;
 
-        default:
-            return -1;
-            break;
-    }
-
-    switch (lun) {
-        case 0: // Flash
-            if (lba != prevWriteLba) // flush the buffer to the flash if we're moving to another LBA
-                update_flash_block(prevWriteLba, lba_buffer);
-
-            // write to the buffer
-            memcpy(lba_buffer + offset, buffer, bufsize);
-            prevWriteLba = lba;
-            break;
-
-        default:
-            return -1;
-            break;
-    }
+#ifndef CFG_EXAMPLE_MSC_READONLY
+    uint8_t* addr = msc_disk[lba] + offset;
+    memcpy(addr, buffer, bufsize);
+#else
+    (void)lba;
+    (void)offset;
+    (void)buffer;
+#endif
 
     return bufsize;
 }
+
+
 
 // Callback invoked when received an SCSI command not in built-in list below
 // - READ_CAPACITY10, READ_FORMAT_CAPACITY, INQUIRY, MODE_SENSE6, REQUEST_SENSE
@@ -227,30 +247,6 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, u
     bool in_xfer = true;
 
     switch (scsi_cmd[0]) {
-        case SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL:
-            // Host is about to read/write etc ... better not to disconnect disk
-
-            if (tud_cdc_connected()) {
-                picoprobe_info("Ejected LUN %d\n", lun);
-            }
-
-            if (lun == 0 && prevWriteLba > -1) // Flush buffer to flash on eject
-                update_flash_block(prevWriteLba, lba_buffer);
-
-            resplen = 0;
-            break;
-
-        case SCSI_CMD_START_STOP_UNIT:
-            // Host try to eject/safe remove/poweroff us. We could safely disconnect with disk storage, or go into lower power
-            // scsi_start_stop_unit_t const * start_stop = (scsi_start_stop_unit_t const *) scsi_cmd;
-            // Start bit = 0 : low power mode, if load_eject = 1 : unmount disk storage as well
-            // Start bit = 1 : Ready mode, if load_eject = 1 : mount disk storage
-            //  start_stop->start;
-            //  start_stop->load_eject;
-
-            resplen = 0;
-            break;
-
         default:
             // Set Sense = Invalid Command Operation
             tud_msc_set_sense(lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);
