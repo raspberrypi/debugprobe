@@ -52,6 +52,7 @@ const uint16_t BPB_ResvdSecCnt = 1;
 const uint8_t  BPB_NumFATs     = 1;
 const uint16_t BPB_FATSz16     = 1;                                             // -> ~340 cluster fit into one sector for FAT12
 const uint32_t BS_VolID        = 0x1234;
+const uint8_t  BPB_Media       = 0xf8;
 
 // some calulations
 const uint32_t c_TotalCluster = BPB_TotSec16 / BPB_SecPerClus;                  // -> 256 cluster for 16MB total size and 64KByte cluster size
@@ -91,7 +92,7 @@ uint8_t bootsector[BPB_BytsPerSec] =
         BPB_NumFATs,
         AWORD(BPB_RootEntCnt),
         AWORD(BPB_TotSec16),                              // BPB_TotSec16 / BPB_SecPerClus determines FAT type, there are legal 340 cluster -> FAT12
-        0xF8,                                             // BPB_Media
+        BPB_Media,
         AWORD(BPB_FATSz16),
         AWORD(1),                                         // BPB_SecPerTrk
         AWORD(1),                                         // BPB_NumHeads
@@ -139,7 +140,7 @@ uint8_t fatsector[BPB_BytsPerSec] =
     //------------- Block1: FAT16 Table -------------//
     {
         // cluster 0 & 1
-        AFAT12(0xfff, 0xfff), 
+        AFAT12(0xf00 + BPB_Media, 0xfff), 
         
         // cluster 2 (0_README) & 3 (dummy) - must be c_ReadmeStartCluster
         AFAT12(0xfff, 0),
@@ -290,7 +291,7 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
 /// Note that tinyusb tries to read ahead until the internal buffer is full (until CFG_TUD_MSC_EP_BUFSIZE).
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
 {
-    uint32_t r = bufsize;
+    int32_t r = bufsize;
 
     picoprobe_info("tud_msc_read10_cb(%d, %lu, %lu, 0x%p, %lu)\n", lun, lba, offset, buffer, bufsize);
 
@@ -346,7 +347,7 @@ bool tud_msc_is_writable_cb(uint8_t lun)
 // Process data in buffer to disk's storage and return number of written bytes
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize)
 {
-    uint32_t r = bufsize;
+    int32_t r = bufsize;
 
     (void)lun;
 
