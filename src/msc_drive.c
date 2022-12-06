@@ -30,40 +30,61 @@
 
 #if CFG_TUD_MSC
 
-#define DWORDA(X)   (X) & 0xff, ((X) & 0xff00) >> 8, ((X) & 0xff0000) >> 16, ((X) & 0xff000000) >> 24
-#define WORDA(X)    (X) & 0xff, ((X) & 0xff00) >> 8
-
-enum {
-    DISK_BLOCK_NUM  = 16,     // 8KB is the smallest size that windows allow to mount
-    DISK_BLOCK_SIZE = 512
-};
-
-#define MSC_SER_NO    0x1234
-
-
+#define DWORDA(X)       (X) & 0xff, ((X) & 0xff00) >> 8, ((X) & 0xff0000) >> 16, ((X) & 0xff000000) >> 24
+#define WORDA(X)        (X) & 0xff, ((X) & 0xff00) >> 8
+#define SECTORS(BYTES)  (((BYTES) + BPB_BytsPerSec - 1) / BPB_BytsPerSec)
 
 #define README_CONTENTS \
 "This is the Raspberry Pi Pico Target Flash Drive.\r\n\r\n\
 - fetch TARGET.UF2 to fetch the whole target memory\r\n\
 - drop a UF2 file to flash the target device\r\n"
 
-#ifdef CFG_EXAMPLE_MSC_READONLY
-const
-#endif
-uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] = {
+#define BPB_BytsPerSec         512
+const uint16_t BPB_TotSec16    = 16384;
+const uint8_t  BPB_SecPerClus  = SECTORS(32768);                 // cluster size (32768 -> BPB_SecPerClus=64)
+const uint16_t BPB_RootEntCnt  = BPB_BytsPerSec / 32;            // only one sector for root directory
+const uint16_t BPB_ResvdSecCnt = 1;
+const uint8_t  BPB_NumFATs     = 1;
+const uint16_t BPB_FATSz16     = 1;                              // -> ~340 cluster fit into one sector for FAT12
+const uint32_t BS_VolID        = 0x1234;
+
+// some calulations
+const uint32_t c_TotalCluster = BPB_TotSec16 / BPB_SecPerClus;   // -> 256 cluster for 16MB total size and 32KByte cluster size
+const uint32_t c_BootStartSector = 0;
+const uint32_t c_BootSectors = 1;
+const uint32_t c_FatStartSector = BPB_ResvdSecCnt;
+const uint32_t c_FatSectors = BPB_FATSz16 * BPB_NumFATs;
+const uint32_t c_RootDirStartSector = c_FatStartSector + c_FatSectors;
+const uint32_t c_RootDirSectors = SECTORS(32 * BPB_RootEntCnt);
+const uint32_t c_DataStartSector = c_RootDirStartSector + c_RootDirSectors;
+const uint32_t c_DataSectors = BPB_TotSec16 - c_DataStartSector;
+
+const uint32_t c_ReadmeStartSector = c_DataStartSector;
+const uint32_t c_ReadmeSectors = SECTORS(sizeof(README_CONTENTS) - 1);
+
+
+
+uint8_t bootsector[BPB_BytsPerSec] =
     //------------- Block0: Boot Sector -------------//
-    // see https://de.wikipedia.org/wiki/File_Allocation_Table#Bootsektor
-    // byte_per_sector    = DISK_BLOCK_SIZE; fat12_sector_num_16  = DISK_BLOCK_NUM;
-    // sector_per_cluster = 1; reserved_sectors = 1;
-    // fat_num            = 1; fat12_root_entry_num = 16;
-    // sector_per_fat     = 1; sector_per_track = 1; head_num = 1; hidden_sectors = 0;
-    // drive_number       = 0x80; media_type = 0xf8; extended_boot_signature = 0x29;
-    // filesystem_type    = "FAT12   "; volume_serial_number = 0x1234; volume_label = "TinyUSB MSC";
-    // FAT magic code at offset 510-511
+    // see http://elm-chan.org/docs/fat_e.html
     {
-        0xEB, 0x3C, 0x90,  'M',  'S',  'D',  'O',  'S',  '5',  '.',  '0', WORDA(512), 0x01,   WORDA(1),
-        0x01,  WORDA(16),  WORDA(16), 0xF8,   WORDA(1),   WORDA(1),   WORDA(1),              DWORDA(0),
-                     DWORDA(0), 0x80, 0x00, 0x29,     DWORDA(MSC_SER_NO),  'P',  'i',  'P',  'r',  'o',
+        0xEB, 0x3C, 0x90,                                 // BS_JmpBoot
+        'M',  'S',  'D',  'O',  'S',  '5',  '.',  '0',    // BS_OEMName
+        WORDA(BPB_BytsPerSec),
+        BPB_SecPerClus,
+        WORDA(BPB_ResvdSecCnt),
+        BPB_NumFATs,
+        WORDA(BPB_RootEntCnt),
+        WORDA(BPB_TotSec16),                              // BPB_TotSec16 / BPB_SecPerClus determines FAT type, there are legal 340 cluster -> FAT12
+        0xF8,                                             // BPB_Media
+        WORDA(BPB_FATSz16),
+        WORDA(1),                                         // BPB_SecPerTrk
+        WORDA(1),                                         // BPB_NumHeads
+        DWORDA(0),                                        // BPB_HiddSec
+        DWORDA(0),                                        // BPB_TotSec32
+
+        // byte 36 and more:
+                                0x80, 0x00, 0x29,       DWORDA(BS_VolID),  'P',  'i',  'P',  'r',  'o',
          'b',  'e',  ' ',  'M',  'S',  'C', 
                                              'F',  'A',  'T',  '1',  '2',  ' ',  ' ',  ' ', 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -96,13 +117,18 @@ uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] = {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x55, 0xAA },
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, WORDA(0xaa55)
+    };
 
-    //------------- Block1: FAT12 Table -------------//
+uint8_t fatsector[BPB_BytsPerSec] =
+    //------------- Block1: FAT16 Table -------------//
     {
-        0xF8, 0xFF, 0xFF, 0xFF, 0x0F // // first 2 entries must be F8FF, third entry is cluster end of readme file
-    },
+        // 0xF8, 0xFF, 0xFF, 0xFF, 0x0F
+        WORDA(0xffff), WORDA(0xffff), WORDA(0xffff), WORDA(0xffff)
+        // WORDA(0xfff8), WORDA(0xfff8), WORDA(0xfff8) // // first 2 entries must be F8FF, third entry is cluster end of readme file
+    };
 
+uint8_t rootdirsector[BPB_BytsPerSec] =
     //------------- Block2: Root Directory -------------//
     {
         // first entry is volume label
@@ -112,11 +138,7 @@ uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] = {
          'R',  'E',  'A',  'D',  'M',  'E',  ' ',  ' ',  'T',  'X',  'T', 0x20, 0x00, 0xC6, 0x52, 0x6D,
         0x65, 0x43, 0x65, 0x43, 0x00, 0x00, 0x88, 0x6D, 0x65, 0x43, 0x02, 0x00,
         DWORDA(sizeof(README_CONTENTS) - 1) // readme's files size (4 Bytes)
-    },
-
-    //------------- Block3: Readme Content -------------//
-    README_CONTENTS
-};
+    };
 
 
 
@@ -156,10 +178,10 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_siz
 {
     (void)lun;
 
-    *block_count = DISK_BLOCK_NUM;
-    *block_size = DISK_BLOCK_SIZE;
+    *block_count = BPB_TotSec16;
+    *block_size = BPB_BytsPerSec;
 
-    picoprobe_info("tud_msc_capacity_cb(%d, %lu, %u\n", lun, *block_count, *block_size);    
+    picoprobe_info("tud_msc_capacity_cb(%d, %lu, %u)\n", lun, *block_count, *block_size);    
 }
 
 
@@ -187,22 +209,46 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
 
 
 
-// Callback invoked when received READ10 command.
-// Copy disk's data to buffer (up to bufsize) and return number of copied bytes.
+/// Callback invoked when received READ10 command.
+/// Copy disk's data to buffer (up to bufsize) and return number of copied bytes.
+/// Note that tinyusb tries to read ahead until the internal buffer is full (until CFG_TUD_MSC_EP_BUFSIZE).
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
 {
-    (void)lun;
+    uint32_t r = bufsize;
 
     picoprobe_info("tud_msc_read10_cb(%d, %lu, %lu, 0x%p, %lu)\n", lun, lba, offset, buffer, bufsize);
 
     // out of ramdisk
-    if (lba >= DISK_BLOCK_NUM)
+    if (lba >= BPB_TotSec16)
         return -1;
 
-    uint8_t const* addr = msc_disk[lba] + offset;
-    memcpy(buffer, addr, bufsize);
+    if (lba == c_BootStartSector) {
+        picoprobe_info("  BOOT\n");
+        r = MIN(bufsize, BPB_BytsPerSec);
+        memcpy(buffer, bootsector, r);
+    }
+    else if (lba == c_FatStartSector) {
+        picoprobe_info("  FAT\n");
+        r = MIN(bufsize, BPB_BytsPerSec);
+        memcpy(buffer, fatsector, r);
+    }
+    else if (lba == c_RootDirStartSector) {
+        picoprobe_info("  ROOTDIR\n");
+        r = MIN(bufsize, BPB_BytsPerSec);
+        memcpy(buffer, rootdirsector, r);
+    }
+    else if (lba == c_ReadmeStartSector) {
+        picoprobe_info("  README\n");
+        memcpy(buffer, README_CONTENTS, MIN(bufsize, sizeof(README_CONTENTS)-1));
+        r = BPB_BytsPerSec;
+    }
+    else {
+        picoprobe_info("  OTHER\n");
+        memset(buffer, lba & 0xff, bufsize);
+        r = BPB_BytsPerSec;
+    }
 
-    return bufsize;
+    return r;
 }
 
 
@@ -213,11 +259,7 @@ bool tud_msc_is_writable_cb(uint8_t lun)
 
     picoprobe_info("tud_msc_is_writable_cb(%d)\n", lun);
 
-#ifdef CFG_EXAMPLE_MSC_READONLY
     return false;
-#else
-    return true;
-#endif
 }
 
 
@@ -231,16 +273,12 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
     picoprobe_info("tud_msc_write10_cb(%d, %lu, %lu, 0x%p, %lu)\n", lun, lba, offset, buffer, bufsize);
     
     // out of ramdisk
-    if (lba >= DISK_BLOCK_NUM)
+    if (lba >= BPB_TotSec16)
         return -1;
 
-#ifndef CFG_EXAMPLE_MSC_READONLY
+#if 0
     uint8_t* addr = msc_disk[lba] + offset;
     memcpy(addr, buffer, bufsize);
-#else
-    (void)lba;
-    (void)offset;
-    (void)buffer;
 #endif
 
     return bufsize;
