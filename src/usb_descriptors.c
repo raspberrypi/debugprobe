@@ -63,7 +63,7 @@ tusb_desc_device_t const desc_device =
 // Application return pointer to descriptor
 uint8_t const * tud_descriptor_device_cb(void)
 {
-  return (uint8_t const *) &desc_device;
+    return (uint8_t const *) &desc_device;
 }
 
 //--------------------------------------------------------------------+
@@ -72,65 +72,84 @@ uint8_t const * tud_descriptor_device_cb(void)
 
 enum
 {
-  ITF_NUM_PROBE, // Old versions of Keil MDK only look at interface 0
-  ITF_NUM_CDC_COM,
-  ITF_NUM_CDC_DATA,
+    ITF_NUM_PROBE, // Old versions of Keil MDK only look at interface 0
+    ITF_NUM_CDC_COM,
+    ITF_NUM_CDC_DATA,
 #if !defined(NDEBUG)
-  ITF_NUM_CDC_DEBUG_COM,
-  ITF_NUM_CDC_DEBUG_DATA,
+    ITF_NUM_CDC_DEBUG_COM,
+    ITF_NUM_CDC_DEBUG_DATA,
 #endif
-  ITF_NUM_TOTAL
+#if CFG_TUD_MSC
+    ITF_NUM_MSC,
+#endif
+    ITF_NUM_TOTAL
 };
 
-#define CDC_NOTIFICATION_EP_NUM     0x81
-#define CDC_DATA_OUT_EP_NUM         0x02
-#define CDC_DATA_IN_EP_NUM          0x83
-#define PROBE_OUT_EP_NUM            0x04
-#define PROBE_IN_EP_NUM             0x85
-
+#define CDC_NOTIFICATION_EP_NUM             0x81
+#define CDC_DATA_OUT_EP_NUM                 0x02
+#define CDC_DATA_IN_EP_NUM                  0x83
+#define PROBE_OUT_EP_NUM                    0x04
+#define PROBE_IN_EP_NUM                     0x85
 #if !defined(NDEBUG)
     #define CDC_DEBUG_NOTIFICATION_EP_NUM   0x86
     #define CDC_DEBUG_DATA_OUT_EP_NUM       0x07
     #define CDC_DEBUG_DATA_IN_EP_NUM        0x88
 #endif
+#if CFG_TUD_MSC
+    #define MSC_OUT_EP_NUM                  0x09
+    #define MSC_IN_EP_NUM                   0x8a
+#endif
 
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
-    #define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + TUD_HID_INOUT_DESC_LEN)
+    #define _CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + TUD_HID_INOUT_DESC_LEN)
 #else
-    #define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + TUD_VENDOR_DESC_LEN)
+    #define _CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + TUD_VENDOR_DESC_LEN)
+#endif
+
+#if CFG_TUD_MSC
+    #define CONFIG_TOTAL_LEN   (_CONFIG_TOTAL_LEN + TUD_MSC_DESC_LEN)
+#else
+    #define CONFIG_TOTAL_LEN   (_CONFIG_TOTAL_LEN)
 #endif
 
 static uint8_t const desc_hid_report[] =
 {
-  TUD_HID_REPORT_DESC_GENERIC_INOUT(CFG_TUD_HID_EP_BUFSIZE)
+    TUD_HID_REPORT_DESC_GENERIC_INOUT(CFG_TUD_HID_EP_BUFSIZE)
 };
 
 uint8_t const * tud_hid_descriptor_report_cb(uint8_t itf)
 {
-  (void) itf;
-  return desc_hid_report;
+    (void)itf;
+    return desc_hid_report;
 }
 
 uint8_t const desc_configuration[] =
 {
-  TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
-  // Interface 0
+    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+
+    // Interface 0
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
-  // HID (named interface)
-  TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_PROBE, 4, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, CFG_TUD_HID_EP_BUFSIZE, 1),
+    // HID (named interface)
+    TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_PROBE, 4, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, CFG_TUD_HID_EP_BUFSIZE, 1),
 #elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
-  // Bulk (named interface)
-  TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE, 5, PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, 64),
+    // Bulk (named interface)
+    TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE, 5, PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, 64),
 #elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
-  // Bulk
-  TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE, 0, PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, 64),
+    // Bulk
+    TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE, 0, PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, 64),
 #endif
-  // Interface 1 + 2
-  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_COM, 6, CDC_NOTIFICATION_EP_NUM, 64, CDC_DATA_OUT_EP_NUM, CDC_DATA_IN_EP_NUM, 64),
+
+    // Interface 1 + 2
+    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_COM, 6, CDC_NOTIFICATION_EP_NUM, 64, CDC_DATA_OUT_EP_NUM, CDC_DATA_IN_EP_NUM, 64),
 
 #if !defined(NDEBUG)
-  // Interface 3 + 4
-  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_DEBUG_COM, 7, CDC_DEBUG_NOTIFICATION_EP_NUM, 64, CDC_DEBUG_DATA_OUT_EP_NUM, CDC_DEBUG_DATA_IN_EP_NUM, 64),
+    // Interface 3 + 4
+    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_DEBUG_COM, 7, CDC_DEBUG_NOTIFICATION_EP_NUM, 64, CDC_DEBUG_DATA_OUT_EP_NUM, CDC_DEBUG_DATA_IN_EP_NUM, 64),
+#endif
+
+    // Interface 3 (if MSC is enabled)
+#if CFG_TUD_MSC
+    TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 8, MSC_OUT_EP_NUM, MSC_IN_EP_NUM, 64),
 #endif
 };
 
@@ -139,8 +158,8 @@ uint8_t const desc_configuration[] =
 // Descriptor contents must exist long enough for transfer to complete
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
-  (void) index; // for multiple configurations
-  return desc_configuration;
+    (void)index; // for multiple configurations
+    return desc_configuration;
 }
 
 //--------------------------------------------------------------------+
@@ -150,16 +169,15 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 // array of pointer to string descriptors
 char const* string_desc_arr [] =
 {
-  (const char[]) { 0x09, 0x04 },  // 0: is supported language is English (0x0409)
-  "Raspberry Pi",                 // 1: Manufacturer
-  "Picoprobe CMSIS-DAP",          // 2: Product
-  usb_serial,                     // 3: Serial, uses flash unique ID
-  "Picoprobe CMSIS-DAP v1",       // 4: Interface descriptor for HID transport
-  "Picoprobe CMSIS-DAP v2",       // 5: Interface descriptor for Bulk transport
-  "Picoprobe CDC-ACM UART",       // 6: Interface descriptor for CDC UART (from target)
-#if !defined(NDEBUG)
-  "Picoprobe CDC-DEBUG",          // 7: Interface descriptor for CDC DEBUG
-#endif
+  (const char[]) { 0x09, 0x04 },       // 0: is supported language is English (0x0409)
+  "Raspberry Pi",                      // 1: Manufacturer
+  "Picoprobe CMSIS-DAP",               // 2: Product
+  usb_serial,                          // 3: Serial, uses flash unique ID
+  "Picoprobe CMSIS-DAP v1",            // 4: Interface descriptor for HID transport
+  "Picoprobe CMSIS-DAP v2",            // 5: Interface descriptor for Bulk transport
+  "Picoprobe CDC-ACM UART",            // 6: Interface descriptor for CDC UART (from target)
+  "Picoprobe CDC-DEBUG",               // 7: Interface descriptor for CDC DEBUG
+  "Picoprobe Flash Target",            // 8: Interface descriptor for flash target storage
 };
 
 static uint16_t _desc_str[32];
@@ -168,31 +186,30 @@ static uint16_t _desc_str[32];
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
 uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 {
-  (void) langid;
+    (void)langid;
 
-  uint8_t chr_count;
+    uint8_t chr_count;
 
-  if ( index == 0)
-  {
-    memcpy(&_desc_str[1], string_desc_arr[0], 2);
-    chr_count = 1;
-  }else
-  {
-    // Convert ASCII string into UTF-16
+    if (index == 0) {
+        memcpy(&_desc_str[1], string_desc_arr[0], 2);
+        chr_count = 1;
+    } else {
+        // Convert ASCII string into UTF-16
 
-    if ( !(index < sizeof(string_desc_arr)/sizeof(string_desc_arr[0])) ) return NULL;
+        if (!(index < sizeof(string_desc_arr) / sizeof(string_desc_arr[0])))
+            return NULL;
 
-    const char* str = string_desc_arr[index];
+        const char* str = string_desc_arr[index];
 
-    // Cap at max char
-    chr_count = strlen(str);
-    if ( chr_count > 31 ) chr_count = 31;
+        // Cap at max char
+        chr_count = strlen(str);
+        if (chr_count > 31)
+            chr_count = 31;
 
-    for(uint8_t i=0; i<chr_count; i++)
-    {
-      _desc_str[1+i] = str[i];
+        for (uint8_t i = 0; i < chr_count; i++) {
+            _desc_str[1 + i] = str[i];
+        }
     }
-  }
 
   // first byte is length (including header), second byte is string type
   _desc_str[0] = (TUSB_DESC_STRING << 8 ) | (2*chr_count + 2);
@@ -222,46 +239,44 @@ https://developers.google.com/web/fundamentals/native-hardware/build-for-webusb/
 
 #define BOS_TOTAL_LEN      (TUD_BOS_DESC_LEN + TUD_BOS_MICROSOFT_OS_DESC_LEN)
 
-uint8_t const desc_bos[] =
-{
-  // total length, number of device caps
-  TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, 1),
+uint8_t const desc_bos[] = {
+    // total length, number of device caps
+    TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, 1),
 
-  // Microsoft OS 2.0 descriptor
-  TUD_BOS_MS_OS_20_DESCRIPTOR(MS_OS_20_DESC_LEN, 1)
+    // Microsoft OS 2.0 descriptor
+    TUD_BOS_MS_OS_20_DESCRIPTOR(MS_OS_20_DESC_LEN, 1)
 };
 
-uint8_t const desc_ms_os_20[] =
-{
-  // Set header: length, type, windows version, total length
-  U16_TO_U8S_LE(0x000A), U16_TO_U8S_LE(MS_OS_20_SET_HEADER_DESCRIPTOR), U32_TO_U8S_LE(0x06030000), U16_TO_U8S_LE(MS_OS_20_DESC_LEN),
+uint8_t const desc_ms_os_20[] = {
+    // Set header: length, type, windows version, total length
+    U16_TO_U8S_LE(0x000A), U16_TO_U8S_LE(MS_OS_20_SET_HEADER_DESCRIPTOR), U32_TO_U8S_LE(0x06030000), U16_TO_U8S_LE(MS_OS_20_DESC_LEN),
 
-  // Configuration subset header: length, type, configuration index, reserved, configuration total length
-  U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_CONFIGURATION), 0, 0, U16_TO_U8S_LE(MS_OS_20_DESC_LEN-0x0A),
+    // Configuration subset header: length, type, configuration index, reserved, configuration total length
+    U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_CONFIGURATION), 0, 0, U16_TO_U8S_LE(MS_OS_20_DESC_LEN - 0x0A),
 
-  // Function Subset header: length, type, first interface, reserved, subset length
-  U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_FUNCTION), ITF_NUM_PROBE, 0, U16_TO_U8S_LE(MS_OS_20_DESC_LEN-0x0A-0x08),
+    // Function Subset header: length, type, first interface, reserved, subset length
+    U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_FUNCTION), ITF_NUM_PROBE, 0, U16_TO_U8S_LE(MS_OS_20_DESC_LEN - 0x0A - 0x08),
 
-  // MS OS 2.0 Compatible ID descriptor: length, type, compatible ID, sub compatible ID
-  U16_TO_U8S_LE(0x0014), U16_TO_U8S_LE(MS_OS_20_FEATURE_COMPATBLE_ID), 'W', 'I', 'N', 'U', 'S', 'B', 0x00, 0x00,
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // sub-compatible
+    // MS OS 2.0 Compatible ID descriptor: length, type, compatible ID, sub compatible ID
+    U16_TO_U8S_LE(0x0014), U16_TO_U8S_LE(MS_OS_20_FEATURE_COMPATBLE_ID), 'W', 'I', 'N', 'U', 'S', 'B', 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // sub-compatible
 
-  // MS OS 2.0 Registry property descriptor: length, type
-  U16_TO_U8S_LE(MS_OS_20_DESC_LEN-0x0A-0x08-0x08-0x14), U16_TO_U8S_LE(MS_OS_20_FEATURE_REG_PROPERTY),
-  U16_TO_U8S_LE(0x0007), U16_TO_U8S_LE(0x002A), // wPropertyDataType, wPropertyNameLength and PropertyName "DeviceInterfaceGUIDs\0" in UTF-16
-  'D', 0x00, 'e', 0x00, 'v', 0x00, 'i', 0x00, 'c', 0x00, 'e', 0x00, 'I', 0x00, 'n', 0x00, 't', 0x00, 'e', 0x00,
-  'r', 0x00, 'f', 0x00, 'a', 0x00, 'c', 0x00, 'e', 0x00, 'G', 0x00, 'U', 0x00, 'I', 0x00, 'D', 0x00, 's', 0x00, 0x00, 0x00,
-  U16_TO_U8S_LE(0x0050), // wPropertyDataLength
-  // bPropertyData "{CDB3B5AD-293B-4663-AA36-1AAE46463776}" as a UTF-16 string (b doesn't mean bytes)
-  '{', 0x00, 'C', 0x00, 'D', 0x00, 'B', 0x00, '3', 0x00, 'B', 0x00, '5', 0x00, 'A', 0x00, 'D', 0x00, '-', 0x00,
-  '2', 0x00, '9', 0x00, '3', 0x00, 'B', 0x00, '-', 0x00, '4', 0x00, '6', 0x00, '6', 0x00, '3', 0x00, '-', 0x00,
-  'A', 0x00, 'A', 0x00, '3', 0x00, '6', 0x00, '-', 0x00, '1', 0x00, 'A', 0x00, 'A', 0x00, 'E', 0x00, '4', 0x00,
-  '6', 0x00, '4', 0x00, '6', 0x00, '3', 0x00, '7', 0x00, '7', 0x00, '6', 0x00, '}', 0x00, 0x00, 0x00, 0x00, 0x00
+    // MS OS 2.0 Registry property descriptor: length, type
+    U16_TO_U8S_LE(MS_OS_20_DESC_LEN - 0x0A - 0x08 - 0x08 - 0x14), U16_TO_U8S_LE(MS_OS_20_FEATURE_REG_PROPERTY),
+    U16_TO_U8S_LE(0x0007), U16_TO_U8S_LE(0x002A), // wPropertyDataType, wPropertyNameLength and PropertyName "DeviceInterfaceGUIDs\0" in UTF-16
+    'D', 0x00, 'e', 0x00, 'v', 0x00, 'i', 0x00, 'c', 0x00, 'e', 0x00, 'I', 0x00, 'n', 0x00, 't', 0x00, 'e', 0x00,
+    'r', 0x00, 'f', 0x00, 'a', 0x00, 'c', 0x00, 'e', 0x00, 'G', 0x00, 'U', 0x00, 'I', 0x00, 'D', 0x00, 's', 0x00, 0x00, 0x00,
+    U16_TO_U8S_LE(0x0050), // wPropertyDataLength
+                           // bPropertyData "{CDB3B5AD-293B-4663-AA36-1AAE46463776}" as a UTF-16 string (b doesn't mean bytes)
+    '{', 0x00, 'C', 0x00, 'D', 0x00, 'B', 0x00, '3', 0x00, 'B', 0x00, '5', 0x00, 'A', 0x00, 'D', 0x00, '-', 0x00,
+    '2', 0x00, '9', 0x00, '3', 0x00, 'B', 0x00, '-', 0x00, '4', 0x00, '6', 0x00, '6', 0x00, '3', 0x00, '-', 0x00,
+    'A', 0x00, 'A', 0x00, '3', 0x00, '6', 0x00, '-', 0x00, '1', 0x00, 'A', 0x00, 'A', 0x00, 'E', 0x00, '4', 0x00,
+    '6', 0x00, '4', 0x00, '6', 0x00, '3', 0x00, '7', 0x00, '7', 0x00, '6', 0x00, '}', 0x00, 0x00, 0x00, 0x00, 0x00
 };
 
 TU_VERIFY_STATIC(sizeof(desc_ms_os_20) == MS_OS_20_DESC_LEN, "Incorrect size");
 
 uint8_t const * tud_descriptor_bos_cb(void)
 {
-  return desc_bos;
+    return desc_bos;
 }

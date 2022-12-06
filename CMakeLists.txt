@@ -17,6 +17,7 @@ add_executable(picoprobe
         src/cdc_uart.c
         src/get_serial.c
         src/sw_dp_pio.c
+        src/msc_drive.c
 )
 
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
