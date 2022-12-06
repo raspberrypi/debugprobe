@@ -47,7 +47,7 @@ void SWJ_Sequence (uint32_t count, const uint8_t *data) {
     probe_set_swclk_freq(MAKE_KHZ(DAP_Data.clock_delay));
     cached_delay = DAP_Data.clock_delay;
   }
-  picoprobe_debug("SWJ sequence count = %d FDB=0x%2x\n", count, data[0]);
+  picoprobe_debug("SWJ sequence count = %lu FDB=0x%2x\n", count, data[0]);
   n = count;
   while (n > 0) {
     if (n > 8)
@@ -151,7 +151,7 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data) {
       }
       if (data)
         *data = val;
-      picoprobe_debug("Read %02x ack %02x 0x%08x parity %01x\n",
+      picoprobe_debug("Read %02x ack %02x 0x%08lx parity %01x\n",
                       prq, ack, val, bit);
       /* Turnaround for line idle */
       probe_read_bits(DAP_Data.swd_conf.turnaround);
@@ -167,7 +167,7 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data) {
       parity = __builtin_popcount(val);
       /* Write Parity Bit */
       probe_write_bits(1, parity & 0x1);
-      picoprobe_debug("write %02x ack %02x 0x%08x parity %01x\n",
+      picoprobe_debug("write %02x ack %02x 0x%08lx parity %01lx\n",
                       prq, ack, val, parity);
     }
     /* Capture Timestamp */

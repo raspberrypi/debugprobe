@@ -106,7 +106,7 @@ void probe_write_bits(uint bit_count, uint32_t data_byte) {
     pio_sm_put_blocking(pio0, PROBE_SM, bit_count - 1);
     pio_sm_put_blocking(pio0, PROBE_SM, data_byte);
     DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE_WAIT);
-    picoprobe_dump("Write %d bits 0x%x\n", bit_count, data_byte);
+    picoprobe_dump("Write %u bits 0x%lx\n", bit_count, data_byte);
     // Wait for pio to push garbage to rx fifo so we know it has finished sending
     pio_sm_get_blocking(pio0, PROBE_SM);
     DEBUG_PINS_CLR(probe_timing, DBG_PIN_WRITE_WAIT);
@@ -122,7 +122,7 @@ uint32_t probe_read_bits(uint bit_count) {
         data_shifted = data >> (32 - bit_count);
     }
 
-    picoprobe_dump("Read %d bits 0x%x (shifted 0x%x)\n", bit_count, data, data_shifted);
+    picoprobe_dump("Read %u bits 0x%lx (shifted 0x%lx)\n", bit_count, data, data_shifted);
     DEBUG_PINS_CLR(probe_timing, DBG_PIN_READ);
     return data_shifted;
 }

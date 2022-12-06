@@ -19,6 +19,12 @@ add_executable(picoprobe
         src/sw_dp_pio.c
 )
 
+if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+        target_sources(picoprobe PRIVATE
+                src/cdc_debug.c
+                )
+endif()
+
 target_sources(picoprobe PRIVATE
         CMSIS_5/CMSIS/DAP/Firmware/Source/DAP.c
         CMSIS_5/CMSIS/DAP/Firmware/Source/JTAG_DP.c
