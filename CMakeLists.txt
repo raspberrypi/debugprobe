@@ -40,6 +40,27 @@ target_include_directories(picoprobe PRIVATE
         include/
         )
 
+add_compile_definitions(INTERFACE_RP2040=1)
+
+#--------------------------------------------------------------------------------------------------
+#
+# this is all for MSC operation
+#
+target_sources(picoprobe PRIVATE
+        src/daplink/interface/swd_host.c
+        )
+
+target_include_directories(picoprobe PRIVATE
+        src/daplink
+        src/daplink/cmsis-dap
+        src/daplink/hic_hal
+        src/daplink/hic_hal/rp2040
+        src/daplink/target
+        $ENV{PICO_SDK_PATH}/src/common/boot_uf2/include
+        )
+
+#--------------------------------------------------------------------------------------------------
+
 target_compile_options(picoprobe PRIVATE -Wall)
 
 if (DEFINED ENV{PICOPROBE_LED})

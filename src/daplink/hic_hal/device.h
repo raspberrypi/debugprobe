@@ -44,6 +44,8 @@
 #include "M480.h"
 #elif defined (INTERFACE_NRF52820)
 #include "nrf52820.h"
+#elif defined (INTERFACE_RP2040)
+#include "rp2040.h"
 #else
 #error "CMSIS core headers needed"
 #endif
