@@ -25,6 +25,7 @@
 
 #include "tusb.h"
 #include "picoprobe_config.h"
+#include "boot/uf2.h"
 
 
 
@@ -40,8 +41,18 @@
 
 #define README_CONTENTS \
 "This is the Raspberry Pi Pico Target Flash Drive.\r\n\r\n\
-- fetch RP2040.BIN to fetch the whole target flash memory\r\n\
+- CURRENT.UF2 mirrors the flash content of the target\r\n\
+- INFO_UF2.TXT holds some information about probe and target\r\n\
 - drop a UF2 file to flash the target device\r\n"
+#define README_SIZE   (sizeof(README_CONTENTS) - 1)
+
+#define INDEXHTM_CONTENTS \
+"<html><head>\r\n\
+<meta http-equiv=\"refresh\" content=\"0;URL='https://raspberrypi.com/device/RP2?version=E0C9125B0D9B'\"/>\r\n\
+</head>\r\n\
+<body>Redirecting to <a href=\"https://raspberrypi.com/device/RP2?version=E0C9125B0D9B\">raspberrypi.com</a></body>\r\n\
+</html>\r\n"
+#define INDEXHTM_SIZE   (sizeof(INDEXHTM_CONTENTS) - 1)
 
 #define BPB_BytsPerSec         512UL
 #define BPB_BytsPerClus        65536UL
@@ -68,20 +79,35 @@ const uint32_t c_DataStartSector = c_RootDirStartSector + c_RootDirSectors;
 #define c_FirstSectorofCluster(N) (c_DataStartSector + ((N) - 2) * BPB_SecPerClus)
 
 #define RP2040_IMG_SIZE        0x200000
+#define RP2040_UF2_SIZE        (2 * RP2040_IMG_SIZE)
 
-const uint32_t c_ReadmeStartCluster = 2;
-const uint32_t c_ReadmeClusters = 1;
-const uint32_t c_ReadmeStartSector = c_FirstSectorofCluster(c_ReadmeStartCluster);
-const uint32_t c_ReadmeSectors = BPB_SecPerClus * c_ReadmeClusters;
+//
+// The cluster assignments must be manually reflected in \a fatsector
+//
+const uint32_t f_ReadmeStartCluster = 2;
+const uint32_t f_ReadmeClusters = 1;
+const uint32_t f_ReadmeStartSector = c_FirstSectorofCluster(f_ReadmeStartCluster);
+const uint32_t f_ReadmeSectors = BPB_SecPerClus * f_ReadmeClusters;
 
-const uint32_t c_RP2040StartCluster = 4;
-const uint32_t c_RP2040Clusters = CLUSTERS(RP2040_IMG_SIZE);
-const uint32_t c_RP2040StartSector = c_FirstSectorofCluster(c_RP2040StartCluster);
-const uint32_t c_RP2040Sectors = BPB_SecPerClus * c_RP2040Clusters;
+const uint32_t f_InfoUF2TxtStartCluster = 4;
+const uint32_t f_InfoUF2TxtClusters = 1;
+const uint32_t f_InfoUF2TxtStartSector = c_FirstSectorofCluster(f_InfoUF2TxtStartCluster);
+const uint32_t f_InfoUF2TxtSectors = BPB_SecPerClus * f_InfoUF2TxtClusters;
+const uint32_t f_InfoUF2TxtSize = BPB_BytsPerSec;
+
+const uint32_t f_IndexHtmStartCluster = 6;
+const uint32_t f_IndexHtmClusters = 1;
+const uint32_t f_IndexHtmStartSector = c_FirstSectorofCluster(f_IndexHtmStartCluster);
+const uint32_t f_IndexHtmSectors = BPB_SecPerClus * f_IndexHtmClusters;
+
+const uint32_t f_CurrentUF2StartCluster = 8;
+const uint32_t f_CurrentUF2Clusters = CLUSTERS(RP2040_UF2_SIZE);
+const uint32_t f_CurrentUF2StartSector = c_FirstSectorofCluster(f_CurrentUF2StartCluster);
+const uint32_t f_CurrentUF2Sectors = BPB_SecPerClus * f_CurrentUF2Clusters;
 
 static uint64_t last_write_ms = 0;
 
-uint8_t bootsector[BPB_BytsPerSec] =
+const uint8_t bootsector[BPB_BytsPerSec] =
     //------------- Block0: Boot Sector -------------//
     // see http://elm-chan.org/docs/fat_e.html
     {
@@ -137,23 +163,34 @@ uint8_t bootsector[BPB_BytsPerSec] =
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, AWORD(0xaa55)
     };
 
-uint8_t fatsector[BPB_BytsPerSec] =
+const uint8_t fatsector[BPB_BytsPerSec] =
     //------------- Block1: FAT16 Table -------------//
     {
         // cluster 0 & 1
         AFAT12(0xf00 + BPB_Media, 0xfff), 
         
-        // cluster 2 (0_README) & 3 (dummy) - must be c_ReadmeStartCluster
-        AFAT12(0xfff, 0),
+        // cluster 2 (0_README.TXT) & 3 (bad) - must be f_ReadmeStartCluster
+        AFAT12(0xfff, 0xff7),
 
-        // cluster 4..36 - must be c_RP2040StartCluster
-        AFAT12( 5,  6), AFAT12( 7,  8), AFAT12( 9, 10), AFAT12(11, 12),
-        AFAT12(13, 14), AFAT12(15, 16), AFAT12(17, 18), AFAT12(19, 20),
-        AFAT12(21, 22), AFAT12(23, 24), AFAT12(25, 26), AFAT12(27, 28),
-        AFAT12(29, 30), AFAT12(31, 32), AFAT12(33, 34), AFAT12(35, 0xfff),
+        // cluster 4 (0_README.TXT) & 5 (bad) - must be f_InfoUF2TxtStartCluster
+        AFAT12(0xfff, 0xff7),
+
+        // cluster 6 (0_README.TXT) & 7 (bad) - must be f_IndexHtmStartCluster
+        AFAT12(0xfff, 0xff7),
+
+        // cluster 8..72 (64) - must be f_CurrentUF2StartCluster (twice the size of the image)
+        AFAT12( 9, 10), AFAT12(11, 12), AFAT12(13, 14), 
+        AFAT12(15, 16), AFAT12(17, 18), AFAT12(19, 20), AFAT12(21, 22),
+        AFAT12(23, 24), AFAT12(25, 26), AFAT12(27, 28), AFAT12(29, 30), 
+        AFAT12(31, 32), AFAT12(33, 34), AFAT12(35, 36), AFAT12(37, 38),
+        AFAT12(39, 40), AFAT12(41, 42), AFAT12(43, 44), AFAT12(45, 46),
+        AFAT12(47, 48), AFAT12(49, 50), AFAT12(51, 52), AFAT12(53, 54),
+        AFAT12(55, 56), AFAT12(57, 58), AFAT12(59, 60), AFAT12(61, 62),
+        AFAT12(63, 64), AFAT12(65, 66), AFAT12(67, 68), AFAT12(69, 70),
+        AFAT12(71, 0xfff),
     };
 
-uint8_t rootdirsector[BPB_BytsPerSec] =
+const uint8_t rootdirsector[BPB_BytsPerSec] =
     //------------- Block2: Root Directory -------------//
     {
         // first entry is volume label
@@ -170,7 +207,7 @@ uint8_t rootdirsector[BPB_BytsPerSec] =
         AWORD(0),                                                         // DIR_FstClusLO
         ADWORD(0),                                                        // DIR_FileSize
 
-        // second entry is readme file
+        // second entry is "0_README.TXT"
         '0', '_', 'R', 'E', 'A', 'D', 'M', 'E', 'T', 'X', 'T',
         0x01,                                                             // DIR_Attr: ATTR_READ_ONLY
         0,                                                                // DIR_NTRes
@@ -181,11 +218,11 @@ uint8_t rootdirsector[BPB_BytsPerSec] =
         AWORD(0),                                                         // DIR_FstClusHi
         ATIME(12, 0, 0),                                                  // DIR_WrtTime
         ADATE(2022, 12, 6),                                               // DIR_WrtDate
-        AWORD(c_ReadmeStartCluster),                                      // DIR_FstClusLO
-        ADWORD(sizeof(README_CONTENTS) - 1),                              // DIR_FileSize
+        AWORD(f_ReadmeStartCluster),                                      // DIR_FstClusLO
+        ADWORD(README_SIZE),                                              // DIR_FileSize
 
-        // third entry is the current flash content of the target
-        'R', 'P', '2', '0', '4', '0', ' ', ' ', 'B', 'I', 'N',
+        // third entry is "INFO_UF2.TXT"
+        'I', 'N', 'F', 'O', '_', 'U', 'F', '2', 'T', 'X', 'T',
         0x01,                                                             // DIR_Attr: ATTR_READ_ONLY
         0,                                                                // DIR_NTRes
         0,                                                                // DIR_CrtTimeTenth
@@ -195,8 +232,36 @@ uint8_t rootdirsector[BPB_BytsPerSec] =
         AWORD(0),                                                         // DIR_FstClusHi
         ATIME(12, 0, 0),                                                  // DIR_WrtTime
         ADATE(2022, 12, 6),                                               // DIR_WrtDate
-        AWORD(c_RP2040StartCluster),                                      // DIR_FstClusLO
-        ADWORD(RP2040_IMG_SIZE),                                          // DIR_FileSize
+        AWORD(f_InfoUF2TxtStartCluster),                                  // DIR_FstClusLO
+        ADWORD(f_InfoUF2TxtSize),                                         // DIR_FileSize
+
+        // fourth entry is "INDEX.HTM"
+        'I', 'N', 'D', 'E', 'X', ' ', ' ', ' ', 'H', 'T', 'M',
+        0x01,                                                             // DIR_Attr: ATTR_READ_ONLY
+        0,                                                                // DIR_NTRes
+        0,                                                                // DIR_CrtTimeTenth
+        ATIME(12, 0, 0),                                                  // DIR_CrtTime
+        ADATE(2022, 12, 6),                                               // DIR_CrtDate
+        ADATE(2022, 12, 6),                                               // DIR_LstAccDate
+        AWORD(0),                                                         // DIR_FstClusHi
+        ATIME(12, 0, 0),                                                  // DIR_WrtTime
+        ADATE(2022, 12, 6),                                               // DIR_WrtDate
+        AWORD(f_IndexHtmStartCluster),                                    // DIR_FstClusLO
+        ADWORD(INDEXHTM_SIZE),                                            // DIR_FileSize
+
+        // fifth entry is "CURRENT.UF2"
+        'C', 'U', 'R', 'R', 'E', 'N', 'T', ' ', 'U', 'F', '2',
+        0x01,                                                             // DIR_Attr: ATTR_READ_ONLY
+        0,                                                                // DIR_NTRes
+        0,                                                                // DIR_CrtTimeTenth
+        ATIME(12, 0, 0),                                                  // DIR_CrtTime
+        ADATE(2022, 12, 6),                                               // DIR_CrtDate
+        ADATE(2022, 12, 6),                                               // DIR_LstAccDate
+        AWORD(0),                                                         // DIR_FstClusHi
+        ATIME(12, 0, 0),                                                  // DIR_WrtTime
+        ADATE(2022, 12, 6),                                               // DIR_WrtDate
+        AWORD(f_CurrentUF2StartCluster),                                  // DIR_FstClusLO
+        ADWORD(RP2040_UF2_SIZE),                                          // DIR_FileSize
     };
 
 
@@ -249,8 +314,9 @@ bool tud_msc_test_unit_ready_cb(uint8_t lun)
         uint64_t now_ms = time_us_64() / 1000;
         if (now_ms - last_write_ms > 500) {
             // TODO actually it would be enough to force the host to reread directory etc.
+            // For codes see: https://github.com/tpn/winsdk-10/blob/master/Include/10.0.16299.0/shared/scsi.h
             picoprobe_info("tud_msc_test_unit_ready_cb(%d) - we had a write.  Remount device.\n", lun);
-            tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x3a, 0x00);             // tried a lot of other code -> no change
+            tud_msc_set_sense(lun, SCSI_SENSE_NOT_READY, 0x3a, 0x00);             // tried a lot of other code -> no change (0x3a=SCSI_ADSENSE_NO_MEDIA_IN_DEVICE))
             last_write_ms = 0;
             return false;
         }
@@ -305,7 +371,7 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
 {
     int32_t r = bufsize;
 
-    picoprobe_info("tud_msc_read10_cb(%d, %lu, %lu, 0x%p, %lu)\n", lun, lba, offset, buffer, bufsize);
+    // picoprobe_info("tud_msc_read10_cb(%d, %lu, %lu, 0x%p, %lu)\n", lun, lba, offset, buffer, bufsize);
 
     // out of ramdisk
     if (lba >= BPB_TotSec16)
@@ -326,12 +392,22 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
         r = MIN(bufsize, BPB_BytsPerSec);
         memcpy(buffer, rootdirsector, r);
     }
-    else if (lba >= c_ReadmeStartSector  &&  lba < c_ReadmeStartSector + c_ReadmeSectors) {
+    else if (lba >= f_ReadmeStartSector  &&  lba < f_ReadmeStartSector + f_ReadmeSectors) {
         picoprobe_info("  README\n");
-        r = read_sector_from_buffer(buffer, (const uint8_t *)README_CONTENTS, sizeof(README_CONTENTS)-1, lba - c_ReadmeStartSector);
+        r = read_sector_from_buffer(buffer, (const uint8_t *)README_CONTENTS, README_SIZE, lba - f_ReadmeStartSector);
     }
-    else if (lba >= c_RP2040StartSector  &&  lba < c_RP2040StartSector + c_RP2040Sectors) {
-        picoprobe_info("  RP2040\n");
+    else if (lba >= f_InfoUF2TxtStartSector  &&  lba < f_InfoUF2TxtStartSector + f_InfoUF2TxtSectors) {
+        picoprobe_info("  INFO_UF2.TXT\n");
+        // TODO fill with content
+        memset(buffer, 'i', BPB_BytsPerSec);
+        r = BPB_BytsPerSec;
+    }
+    else if (lba >= f_IndexHtmStartSector  &&  lba < f_IndexHtmStartSector + f_IndexHtmSectors) {
+        picoprobe_info("  INDEX.HTM\n");
+        r = read_sector_from_buffer(buffer, (const uint8_t *)INDEXHTM_CONTENTS, INDEXHTM_SIZE, lba - f_IndexHtmStartSector);
+    }
+    else if (lba >= f_CurrentUF2StartSector  &&  lba < f_CurrentUF2StartSector + f_CurrentUF2Sectors) {
+        picoprobe_info("  CURRENT.UF2\n");
         memset(buffer, lba & 0xff, bufsize);
     }
     else {
@@ -348,7 +424,7 @@ bool tud_msc_is_writable_cb(uint8_t lun)
 {
     (void)lun;
 
-    picoprobe_info("tud_msc_is_writable_cb(%d)\n", lun);
+    // picoprobe_info("tud_msc_is_writable_cb(%d)\n", lun);
 
     return true;
 }
@@ -381,12 +457,20 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
         picoprobe_info("  ROOTDIR\n");
         r = MIN(bufsize, BPB_BytsPerSec);
     }
-    else if (lba >= c_ReadmeStartSector  &&  lba < c_ReadmeStartSector + c_ReadmeSectors) {
+    else if (lba >= f_ReadmeStartSector  &&  lba < f_ReadmeStartSector + f_ReadmeSectors) {
         picoprobe_info("  README\n");
         r = BPB_BytsPerSec;
     }
-    else if (lba >= c_RP2040StartSector  &&  lba < c_RP2040StartSector + c_RP2040Sectors) {
-        picoprobe_info("  RP2040\n");
+    else if (lba >= f_InfoUF2TxtStartSector  &&  lba < f_InfoUF2TxtStartSector + f_InfoUF2TxtSectors) {
+        picoprobe_info("  INFO_UF2.TXT\n");
+        r = BPB_BytsPerSec;
+    }
+    else if (lba >= f_IndexHtmStartSector  &&  lba < f_IndexHtmStartSector + f_IndexHtmSectors) {
+        picoprobe_info("  INDEX.HTM\n");
+        r = BPB_BytsPerSec;
+    }
+    else if (lba >= f_CurrentUF2StartSector  &&  lba < f_CurrentUF2StartSector + f_CurrentUF2Sectors) {
+        picoprobe_info("  CURRENT.UF2\n");
         r = BPB_BytsPerSec;
     }
     else {
