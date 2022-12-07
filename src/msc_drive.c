@@ -25,7 +25,8 @@
 
 #include "tusb.h"
 #include "picoprobe_config.h"
-#include "boot/uf2.h"
+#include "boot/uf2.h"                // this is the Pico variant of the UF2 header
+#include "swd_host.h"
 
 
 
@@ -40,7 +41,7 @@
 #define AFAT12(C1,C2)   (C1) & 0xff, (((C1) & 0xf00) >> 8) + (((C2) & 0x0f) << 4), (((C2) & 0xff0) >> 4)
 
 #define README_CONTENTS \
-"This is the Raspberry Pi Pico Target Flash Drive.\r\n\r\n\
+"This is the Raspberry Pi Picoprobe DAPLink.\r\n\r\n\
 - CURRENT.UF2 mirrors the flash content of the target\r\n\
 - INFO_UF2.TXT holds some information about probe and target\r\n\
 - drop a UF2 file to flash the target device\r\n"
@@ -79,6 +80,7 @@ const uint32_t c_DataStartSector = c_RootDirStartSector + c_RootDirSectors;
 #define c_FirstSectorofCluster(N) (c_DataStartSector + ((N) - 2) * BPB_SecPerClus)
 
 #define RP2040_IMG_SIZE        0x200000
+#define RP2040_IMG_BASE        0x10000000
 #define RP2040_UF2_SIZE        (2 * RP2040_IMG_SIZE)
 
 //
@@ -127,8 +129,8 @@ const uint8_t bootsector[BPB_BytsPerSec] =
         ADWORD(0),                                        // BPB_TotSec32
 
         // byte 36 and more:
-                           BS_DrvNum, 0x00, 0x29,       ADWORD(BS_VolID),  'P',  'i',  'P',  'r',  'o',
-         'b',  'e',  ' ',  'M',  'S',  'C', 
+                           BS_DrvNum, 0x00, 0x29,       ADWORD(BS_VolID),  'P',  'i',  'c',  'o',  'p',
+         'r',  'o',  'b',  'e',  ' ',  ' ', 
                                              'F',  'A',  'T',  '1',  '2',  ' ',  ' ',  ' ', 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -194,7 +196,7 @@ const uint8_t rootdirsector[BPB_BytsPerSec] =
     //------------- Block2: Root Directory -------------//
     {
         // first entry is volume label
-        'P', 'i', 'P', 'r', 'o', 'b', 'e', ' ', 'M', 'S', 'C',            // DIR_Name
+        'P', 'i', 'c', 'o', 'p', 'r', 'o', 'b', 'e', ' ', ' ',            // DIR_Name
         0x08,                                                             // DIR_Attr: ATTR_VOLUME_ID
         0,                                                                // DIR_NTRes
         0,                                                                // DIR_CrtTimeTenth
@@ -289,15 +291,21 @@ int32_t read_sector_from_buffer(void *sector_buffer, const uint8_t *src, uint32_
 // Application fill vendor id, product id and revision with string up to 8, 16, 4 characters respectively
 void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4])
 {
-    const char vid[] = "PiProbe";
-    const char pid[] = "Target Flash";
-    const char rev[] = "1.0";
+    static bool initialized = false;
+    const char vid[ 8] = "DAPLink\0";
+    const char pid[16] = "Picoprobe\0\0\0\0\0\0\0";
+    const char rev[ 4] = "1.0\0";
 
-    strncpy((char *)vendor_id, vid, 8);
-    strncpy((char *)product_id, pid, 16);
-    strncpy((char *)product_rev, rev, 4);
+    memcpy(vendor_id, vid, 8);
+    memcpy(product_id, pid, 16);
+    memcpy(product_rev, rev, 4);
 
-    picoprobe_info("tud_msc_inquiry_cb(%d, %s, %s, %s)\n", lun, vendor_id, product_id, product_rev);    
+    picoprobe_info("tud_msc_inquiry_cb(%d, %s, %s, %s)\n", lun, vendor_id, product_id, product_rev);
+
+    if ( !initialized) {
+        initialized = true;
+        swd_init();                // this also starts the target
+    }
 }
 
 
@@ -407,8 +415,27 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
         r = read_sector_from_buffer(buffer, (const uint8_t *)INDEXHTM_CONTENTS, INDEXHTM_SIZE, lba - f_IndexHtmStartSector);
     }
     else if (lba >= f_CurrentUF2StartSector  &&  lba < f_CurrentUF2StartSector + f_CurrentUF2Sectors) {
-        picoprobe_info("  CURRENT.UF2\n");
-        memset(buffer, lba & 0xff, bufsize);
+        const uint32_t payload_size = 256;
+        const uint32_t num_blocks = f_CurrentUF2Sectors;
+        uint32_t block_no = lba - f_CurrentUF2StartSector;
+        uint32_t target_addr = payload_size * block_no + RP2040_IMG_BASE;
+        struct uf2_block *uf2 = (struct uf2_block *)buffer;
+
+        static_assert(BPB_BytsPerSec == 512);
+        r = BPB_BytsPerSec;
+
+        picoprobe_info("  CURRENT.UF2 0x%lx\n", target_addr);
+        uf2->magic_start0 = UF2_MAGIC_START0;
+        uf2->magic_start1 = UF2_MAGIC_START1;
+        uf2->flags = UF2_FLAG_FAMILY_ID_PRESENT;
+        uf2->target_addr = target_addr;
+        uf2->payload_size = payload_size;
+        uf2->block_no = block_no;
+        uf2->num_blocks = num_blocks;
+        uf2->file_size = RP2040_FAMILY_ID;
+        memset(uf2->data, lba & 0xff, payload_size);
+        memset(uf2->data + payload_size, 0, sizeof(uf2->data) - payload_size);
+        uf2->magic_end = UF2_MAGIC_END;
     }
     else {
         picoprobe_info("  OTHER\n");
