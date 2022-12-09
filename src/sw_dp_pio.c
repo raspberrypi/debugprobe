@@ -74,13 +74,14 @@ void SWD_Sequence (uint32_t info, const uint8_t *swdo, uint8_t *swdi) {
     probe_set_swclk_freq(MAKE_KHZ(DAP_Data.clock_delay));
     cached_delay = DAP_Data.clock_delay;
   }
-  picoprobe_debug("SWD sequence\n");
+  picoprobe_debug("SWD sequence(0x%lx)\n", info);
   n = info & SWD_SEQUENCE_CLK;
   if (n == 0U) {
     n = 64U;
   }
   bits = n;
   if (info & SWD_SEQUENCE_DIN) {
+    probe_read_mode();
     while (n > 0) {
       if (n > 8)
         bits = 8;
@@ -89,7 +90,9 @@ void SWD_Sequence (uint32_t info, const uint8_t *swdo, uint8_t *swdi) {
       *swdi++ = probe_read_bits(bits);
       n -= bits;
     }
+    probe_write_mode();
   } else {
+    probe_write_mode();
     while (n > 0) {
       if (n > 8)
         bits = 8;
@@ -119,7 +122,7 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data) {
     probe_set_swclk_freq(MAKE_KHZ(DAP_Data.clock_delay));
     cached_delay = DAP_Data.clock_delay;
   }
-  picoprobe_debug("SWD_transfer\n");
+  picoprobe_debug("SWD_transfer(0x%lx)\n", request);
   /* Generate the request packet */
   prq |= (1 << 0); /* Start Bit */
   for (n = 1; n < 5; n++) {
