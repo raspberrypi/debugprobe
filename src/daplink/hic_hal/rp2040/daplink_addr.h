@@ -19,38 +19,35 @@
  * limitations under the License.
  */
 
-// TODO this is all wrong!
-#warning "This is all wrong"
-
 #ifndef DAPLINK_ADDR_H
 #define DAPLINK_ADDR_H
 
 /* Device sizes */
 
-#define DAPLINK_ROM_START               0x00080000
-#define DAPLINK_ROM_SIZE                0x00020000
+#define DAPLINK_ROM_START               0x10000000
+#define DAPLINK_ROM_SIZE                0x0010000    // TODO
 
-#define DAPLINK_RAM_START               0x2007C000
-#define DAPLINK_RAM_SIZE                0x00008000
+#define DAPLINK_RAM_START               0x20000000
+#define DAPLINK_RAM_SIZE                0x00040000
 
 /* ROM sizes */
 
-#define DAPLINK_ROM_BL_START            0x00080000
-#define DAPLINK_ROM_BL_SIZE             0x00008000
+#define DAPLINK_ROM_BL_START            0x10000000
+#define DAPLINK_ROM_BL_SIZE             0x00000000
 
-#define DAPLINK_ROM_IF_START            0x00088000
-#define DAPLINK_ROM_IF_SIZE             0x00017000
+#define DAPLINK_ROM_IF_START            0x10000000
+#define DAPLINK_ROM_IF_SIZE             0x0010000     // TODO
 
-#define DAPLINK_ROM_CONFIG_USER_START   0x0009F000
-#define DAPLINK_ROM_CONFIG_USER_SIZE    0x00001000
+#define DAPLINK_ROM_CONFIG_USER_START   0x10010000     // TODO
+#define DAPLINK_ROM_CONFIG_USER_SIZE    0x00000000
 
 /* RAM sizes */
 
-#define DAPLINK_RAM_APP_START           0x2007C000
-#define DAPLINK_RAM_APP_SIZE            0x00007F00
+#define DAPLINK_RAM_APP_START           0x20000000
+#define DAPLINK_RAM_APP_SIZE            0x00040000
 
-#define DAPLINK_RAM_SHARED_START        0x20083F00
-#define DAPLINK_RAM_SHARED_SIZE         0x00000100
+#define DAPLINK_RAM_SHARED_START        0x20040000
+#define DAPLINK_RAM_SHARED_SIZE         0x00000000
 
 /* Flash Programming Info */
 
@@ -60,23 +57,17 @@
 /* Current build */
 
 #if defined(DAPLINK_BL)
-
-#define DAPLINK_ROM_APP_START            DAPLINK_ROM_BL_START
-#define DAPLINK_ROM_APP_SIZE             DAPLINK_ROM_BL_SIZE
-#define DAPLINK_ROM_UPDATE_START         DAPLINK_ROM_IF_START
-#define DAPLINK_ROM_UPDATE_SIZE          DAPLINK_ROM_IF_SIZE
-
+    #define DAPLINK_ROM_APP_START            DAPLINK_ROM_BL_START
+    #define DAPLINK_ROM_APP_SIZE             DAPLINK_ROM_BL_SIZE
+    #define DAPLINK_ROM_UPDATE_START         DAPLINK_ROM_IF_START
+    #define DAPLINK_ROM_UPDATE_SIZE          DAPLINK_ROM_IF_SIZE
 #elif defined(DAPLINK_IF)
-
-#define DAPLINK_ROM_APP_START            DAPLINK_ROM_IF_START
-#define DAPLINK_ROM_APP_SIZE             DAPLINK_ROM_IF_SIZE
-#define DAPLINK_ROM_UPDATE_START         DAPLINK_ROM_BL_START
-#define DAPLINK_ROM_UPDATE_SIZE          DAPLINK_ROM_BL_SIZE
-
+    #define DAPLINK_ROM_APP_START            DAPLINK_ROM_IF_START
+    #define DAPLINK_ROM_APP_SIZE             DAPLINK_ROM_IF_SIZE
+    #define DAPLINK_ROM_UPDATE_START         DAPLINK_ROM_BL_START
+    #define DAPLINK_ROM_UPDATE_SIZE          DAPLINK_ROM_BL_SIZE
 #else
-
-#error "Build must be either bootloader or interface"
-
+    #error "Build must be either bootloader or interface"
 #endif
 
 #endif
