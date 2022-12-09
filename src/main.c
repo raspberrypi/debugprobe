@@ -40,6 +40,7 @@
 #include "cdc_uart.h"
 #include "get_serial.h"
 #include "led.h"
+#include "DAP_config.h"
 #include "DAP.h"
 
 // UART0 for Picoprobe debug
@@ -87,6 +88,7 @@ int main(void) {
     uint32_t resp_len;
 
     board_init();
+    set_sys_clock_khz(CPU_CLOCK / 1000, true);
     usb_serial_init();
     cdc_uart_init();
     tusb_init();
@@ -103,7 +105,7 @@ int main(void) {
     if (THREADED) {
         /* UART needs to preempt USB as if we don't, characters get lost */
         xTaskCreate(cdc_thread, "UART", configMINIMAL_STACK_SIZE, NULL, UART_TASK_PRIO, &uart_taskhandle);
-        xTaskCreate(usb_thread, "TUD", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, &tud_taskhandle);
+        xTaskCreate(usb_thread, "TUD", 4*configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, &tud_taskhandle);
         /* Lowest priority thread is debug - need to shuffle buffers before we can toggle swd... */
         xTaskCreate(dap_thread, "DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);
 #if !defined(NDEBUG)
