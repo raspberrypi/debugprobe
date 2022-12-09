@@ -23,10 +23,15 @@
  *
  */
 
+#include "FreeRTOS.h"
+#include "task.h"
+
 #include "tusb.h"
 #include "picoprobe_config.h"
 #include "boot/uf2.h"                // this is the Pico variant of the UF2 header
 #include "swd_host.h"
+
+#include "probe.h"
 
 
 
@@ -49,9 +54,9 @@
 
 #define INDEXHTM_CONTENTS \
 "<html><head>\r\n\
-<meta http-equiv=\"refresh\" content=\"0;URL='https://raspberrypi.com/device/RP2?version=E0C9125B0D9B'\"/>\r\n\
+<meta http-equiv=\"refresh\" content=\"0;URL='https://raspberrypi.com/device/RP2?version=XXXXXXXXXXXX'\"/>\r\n\
 </head>\r\n\
-<body>Redirecting to <a href=\"https://raspberrypi.com/device/RP2?version=E0C9125B0D9B\">raspberrypi.com</a></body>\r\n\
+<body>Redirecting to <a href=\"https://raspberrypi.com/device/RP2?version=XXXXXXXXXXXX\">raspberrypi.com</a></body>\r\n\
 </html>\r\n"
 #define INDEXHTM_SIZE   (sizeof(INDEXHTM_CONTENTS) - 1)
 
@@ -79,7 +84,7 @@ const uint32_t c_DataStartSector = c_RootDirStartSector + c_RootDirSectors;
 
 #define c_FirstSectorofCluster(N) (c_DataStartSector + ((N) - 2) * BPB_SecPerClus)
 
-#define RP2040_IMG_SIZE        0x200000
+#define RP2040_IMG_SIZE        0x200000             // TODO originally 0x200000, these constants are in daplink_addr.h as well
 #define RP2040_IMG_BASE        0x10000000
 #define RP2040_UF2_SIZE        (2 * RP2040_IMG_SIZE)
 
@@ -291,7 +296,6 @@ int32_t read_sector_from_buffer(void *sector_buffer, const uint8_t *src, uint32_
 // Application fill vendor id, product id and revision with string up to 8, 16, 4 characters respectively
 void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4])
 {
-    static bool initialized = false;
     const char vid[ 8] = "DAPLink\0";
     const char pid[16] = "Picoprobe\0\0\0\0\0\0\0";
     const char rev[ 4] = "1.0\0";
@@ -302,13 +306,129 @@ void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16
 
     picoprobe_info("tud_msc_inquiry_cb(%d, %s, %s, %s)\n", lun, vendor_id, product_id, product_rev);
 
-    if ( !initialized) {
-        initialized = true;
-        swd_init();                // this also starts the target
-    }
 }
 
 
+
+const uint8_t cmd_setup_probe[] = {
+    // this is recorded from pyodc
+    /* len */  2, /* ID_DAP_Info               */ 0x00, 0xfe,
+    /* len */  2, /* ID_DAP_Info               */ 0x00, 0x04,
+    /* len */  2, /* ID_DAP_Info               */ 0x00, 0xff,
+    /* len */  2, /* ID_DAP_Info               */ 0x00, 0xf0,
+    /* len */  5, /* ID_DAP_SWJ_Clock          */ 0x11, 0x40, 0x42, 0x0f, 0x00,
+    /* len */  2, /* ID_DAP_Connect            */ 0x02, 0x01,
+    /* len */  5, /* ID_DAP_SWJ_Clock          */ 0x11, 0x40, 0x42, 0x0f, 0x00,
+    /* len */  6, /* ID_DAP_TransferConfigure  */ 0x04, 0x02, 0x50, 0x00, 0x00, 0x00,
+    /* len */  2, /* ID_DAP_SWD_Configure      */ 0x13, 0x00,
+    /* len */ 19, /* ID_DAP_SWJ_Sequence       */ 0x12, 0x88, 0xff, 0x92, 0xf3, 0x09, 0x62, 0x95, 0x2d, 0x85, 0x86, 0xe9, 0xaf, 0xdd, 0xe3, 0xa2, 0x0e, 0xbc, 0x19,
+    /* len */  4, /* ID_DAP_SWJ_Sequence       */ 0x12, 0x0c, 0xa0, 0x01,
+    /* len */  9, /* ID_DAP_SWJ_Sequence       */ 0x12, 0x33, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    /* len */  3, /* ID_DAP_SWJ_Sequence       */ 0x12, 0x02, 0x00,
+    /* len */  9, /* ID_DAP_SWJ_Sequence       */ 0x12, 0x33, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    /* len */  3, /* ID_DAP_SWJ_Sequence       */ 0x12, 0x02, 0x00,
+    /* len */ 13, /* ID_DAP_SWD_Sequence       */ 0x1d, 0x04, 0x08, 0x99, 0x85, 0x21, 0x27, 0x29, 0x00, 0x01, 0x00, 0x02, 0x00,
+    /* len */  5, /* ID_DAP_TransferBlock      */ 0x06, 0x00, 0x01, 0x00, 0x02,
+    /* len */  9, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x02, 0x08, 0x02, 0x00, 0x00, 0x00, 0x06,
+    /* len */  9, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x02, 0x08, 0x03, 0x00, 0x00, 0x00, 0x06,
+    /* len */  9, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x02, 0x08, 0x00, 0x00, 0x00, 0x00, 0x02,
+    /* len */ 19, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x04, 0x00, 0x1e, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x0f, 0x00, 0x50, 0x06,
+    /* len */  9, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x02, 0x08, 0xf0, 0x00, 0x00, 0x00, 0x0f,
+    /* len */  9, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x02, 0x08, 0xf0, 0x00, 0x00, 0x01, 0x0f,
+    /* len */  9, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x02, 0x08, 0xf0, 0x00, 0x00, 0x02, 0x0f,
+    /* len */  9, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x02, 0x08, 0xf0, 0x00, 0x00, 0x03, 0x0f,
+    /* len */  9, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x02, 0x08, 0xf0, 0x00, 0x00, 0x00, 0x0f,
+    /* len */  9, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x02, 0x08, 0x00, 0x00, 0x00, 0x00, 0x03,
+    /* len */  9, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x02, 0x08, 0xf0, 0x00, 0x00, 0x00, 0x07,
+    /* len */ 14, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x03, 0x08, 0x00, 0x00, 0x00, 0x00, 0x01, 0x52, 0x00, 0x00, 0x4f, 0x03,
+    /* len */  9, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x02, 0x08, 0xf0, 0x00, 0x00, 0x00, 0x0b,
+    /* len */ 24, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x05, 0x08, 0x00, 0x00, 0x00, 0x00, 0x01, 0x52, 0x00, 0x00, 0x03, 0x01, 0x12, 0x00, 0x00, 0x03, 0x05, 0xfc, 0xed, 0x00, 0xe0, 0x0f,
+    /* len */ 13, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x02, 0x05, 0xfc, 0xed, 0x00, 0xe0, 0x0d, 0x00, 0x00, 0x00, 0x01,
+    /* len */  5, /* ID_DAP_TransferBlock      */ 0x06, 0x00, 0x01, 0x00, 0x03,
+    /* len */ 20, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x0d, 0x05, 0xd0, 0xff, 0x0f, 0xe0, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f,
+    /* len */ 17, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x0a, 0x05, 0x00, 0xf0, 0x0f, 0xe0, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f,
+    /* len */ 20, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x0d, 0x05, 0xd0, 0xef, 0x00, 0xe0, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f,
+    /* len */ 20, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x0d, 0x05, 0xd0, 0x1f, 0x00, 0xe0, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f,
+    /* len */ 20, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x0d, 0x05, 0xd0, 0x2f, 0x00, 0xe0, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f, 0x0f,
+    /* len */  9, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x02, 0x05, 0xf0, 0xed, 0x00, 0xe0, 0x0f,
+    /* len */ 19, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x04, 0x05, 0xf0, 0xed, 0x00, 0xe0, 0x0d, 0x01, 0x00, 0x5f, 0xa0, 0x05, 0x00, 0xed, 0x00, 0xe0, 0x0f,
+    /* len */  9, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x02, 0x05, 0xfc, 0xed, 0x00, 0xe0, 0x0f,
+    /* len */  9, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x02, 0x05, 0x00, 0x10, 0x00, 0xe0, 0x0f,
+    /* len */ 39, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x08, 0x05, 0x28, 0x10, 0x00, 0xe0, 0x0d, 0x00, 0x00, 0x00, 0x00, 0x05, 0x38, 0x10, 0x00, 0xe0, 0x0d, 0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x10, 0x00, 0xe0, 0x0d, 0x01, 0x00, 0x00, 0x00, 0x05, 0x00, 0x20, 0x00, 0xe0, 0x0f,
+    /* len */ 59, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x0c, 0x05, 0x00, 0x20, 0x00, 0xe0, 0x0d, 0x02, 0x00, 0x00, 0x00, 0x05, 0x08, 0x20, 0x00, 0xe0, 0x0d, 0x00, 0x00, 0x00, 0x00, 0x05, 0x0c, 0x20, 0x00, 0xe0, 0x0d, 0x00, 0x00, 0x00, 0x00, 0x05, 0x10, 0x20, 0x00, 0xe0, 0x0d, 0x00, 0x00, 0x00, 0x00, 0x05, 0x14, 0x20, 0x00, 0xe0, 0x0d, 0x00, 0x00, 0x00, 0x00, 0x05, 0xf0, 0xed, 0x00, 0xe0, 0x0f,
+    0
+};
+
+
+
+void swd_send_recorded_data(const uint8_t *cmds)
+{
+    for (;;) {
+        uint8_t len;
+        uint8_t response[64];
+        uint8_t request[64];
+
+        len = *cmds;
+        if (len == 0) {
+            break;
+        }
+
+        memcpy(request, cmds + 1, len);
+        DAP_ProcessCommand(cmds + 1, response);
+        cmds += len + 1;
+    }
+}   // swd_send_recorded_data
+
+
+
+/// taken from pico_debug and output of pyODC
+static uint8_t swd_from_dormant(void)
+{
+    const uint8_t in1[] = {0xff, 0x92, 0xf3, 0x09, 0x62, 0x95, 0x2d, 0x85, 0x86, 0xe9, 0xaf, 0xdd, 0xe3, 0xa2, 0x0e, 0xbc, 0x19};
+    const uint8_t in2[] = {0xa0, 0x01};
+
+    SWJ_Sequence(136, in1);
+    SWJ_Sequence( 12, in2);
+    return 1;
+}
+
+
+/// taken from pico_debug and output of pyODC
+static uint8_t swd_reset(void)
+{
+    const uint8_t in1[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+    const uint8_t in2[] = {0x00};
+
+    SWJ_Sequence( 51, in1);
+    SWJ_Sequence(  2, in2);
+    return 1;
+}
+
+
+/// taken from output of pyODC
+static uint8_t swd_read_idcode(uint32_t *id)
+{
+    return swd_read_dp(DP_IDCODE, id);
+}
+
+
+static void swd_target_select(uint8_t core)
+{
+    static const uint8_t out1[]  = {0x99};
+    static const uint8_t core0[] = {0x27, 0x29, 0x00, 0x01, 0x00 };
+    static const uint8_t core1[] = {0x27, 0x29, 0x00, 0x11, 0x01 };
+    static const uint8_t out2[]  = {0x00};
+    static uint8_t input;
+
+    vTaskDelay(200);
+    SWD_Sequence(8, out1, NULL);
+    SWD_Sequence(0x85, NULL, &input);
+    SWD_Sequence(33, (core == 0) ? core0 : core1, NULL);
+    SWD_Sequence(2, out2, NULL);
+}
+
+
+static bool initialized = false;
 
 // Invoked when received Test Unit Ready command.
 // return true allowing host to read/write this LUN e.g SD card inserted
@@ -318,6 +438,7 @@ bool tud_msc_test_unit_ready_cb(uint8_t lun)
 
     // picoprobe_info("tud_msc_test_unit_ready_cb(%d)\n", lun);
     
+#if 0
     if (last_write_ms != 0) {
         uint64_t now_ms = time_us_64() / 1000;
         if (now_ms - last_write_ms > 500) {
@@ -329,6 +450,102 @@ bool tud_msc_test_unit_ready_cb(uint8_t lun)
             return false;
         }
     }
+#endif
+        if ( !initialized  &&  time_us_64() > 5 * 1000000) {
+            uint32_t r;
+            uint32_t data[256];
+
+            initialized = true;
+            DAP_Setup();
+            // if (g_board_info.prerun_board_config) {
+            //     g_board_info.prerun_board_config();
+            // }
+
+            swd_init(); // this also starts the target
+
+#if 1
+            picoprobe_info("----------------------------------\n");
+            swd_send_recorded_data(cmd_setup_probe);
+            picoprobe_info("----------------------------------\n");
+#endif
+#if 0
+            // vTaskDelay(200);
+            swd_from_dormant();
+            swd_reset();
+            swd_reset();
+            swd_target_select(0);
+            swd_read_idcode( &r);
+            picoprobe_info("   swd_read_idcode: 0x%lx\n", r);
+
+            swd_write_dp(DP_SELECT, 2);
+            swd_read_dp(DP_CTRL_STAT, &r);
+            picoprobe_info("   swd_read_dp(DP_CTRL_STAT): 0x%lx\n", r);
+
+            r = swd_clear_errors();
+            picoprobe_info("   swd_clear_errors: %lu\n", r);
+            swd_write_dp(DP_SELECT, 0);
+            swd_read_dp(DP_CTRL_STAT, &r);
+            picoprobe_info("   swd_read_dp(DP_CTRL_STAT): 0x%lx\n", r);
+#endif
+
+#if 0
+            // das überlebt er
+            for (int i = 0;  i < 16;  ++i) {
+                swd_read_core_register(i, &r);
+                picoprobe_info("   swd_read_core_register(%d): 0x%lx\n", i, r);
+            }
+#endif
+
+#if 1
+            // das überlebt er NICHT
+            picoprobe_info("----------------------------------\n");
+            memset(data, 0xff, sizeof(data));
+            swd_read_memory(0x20000000, (uint8_t *)data, sizeof(data));
+            picoprobe_info("   swd_read_memory: %lu\n", r);
+            for (int i = 0;  i < sizeof(data) / 4;  ++i) {
+                picoprobe_info(" %08lx", data[i]);
+            }
+            picoprobe_info("\n");
+            picoprobe_info("----------------------------------\n");
+#endif
+
+#if 0
+            // ok: RESET_HOLD, RUN (but does nothing)
+            // nok: RESET_RUN, RESET_PROGRAM, NO_DEBUG, HALT
+            // half: DEBUG
+            picoprobe_info("----------------------------------\n");
+            swd_set_target_state_sw(RUN);
+            picoprobe_info("----------------------------------\n");
+
+            memset(data, 0xff, sizeof(data));
+            for (uint32_t offs = 0;  offs < 32;  ++offs) {
+                swd_read_byte(0x10000000 + offs, data);
+                picoprobe_info("   swd_read_byte: %02x\n", data[0]);
+            }
+
+            memset(data, 0xff, sizeof(data));
+            r = swd_read_memory(0x10000000, data, sizeof(data));
+            picoprobe_info("   swd_read_block: %lu\n", r);
+            for (int i = 0;  i < sizeof(data);  ++i) {
+                picoprobe_info(" %02x", data[i]);
+            }
+            picoprobe_info("\n");
+
+            memset(data, 0xff, sizeof(data));
+            r = swd_read_memory(0x10000000, data, sizeof(data));
+            picoprobe_info("   swd_read_block: %lu\n", r);
+            for (int i = 0;  i < sizeof(data);  ++i) {
+                picoprobe_info(" %02x", data[i]);
+            }
+            picoprobe_info("\n");
+
+            // swd_init_debug();
+            // r = swd_set_target_state_hw(HALT);
+            // if (target_set_state(HALT) == 0) {
+            //     target_set_state(RESET_PROGRAM);
+            // }
+#endif
+        }
 
     return true; // always ready
 }
@@ -416,26 +633,30 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
     }
     else if (lba >= f_CurrentUF2StartSector  &&  lba < f_CurrentUF2StartSector + f_CurrentUF2Sectors) {
         const uint32_t payload_size = 256;
-        const uint32_t num_blocks = f_CurrentUF2Sectors;
-        uint32_t block_no = lba - f_CurrentUF2StartSector;
-        uint32_t target_addr = payload_size * block_no + RP2040_IMG_BASE;
+        const uint32_t num_blocks   = f_CurrentUF2Sectors;
+        uint32_t block_no     = lba - f_CurrentUF2StartSector;
+        uint32_t target_addr  = payload_size * block_no + RP2040_IMG_BASE;
         struct uf2_block *uf2 = (struct uf2_block *)buffer;
 
         static_assert(BPB_BytsPerSec == 512);
-        r = BPB_BytsPerSec;
 
         picoprobe_info("  CURRENT.UF2 0x%lx\n", target_addr);
         uf2->magic_start0 = UF2_MAGIC_START0;
         uf2->magic_start1 = UF2_MAGIC_START1;
-        uf2->flags = UF2_FLAG_FAMILY_ID_PRESENT;
-        uf2->target_addr = target_addr;
+        uf2->flags        = UF2_FLAG_FAMILY_ID_PRESENT;
+        uf2->target_addr  = target_addr;
         uf2->payload_size = payload_size;
-        uf2->block_no = block_no;
-        uf2->num_blocks = num_blocks;
-        uf2->file_size = RP2040_FAMILY_ID;
-        memset(uf2->data, lba & 0xff, payload_size);
+        uf2->block_no     = block_no;
+        uf2->num_blocks   = num_blocks;
+        uf2->file_size    = RP2040_FAMILY_ID;
+        r = swd_read_memory(target_addr, uf2->data, payload_size);
+        if ( !r)
+            memset(uf2->data, 0x80, payload_size);
         memset(uf2->data + payload_size, 0, sizeof(uf2->data) - payload_size);
-        uf2->magic_end = UF2_MAGIC_END;
+        uf2->magic_end    = UF2_MAGIC_END;
+        picoprobe_info("    %lu\n", r);
+
+        r = BPB_BytsPerSec;
     }
     else {
         picoprobe_info("  OTHER\n");
