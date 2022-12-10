@@ -102,12 +102,12 @@ int main(void) {
 
     if (THREADED) {
         /* UART needs to preempt USB as if we don't, characters get lost */
-        xTaskCreate(cdc_thread, "UART", configMINIMAL_STACK_SIZE, NULL, UART_TASK_PRIO, &uart_taskhandle);
-        xTaskCreate(usb_thread, "TUD", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, &tud_taskhandle);
+        xTaskCreate(cdc_thread, "UART", configMINIMAL_STACK_SIZE+512, NULL, UART_TASK_PRIO, &uart_taskhandle);
+        xTaskCreate(usb_thread, "TUD", configMINIMAL_STACK_SIZE+512, NULL, TUD_TASK_PRIO, &tud_taskhandle);
         /* Lowest priority thread is debug - need to shuffle buffers before we can toggle swd... */
-        xTaskCreate(dap_thread, "DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);
+        xTaskCreate(dap_thread, "DAP", configMINIMAL_STACK_SIZE+512, NULL, DAP_TASK_PRIO, &dap_taskhandle);
 #if !defined(NDEBUG)
-        xTaskCreate(cdc_debug_thread, "CDC_DEB", configMINIMAL_STACK_SIZE, NULL, CDC_DEBUG_TASK_PRIO, &cdc_debug_taskhandle);
+        xTaskCreate(cdc_debug_thread, "CDC_DEB", configMINIMAL_STACK_SIZE+512, NULL, CDC_DEBUG_TASK_PRIO, &cdc_debug_taskhandle);
 #endif
         vTaskStartScheduler();
     }

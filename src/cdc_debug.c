@@ -126,7 +126,7 @@ int cdc_debug_printf(const char* format, ...)
     static bool newline = true;
     uint32_t now_ms;
     uint32_t d_ms;
-    char buf[256];
+    char buf[100];
     char tbuf[30];
     int cnt;
     int ndx = 0;
