@@ -37,6 +37,8 @@
 #include "msc_utils.h"
 
 
+#define INCLUDE_RAM_UTF2
+
 
 #if CFG_TUD_MSC
 
@@ -91,6 +93,12 @@ const uint32_t c_DataStartSector = c_RootDirStartSector + c_RootDirSectors;
 #define RP2040_IMG_BASE        DAPLINK_ROM_START
 #define RP2040_UF2_SIZE        (2 * RP2040_IMG_SIZE)
 
+#ifdef INCLUDE_RAM_UTF2
+    #define RP2040_RAM_IMG_SIZE        DAPLINK_RAM_SIZE
+    #define RP2040_RAM_IMG_BASE        DAPLINK_RAM_START
+    #define RP2040_RAM_UF2_SIZE        (2 * RP2040_RAM_IMG_SIZE)
+#endif
+
 //
 // The cluster assignments must be manually reflected in \a fatsector
 //
@@ -114,6 +122,13 @@ const uint32_t f_CurrentUF2StartCluster = 8;
 const uint32_t f_CurrentUF2Clusters = CLUSTERS(RP2040_UF2_SIZE);
 const uint32_t f_CurrentUF2StartSector = c_FirstSectorofCluster(f_CurrentUF2StartCluster);
 const uint32_t f_CurrentUF2Sectors = BPB_SecPerClus * f_CurrentUF2Clusters;
+
+#ifdef INCLUDE_RAM_UTF2
+    const uint32_t f_RAMUF2StartCluster = 72;
+    const uint32_t f_RAMUF2Clusters = CLUSTERS(RP2040_RAM_UF2_SIZE);
+    const uint32_t f_RAMUF2StartSector = c_FirstSectorofCluster(f_RAMUF2StartCluster);
+    const uint32_t f_RAMUF2Sectors = BPB_SecPerClus * f_RAMUF2Clusters;
+#endif
 
 static uint64_t last_write_ms = 0;
 
@@ -188,7 +203,7 @@ const uint8_t fatsector[BPB_BytsPerSec] =
         // cluster 6 (0_README.TXT) & 7 (bad) - must be f_IndexHtmStartCluster
         AFAT12(0xfff, 0xff7),
 
-        // cluster 8..72 (64) - must be f_CurrentUF2StartCluster (twice the size of the image)
+        // cluster 8..71 (64) - must be f_CurrentUF2StartCluster (twice the size of the image)
         AFAT12( 9, 10), AFAT12(11, 12), AFAT12(13, 14), 
         AFAT12(15, 16), AFAT12(17, 18), AFAT12(19, 20), AFAT12(21, 22),
         AFAT12(23, 24), AFAT12(25, 26), AFAT12(27, 28), AFAT12(29, 30), 
@@ -198,6 +213,11 @@ const uint8_t fatsector[BPB_BytsPerSec] =
         AFAT12(55, 56), AFAT12(57, 58), AFAT12(59, 60), AFAT12(61, 62),
         AFAT12(63, 64), AFAT12(65, 66), AFAT12(67, 68), AFAT12(69, 70),
         AFAT12(71, 0xfff),
+
+#ifdef INCLUDE_RAM_UTF2
+        // cluster 72..79 (8) - must be f_RAMUF2StartCluster (twice the size of the image)
+        AFAT12(73, 74), AFAT12(75, 76), AFAT12(77, 78), AFAT12(79, 0xfff), 
+#endif
     };
 
 const uint8_t rootdirsector[BPB_BytsPerSec] =
@@ -272,6 +292,22 @@ const uint8_t rootdirsector[BPB_BytsPerSec] =
         ADATE(2022, 12, 6),                                               // DIR_WrtDate
         AWORD(f_CurrentUF2StartCluster),                                  // DIR_FstClusLO
         ADWORD(RP2040_UF2_SIZE),                                          // DIR_FileSize
+
+#ifdef INCLUDE_RAM_UTF2
+        // fifth entry is "CURRENT.UF2"
+        'R', 'A', 'M', ' ', ' ', ' ', ' ', ' ', 'U', 'F', '2',
+        0x01,                                                             // DIR_Attr: ATTR_READ_ONLY
+        0,                                                                // DIR_NTRes
+        0,                                                                // DIR_CrtTimeTenth
+        ATIME(12, 0, 0),                                                  // DIR_CrtTime
+        ADATE(2022, 12, 6),                                               // DIR_CrtDate
+        ADATE(2022, 12, 6),                                               // DIR_LstAccDate
+        AWORD(0),                                                         // DIR_FstClusHi
+        ATIME(12, 0, 0),                                                  // DIR_WrtTime
+        ADATE(2022, 12, 6),                                               // DIR_WrtDate
+        AWORD(f_RAMUF2StartCluster),                                      // DIR_FstClusLO
+        ADWORD(RP2040_RAM_UF2_SIZE),                                      // DIR_FileSize
+#endif
     };
 
 
@@ -449,6 +485,38 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
         uf2->magic_end    = UF2_MAGIC_END;
         picoprobe_debug("    %lu\n", r);
     }
+#ifdef INCLUDE_RAM_UTF2
+    else if (lba >= f_RAMUF2StartSector  &&  lba < f_RAMUF2StartSector + f_RAMUF2Sectors) {
+        const uint32_t payload_size = 256;
+        const uint32_t num_blocks   = f_RAMUF2Sectors;
+        uint32_t block_no     = lba - f_RAMUF2StartSector;
+        uint32_t target_addr  = payload_size * block_no + RP2040_IMG_BASE;
+        struct uf2_block *uf2 = (struct uf2_block *)buffer;
+        bool connected;
+
+        static_assert(BPB_BytsPerSec == 512);
+
+        picoprobe_info("  RAM.UF2 0x%lx\n", target_addr);
+        uf2->magic_start0 = UF2_MAGIC_START0;
+        uf2->magic_start1 = UF2_MAGIC_START1;
+        uf2->flags        = UF2_FLAG_FAMILY_ID_PRESENT;
+        uf2->target_addr  = target_addr;
+        uf2->payload_size = payload_size;
+        uf2->block_no     = block_no;
+        uf2->num_blocks   = num_blocks;
+        uf2->file_size    = RP2040_FAMILY_ID;
+
+        r = -1;
+        connected = swd_connect_target(false);
+        if (connected) {
+            if (swd_read_memory(target_addr, uf2->data, payload_size) != 0) {
+                r = BPB_BytsPerSec;
+            }
+        }
+        uf2->magic_end    = UF2_MAGIC_END;
+        picoprobe_info("    %lu\n", r);
+    }
+#endif
     else {
         picoprobe_info("  OTHER\n");
         memset(buffer, 0, bufsize);
@@ -512,6 +580,12 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
         picoprobe_info("  CURRENT.UF2\n");
         r = BPB_BytsPerSec;
     }
+#ifdef INCLUDE_RAM_UTF2
+    else if (lba >= f_RAMUF2StartSector  &&  lba < f_RAMUF2StartSector + f_RAMUF2Sectors) {
+        picoprobe_info("  RAM.UF2\n");
+        r = BPB_BytsPerSec;
+    }
+#endif
     else {
         picoprobe_info("  OTHER\n");
     }
