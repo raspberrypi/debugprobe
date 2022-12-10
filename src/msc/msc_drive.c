@@ -29,6 +29,8 @@
 #include "tusb.h"
 #include "picoprobe_config.h"
 #include "boot/uf2.h"                // this is the Pico variant of the UF2 header
+
+#include "daplink_addr.h"
 #include "swd_host.h"
 
 #include "probe.h"
@@ -85,8 +87,8 @@ const uint32_t c_DataStartSector = c_RootDirStartSector + c_RootDirSectors;
 
 #define c_FirstSectorofCluster(N) (c_DataStartSector + ((N) - 2) * BPB_SecPerClus)
 
-#define RP2040_IMG_SIZE        0x200000             // TODO originally 0x200000, these constants are in daplink_addr.h as well
-#define RP2040_IMG_BASE        0x10000000
+#define RP2040_IMG_SIZE        DAPLINK_ROM_SIZE
+#define RP2040_IMG_BASE        DAPLINK_ROM_START
 #define RP2040_UF2_SIZE        (2 * RP2040_IMG_SIZE)
 
 //

@@ -35,6 +35,9 @@
 #include "DAP.h"
 
 
+#define ADWORD(X)       (X) & 0xff, ((X) & 0xff00) >> 8, ((X) & 0xff0000) >> 16, ((X) & 0xff000000) >> 24
+#define AWORD(X)        (X) & 0xff, ((X) & 0xff00) >> 8
+
 /*
  * The following recordings are taken by modifying DAP.c
  * Take care that the output FIFO of cdc_debug_printf() is big enough to hold all output.
@@ -103,24 +106,31 @@
 
 
 
+#define SEQ_SWJ_FROM_DORMANT_1   0xff, 0x92, 0xf3, 0x09, 0x62, 0x95, 0x2d, 0x85, 0x86, 0xe9, 0xaf, 0xdd, 0xe3, 0xa2, 0x0e, 0xbc, 0x19
+#define SEQ_SWJ_FROM_DORMANT_2   0xa0, 0x01
+#define SEQ_SWJ_RESET_1          0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
+#define SEQ_SWJ_RESET_2          0x00
+#define SEQ_SWJ_CORE0            0x27, 0x29, 0x00, 0x01, 0x00
+#define SEQ_SWJ_CORE1            0x27, 0x29, 0x00, 0x11, 0x01
+
 static const uint8_t cmd_setup_target[] = {
     // this was recorded from: pyocd cmd --target=rp2040
     /* len */  2, /* ID_DAP_Info               */ 0x00, 0xfe,
     /* len */  2, /* ID_DAP_Info               */ 0x00, 0x04,
     /* len */  2, /* ID_DAP_Info               */ 0x00, 0xff,
     /* len */  2, /* ID_DAP_Info               */ 0x00, 0xf0,
-    /* len */  5, /* ID_DAP_SWJ_Clock          */ 0x11, 0x40, 0x42, 0x0f, 0x00,
+    /* len */  5, /* ID_DAP_SWJ_Clock          */ 0x11, ADWORD(DAP_DEFAULT_SWJ_CLOCK),
     /* len */  2, /* ID_DAP_Connect            */ 0x02, 0x01,
-    /* len */  5, /* ID_DAP_SWJ_Clock          */ 0x11, 0x40, 0x42, 0x0f, 0x00,
+    /* len */  5, /* ID_DAP_SWJ_Clock          */ 0x11, ADWORD(DAP_DEFAULT_SWJ_CLOCK),
     /* len */  6, /* ID_DAP_TransferConfigure  */ 0x04, 0x02, 0x50, 0x00, 0x00, 0x00,
     /* len */  2, /* ID_DAP_SWD_Configure      */ 0x13, 0x00,
-    /* len */ 19, /* ID_DAP_SWJ_Sequence       */ 0x12, 0x88, 0xff, 0x92, 0xf3, 0x09, 0x62, 0x95, 0x2d, 0x85, 0x86, 0xe9, 0xaf, 0xdd, 0xe3, 0xa2, 0x0e, 0xbc, 0x19,
-    /* len */  4, /* ID_DAP_SWJ_Sequence       */ 0x12, 0x0c, 0xa0, 0x01,
-    /* len */  9, /* ID_DAP_SWJ_Sequence       */ 0x12, 0x33, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-    /* len */  3, /* ID_DAP_SWJ_Sequence       */ 0x12, 0x02, 0x00,
-    /* len */  9, /* ID_DAP_SWJ_Sequence       */ 0x12, 0x33, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-    /* len */  3, /* ID_DAP_SWJ_Sequence       */ 0x12, 0x02, 0x00,
-    /* len */ 13, /* ID_DAP_SWD_Sequence       */ 0x1d, 0x04, 0x08, 0x99, 0x85, 0x21, 0x27, 0x29, 0x00, 0x01, 0x00, 0x02, 0x00,
+    /* len */ 19, /* ID_DAP_SWJ_Sequence       */ 0x12, 0x88, SEQ_SWJ_FROM_DORMANT_1,
+    /* len */  4, /* ID_DAP_SWJ_Sequence       */ 0x12, 0x0c, SEQ_SWJ_FROM_DORMANT_2,
+    /* len */  9, /* ID_DAP_SWJ_Sequence       */ 0x12, 0x33, SEQ_SWJ_RESET_1,
+    /* len */  3, /* ID_DAP_SWJ_Sequence       */ 0x12, 0x02, SEQ_SWJ_RESET_2,
+    /* len */  9, /* ID_DAP_SWJ_Sequence       */ 0x12, 0x33, SEQ_SWJ_RESET_1,
+    /* len */  3, /* ID_DAP_SWJ_Sequence       */ 0x12, 0x02, SEQ_SWJ_RESET_2,
+    /* len */ 13, /* ID_DAP_SWD_Sequence       */ 0x1d, 0x04, 0x08, 0x99, 0x85, 0x21, SEQ_SWJ_CORE0, 0x02, 0x00,
     /* len */  5, /* ID_DAP_TransferBlock      */ 0x06, 0x00, 0x01, 0x00, 0x02,
     /* len */  9, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x02, 0x08, 0x02, 0x00, 0x00, 0x00, 0x06,
     /* len */  9, /* ID_DAP_Transfer           */ 0x05, 0x00, 0x02, 0x08, 0x03, 0x00, 0x00, 0x00, 0x06,
@@ -172,7 +182,7 @@ static bool swd_send_recorded_data(const uint8_t *cmds)
         memcpy(request, cmds + 1, len);
         r = DAP_ProcessCommand(cmds + 1, response);
         if ((r >> 16) != len) {
-            // there is a problem in the record
+            // there is a problem in the recording
             sts = false;
             break;
         }
