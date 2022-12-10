@@ -113,6 +113,7 @@
 #define SEQ_SWJ_CORE0            0x27, 0x29, 0x00, 0x01, 0x00
 #define SEQ_SWJ_CORE1            0x27, 0x29, 0x00, 0x11, 0x01
 
+/// Connect to the target.  After this sequence the target is ready to receive "standard" swd_host commands
 static const uint8_t cmd_setup_target[] = {
     // this was recorded from: pyocd cmd --target=rp2040
     /* len */  2, /* ID_DAP_Info               */ 0x00, 0xfe,
@@ -206,6 +207,21 @@ bool swd_connect_target(bool write_mode)
 
     return ok;
 }   // swd_connect_target
+
+
+
+void setup_uf2_record(struct uf2_block *uf2, uint32_t target_addr, uint32_t payload_size, uint32_t block_no, uint32_t num_blocks)
+{
+    uf2->magic_start0 = UF2_MAGIC_START0;
+    uf2->magic_start1 = UF2_MAGIC_START1;
+    uf2->flags        = UF2_FLAG_FAMILY_ID_PRESENT;
+    uf2->target_addr  = target_addr;
+    uf2->payload_size = payload_size;
+    uf2->block_no     = block_no;
+    uf2->num_blocks   = num_blocks;
+    uf2->file_size    = RP2040_FAMILY_ID;
+    uf2->magic_end    = UF2_MAGIC_END;
+}   // setup_uf2_record
 
 
 

@@ -466,15 +466,7 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
         static_assert(BPB_BytsPerSec == 512);
 
         picoprobe_debug("  CURRENT.UF2 0x%lx\n", target_addr);
-        uf2->magic_start0 = UF2_MAGIC_START0;
-        uf2->magic_start1 = UF2_MAGIC_START1;
-        uf2->flags        = UF2_FLAG_FAMILY_ID_PRESENT;
-        uf2->target_addr  = target_addr;
-        uf2->payload_size = payload_size;
-        uf2->block_no     = block_no;
-        uf2->num_blocks   = num_blocks;
-        uf2->file_size    = RP2040_FAMILY_ID;
-
+        setup_uf2_record(uf2, target_addr, payload_size, block_no, num_blocks);
         r = -1;
         connected = swd_connect_target(false);
         if (connected) {
@@ -482,7 +474,6 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
                 r = BPB_BytsPerSec;
             }
         }
-        uf2->magic_end    = UF2_MAGIC_END;
         picoprobe_debug("    %lu\n", r);
     }
 #ifdef INCLUDE_RAM_UTF2
@@ -497,15 +488,7 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
         static_assert(BPB_BytsPerSec == 512);
 
         picoprobe_info("  RAM.UF2 0x%lx\n", target_addr);
-        uf2->magic_start0 = UF2_MAGIC_START0;
-        uf2->magic_start1 = UF2_MAGIC_START1;
-        uf2->flags        = UF2_FLAG_FAMILY_ID_PRESENT;
-        uf2->target_addr  = target_addr;
-        uf2->payload_size = payload_size;
-        uf2->block_no     = block_no;
-        uf2->num_blocks   = num_blocks;
-        uf2->file_size    = RP2040_FAMILY_ID;
-
+        setup_uf2_record(uf2, target_addr, payload_size, block_no, num_blocks);
         r = -1;
         connected = swd_connect_target(false);
         if (connected) {
@@ -513,7 +496,6 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
                 r = BPB_BytsPerSec;
             }
         }
-        uf2->magic_end    = UF2_MAGIC_END;
         picoprobe_info("    %lu\n", r);
     }
 #endif

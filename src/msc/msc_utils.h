@@ -30,6 +30,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "boot/uf2.h"                // this is the Pico variant of the UF2 header
+
 
 #ifdef __cplusplus
     extern "C" {
@@ -37,6 +39,7 @@
 
 
 bool swd_connect_target(bool write_mode);
+void setup_uf2_record(struct uf2_block *uf2, uint32_t target_addr, uint32_t payload_size, uint32_t block_no, uint32_t num_blocks);
 
 
 #ifdef __cplusplus
