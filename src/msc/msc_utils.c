@@ -171,7 +171,6 @@ static bool swd_send_recorded_data(const uint8_t *cmds)
     for (;;) {
         uint8_t len;
         uint8_t response[64];
-        uint8_t request[64];
         uint32_t r;
 
         len = *cmds;
@@ -179,7 +178,6 @@ static bool swd_send_recorded_data(const uint8_t *cmds)
             break;
         }
 
-        memcpy(request, cmds + 1, len);
         r = DAP_ProcessCommand(cmds + 1, response);
         if ((r >> 16) != len) {
             // there is a problem in the recording
