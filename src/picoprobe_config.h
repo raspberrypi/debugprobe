@@ -36,7 +36,7 @@
     #define picoprobe_info(format,...) ((void)0)
 #endif
 
-#if 0  &&  !defined(NDEBUG)
+#if 1  &&  !defined(NDEBUG)
     #define picoprobe_debug(format,args...) cdc_debug_printf(format, ## args)
 #else
     #define picoprobe_debug(format,...) ((void)0)
@@ -86,7 +86,7 @@
 
     // Interface config
     #ifndef PICOPROBE_DEBUG_PROTOCOL
-        #define PICOPROBE_DEBUG_PROTOCOL PROTO_DAP_V2
+        #define PICOPROBE_DEBUG_PROTOCOL PROTO_DAP_V1
     #endif
 #endif
 

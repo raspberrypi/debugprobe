@@ -17,7 +17,6 @@ add_executable(picoprobe
         src/cdc_uart.c
         src/get_serial.c
         src/sw_dp_pio.c
-        src/msc_drive.c
 )
 
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
@@ -31,7 +30,7 @@ target_sources(picoprobe PRIVATE
         CMSIS_5/CMSIS/DAP/Firmware/Source/JTAG_DP.c
         CMSIS_5/CMSIS/DAP/Firmware/Source/DAP_vendor.c
         CMSIS_5/CMSIS/DAP/Firmware/Source/SWO.c
-        #CMSIS_5/CMSIS/DAP/Firmware/Source/SW_DP.c
+        # CMSIS_5/CMSIS/DAP/Firmware/Source/SW_DP.c
         )
 
 target_include_directories(picoprobe PRIVATE
@@ -40,24 +39,31 @@ target_include_directories(picoprobe PRIVATE
         include/
         )
 
-add_compile_definitions(INTERFACE_RP2040=1)
-
 #--------------------------------------------------------------------------------------------------
 #
 # this is all for MSC operation
 #
 target_sources(picoprobe PRIVATE
+        src/msc/msc_drive.c
+        src/msc/msc_utils.c
+        src/daplink/hic_hal/rp2040/rp2040.c
         src/daplink/interface/swd_host.c
+        src/daplink/target/target_family.c
         )
 
 target_include_directories(picoprobe PRIVATE
         src/daplink
         src/daplink/cmsis-dap
+        src/daplink/drag-n-drop
         src/daplink/hic_hal
         src/daplink/hic_hal/rp2040
+        src/daplink/interface
         src/daplink/target
         $ENV{PICO_SDK_PATH}/src/common/boot_uf2/include
         )
+
+add_compile_definitions(INTERFACE_RP2040=1
+                        DAPLINK_IF=1)
 
 #--------------------------------------------------------------------------------------------------
 

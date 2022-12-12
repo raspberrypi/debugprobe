@@ -91,6 +91,7 @@ void probe_set_swclk_freq(uint freq_khz) {
         uint clk_sys_freq_khz = clock_get_hz(clk_sys) / 1000;
         picoprobe_info("Set swclk freq %dKHz sysclk %dkHz\n", freq_khz, clk_sys_freq_khz);
         // Worked out with saleae
+//   freq_khz = 15000;
         uint32_t divider = clk_sys_freq_khz / freq_khz / 2;
         pio_sm_set_clkdiv_int_frac(pio0, PROBE_SM, divider, 0);
 }
@@ -139,6 +140,8 @@ void probe_write_mode(void) {
 
 void probe_gpio_init()
 {
+    picoprobe_info("probe_gpio_init()\n");
+
     // Funcsel pins
     pio_gpio_init(pio0, PROBE_PIN_SWCLK);
     pio_gpio_init(pio0, PROBE_PIN_SWDIO);
@@ -147,11 +150,14 @@ void probe_gpio_init()
 }
 
 void probe_init() {
+    // picoprobe_info("probe_init()\n");
+
     // Target reset pin: pull up, input to emulate open drain pin
     gpio_pull_up(PROBE_PIN_RESET);
     // gpio_init will leave the pin cleared and set as input
     gpio_init(PROBE_PIN_RESET);
     if (!probe.initted) {
+        // picoprobe_info("     2. probe_init()\n");
         uint offset = pio_add_program(pio0, &probe_program);
         probe.offset = offset;
 
@@ -198,6 +204,8 @@ void probe_deinit(void)
   }
 }
 
+
+#if 0
 void probe_handle_read(uint total_bits) {
     picoprobe_debug("Read %d bits\n", total_bits);
     probe_read_mode();
@@ -313,3 +321,4 @@ void probe_task(void) {
         }
     }
 }
+#endif

@@ -177,7 +177,7 @@ char const* string_desc_arr [] =
   "Picoprobe CMSIS-DAP v2",            // 5: Interface descriptor for Bulk transport
   "Picoprobe CDC-ACM UART",            // 6: Interface descriptor for CDC UART (from target)
   "Picoprobe CDC-DEBUG",               // 7: Interface descriptor for CDC DEBUG
-  "Picoprobe Flash Target",            // 8: Interface descriptor for flash target storage
+  "Picoprobe Flash Drive",             // 8: Interface descriptor for flash target storage
 };
 
 static uint16_t _desc_str[32];

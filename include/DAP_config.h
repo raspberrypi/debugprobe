@@ -141,12 +141,12 @@ This information includes:
 /// The Debug Unit may be part of an evaluation board and always connected to a fixed
 /// known device. In this case a Device Vendor, Device Name, Board Vendor and Board Name strings
 /// are stored and may be used by the debugger or IDE to configure device parameters.
-#define TARGET_FIXED            0               ///< Target: 1 = known, 0 = unknown;
+#define TARGET_FIXED            1               ///< Target: 1 = known, 0 = unknown;
 
-#define TARGET_DEVICE_VENDOR    "Arm"           ///< String indicating the Silicon Vendor
-#define TARGET_DEVICE_NAME      "Cortex-M"      ///< String indicating the Target Device
-#define TARGET_BOARD_VENDOR     "Arm"           ///< String indicating the Board Vendor
-#define TARGET_BOARD_NAME       "Arm board"     ///< String indicating the Board Name
+#define TARGET_DEVICE_VENDOR    "Raspberry"     ///< String indicating the Silicon Vendor
+#define TARGET_DEVICE_NAME      "RP2040"        ///< String indicating the Target Device
+#define TARGET_BOARD_VENDOR     "Raspberry"     ///< String indicating the Board Vendor
+#define TARGET_BOARD_NAME       "Pico"          ///< String indicating the Board Name
 
 #if TARGET_FIXED != 0
 #include <string.h>

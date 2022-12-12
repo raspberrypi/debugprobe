@@ -860,6 +860,7 @@ uint8_t swd_init_debug(void)
                 break;
             }
         }
+
         if ((i == timeout) || (do_abort == 1)) {
             // Unable to powerup DP
             do_abort = 1;
@@ -1109,6 +1110,8 @@ uint8_t swd_set_target_state_sw(target_state_t state)
                     return 0;
                 }
             } while ((val & S_HALT) == 0);
+
+            return 1;
 
             // Enable halt on reset
             if (!swd_write_word(DBG_EMCR, VC_CORERESET)) {

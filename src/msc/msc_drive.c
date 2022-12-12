@@ -481,7 +481,7 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
         const uint32_t payload_size = 256;
         const uint32_t num_blocks   = f_RAMUF2Sectors;
         uint32_t block_no     = lba - f_RAMUF2StartSector;
-        uint32_t target_addr  = payload_size * block_no + RP2040_IMG_BASE;
+        uint32_t target_addr  = payload_size * block_no + RP2040_RAM_IMG_BASE;
         struct uf2_block *uf2 = (struct uf2_block *)buffer;
         bool connected;
 
@@ -492,7 +492,8 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
         r = -1;
         connected = swd_connect_target(false);
         if (connected) {
-            if (swd_read_memory(target_addr, uf2->data, payload_size) != 0) {
+            if (swd_read_memory(target_addr, uf2->data, payload_size) != 0) 
+            {
                 r = BPB_BytsPerSec;
             }
         }

@@ -1,5 +1,5 @@
 /*
- * The MIT License (MIT)
+ * The MIT License (MIT)command-line error: 
  *
  * Copyright (c) 2021 Raspberry Pi (Trading) Ltd.
  *
@@ -24,7 +24,7 @@
  */
 
 #include <stdarg.h>
-#include <pico/stdlib.h>
+#include "pico/stdlib.h"
 #include "FreeRTOS.h"
 #include "task.h"
 
@@ -39,7 +39,7 @@ TaskHandle_t cdc_debug_taskhandle;
 
 static uint16_t cdc_debug_fifo_read;
 static uint16_t cdc_debug_fifo_write;
-static uint8_t cdc_debug_fifo[4096];
+static uint8_t cdc_debug_fifo[32768];
 static uint8_t cdc_debug_buf[CFG_TUD_CDC_TX_BUFSIZE];
 
 
@@ -98,7 +98,7 @@ static void cdc_to_fifo(const char* buf, int max_cnt)
     int cnt;
 
     buf_pnt = buf;
-    while (max_cnt > 0 && (cdc_debug_fifo_write + 1) % sizeof(cdc_debug_fifo) != cdc_debug_fifo_read) {
+    while (max_cnt > 0  &&  (cdc_debug_fifo_write + 1) % sizeof(cdc_debug_fifo) != cdc_debug_fifo_read) {
         if (cdc_debug_fifo_read > cdc_debug_fifo_write) {
             cnt = (cdc_debug_fifo_read - 1) - cdc_debug_fifo_write;
         } else {
@@ -126,7 +126,7 @@ int cdc_debug_printf(const char* format, ...)
     static bool newline = true;
     uint32_t now_ms;
     uint32_t d_ms;
-    char buf[256];
+    char buf[128];
     char tbuf[30];
     int cnt;
     int ndx = 0;
