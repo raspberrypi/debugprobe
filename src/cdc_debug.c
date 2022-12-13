@@ -1,5 +1,5 @@
 /*
- * The MIT License (MIT)command-line error: 
+ * The MIT License (MIT)
  *
  * Copyright (c) 2021 Raspberry Pi (Trading) Ltd.
  *
