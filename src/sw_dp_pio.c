@@ -111,110 +111,184 @@ void SWD_Sequence (uint32_t info, const uint8_t *swdo, uint8_t *swdi) {
 //   request: A[3:2] RnW APnDP
 //   data:    DATA[31:0]
 //   return:  ACK[2:0]
-uint8_t SWD_Transfer (uint32_t request, uint32_t *data) {
-  uint8_t prq = 0;
-  uint8_t ack;
-  uint8_t bit;
-  uint32_t val = 0;
-  uint32_t parity = 0;
-  uint32_t n;
+uint8_t SWD_Transfer (uint32_t request, uint32_t *data)
+{
+	uint8_t prq = 0;
+	uint8_t ack;
+	uint8_t bit;
+	uint32_t val = 0;
+	uint32_t parity = 0;
+	uint32_t n;
 
-  if (DAP_Data.clock_delay != cached_delay) {
-    probe_set_swclk_freq(MAKE_KHZ(DAP_Data.clock_delay));
-    cached_delay = DAP_Data.clock_delay;
-  }
-  picoprobe_debug("SWD_transfer(0x%02lx)\n", request);
-  /* Generate the request packet */
-  prq |= (1 << 0); /* Start Bit */
-  for (n = 1; n < 5; n++) {
-    bit = (request >> (n - 1)) & 0x1;
-    prq |= bit << n;
-    parity += bit;
-  }
-  prq |= (parity & 0x1) << 5; /* Parity Bit */
-  prq |= (0 << 6); /* Stop Bit */
-  prq |= (1 << 7); /* Park bit */
-  probe_write_bits(8, prq);
+	if (DAP_Data.clock_delay != cached_delay) {
+		probe_set_swclk_freq(MAKE_KHZ(DAP_Data.clock_delay));
+		cached_delay = DAP_Data.clock_delay;
+	}
+	//  picoprobe_debug("SWD_transfer(0x%02lx)\n", request);
+	/* Generate the request packet */
+	prq |= (1 << 0); /* Start Bit */
+	for (n = 1; n < 5; n++) {
+		bit = (request >> (n - 1)) & 0x1;
+		prq |= bit << n;
+		parity += bit;
+	}
+	prq |= (parity & 0x1) << 5; /* Parity Bit */
+	prq |= (0 << 6); /* Stop Bit */
+	prq |= (1 << 7); /* Park bit */
+	probe_write_bits(8, prq);
+	//  picoprobe_debug("SWD_transfer(0x%02lx)\n", prq);
 
-  /* Turnaround (ignore read bits) */
-  probe_read_mode();
+	/* Turnaround (ignore read bits) */
+	probe_read_mode();
 
-  ack = probe_read_bits(DAP_Data.swd_conf.turnaround + 3);
-  ack >>= DAP_Data.swd_conf.turnaround;
+	ack = probe_read_bits(DAP_Data.swd_conf.turnaround + 3);
+	ack >>= DAP_Data.swd_conf.turnaround;
 
-  if (ack == DAP_TRANSFER_OK) {
-    /* Data transfer phase */
-    if (request & DAP_TRANSFER_RnW) {
-      /* Read RDATA[0:31] - note probe_read shifts to LSBs */
-      val = probe_read_bits(32);
-      bit = probe_read_bits(1);
-      parity = __builtin_popcount(val);
-      if ((parity ^ bit) & 1U) {
-        /* Parity error */
-        ack = DAP_TRANSFER_ERROR;
-      }
-      if (data)
-        *data = val;
-      picoprobe_debug("Read %02x ack %02x 0x%08lx parity %01x\n",
-                      prq, ack, val, bit);
-      /* Turnaround for line idle */
-      probe_read_bits(DAP_Data.swd_conf.turnaround);
-      probe_write_mode();
-    } else {
-      /* Turnaround for write */
-      probe_read_bits(DAP_Data.swd_conf.turnaround);
-      probe_write_mode();
+	if (ack == DAP_TRANSFER_OK) {
+		/* Data transfer phase */
+		if (request & DAP_TRANSFER_RnW) {
+			/* Read RDATA[0:31] - note probe_read shifts to LSBs */
+			val = probe_read_bits(32);
+			bit = probe_read_bits(1);
+			parity = __builtin_popcount(val);
+			if ((parity ^ bit) & 1U) {
+				/* Parity error */
+				ack = DAP_TRANSFER_ERROR;
+			}
+			if (data)
+				*data = val;
+			//      picoprobe_debug("Read %02x ack %02x 0x%08lx parity %01x\n", prq, ack, val, bit);
+			/* Turnaround for line idle */
+			probe_read_bits(DAP_Data.swd_conf.turnaround);
+			probe_write_mode();
+		} else {
+			/* Turnaround for write */
+			probe_read_bits(DAP_Data.swd_conf.turnaround);
+			probe_write_mode();
 
-      /* Write WDATA[0:31] */
-      val = *data;
-      probe_write_bits(32, val);
-      parity = __builtin_popcount(val);
-      /* Write Parity Bit */
-      probe_write_bits(1, parity & 0x1);
-      picoprobe_debug("write %02x ack %02x 0x%08lx parity %01lx\n",
-                      prq, ack, val, parity);
-    }
-    /* Capture Timestamp */
-    if (request & DAP_TRANSFER_TIMESTAMP) {
-      DAP_Data.timestamp = time_us_32();
-    }
+			/* Write WDATA[0:31] */
+			val = *data;
+			probe_write_bits(32, val);
+			parity = __builtin_popcount(val);
+			/* Write Parity Bit */
+			probe_write_bits(1, parity & 0x1);
+			//      picoprobe_debug("write %02x ack %02x 0x%08lx parity %01lx\n", prq, ack, val, parity);
+		}
+		/* Capture Timestamp */
+		if (request & DAP_TRANSFER_TIMESTAMP) {
+			DAP_Data.timestamp = time_us_32();
+		}
 
-    /* Idle cycles - drive 0 for N clocks */
-    if (DAP_Data.transfer.idle_cycles) {
-      for (n = DAP_Data.transfer.idle_cycles; n; ) {
-        if (n > 32) {
-          probe_write_bits(32, 0);
-          n -= 32;
-        } else {
-          probe_write_bits(n, 0);
-          n -= n;
-        }
-      }
-    }
-    return ((uint8_t)ack);
-  }
+		/* Idle cycles - drive 0 for N clocks */
+		if (DAP_Data.transfer.idle_cycles) {
+			for (n = DAP_Data.transfer.idle_cycles; n; ) {
+				if (n > 32) {
+					probe_write_bits(32, 0);
+					n -= 32;
+				} else {
+					probe_write_bits(n, 0);
+					n -= n;
+				}
+			}
+		}
+#if 1
+		// bits are reversed
+		if (prq == 0x81) {
+			picoprobe_debug("SWD_transfer - DP write ABORT 0x%lx (%d)\n", *data, ack);
+		}
+		else if (prq == 0x87) {
+			picoprobe_debug("SWD_transfer - AP read CSW = 0x%lx (%d)\n", *data, ack);
+		}
+		else if (prq == 0x8b) {
+			picoprobe_debug("SWD_transfer - AP write TAR 0x%lx (%d)\n", *data, ack);
+		}
+		else if (prq == 0x8d) {
+			picoprobe_debug("SWD_transfer - DP read CTRL/STAT = 0x%lx (%d)\n", *data, ack);
+		}
+		else if (prq == 0x95) {
+			picoprobe_debug("SWD_transfer - DP read RESEND = 0x%lx (%d)\n", *data, ack);
+		}
+		else if (prq == 0x9f) {
+			picoprobe_debug("SWD_transfer - AP read DRW = 0x%lx (%d)\n", *data, ack);
+		}
+		else if (prq == 0xa3) {
+			picoprobe_debug("SWD_transfer - AP write CSW 0x%lx (%d)\n", *data, ack);
+		}
+		else if (prq == 0xa5) {
+			picoprobe_debug("SWD_transfer - DP read DPIDR = 0x%lx (%d)\n", *data, ack);
+		}
+		else if (prq == 0xa9) {
+			picoprobe_debug("SWD_transfer - DP write CTRL/STAT 0x%lx (%d)\n", *data, ack);
+		}
+		else if (prq == 0xaf) {
+			picoprobe_debug("SWD_transfer - AP read TAR = 0x%lx (%d)\n", *data, ack);
+		}
+		else if (prq == 0xb1) {
+			picoprobe_debug("SWD_transfer - DP write SELECT 0x%lx (%d)\n", *data, ack);
+		}
+		else if (prq == 0xbb) {
+			picoprobe_debug("SWD_transfer - AP write DRW 0x%lx (%d)\n", *data, ack);
+		}
+		else if (prq == 0xbd) {
+			picoprobe_debug("SWD_transfer - DP read buffer = 0x%lx (%d)\n", *data, ack);
+		}
+		else {
+			if (request & DAP_TRANSFER_RnW) {
+				picoprobe_debug("SWD_transfer - unknown write: 0x%02x 0x%lx (%d)\n", prq, *data, ack);
+			}
+			else {
+				picoprobe_debug("SWD_transfer - unknown read: 0x%02x 0x%lx (%d)\n", prq, *data, ack);
+			}
+		}
+#endif
 
-  if ((ack == DAP_TRANSFER_WAIT) || (ack == DAP_TRANSFER_FAULT)) {
-    if (DAP_Data.swd_conf.data_phase && ((request & DAP_TRANSFER_RnW) != 0U)) {
-      /* Dummy Read RDATA[0:31] + Parity */
-      probe_read_bits(33);
-    }
-    probe_read_bits(DAP_Data.swd_conf.turnaround);
-    probe_write_mode();
-    if (DAP_Data.swd_conf.data_phase && ((request & DAP_TRANSFER_RnW) == 0U)) {
-      /* Dummy Write WDATA[0:31] + Parity */
-      probe_write_bits(32, 0);
-      probe_write_bits(1, 0);
-    }
-    return ((uint8_t)ack);
-  }
+		return ((uint8_t)ack);
+	}
 
-  /* Protocol error */
-  n = DAP_Data.swd_conf.turnaround + 32U + 1U;
-  /* Back off data phase */
-  probe_read_bits(n);
-  probe_write_mode();
-  return ((uint8_t)ack);
+#if 1
+	if (request & DAP_TRANSFER_RnW) {
+		picoprobe_debug("SWD_transfer - unknown FAILED write: 0x%02x 0x%lx (%d)\n", prq, *data, ack);
+	}
+	else {
+		picoprobe_debug("SWD_transfer - unknown FAILED read: 0x%02x 0x%lx (%d)\n", prq, *data, ack);
+	}
+#endif
+
+	if ((ack == DAP_TRANSFER_WAIT) || (ack == DAP_TRANSFER_FAULT)) {
+		if (DAP_Data.swd_conf.data_phase && ((request & DAP_TRANSFER_RnW) != 0U)) {
+			/* Dummy Read RDATA[0:31] + Parity */
+			probe_read_bits(33);
+		}
+		probe_read_bits(DAP_Data.swd_conf.turnaround);
+		probe_write_mode();
+		if (DAP_Data.swd_conf.data_phase && ((request & DAP_TRANSFER_RnW) == 0U)) {
+			/* Dummy Write WDATA[0:31] + Parity */
+			probe_write_bits(32, 0);
+			probe_write_bits(1, 0);
+		}
+		return ((uint8_t)ack);
+	}
+
+	/* Protocol error */
+	n = DAP_Data.swd_conf.turnaround + 32U + 1U;
+	/* Back off data phase */
+	probe_read_bits(n);
+	probe_write_mode();
+	return ((uint8_t)ack);
 }
+
+
+
+void SWx_Configure(void)
+{
+	DAP_Data.transfer.idle_cycles = 2;
+	DAP_Data.transfer.retry_count = 80;
+	DAP_Data.transfer.match_retry = 0;
+
+	DAP_Data.swd_conf.turnaround  = 0;
+	DAP_Data.swd_conf.data_phase  = 0;
+}   // SWx_Configure
+
+
 
 #endif  /* (DAP_SWD != 0) */
