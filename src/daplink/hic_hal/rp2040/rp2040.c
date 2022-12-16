@@ -19,6 +19,9 @@
  * limitations under the License.
  */
 
+#include "DAP_config.h"
+#include "DAP.h"
+
 #include "daplink_addr.h"
 #include "swd_host.h"
 #include "target_board.h"
@@ -34,14 +37,6 @@
 
 
 
-//
-// Debug Port Register Addresses
-//
-#define DP_DPIDR                        0x00U   // IDCODE Register (RD)
-#define DP_ABORT                        0x00U   // Abort Register (WR)
-#define DP_CTRL_STAT                    0x04U   // Control & Status
-#define DP_SELECT                       0x08U   // Select Register (WR)
-
 #define DP_DLPIDR                       0x34    // (RD)
 
 //
@@ -49,11 +44,6 @@
 //
 #define SWDERRORS           (STICKYORUN|STICKYCMP|STICKYERR)
 
-
-//
-// Abort Register Defines
-//
-#define ALLERRCLR           (STKCMPCLR|STKERRCLR|WDERRCLR|ORUNERRCLR)
 
 #define SWD_OK              0
 #define SWD_WAIT            1
@@ -219,42 +209,6 @@ static void swd_targetsel(uint8_t core)
 }
 
 
-static int swd_read(int APnDP, int addr, uint32_t *result)
-{
-	uint8_t sts = 0;
-
-	cdc_debug_printf("---swd_read(%d, %d, .)\n", APnDP, addr);
-
-	for (int i = 0;  sts == 0  &&  i < 10;  ++i) {
-		if (APnDP != 0) {
-			sts = swd_read_ap(addr, result);
-		}
-		else {
-			sts = swd_read_dp(addr, result);
-		}
-	}
-	return (sts != 0) ? SWD_OK : SWD_ERROR;
-}   // swd_read
-
-
-static int swd_write(int APnDP, int addr, uint32_t value)
-{
-	uint8_t sts = 0;
-
-	cdc_debug_printf("---swd_write(%d, %d, 0x%lx)\n", APnDP, addr, value);
-
-	for (int i = 0;  sts == 0  &&  i < 10;  ++i) {
-		if (APnDP != 0) {
-			sts = swd_write_ap(addr, value);
-		}
-		else {
-			sts = swd_write_dp(addr, value);
-		}
-	}
-	return (sts != 0) ? SWD_OK : SWD_ERROR;
-}   // swd_write
-
-
 /**
  * @brief Use the rescue dp to perform a hardware reset
  *
@@ -271,25 +225,23 @@ static int dp_rescue_reset()
     swd_from_dormant();
     swd_line_reset();
     swd_targetsel(0xff);
-    rc = swd_read(0, DP_DPIDR, &rv);
-    if (rc != SWD_OK) {
+    rc = swd_read_dp(DP_IDCODE, &rv);
+    if ( !rc) {
         cdc_debug_printf("---rescue failed (DP_IDR read rc=%d)\n", rc);
-        return rc;
+        return SWD_ERROR;
     }
 
     // Now toggle the power request which will cause the reset...
-    rc = swd_write(0, DP_CTRL_STAT, CDBGPWRUPREQ);
+    rc = swd_write_dp(DP_CTRL_STAT, CDBGPWRUPREQ);
     cdc_debug_printf("---RESET rc=%d\n", rc);
-    rc = swd_write(0, DP_CTRL_STAT, 0);
+    rc = swd_write_dp(DP_CTRL_STAT, 0);
     cdc_debug_printf("---RESET rc=%d\n", rc);
 
     // Make sure the write completes...
-//    swd_send_bits((uint32_t *)zero, 8);
     SWD_Sequence(8, zero, NULL);
 
     // And delay a bit... no idea how long we need, but we need something.
     for (int i=0; i < 2; i++) {
-//        swd_send_bits((uint32_t *)zero, 32);
         SWD_Sequence(32, zero, NULL);
     }
     return SWD_OK;
@@ -297,7 +249,7 @@ static int dp_rescue_reset()
 
 
 /**
- * @brief Does the basic core select and then reads DP_DPIDR as required
+ * @brief Does the basic core select and then reads DP_IDCODE as required
  *
  * @param num
  * @return int
@@ -311,7 +263,7 @@ static int dp_core_select(uint8_t core)
 	swd_line_reset();
     swd_targetsel(core);
 
-    CHECK_OK(swd_read(0, DP_DPIDR, &rv));
+    CHECK_OK_BOOL(swd_read_dp(DP_IDCODE, &rv));
     cdc_debug_printf("---  id(%u)=0x%08lx\n", core, rv);
     return SWD_OK;
 }   // dp_core_select
@@ -331,9 +283,9 @@ static int dp_core_select_and_confirm(uint8_t core)
 	cdc_debug_printf("---dp_core_select_and_confirm(%u)\n", core);
 
 	CHECK_OK(dp_core_select(core));
-    CHECK_OK(swd_write(0, DP_ABORT, ALLERRCLR));
-    CHECK_OK(swd_write(0, DP_SELECT, 0));
-    CHECK_OK(swd_read(0, DP_CTRL_STAT, &rv));
+    CHECK_OK_BOOL(swd_clear_errors());
+    CHECK_OK_BOOL(swd_write_dp(DP_SELECT, 0));
+    CHECK_OK_BOOL(swd_read_dp(DP_CTRL_STAT, &rv));
 
     return SWD_OK;
 }   // dp_core_select_and_confirm
@@ -359,7 +311,7 @@ static int dp_power_on()
         if ( !swd_read_dp(DP_CTRL_STAT, &rv))
         	continue;
         if (rv & SWDERRORS) {
-        	swd_write_dp(DP_ABORT, ALLERRCLR);
+        	swd_clear_errors();
         	continue;
         }
         if (!(rv & CDBGPWRUPACK))
