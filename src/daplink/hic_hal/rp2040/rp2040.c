@@ -40,72 +40,31 @@
 #define DP_DPIDR                        0x00U   // IDCODE Register (RD)
 #define DP_ABORT                        0x00U   // Abort Register (WR)
 #define DP_CTRL_STAT                    0x04U   // Control & Status
-#define DP_RESEND                       0x08U   // Resend (RD)
 #define DP_SELECT                       0x08U   // Select Register (WR)
-#define DP_RDBUFF                       0x0CU   // Read Buffer (RD)
-#define DP_TARGETSEL                    0x0CU   // Read Buffer (WR)
 
-#define DP_DLCR                         0x14    // (RW)
-#define DP_TARGETID                     0x24    // Target ID (RD)
 #define DP_DLPIDR                       0x34    // (RD)
-#define DP_EVENTSTAT                    0x44    // (RO)
 
 //
 // Control/Status Register Defines
 //
-//#define STICKYORUN          (1<<1)
-//#define STICKYCMP           (1<<4)
-//#define STICKYERR           (1<<5)
 #define SWDERRORS           (STICKYORUN|STICKYCMP|STICKYERR)
-
-#define DCB_DHCSR           0xE000EDF0
-
-
-// DBGSWENABLE, AHB_MASTER_DEBUG, HPROT1, no-auto-inc, need to add size...
-#define AP_MEM_CSW_SINGLE     (1 << 31) \
-                            | (1 << 29) \
-                            | (1 << 25) \
-                            | (0 << 4)
-
-#define AP_MEM_CSW_32       0b010
-
-#define AP_MEM_CSW          0x00
-#define AP_MEM_TAR          0x04
-#define AP_MEM_DRW          0x0C
 
 
 //
 // Abort Register Defines
 //
-#define DAP_ABORT           (1<<0)
-//#define STKCMPCLR           (1<<1)
-//#define STKERRCLR           (1<<2)
-//#define WDERRCLR            (1<<3)
-//#define ORUNERRCLR          (1<<4)
 #define ALLERRCLR           (STKCMPCLR|STKERRCLR|WDERRCLR|ORUNERRCLR)
 
 #define SWD_OK              0
 #define SWD_WAIT            1
 #define SWD_ERROR           3
+
 #define CHECK_OK(func)      { int rc = func; if (rc != SWD_OK) return rc; }
+#define CHECK_OK_BOOL(func) { bool ok = func; if ( !ok) return SWD_ERROR; }
 
-
-struct core {
-    int                 state;
-    int                 reason;
-
-    uint32_t            dp_select_cache;
-    uint32_t            ap_mem_csw_cache;
-
-    uint32_t            breakpoints[4];
-//    struct reg          reg_cache[24];
-};
-
-
-struct core cores[2];
 
 // Core will point at whichever one is current...
-struct core *core = &cores[0];
+static uint8_t core;
 
 
 static void swd_targetsel(uint8_t core);
@@ -215,7 +174,7 @@ static uint8_t swd_from_dormant(void)
 /// taken from pico_debug and output of pyODC
 static uint8_t swd_line_reset(void)
 {
-#if 0
+#if 1
     const uint8_t reset_seq[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x03};
 
     cdc_debug_printf("---swd_line_reset()\n");
@@ -235,13 +194,6 @@ static uint8_t swd_line_reset(void)
 #endif
     return SWD_OK;
 }
-
-
-///// taken from output of pyODC
-//static uint8_t swd_read_idcode(uint32_t *id)
-//{
-//    return swd_read_dp(DP_IDCODE, id);
-//}
 
 
 static void swd_targetsel(uint8_t core)
@@ -301,135 +253,6 @@ static int swd_write(int APnDP, int addr, uint32_t value)
 	}
 	return (sts != 0) ? SWD_OK : SWD_ERROR;
 }   // swd_write
-
-
-static inline int dp_select_bank(int bank)
-{
-    int rc = SWD_OK;
-
-
-	assert(bank <= 0xf);
-
-    if ((core->dp_select_cache & 0xf) != bank) {
-		cdc_debug_printf("---dp_select_bank(%d)\n", bank);
-        core->dp_select_cache = (core->dp_select_cache & 0xfffffff0) | bank;
-        rc = swd_write(0, DP_SELECT, core->dp_select_cache);
-    }
-    return rc;
-}   // dp_select_bank
-
-
-static int dp_read(uint32_t addr, uint32_t *res)
-{
-    int rc;
-
-	cdc_debug_printf("---dp_read(%lu, .)\n", addr);
-
-	// First check to see if we are reading something where we might
-    // care about the dp_banksel
-    if ((addr & 0x0f) == 4) {
-        rc = dp_select_bank((addr & 0xf0) >> 4);
-        if (rc != SWD_OK)
-        	return rc;
-    }
-    return swd_read(0, addr & 0xf, res);
-}   // dp_read
-
-
-static int dp_write(uint32_t addr, uint32_t value)
-{
-    int rc;
-
-	cdc_debug_printf("---dp_write(%lu, 0x%lx)\n", addr, value);
-
-	// First check to see if we are writing something where we might
-    // care about the dp_banksel
-    if ((addr & 0x0f) == 4) {
-        rc = dp_select_bank((addr & 0xf0) >> 4);
-        if (rc != SWD_OK)
-        	return rc;
-    }
-    return swd_write(0, addr & 0xf, value);
-}   // dp_write
-
-
-/**
- * @brief Select the AP and bank if we need to (note bank is bits 4-7)
- *
- * @param ap
- * @param bank
- * @return int
- */
-static inline int ap_select_with_bank(uint ap, uint bank)
-{
-    int rc = SWD_OK;
-
-
-	assert((bank & 0x0f) == 0);
-    assert(bank <= 255);
-    assert(ap <= 255);
-
-    if ((ap != (core->dp_select_cache >> 24)) || (bank != (core->dp_select_cache & 0xf0))) {
-		cdc_debug_printf("---ap_select_with_bank(%u, %u)\n", ap, bank);
-        core->dp_select_cache = (ap << 24) | bank | (core->dp_select_cache & 0xf);
-        rc = swd_write(0, DP_SELECT, core->dp_select_cache);
-    }
-    return rc;
-}   // ap_select_with_bank
-
-
-/**
- * @brief Write a value to a given AP
- *
- * @param apnum
- * @param addr
- * @param value
- * @return int
- */
-int ap_write(int apnum, uint32_t addr, uint32_t value)
-{
-    int rc;
-
-	cdc_debug_printf("---ap_write(%d, %lu, 0x%lx)\n", apnum, addr, value);
-
-	// Select the AP and bank (if needed)
-    rc = ap_select_with_bank(apnum, addr & 0xf0);
-    if (rc != SWD_OK)
-    	return rc;
-
-    // Now kick off the write (addr[3:2])...
-    rc = swd_write(1, addr & 0xc, value);
-    return rc;
-}   // ap_write
-
-
-/**
- * @brief Update the memory csw if we need to
- *
- * @param value
- */
-static inline int ap_mem_set_csw(uint32_t value) {
-//    static uint32_t ap_mem_csw_cache = 0xffffffff;
-    int rc = SWD_OK;
-
-
-	if (core->ap_mem_csw_cache != value) {
-		cdc_debug_printf("---ap_mem_set_csw(0x%lx)\n", value);
-        core->ap_mem_csw_cache = value;
-        rc = ap_write(0, AP_MEM_CSW, value);
-    }
-    return rc;
-}   // ap_mem_set_csw
-
-
-int mem_write32(uint32_t addr, uint32_t value)
-{
-	cdc_debug_printf("---mem_write32(0x%lx, 0x%lx)\n", addr, value);
-
-	CHECK_OK(ap_mem_set_csw(AP_MEM_CSW_SINGLE | AP_MEM_CSW_32));
-    CHECK_OK(ap_write(0, AP_MEM_TAR, addr));
-    return ap_write(0, AP_MEM_DRW, value);
-}   // mem_write32
 
 
 /**
@@ -531,11 +354,18 @@ static int dp_power_on()
 	for (int i=0; i < 10; i++) {
 		cdc_debug_printf("---dp_power_on() %d\n", i);
         // Attempt to power up...
-        if (dp_write(DP_CTRL_STAT, CDBGPWRUPREQ|CSYSPWRUPREQ) != SWD_OK) continue;
-        if (dp_read(DP_CTRL_STAT, &rv) != SWD_OK) continue;
-        if (rv & SWDERRORS) { dp_write(DP_ABORT, ALLERRCLR); continue; }
-        if (!(rv & CDBGPWRUPACK)) continue;
-        if (!(rv & CSYSPWRUPACK)) continue;
+        if ( !swd_write_dp(DP_CTRL_STAT, CDBGPWRUPREQ|CSYSPWRUPREQ))
+        	continue;
+        if ( !swd_read_dp(DP_CTRL_STAT, &rv))
+        	continue;
+        if (rv & SWDERRORS) {
+        	swd_write_dp(DP_ABORT, ALLERRCLR);
+        	continue;
+        }
+        if (!(rv & CDBGPWRUPACK))
+        	continue;
+        if (!(rv & CSYSPWRUPACK))
+        	continue;
         return SWD_OK;
     }
     return SWD_ERROR;
@@ -549,11 +379,11 @@ static int core_enable_debug()
 	cdc_debug_printf("---core_enable_debug()\n");
 
 	// Enable debug
-    CHECK_OK(mem_write32(DBG_HCSR, DBGKEY | C_DEBUGEN));
+    CHECK_OK_BOOL(swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN));
 
     // Clear each of the breakpoints...
-    for (int i=0; i < 4; i++) {
-        CHECK_OK(mem_write32(bp_reg[i], 0));
+    for (int i = 0;  i < 4;  ++i) {
+        CHECK_OK_BOOL(swd_write_word(bp_reg[i], 0));
     }
     return SWD_OK;
 }   // core_enable_debug
@@ -561,25 +391,27 @@ static int core_enable_debug()
 
 static int core_select(uint8_t num)
 {
-    uint32_t dlpidr = 0;
-
 	cdc_debug_printf("---core_select(%u)\n", num);
 
 	// See if we are already selected...
-    if (core == &cores[num])
+    if (core == num)
     	return SWD_OK;
 
     CHECK_OK(dp_core_select(num));
 
     // Need to switch the core here for dp_read to work...
-    core = &cores[num];
+    core = num;
 
-    // The core_select above will have set some of the SELECT bits to zero
-    core->dp_select_cache &= 0xfffffff0;
-
+    // TODO
+#if 0
     // If that was ok we can validate the switch by checking the TINSTANCE part of
     // DLPIDR
-    CHECK_OK(dp_read(DP_DLPIDR, &dlpidr));
+    {
+    	uint32_t dlpidr = 0;
+
+    	CHECK_OK(dp_read(DP_DLPIDR, &dlpidr));
+    }
+#endif
 
     // TODO: shouldn't we validate DPIDR with DLPIDR?
     return SWD_OK;
@@ -596,7 +428,7 @@ static int dp_initialize(void)
 {
 	cdc_debug_printf("---dp_initialize()\n");
 
-	core = NULL;
+	core = 0xff;
 
     swd_from_dormant();
 
@@ -617,14 +449,17 @@ static int dp_initialize(void)
                 }
             }
             // Make sure we can use dp_xxx calls...
-            core = &cores[c];
-            core->dp_select_cache = 0;
+            core = c;
+#if 1
             if (dp_power_on() != SWD_OK) 
                 continue;
+#endif
 
+#if 1
             // Now we can enable debugging... (and remove breakpoints)
             if (core_enable_debug() != SWD_OK)
                 continue;
+#endif
 
             // If we get here, then this core is fine...
             break;
@@ -634,7 +469,7 @@ static int dp_initialize(void)
     if (dp_core_select(0) != SWD_OK) {
         return SWD_ERROR;
     }
-    core = &cores[0];
+    core = 0;
 
     return SWD_OK;
 }   // dp_initialize
