@@ -26,6 +26,9 @@
 
 #include "cmsis_os2.h"
 
+#define DBG_Addr     (0xe000edf0)
+#include "debug_cm.h"
+
 #include "FreeRTOS.h"
 #include "task.h"
 
@@ -79,9 +82,10 @@
 //#define STKERRCLR           (1<<2)
 //#define WDERRCLR            (1<<3)
 //#define ORUNERRCLR          (1<<4)
-#define ALLERRCLR           (STKCMPCLR|WDERRCLR|WDERRCLR|ORUNERRCLR)
+#define ALLERRCLR           (STKCMPCLR|STKERRCLR|WDERRCLR|ORUNERRCLR)
 
 #define SWD_OK              0
+#define SWD_WAIT            1
 #define SWD_ERROR           3
 #define CHECK_OK(func)      { int rc = func; if (rc != SWD_OK) return rc; }
 
@@ -198,7 +202,9 @@ static uint8_t swd_from_dormant(void)
     const uint8_t selection_alert_seq[] = {0x92, 0xf3, 0x09, 0x62, 0x95, 0x2d, 0x85, 0x86, 0xe9, 0xaf, 0xdd, 0xe3, 0xa2, 0x0e, 0xbc, 0x19};
     const uint8_t act_seq[] = { 0x1a };
 
-    SWJ_Sequence(  8, ones_seq);
+	cdc_debug_printf("---swd_from_dormant()\n");
+
+	SWJ_Sequence(  8, ones_seq);
     SWJ_Sequence(128, selection_alert_seq);
     SWJ_Sequence(  4, zero_seq);
     SWJ_Sequence(  8, act_seq);
@@ -209,8 +215,24 @@ static uint8_t swd_from_dormant(void)
 /// taken from pico_debug and output of pyODC
 static uint8_t swd_line_reset(void)
 {
+#if 0
     const uint8_t reset_seq[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x03};
+
+    cdc_debug_printf("---swd_line_reset()\n");
+
     SWJ_Sequence( 52, reset_seq);
+#elif 1
+    const uint8_t reset_seq_0[] = {0x00};
+    const uint8_t reset_seq_1[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+
+    cdc_debug_printf("---swd_line_reset() - alternative\n");
+
+    SWJ_Sequence( 51, reset_seq_1);
+    SWJ_Sequence(  2, reset_seq_0);
+#else
+    cdc_debug_printf("---swd_line_reset() - alternative 2\n");
+    JTAG2SWD();
+#endif
     return SWD_OK;
 }
 
@@ -231,7 +253,9 @@ static void swd_targetsel(uint8_t core)
     static const uint8_t out2[]        = {0x00};
     static uint8_t input;
 
-    SWD_Sequence(8, out1, NULL);
+	cdc_debug_printf("---swd_targetsel(%u)\n", core);
+
+	SWD_Sequence(8, out1, NULL);
     SWD_Sequence(0x80 + 5, NULL, &input);
     if (core == 0)
         SWD_Sequence(33, core_0, NULL);
@@ -247,11 +271,15 @@ static int swd_read(int APnDP, int addr, uint32_t *result)
 {
 	uint8_t sts = 0;
 
-	if (APnDP == 0) {
-		sts = swd_read_ap(addr, result);
-	}
-	else {
-		sts = swd_read_dp(addr, result);
+	cdc_debug_printf("---swd_read(%d, %d, .)\n", APnDP, addr);
+
+	for (int i = 0;  sts == 0  &&  i < 10;  ++i) {
+		if (APnDP != 0) {
+			sts = swd_read_ap(addr, result);
+		}
+		else {
+			sts = swd_read_dp(addr, result);
+		}
 	}
 	return (sts != 0) ? SWD_OK : SWD_ERROR;
 }   // swd_read
@@ -261,11 +289,15 @@ static int swd_write(int APnDP, int addr, uint32_t value)
 {
 	uint8_t sts = 0;
 
-	if (APnDP == 0) {
-		sts = swd_write_ap(addr, value);
-	}
-	else {
-		sts = swd_write_dp(addr, value);
+	cdc_debug_printf("---swd_write(%d, %d, 0x%lx)\n", APnDP, addr, value);
+
+	for (int i = 0;  sts == 0  &&  i < 10;  ++i) {
+		if (APnDP != 0) {
+			sts = swd_write_ap(addr, value);
+		}
+		else {
+			sts = swd_write_dp(addr, value);
+		}
 	}
 	return (sts != 0) ? SWD_OK : SWD_ERROR;
 }   // swd_write
@@ -275,9 +307,11 @@ static inline int dp_select_bank(int bank)
 {
     int rc = SWD_OK;
 
-    assert(bank <= 0xf);
+
+	assert(bank <= 0xf);
 
     if ((core->dp_select_cache & 0xf) != bank) {
+		cdc_debug_printf("---dp_select_bank(%d)\n", bank);
         core->dp_select_cache = (core->dp_select_cache & 0xfffffff0) | bank;
         rc = swd_write(0, DP_SELECT, core->dp_select_cache);
     }
@@ -289,7 +323,9 @@ static int dp_read(uint32_t addr, uint32_t *res)
 {
     int rc;
 
-    // First check to see if we are reading something where we might
+	cdc_debug_printf("---dp_read(%lu, .)\n", addr);
+
+	// First check to see if we are reading something where we might
     // care about the dp_banksel
     if ((addr & 0x0f) == 4) {
         rc = dp_select_bank((addr & 0xf0) >> 4);
@@ -304,7 +340,9 @@ static int dp_write(uint32_t addr, uint32_t value)
 {
     int rc;
 
-    // First check to see if we are writing something where we might
+	cdc_debug_printf("---dp_write(%lu, 0x%lx)\n", addr, value);
+
+	// First check to see if we are writing something where we might
     // care about the dp_banksel
     if ((addr & 0x0f) == 4) {
         rc = dp_select_bank((addr & 0xf0) >> 4);
@@ -326,11 +364,13 @@ static inline int ap_select_with_bank(uint ap, uint bank)
 {
     int rc = SWD_OK;
 
-    assert((bank & 0x0f) == 0);
+
+	assert((bank & 0x0f) == 0);
     assert(bank <= 255);
     assert(ap <= 255);
 
     if ((ap != (core->dp_select_cache >> 24)) || (bank != (core->dp_select_cache & 0xf0))) {
+		cdc_debug_printf("---ap_select_with_bank(%u, %u)\n", ap, bank);
         core->dp_select_cache = (ap << 24) | bank | (core->dp_select_cache & 0xf);
         rc = swd_write(0, DP_SELECT, core->dp_select_cache);
     }
@@ -350,7 +390,9 @@ int ap_write(int apnum, uint32_t addr, uint32_t value)
 {
     int rc;
 
-    // Select the AP and bank (if needed)
+	cdc_debug_printf("---ap_write(%d, %lu, 0x%lx)\n", apnum, addr, value);
+
+	// Select the AP and bank (if needed)
     rc = ap_select_with_bank(apnum, addr & 0xf0);
     if (rc != SWD_OK)
     	return rc;
@@ -370,7 +412,9 @@ static inline int ap_mem_set_csw(uint32_t value) {
 //    static uint32_t ap_mem_csw_cache = 0xffffffff;
     int rc = SWD_OK;
 
-    if (core->ap_mem_csw_cache != value) {
+
+	if (core->ap_mem_csw_cache != value) {
+		cdc_debug_printf("---ap_mem_set_csw(0x%lx)\n", value);
         core->ap_mem_csw_cache = value;
         rc = ap_write(0, AP_MEM_CSW, value);
     }
@@ -380,7 +424,9 @@ static inline int ap_mem_set_csw(uint32_t value) {
 
 int mem_write32(uint32_t addr, uint32_t value)
 {
-    CHECK_OK(ap_mem_set_csw(AP_MEM_CSW_SINGLE | AP_MEM_CSW_32));
+	cdc_debug_printf("---mem_write32(0x%lx, 0x%lx)\n", addr, value);
+
+	CHECK_OK(ap_mem_set_csw(AP_MEM_CSW_SINGLE | AP_MEM_CSW_32));
     CHECK_OK(ap_write(0, AP_MEM_TAR, addr));
     return ap_write(0, AP_MEM_DRW, value);
 }   // mem_write32
@@ -397,22 +443,22 @@ static int dp_rescue_reset()
     uint32_t rv;
     static const uint8_t zero[] = { 0, 0, 0, 0 };
 
-    cdc_debug_printf("Attempting rescue_dp reset\n");
+    cdc_debug_printf("---dp_rescue_reset()\n");
 
     swd_from_dormant();
     swd_line_reset();
     swd_targetsel(0xff);
     rc = swd_read(0, DP_DPIDR, &rv);
     if (rc != SWD_OK) {
-        cdc_debug_printf("rescue failed (DP_IDR read rc=%d)\n", rc);
+        cdc_debug_printf("---rescue failed (DP_IDR read rc=%d)\n", rc);
         return rc;
     }
 
     // Now toggle the power request which will cause the reset...
     rc = swd_write(0, DP_CTRL_STAT, CDBGPWRUPREQ);
-    cdc_debug_printf("RESET rc=%d\n", rc);
+    cdc_debug_printf("---RESET rc=%d\n", rc);
     rc = swd_write(0, DP_CTRL_STAT, 0);
-    cdc_debug_printf("RESET rc=%d\n", rc);
+    cdc_debug_printf("---RESET rc=%d\n", rc);
 
     // Make sure the write completes...
 //    swd_send_bits((uint32_t *)zero, 8);
@@ -437,11 +483,13 @@ static int dp_core_select(uint8_t core)
 {
     uint32_t rv;
 
-    swd_line_reset();
+	cdc_debug_printf("---dp_core_select(%u)\n", core);
+
+	swd_line_reset();
     swd_targetsel(core);
 
     CHECK_OK(swd_read(0, DP_DPIDR, &rv));
-    cdc_debug_printf("  id(%d)=%08lx\n", core, rv);
+    cdc_debug_printf("---  id(%u)=0x%08lx\n", core, rv);
     return SWD_OK;
 }   // dp_core_select
 
@@ -457,7 +505,9 @@ static int dp_core_select_and_confirm(uint8_t core)
 {
     uint32_t rv;
 
-    CHECK_OK(dp_core_select(core));
+	cdc_debug_printf("---dp_core_select_and_confirm(%u)\n", core);
+
+	CHECK_OK(dp_core_select(core));
     CHECK_OK(swd_write(0, DP_ABORT, ALLERRCLR));
     CHECK_OK(swd_write(0, DP_SELECT, 0));
     CHECK_OK(swd_read(0, DP_CTRL_STAT, &rv));
@@ -478,7 +528,8 @@ static int dp_power_on()
 {
     uint32_t    rv;
 
-    for (int i=0; i < 10; i++) {
+	for (int i=0; i < 10; i++) {
+		cdc_debug_printf("---dp_power_on() %d\n", i);
         // Attempt to power up...
         if (dp_write(DP_CTRL_STAT, CDBGPWRUPREQ|CSYSPWRUPREQ) != SWD_OK) continue;
         if (dp_read(DP_CTRL_STAT, &rv) != SWD_OK) continue;
@@ -495,8 +546,10 @@ static const uint32_t bp_reg[4] = { 0xE0002008, 0xE000200C, 0xE0002010, 0xE00020
 
 static int core_enable_debug()
 {
-    // Enable debug
-    CHECK_OK(mem_write32(DCB_DHCSR, (0xA05F << 16) | 1));
+	cdc_debug_printf("---core_enable_debug()\n");
+
+	// Enable debug
+    CHECK_OK(mem_write32(DBG_HCSR, DBGKEY | C_DEBUGEN));
 
     // Clear each of the breakpoints...
     for (int i=0; i < 4; i++) {
@@ -510,7 +563,9 @@ static int core_select(uint8_t num)
 {
     uint32_t dlpidr = 0;
 
-    // See if we are already selected...
+	cdc_debug_printf("---core_select(%u)\n", num);
+
+	// See if we are already selected...
     if (core == &cores[num])
     	return SWD_OK;
 
@@ -520,7 +575,7 @@ static int core_select(uint8_t num)
     core = &cores[num];
 
     // The core_select above will have set some of the SELECT bits to zero
-    //core->dp_select_cache &= 0xfffffff0;
+    core->dp_select_cache &= 0xfffffff0;
 
     // If that was ok we can validate the switch by checking the TINSTANCE part of
     // DLPIDR
@@ -539,9 +594,12 @@ static int core_select(uint8_t num)
  */
 static int dp_initialize(void)
 {
+	cdc_debug_printf("---dp_initialize()\n");
+
 	core = NULL;
 
     swd_from_dormant();
+
     int have_reset = 0;
 
     // Now try to connect to each core and setup power and debug status...
@@ -613,9 +671,13 @@ uint8_t rp2040_target_set_state(target_state_t state)
 
 void rp2040_target_before_init_debug(void)
 {
+	int r;
+
     cdc_debug_printf("----- rp2040_target_before_init_debug()\n");
-    dp_initialize();
-    core_select(0);
+    r = dp_initialize();
+    cdc_debug_printf("----- rp2040_target_before_init_debug() - dp_initialize: %d\n", r);
+    r = core_select(0);
+    cdc_debug_printf("----- rp2040_target_before_init_debug() - core_select: %d\n", r);
 }
 
 void rp2040_prerun_target_config(void)
@@ -638,7 +700,7 @@ static const target_family_descriptor_t g_rp2040_family = {
     .family_id = 0,
     .default_reset_type = kSoftwareReset,
     .soft_reset_type = SYSRESETREQ,
-    .swd_set_target_reset = &rp2040_swd_set_target_reset,
+//    .swd_set_target_reset = &rp2040_swd_set_target_reset,
     // .target_set_state = &rp2040_target_set_state,
     .target_before_init_debug = &rp2040_target_before_init_debug,
     .prerun_target_config = &rp2040_prerun_target_config,
