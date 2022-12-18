@@ -153,7 +153,7 @@ uint8_t swd_read_dp(uint8_t adr, uint32_t *val)
     *val |= (tmp << 8);
     tmp = tmp_out[0];
     *val |= (tmp << 0);
-    return (ack == 0x01);
+    return (ack == DAP_TRANSFER_OK);
 }
 
 // Write debug port register
@@ -174,7 +174,7 @@ uint8_t swd_write_dp(uint8_t adr, uint32_t val)
     if ((ack == DAP_TRANSFER_OK) && (adr == DP_SELECT)) {
         dap_state.select = val;
     }
-    return (ack == 0x01);
+    return (ack == DAP_TRANSFER_OK);
 }
 
 // Read access port register.
@@ -203,7 +203,7 @@ uint8_t swd_read_ap(uint32_t adr, uint32_t *val)
     *val |= (tmp << 8);
     tmp = tmp_out[0];
     *val |= (tmp << 0);
-    return (ack == 0x01);
+    return (ack == DAP_TRANSFER_OK);
 }
 
 // Write access port register
@@ -234,13 +234,13 @@ uint8_t swd_write_ap(uint32_t adr, uint32_t val)
     req = SWD_REG_AP | SWD_REG_W | SWD_REG_ADR(adr);
     int2array(data, val, 4);
 
-    if (swd_transfer_retry(req, (uint32_t *)data) != 0x01) {
+    if (swd_transfer_retry(req, (uint32_t *)data) != DAP_TRANSFER_OK) {
         return 0;
     }
 
     req = SWD_REG_DP | SWD_REG_R | SWD_REG_ADR(DP_RDBUFF);
     ack = swd_transfer_retry(req, NULL);
-    return (ack == 0x01);
+    return (ack == DAP_TRANSFER_OK);
 }
 
 
@@ -267,7 +267,7 @@ static uint8_t swd_write_block(uint32_t address, uint8_t *data, uint32_t size)
     req = SWD_REG_AP | SWD_REG_W | (1 << 2);
     int2array(tmp_in, address, 4);
 
-    if (swd_transfer_retry(req, (uint32_t *)tmp_in) != 0x01) {
+    if (swd_transfer_retry(req, (uint32_t *)tmp_in) != DAP_TRANSFER_OK) {
         return 0;
     }
 
@@ -275,7 +275,7 @@ static uint8_t swd_write_block(uint32_t address, uint8_t *data, uint32_t size)
     req = SWD_REG_AP | SWD_REG_W | (3 << 2);
 
     for (i = 0; i < size_in_words; i++) {
-        if (swd_transfer_retry(req, (uint32_t *)data) != 0x01) {
+        if (swd_transfer_retry(req, (uint32_t *)data) != DAP_TRANSFER_OK) {
             return 0;
         }
 
@@ -285,7 +285,7 @@ static uint8_t swd_write_block(uint32_t address, uint8_t *data, uint32_t size)
     // dummy read
     req = SWD_REG_DP | SWD_REG_R | SWD_REG_ADR(DP_RDBUFF);
     ack = swd_transfer_retry(req, NULL);
-    return (ack == 0x01);
+    return (ack == DAP_TRANSFER_OK);
 }
 
 // Read 32-bit word aligned values from target memory using address auto-increment.
@@ -318,7 +318,7 @@ static uint8_t swd_read_block(uint32_t address, uint8_t *data, uint32_t size)
     req = SWD_REG_AP | SWD_REG_R | AP_DRW;
 
     // initiate first read, data comes back in next read
-    if (swd_transfer_retry(req, NULL) != 0x01) {
+    if (swd_transfer_retry(req, NULL) != DAP_TRANSFER_OK) {
         return 0;
     }
 
@@ -333,7 +333,7 @@ static uint8_t swd_read_block(uint32_t address, uint8_t *data, uint32_t size)
     // read last word
     req = SWD_REG_DP | SWD_REG_R | SWD_REG_ADR(DP_RDBUFF);
     ack = swd_transfer_retry(req, (uint32_t *)data);
-    return (ack == 0x01);
+    return (ack == DAP_TRANSFER_OK);
 }
 
 // Read target memory.
@@ -347,14 +347,14 @@ static uint8_t swd_read_data(uint32_t addr, uint32_t *val)
     int2array(tmp_in, addr, 4);
     req = SWD_REG_AP | SWD_REG_W | (1 << 2);
 
-    if (swd_transfer_retry(req, (uint32_t *)tmp_in) != 0x01) {
+    if (swd_transfer_retry(req, (uint32_t *)tmp_in) != DAP_TRANSFER_OK) {
         return 0;
     }
 
     // read data
     req = SWD_REG_AP | SWD_REG_R | (3 << 2);
 
-    if (swd_transfer_retry(req, (uint32_t *)tmp_out) != 0x01) {
+    if (swd_transfer_retry(req, (uint32_t *)tmp_out) != DAP_TRANSFER_OK) {
         return 0;
     }
 
@@ -370,7 +370,7 @@ static uint8_t swd_read_data(uint32_t addr, uint32_t *val)
     *val |= (tmp << 8);
     tmp = tmp_out[0];
     *val |= (tmp << 0);
-    return (ack == 0x01);
+    return (ack == DAP_TRANSFER_OK);
 }
 
 // Write target memory.
@@ -382,7 +382,7 @@ static uint8_t swd_write_data(uint32_t address, uint32_t data)
     int2array(tmp_in, address, 4);
     req = SWD_REG_AP | SWD_REG_W | (1 << 2);
 
-    if (swd_transfer_retry(req, (uint32_t *)tmp_in) != 0x01) {
+    if (swd_transfer_retry(req, (uint32_t *)tmp_in) != DAP_TRANSFER_OK) {
         return 0;
     }
 
@@ -390,14 +390,14 @@ static uint8_t swd_write_data(uint32_t address, uint32_t data)
     int2array(tmp_in, data, 4);
     req = SWD_REG_AP | SWD_REG_W | (3 << 2);
 
-    if (swd_transfer_retry(req, (uint32_t *)tmp_in) != 0x01) {
+    if (swd_transfer_retry(req, (uint32_t *)tmp_in) != DAP_TRANSFER_OK) {
         return 0;
     }
 
     // dummy read
     req = SWD_REG_DP | SWD_REG_R | SWD_REG_ADR(DP_RDBUFF);
     ack = swd_transfer_retry(req, NULL);
-    return (ack == 0x01) ? 1 : 0;
+    return (ack == DAP_TRANSFER_OK);
 }
 
 // Read 32-bit word from target memory.
@@ -767,7 +767,7 @@ static uint8_t swd_read_idcode(uint32_t *id)
     tmp_in[0] = 0x00;
     SWJ_Sequence(8, tmp_in);
 
-    if (swd_read_dp(0, (uint32_t *)tmp_out) != 0x01) {
+    if ( !swd_read_dp(0, (uint32_t *)tmp_out)) {
         return 0;
     }
 
