@@ -363,14 +363,24 @@ static int dp_initialize(void)
 /*************************************************************************************************/
 
 
+#define CHECK_ABORT(COND)          if ( !(COND)) { do_abort = 1; continue; }
+#define CHECK_ABORT_BREAK(COND)    if ( !(COND)) { do_abort = 1; break; }
+
+/**
+ * Try very hard to initialize the target processor.
+ * Code is very similar to the one in swd_host.c except that the JTAG2SWD() sequence is not used.
+ *
+ * \note
+ *    swd_host has to be tricked in it's caching of DP_SELECT and AP_CSW
+ */
 static uint8_t rp2040_swd_init_debug(void)
 {
     uint32_t tmp = 0;
     int i = 0;
-    int timeout = 100;
-
+    const int timeout = 100;
     int8_t retries = 4;
     int8_t do_abort = 0;
+
     do {
 		cdc_debug_printf("rp2040_swd_init_debug - 0 %d\n", do_abort);
         if (do_abort) {
@@ -383,6 +393,7 @@ static uint8_t rp2040_swd_init_debug(void)
             do_abort = 0;
         }
         swd_init();
+
         // call a target dependant function
         // this function can do several stuff before really
         // initing the debug
@@ -390,92 +401,30 @@ static uint8_t rp2040_swd_init_debug(void)
             g_target_family->target_before_init_debug();
         }
 
-#if 1
-		cdc_debug_printf("rp2040_swd_init_debug - 2 %d\n", do_abort);
-        if (!swd_clear_errors()) {
-            do_abort = 1;
-            continue;
-        }
+        CHECK_ABORT( swd_clear_errors() );
 
-		cdc_debug_printf("rp2040_swd_init_debug - 3.0 %d\n", do_abort);
-        if (!swd_write_dp(DP_SELECT, 1)) {                             // force dap_state.select to "0"
-            do_abort = 1;
-            continue;
-        }
-		cdc_debug_printf("rp2040_swd_init_debug - 3.1 %d\n", do_abort);
-        if (!swd_write_dp(DP_SELECT, 0)) {
-            do_abort = 1;
-            continue;
-        }
-#endif
+		CHECK_ABORT( swd_write_dp(DP_SELECT, 1) );                             // force dap_state.select to "0"
+		CHECK_ABORT( swd_write_dp(DP_SELECT, 0) );
 
-#if 1
         // Power up
-		cdc_debug_printf("rp2040_swd_init_debug - 4 %d\n", do_abort);
-        if ( !swd_write_dp(DP_CTRL_STAT, CSYSPWRUPREQ | CDBGPWRUPREQ)) {
-            do_abort = 1;
-            continue;
-        }
+		CHECK_ABORT( swd_write_dp(DP_CTRL_STAT, CSYSPWRUPREQ | CDBGPWRUPREQ) );
 
-		cdc_debug_printf("rp2040_swd_init_debug - 5 %d\n", do_abort);
         for (i = 0; i < timeout; i++) {
-            if (!swd_read_dp(DP_CTRL_STAT, &tmp)) {
-                do_abort = 1;
-                break;
-            }
+            CHECK_ABORT_BREAK( swd_read_dp(DP_CTRL_STAT, &tmp));
             if ((tmp & (CDBGPWRUPACK | CSYSPWRUPACK)) == (CDBGPWRUPACK | CSYSPWRUPACK)) {
                 // Break from loop if powerup is complete
                 break;
             }
         }
+        CHECK_ABORT( i != timeout  &&  do_abort == 0 );
 
-		cdc_debug_printf("rp2040_swd_init_debug - 6 %d %d\n", do_abort, i);
-        if ((i == timeout) || (do_abort == 1)) {
-            // Unable to powerup DP
-            do_abort = 1;
-            continue;
-        }
-#endif
+        CHECK_ABORT( swd_write_dp(DP_CTRL_STAT, CSYSPWRUPREQ | CDBGPWRUPREQ | TRNNORMAL | MASKLANE) );
 
-#if 1
-		cdc_debug_printf("rp2040_swd_init_debug - 7 %d\n", do_abort);
-        if ( !swd_write_dp(DP_CTRL_STAT, CSYSPWRUPREQ | CDBGPWRUPREQ | TRNNORMAL | MASKLANE)) {
-            do_abort = 1;
-            continue;
-        }
-#endif
+        CHECK_ABORT( swd_write_ap(AP_CSW, 1) );                                // force dap_state.csw to "0"
+        CHECK_ABORT( swd_write_ap(AP_CSW, 0) );
 
-		cdc_debug_printf("rp2040_swd_init_debug - 8 %d\n", do_abort);
-        // call a target dependent function:
-        // some target can enter in a lock state
-        // this function can unlock these targets
-        if (g_target_family && g_target_family->target_unlock_sequence) {
-            g_target_family->target_unlock_sequence();
-        }
-
-#if 1
-        swd_write_ap(AP_CSW, 1);    // TODO force dap_state.csw to "0"
-        swd_write_ap(AP_CSW, 0);
-#endif
-
-#if 1
-        // von mir eingefügt
-        // unlock access port by reading AP ID register (AP address 0xfc), from https://robo.fish/wiki/index.php?title=SWD
-		cdc_debug_printf("rp2040_swd_init_debug - 9 %d\n", do_abort);
-        if (!swd_read_ap(0xfc, &tmp)) {
-            do_abort = 1;
-            continue;
-        }
-		cdc_debug_printf("rp2040_swd_init_debug - 9 %d 0x%lx\n", do_abort, tmp);
-#endif
-
-#if 1
-		cdc_debug_printf("rp2040_swd_init_debug - 10 %d\n", do_abort);
-        if (!swd_write_dp(DP_SELECT, 0)) {
-            do_abort = 1;
-            continue;
-        }
-#endif
+		CHECK_ABORT( swd_read_ap(0xfc, &tmp) );
+		CHECK_ABORT( swd_write_dp(DP_SELECT, 0) );
 
         return 1;
 
