@@ -194,9 +194,9 @@ static bool dp_core_select_and_confirm(uint8_t core)
 
 	CHECK_OK_BOOL(dp_core_select(core));
     CHECK_OK_BOOL(swd_clear_errors());
+    CHECK_OK_BOOL(swd_write_dp(DP_SELECT, 1));           // force dap_state.select to "0"
     CHECK_OK_BOOL(swd_write_dp(DP_SELECT, 0));
     CHECK_OK_BOOL(swd_read_dp(DP_CTRL_STAT, &rv));
-
     return true;
 }   // dp_core_select_and_confirm
 
@@ -234,10 +234,16 @@ static int dp_power_on()
 }   // dp_power_on
 
 
-static const uint32_t bp_reg[4] = { 0xE0002008, 0xE000200C, 0xE0002010, 0xE0002014 };
 
+/**
+ * Enable debugging and clear all HW breakpoints.
+ * \pre
+ *    DP must be powered on
+ */
 static bool core_enable_debug()
 {
+	static const uint32_t bp_reg[4] = { 0xE0002008, 0xE000200C, 0xE0002010, 0xE0002014 };
+
 	cdc_debug_printf("---core_enable_debug()\n");
 
 	// Enable debug
@@ -284,8 +290,8 @@ static bool dp_initialize(void)
     int have_reset = 0;
 
     // Now try to connect to each core and setup power and debug status...
-    for (int c = 0; c < 2; c++) {
-        while (1) {
+    for (int c = 1;  c >= 0;  --c) {
+        for(;;) {
             if ( !dp_core_select_and_confirm(c)) {
                 if ( !dp_core_select_and_confirm(c)) {
                     // If we've already reset, then this is fatal...
@@ -300,25 +306,17 @@ static bool dp_initialize(void)
 
             // Make sure we can use dp_xxx calls...
             core = c;
-#if 0
+
             if ( !dp_power_on())
                 continue;
 
-#if 1
             // Now we can enable debugging... (and remove breakpoints)
             if ( !core_enable_debug())
                 continue;
-#endif
-#endif
 
             // If we get here, then this core is fine...
             break;
         }
-    }
-
-    // And lets make sure we end on core 0
-    if ( !core_select(0)) {
-        return false;
     }
 
     return true;
