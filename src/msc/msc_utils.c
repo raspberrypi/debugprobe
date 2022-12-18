@@ -327,12 +327,6 @@ bool swd_connect_target(bool write_mode)
         // HALT                     -> bleibt ebenfalls bei "Wait until core is halted" hängen
         // RUN                      -> bleibt dann hinterher irgendwo hängen (bei einem Zugriff aufs Ziel)
 
-#if 1
-        swd_init_debug();
-#else
-        swd_init();
-        g_target_family->target_before_init_debug();
-#endif
         ok = target_set_state(RESET_PROGRAM);
         picoprobe_info("---------------------------------- %d\n", ok);
 

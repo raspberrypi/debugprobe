@@ -29,11 +29,19 @@
 
 #include "cmsis_os2.h"
 
+#include "FreeRTOS.h"
+#include "task.h"
+
+
+#define NVIC_Addr    (0xe000e000)
 #define DBG_Addr     (0xe000edf0)
 #include "debug_cm.h"
 
-#include "FreeRTOS.h"
-#include "task.h"
+// Use the CMSIS-Core definition if available.
+#if !defined(SCB_AIRCR_PRIGROUP_Pos)
+	#define SCB_AIRCR_PRIGROUP_Pos              8U                                            /*!< SCB AIRCR: PRIGROUP Position */
+	#define SCB_AIRCR_PRIGROUP_Msk             (7UL << SCB_AIRCR_PRIGROUP_Pos)                /*!< SCB AIRCR: PRIGROUP Mask */
+#endif
 
 
 
@@ -53,6 +61,8 @@
 #define CHECK_OK_BOOL(func) { bool ok = func; if ( !ok) return SWD_ERROR; }
 
 
+const uint32_t  soft_reset = SYSRESETREQ;
+
 // Core will point at whichever one is current...
 static uint8_t core;
 
@@ -63,52 +73,6 @@ void osDelay(uint32_t ticks)
     vTaskDelay(10 * ticks);
 }   // osDelay
 
-
-
-#if 0
-static void swd_set_target_reset_nrf(uint8_t asserted)
-{
-    uint32_t ap_index_return;
-
-    if (asserted) {
-        swd_init_debug();
-
-        swd_read_ap(0x010000FC, &ap_index_return);
-        if (ap_index_return == 0x02880000) {
-            // Have CTRL-AP
-            swd_write_ap(0x01000000, 1);  // CTRL-AP reset hold
-        }
-        else {
-            // No CTRL-AP - Perform a soft reset
-            // 0x05FA0000 = VECTKEY, 0x4 = SYSRESETREQ
-            uint32_t swd_mem_write_data = 0x05FA0000 | 0x4;
-            swd_write_memory(0xE000ED0C, (uint8_t *) &swd_mem_write_data, 4);
-        }
-        if(g_board_info.swd_set_target_reset){ //aditional reset
-            g_board_info.swd_set_target_reset(asserted);
-        }
-    } else {
-        swd_read_ap(0x010000FC, &ap_index_return);
-        if (ap_index_return == 0x02880000) {
-            // Device has CTRL-AP
-            swd_write_ap(0x01000000, 0);  // CTRL-AP reset release
-        }
-        else {
-            // No CTRL-AP - Soft reset has been performed
-        }
-        if(g_board_info.swd_set_target_reset){
-            g_board_info.swd_set_target_reset(asserted);
-        }
-    }
-}
-
-const target_family_descriptor_t g_nordic_nrf52 = {
-    .family_id = kNordic_Nrf52_FamilyID,
-    .default_reset_type = kSoftwareReset,
-    .soft_reset_type = SYSRESETREQ,
-    .swd_set_target_reset = swd_set_target_reset_nrf,
-};
-#endif
 
 
 /**
@@ -122,7 +86,6 @@ static const sector_info_t sectors_info[] = {
     {DAPLINK_ROM_IF_START, DAPLINK_SECTOR_SIZE},
  };
 
-// k26f target information
 target_cfg_t rp2040_target_device = {
     .version                    = kTargetConfigVersion,
     .sectors_info               = sectors_info,
@@ -132,7 +95,6 @@ target_cfg_t rp2040_target_device = {
     .flash_regions[0].flags     = kRegionIsDefault,
     .ram_regions[0].start       = DAPLINK_RAM_APP_START,
     .ram_regions[0].end         = DAPLINK_RAM_APP_START + DAPLINK_RAM_APP_SIZE,
-    /* .flash_algo not needed for bootloader */
 };
 
 
@@ -160,24 +122,11 @@ static uint8_t swd_from_dormant(void)
 /// taken from pico_debug and output of pyODC
 static uint8_t swd_line_reset(void)
 {
-#if 1
     const uint8_t reset_seq[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x03};
 
     cdc_debug_printf("---swd_line_reset()\n");
 
     SWJ_Sequence( 52, reset_seq);
-#elif 1
-    const uint8_t reset_seq_0[] = {0x00};
-    const uint8_t reset_seq_1[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-
-    cdc_debug_printf("---swd_line_reset() - alternative\n");
-
-    SWJ_Sequence( 51, reset_seq_1);
-    SWJ_Sequence(  2, reset_seq_0);
-#else
-    cdc_debug_printf("---swd_line_reset() - alternative 2\n");
-    JTAG2SWD();
-#endif
     return SWD_OK;
 }
 
@@ -349,19 +298,6 @@ static int core_select(uint8_t num)
 
     // Need to switch the core here for dp_read to work...
     core = num;
-
-    // TODO
-#if 0
-    // If that was ok we can validate the switch by checking the TINSTANCE part of
-    // DLPIDR
-    {
-    	uint32_t dlpidr = 0;
-
-    	CHECK_OK(dp_read(DP_DLPIDR, &dlpidr));
-    }
-#endif
-
-    // TODO: shouldn't we validate DPIDR with DLPIDR?
     return SWD_OK;
 }   // core_select
 
@@ -380,13 +316,6 @@ static int dp_initialize(void)
 
     swd_from_dormant();
 
-#if 0
-    cdc_debug_printf("JTAG2SWD()\n");
-    JTAG2SWD();
-    cdc_debug_printf("JTAG2SWD() finished\n");
-#endif
-
-#if 1
     int have_reset = 0;
 
     // Now try to connect to each core and setup power and debug status...
@@ -421,51 +350,11 @@ static int dp_initialize(void)
             break;
         }
     }
-#else
-    dp_core_select_and_confirm(0);
-    core = 0;
-    dp_power_on();
 
-#if 1
-    cdc_debug_printf("second init....................................\n");
-    JTAG2SWD();
-#if 0
-    swd_clear_errors();
-    swd_write_dp(DP_SELECT, 0);
-#else
-    dp_core_select_and_confirm(0);
-#endif
-    dp_power_on();
-    {
-    	uint32_t tmp;
-		swd_read_ap(0xfc, &tmp);
-    }
-#endif
-#endif
-
-#if 1
     // And lets make sure we end on core 0
     if (core_select(0) != SWD_OK) {
         return SWD_ERROR;
     }
-    core = 0;
-#endif
-
-#if 0
-    // Now try to read DP_DLIDR (bank 3)
-    {
-    	uint8_t rc;
-    	uint32_t rv;
-
-    	cdc_debug_printf("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n");
-		rc = swd_write_dp(DP_SELECT, 0x3);
-		if (rc != SWD_OK) {
-			cdc_debug_printf("rc=%d\r\n", rc);
-		}
-		rc = swd_read_dp(0x4, &rv);
-		cdc_debug_printf("DP_DLIDR rc=%d val=0x%08lx\r\n", rc, rv);
-    }
-#endif
 
     return SWD_OK;
 }   // dp_initialize
@@ -474,34 +363,327 @@ static int dp_initialize(void)
 /*************************************************************************************************/
 
 
-#if 0
-extern void probe_assert_reset(bool);
+static uint8_t rp2040_swd_init_debug(void)
+{
+    uint32_t tmp = 0;
+    int i = 0;
+    int timeout = 100;
+
+    int8_t retries = 4;
+    int8_t do_abort = 0;
+    do {
+		cdc_debug_printf("rp2040_swd_init_debug - 0 %d\n", do_abort);
+        if (do_abort) {
+            //do an abort on stale target, then reset the device
+            swd_write_dp(DP_ABORT, DAPABORT);
+            swd_set_target_reset(1);
+            osDelay(2);
+            swd_set_target_reset(0);
+            osDelay(2);
+            do_abort = 0;
+        }
+        swd_init();
+        // call a target dependant function
+        // this function can do several stuff before really
+        // initing the debug
+        if (g_target_family && g_target_family->target_before_init_debug) {
+            g_target_family->target_before_init_debug();
+        }
+
+#if 1
+		cdc_debug_printf("rp2040_swd_init_debug - 2 %d\n", do_abort);
+        if (!swd_clear_errors()) {
+            do_abort = 1;
+            continue;
+        }
+
+		cdc_debug_printf("rp2040_swd_init_debug - 3.0 %d\n", do_abort);
+        if (!swd_write_dp(DP_SELECT, 1)) {                             // force dap_state.select to "0"
+            do_abort = 1;
+            continue;
+        }
+		cdc_debug_printf("rp2040_swd_init_debug - 3.1 %d\n", do_abort);
+        if (!swd_write_dp(DP_SELECT, 0)) {
+            do_abort = 1;
+            continue;
+        }
+#endif
+
+#if 1
+        // Power up
+		cdc_debug_printf("rp2040_swd_init_debug - 4 %d\n", do_abort);
+        if ( !swd_write_dp(DP_CTRL_STAT, CSYSPWRUPREQ | CDBGPWRUPREQ)) {
+            do_abort = 1;
+            continue;
+        }
+
+		cdc_debug_printf("rp2040_swd_init_debug - 5 %d\n", do_abort);
+        for (i = 0; i < timeout; i++) {
+            if (!swd_read_dp(DP_CTRL_STAT, &tmp)) {
+                do_abort = 1;
+                break;
+            }
+            if ((tmp & (CDBGPWRUPACK | CSYSPWRUPACK)) == (CDBGPWRUPACK | CSYSPWRUPACK)) {
+                // Break from loop if powerup is complete
+                break;
+            }
+        }
+
+		cdc_debug_printf("rp2040_swd_init_debug - 6 %d %d\n", do_abort, i);
+        if ((i == timeout) || (do_abort == 1)) {
+            // Unable to powerup DP
+            do_abort = 1;
+            continue;
+        }
+#endif
+
+#if 1
+		cdc_debug_printf("rp2040_swd_init_debug - 7 %d\n", do_abort);
+        if ( !swd_write_dp(DP_CTRL_STAT, CSYSPWRUPREQ | CDBGPWRUPREQ | TRNNORMAL | MASKLANE)) {
+            do_abort = 1;
+            continue;
+        }
+#endif
+
+		cdc_debug_printf("rp2040_swd_init_debug - 8 %d\n", do_abort);
+        // call a target dependent function:
+        // some target can enter in a lock state
+        // this function can unlock these targets
+        if (g_target_family && g_target_family->target_unlock_sequence) {
+            g_target_family->target_unlock_sequence();
+        }
+
+#if 1
+        swd_write_ap(AP_CSW, 1);    // TODO force dap_state.csw to "0"
+        swd_write_ap(AP_CSW, 0);
+#endif
+
+#if 1
+        // von mir eingefügt
+        // unlock access port by reading AP ID register (AP address 0xfc), from https://robo.fish/wiki/index.php?title=SWD
+		cdc_debug_printf("rp2040_swd_init_debug - 9 %d\n", do_abort);
+        if (!swd_read_ap(0xfc, &tmp)) {
+            do_abort = 1;
+            continue;
+        }
+		cdc_debug_printf("rp2040_swd_init_debug - 9 %d 0x%lx\n", do_abort, tmp);
+#endif
+
+#if 1
+		cdc_debug_printf("rp2040_swd_init_debug - 10 %d\n", do_abort);
+        if (!swd_write_dp(DP_SELECT, 0)) {
+            do_abort = 1;
+            continue;
+        }
+#endif
+
+        return 1;
+
+    } while (--retries > 0);
+
+    return 0;
+}   // rp2040_swd_init_debug
+
+
+
+static uint8_t rp2040_swd_set_target_state(target_state_t state)
+{
+    uint32_t val;
+    int8_t ap_retries = 2;
+
+    cdc_debug_printf("+++++++++++++++ rp2040_swd_set_target_state(%d)\n", state);
+
+    /* Calling swd_init prior to entering RUN state causes operations to fail. */
+    if (state != RUN) {
+        swd_init();
+    }
+
+    switch (state) {
+        case RESET_HOLD:
+            swd_set_target_reset(1);
+            break;
+
+        case RESET_RUN:
+            swd_set_target_reset(1);
+            osDelay(2);
+            swd_set_target_reset(0);
+            osDelay(2);
+
+            if (!rp2040_swd_init_debug()) {
+                return 0;
+            }
+
+            // Power down
+            // Per ADIv6 spec. Clear first CSYSPWRUPREQ followed by CDBGPWRUPREQ
+            if (!swd_read_dp(DP_CTRL_STAT, &val)) {
+                return 0;
+            }
+
+            if (!swd_write_dp(DP_CTRL_STAT, val & ~CSYSPWRUPREQ)) {
+                return 0;
+            }
+
+            // Wait until ACK is deasserted
+            do {
+                if (!swd_read_dp(DP_CTRL_STAT, &val)) {
+                    return 0;
+                }
+            } while ((val & (CSYSPWRUPACK)) != 0);
+
+            if (!swd_write_dp(DP_CTRL_STAT, val & ~CDBGPWRUPREQ)) {
+                return 0;
+            }
+
+            // Wait until ACK is deasserted
+            do {
+                if (!swd_read_dp(DP_CTRL_STAT, &val)) {
+                    return 0;
+                }
+            } while ((val & (CDBGPWRUPACK)) != 0);
+
+            swd_off();
+            break;
+
+        case RESET_PROGRAM:
+            if (!rp2040_swd_init_debug()) {
+                return 0;
+            }
+
+            // Enable debug and halt the core (DHCSR <- 0xA05F0003)
+            while (swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_HALT) == 0) {
+                if ( --ap_retries <=0 ) {
+                    return 0;
+                }
+                // Target is in invalid state?
+                swd_set_target_reset(1);
+                osDelay(2);
+                swd_set_target_reset(0);
+                osDelay(2);
+            }
+
+            // Wait until core is halted
+            do {
+                if (!swd_read_word(DBG_HCSR, &val)) {
+                    return 0;
+                }
+            } while ((val & S_HALT) == 0);
+
+            // Enable halt on reset
+            if (!swd_write_word(DBG_EMCR, VC_CORERESET)) {
+                return 0;
+            }
+
+            // Perform a soft reset
+            if (!swd_read_word(NVIC_AIRCR, &val)) {
+                return 0;
+            }
+
+            if (!swd_write_word(NVIC_AIRCR, VECTKEY | (val & SCB_AIRCR_PRIGROUP_Msk) | soft_reset)) {
+                return 0;
+            }
+
+            osDelay(2);
+
+            do {
+                if (!swd_read_word(DBG_HCSR, &val)) {
+                    return 0;
+                }
+            } while ((val & S_HALT) == 0);
+
+            // Disable halt on reset
+            if (!swd_write_word(DBG_EMCR, 0)) {
+                return 0;
+            }
+
+            break;
+
+        case NO_DEBUG:
+            if (!swd_write_word(DBG_HCSR, DBGKEY)) {
+                return 0;
+            }
+
+            break;
+
+        case DEBUG:
+            if (!swd_clear_errors()) {
+                return 0;
+            }
+
+            // Ensure CTRL/STAT register selected in DPBANKSEL
+            if (!swd_write_dp(DP_SELECT, 0)) {
+                return 0;
+            }
+
+            // Power up
+            if (!swd_write_dp(DP_CTRL_STAT, CSYSPWRUPREQ | CDBGPWRUPREQ)) {
+                return 0;
+            }
+
+            // Enable debug
+            if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN)) {
+                return 0;
+            }
+
+            break;
+
+        case HALT:
+            if (!rp2040_swd_init_debug()) {
+                return 0;
+            }
+
+            // Enable debug and halt the core (DHCSR <- 0xA05F0003)
+            if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_HALT)) {
+                return 0;
+            }
+
+            // Wait until core is halted
+            do {
+                if (!swd_read_word(DBG_HCSR, &val)) {
+                    return 0;
+                }
+            } while ((val & S_HALT) == 0);
+            break;
+
+        case RUN:
+            if (!swd_write_word(DBG_HCSR, DBGKEY)) {
+                return 0;
+            }
+            swd_off();
+            break;
+
+        case POST_FLASH_RESET:
+            // This state should be handled in target_reset.c, nothing needs to be done here.
+            break;
+
+        default:
+            return 0;
+    }
+
+    return 1;
+}   // rp2040_swd_set_target_state
+
+
+/*************************************************************************************************/
+
 
 static void rp2040_swd_set_target_reset(uint8_t asserted)
 {
-    // TODO set HW signal accordingly, asserted means "active"
+	extern void probe_assert_reset(bool);
+
+    // set HW signal accordingly, asserted means "active"
     cdc_debug_printf("----- rp2040_swd_set_target_reset(%d)\n", asserted);
     probe_assert_reset(asserted);
-}
-#endif
+}   // rp2040_swd_set_target_reset
 
-static void rp2040_prerun_board_config(void)
-{
-    cdc_debug_printf("----- rp2040_prerun_board_config()\n");
-}
 
-void board_bootloader_init(void)
-{
-    cdc_debug_printf("----- board_bootloader_init()\n");
-}
 
-#if 0
 static uint8_t rp2040_target_set_state(target_state_t state)
 {
     cdc_debug_printf("----- rp2040_target_set_state(%d)\n", state);
-    return swd_set_target_state_hw(state);
-}
-#endif
+    return rp2040_swd_set_target_state(state);
+}   // rp2040_target_set_state
+
+
 
 static void rp2040_target_before_init_debug(void)
 {
@@ -509,61 +691,31 @@ static void rp2040_target_before_init_debug(void)
 
     cdc_debug_printf("----- rp2040_target_before_init_debug()                               BEGIN\n");
     r = dp_initialize();
+#if 1
     {
     	uint32_t tmp;
     	swd_read_ap(0xfc, &tmp);
     	swd_write_dp(DP_SELECT, 0);
     }
+#endif
     cdc_debug_printf("----- rp2040_target_before_init_debug()                               dp_initialize: %d\n", r);
-#if 0
-    r = core_select(0);
-    cdc_debug_printf("----- rp2040_target_before_init_debug()                               core_select: %d\n", r);
-#endif
-}
+}   // rp2040_target_before_init_debug
 
-static void rp2040_prerun_target_config(void)
-{
-    cdc_debug_printf("----- rp2040_prerun_target_config()\n");
-}
-
-#if 1
-static uint8_t rp2040_target_unlock_sequence(void)
-{
-    cdc_debug_printf("----- rp2040_target_unlock_sequence()                                 BEGIN\n");
-#if 1
-    // das funktioniert, wenn in swd_init_debug() auskommentiert wird
-    dp_core_select_and_confirm(core);
-    dp_power_on();
-#else
-    // und das hier crasht so richtig
-    dp_initialize();
-#endif
-    cdc_debug_printf("----- rp2040_target_unlock_sequence()                                 END\n");
-    return 1;
-}   // rp2040_target_unlock_sequence
-#endif
 
 
 const board_info_t g_board_info = {
-    .info_version = kBoardInfoVersion,
-    .board_id = "0000",
-    .daplink_url_name =   "HELP_FAQHTM",
+    .info_version       = kBoardInfoVersion,
+    .board_id           = "0000",
+    .daplink_url_name   = "HELP_FAQHTM",
     .daplink_drive_name = "BOOTLOADER",
     .daplink_target_url = "https://daplink.io",
-    // .swd_set_target_reset = &rp2040_swd_set_target_reset,
-    .prerun_board_config = &rp2040_prerun_board_config,
-    .target_cfg = &rp2040_target_device,
+    .target_cfg         = &rp2040_target_device,
 };
 
 static const target_family_descriptor_t g_rp2040_family = {
-    .family_id = 0,
-    .default_reset_type = kSoftwareReset,
-    .soft_reset_type = SYSRESETREQ,
-//    .swd_set_target_reset = &rp2040_swd_set_target_reset,
-    // .target_set_state = &rp2040_target_set_state,
-    .target_before_init_debug = &rp2040_target_before_init_debug,
-    .prerun_target_config = &rp2040_prerun_target_config,
-//	.target_unlock_sequence = &rp2040_target_unlock_sequence,
+    .swd_set_target_reset     = &rp2040_swd_set_target_reset,  // dummy, der set_state aufruft
+    .target_set_state         = &rp2040_target_set_state,
+	.target_before_init_debug = &rp2040_target_before_init_debug,
 };
 
 const target_family_descriptor_t *g_target_family = &g_rp2040_family;
