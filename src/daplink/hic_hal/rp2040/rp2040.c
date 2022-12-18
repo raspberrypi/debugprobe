@@ -44,21 +44,12 @@
 #endif
 
 
-
-#define DP_DLPIDR                       0x34    // (RD)
-
 //
 // Control/Status Register Defines
 //
 #define SWDERRORS           (STICKYORUN|STICKYCMP|STICKYERR)
 
-
-#define SWD_OK              0
-#define SWD_WAIT            1
-#define SWD_ERROR           3
-
-#define CHECK_OK(func)      { int rc = func; if (rc != SWD_OK) return rc; }
-#define CHECK_OK_BOOL(func) { bool ok = func; if ( !ok) return SWD_ERROR; }
+#define CHECK_OK_BOOL(func) { bool ok = func; if ( !ok) return false; }
 
 
 const uint32_t  soft_reset = SYSRESETREQ;
@@ -75,34 +66,10 @@ void osDelay(uint32_t ticks)
 
 
 
-/**
-* List of start and size for each size of flash sector
-* The size will apply to all sectors between the listed address and the next address
-* in the list.
-* The last pair in the list will have sectors starting at that address and ending
-* at address start + size.
-*/
-static const sector_info_t sectors_info[] = {
-    {DAPLINK_ROM_IF_START, DAPLINK_SECTOR_SIZE},
- };
-
-target_cfg_t rp2040_target_device = {
-    .version                    = kTargetConfigVersion,
-    .sectors_info               = sectors_info,
-    .sector_info_length         = (sizeof(sectors_info))/(sizeof(sector_info_t)),
-    .flash_regions[0].start     = DAPLINK_ROM_IF_START,
-    .flash_regions[0].end       = DAPLINK_ROM_IF_START + DAPLINK_ROM_IF_SIZE,
-    .flash_regions[0].flags     = kRegionIsDefault,
-    .ram_regions[0].start       = DAPLINK_RAM_APP_START,
-    .ram_regions[0].end         = DAPLINK_RAM_APP_START + DAPLINK_RAM_APP_SIZE,
-};
-
-
-
 /*************************************************************************************************/
 
 /// taken from pico_debug and output of pyODC
-static uint8_t swd_from_dormant(void)
+static void swd_from_dormant(void)
 {
     const uint8_t ones_seq[] = {0xff};
     const uint8_t zero_seq[] = {0x00};
@@ -115,20 +82,18 @@ static uint8_t swd_from_dormant(void)
     SWJ_Sequence(128, selection_alert_seq);
     SWJ_Sequence(  4, zero_seq);
     SWJ_Sequence(  8, act_seq);
-    return SWD_OK;
-}
+}   // swd_from_dormant
 
 
 /// taken from pico_debug and output of pyODC
-static uint8_t swd_line_reset(void)
+static void swd_line_reset(void)
 {
     const uint8_t reset_seq[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x03};
 
     cdc_debug_printf("---swd_line_reset()\n");
 
     SWJ_Sequence( 52, reset_seq);
-    return SWD_OK;
-}
+}   // swd_line_reset
 
 
 static void swd_targetsel(uint8_t core)
@@ -151,15 +116,15 @@ static void swd_targetsel(uint8_t core)
     else
         SWD_Sequence(33, core_rescue, NULL);
     SWD_Sequence(2, out2, NULL);
-}
+}   // swd_targetsel
 
 
 /**
  * @brief Use the rescue dp to perform a hardware reset
  *
- * @return int
+ * @return true -> ok
  */
-static int dp_rescue_reset()
+static bool dp_rescue_reset()
 {
     int rc;
     uint32_t rv;
@@ -173,7 +138,7 @@ static int dp_rescue_reset()
     rc = swd_read_dp(DP_IDCODE, &rv);
     if ( !rc) {
         cdc_debug_printf("---rescue failed (DP_IDR read rc=%d)\n", rc);
-        return SWD_ERROR;
+        return false;
     }
 
     // Now toggle the power request which will cause the reset...
@@ -189,7 +154,7 @@ static int dp_rescue_reset()
     for (int i=0; i < 2; i++) {
         SWD_Sequence(32, zero, NULL);
     }
-    return SWD_OK;
+    return true;
 }   // dp_rescue_reset
 
 
@@ -197,9 +162,9 @@ static int dp_rescue_reset()
  * @brief Does the basic core select and then reads DP_IDCODE as required
  *
  * @param num
- * @return int
+ * @return true -> ok
  */
-static int dp_core_select(uint8_t core)
+static bool dp_core_select(uint8_t core)
 {
     uint32_t rv;
 
@@ -210,7 +175,7 @@ static int dp_core_select(uint8_t core)
 
     CHECK_OK_BOOL(swd_read_dp(DP_IDCODE, &rv));
     cdc_debug_printf("---  id(%u)=0x%08lx\n", core, rv);
-    return SWD_OK;
+    return true;
 }   // dp_core_select
 
 
@@ -219,20 +184,20 @@ static int dp_core_select(uint8_t core)
  *        from it. Used in the initialisation routine.
  *
  * @param num
- * @return int
+ * @return true -> ok
  */
-static int dp_core_select_and_confirm(uint8_t core)
+static bool dp_core_select_and_confirm(uint8_t core)
 {
     uint32_t rv;
 
 	cdc_debug_printf("---dp_core_select_and_confirm(%u)\n", core);
 
-	CHECK_OK(dp_core_select(core));
+	CHECK_OK_BOOL(dp_core_select(core));
     CHECK_OK_BOOL(swd_clear_errors());
     CHECK_OK_BOOL(swd_write_dp(DP_SELECT, 0));
     CHECK_OK_BOOL(swd_read_dp(DP_CTRL_STAT, &rv));
 
-    return SWD_OK;
+    return true;
 }   // dp_core_select_and_confirm
 
 
@@ -242,7 +207,7 @@ static int dp_core_select_and_confirm(uint8_t core)
  * This powers on the needed subdomains so that we can access the
  * other AP's.
  *
- * @return int
+ * @return true -> ok
  */
 static int dp_power_on()
 {
@@ -263,15 +228,15 @@ static int dp_power_on()
         	continue;
         if ( !(rv & CSYSPWRUPACK))
         	continue;
-        return SWD_OK;
+        return true;
     }
-    return SWD_ERROR;
+    return false;
 }   // dp_power_on
 
 
 static const uint32_t bp_reg[4] = { 0xE0002008, 0xE000200C, 0xE0002010, 0xE0002014 };
 
-static int core_enable_debug()
+static bool core_enable_debug()
 {
 	cdc_debug_printf("---core_enable_debug()\n");
 
@@ -282,23 +247,23 @@ static int core_enable_debug()
     for (int i = 0;  i < 4;  ++i) {
         CHECK_OK_BOOL(swd_write_word(bp_reg[i], 0));
     }
-    return SWD_OK;
+    return true;
 }   // core_enable_debug
 
 
-static int core_select(uint8_t num)
+static bool core_select(uint8_t num)
 {
 	cdc_debug_printf("---core_select(%u)\n", num);
 
 	// See if we are already selected...
     if (core == num)
-    	return SWD_OK;
+    	return true;
 
-    CHECK_OK(dp_core_select(num));
+    CHECK_OK_BOOL(dp_core_select(num));
 
     // Need to switch the core here for dp_read to work...
     core = num;
-    return SWD_OK;
+    return true;
 }   // core_select
 
 
@@ -308,7 +273,7 @@ static int core_select(uint8_t num)
  * This routine needs to try to connect to each core and make sure it
  * responds, it also powers up the relevant bits and sets debug enabled.
  */
-static int dp_initialize(void)
+static bool dp_initialize(void)
 {
 	cdc_debug_printf("---dp_initialize()\n");
 
@@ -321,11 +286,11 @@ static int dp_initialize(void)
     // Now try to connect to each core and setup power and debug status...
     for (int c = 0; c < 2; c++) {
         while (1) {
-            if (dp_core_select_and_confirm(c) != SWD_OK) {
-                if (dp_core_select_and_confirm(c) != SWD_OK) {
+            if ( !dp_core_select_and_confirm(c)) {
+                if ( !dp_core_select_and_confirm(c)) {
                     // If we've already reset, then this is fatal...
                     if (have_reset)
-                        return SWD_ERROR;
+                        return false;
                     dp_rescue_reset();
                     swd_from_dormant();     // seem to need this?
                     have_reset = 1;
@@ -336,12 +301,12 @@ static int dp_initialize(void)
             // Make sure we can use dp_xxx calls...
             core = c;
 #if 0
-            if (dp_power_on() != SWD_OK) 
+            if ( !dp_power_on())
                 continue;
 
 #if 1
             // Now we can enable debugging... (and remove breakpoints)
-            if (core_enable_debug() != SWD_OK)
+            if ( !core_enable_debug())
                 continue;
 #endif
 #endif
@@ -352,11 +317,11 @@ static int dp_initialize(void)
     }
 
     // And lets make sure we end on core 0
-    if (core_select(0) != SWD_OK) {
-        return SWD_ERROR;
+    if ( !core_select(0)) {
+        return false;
     }
 
-    return SWD_OK;
+    return true;
 }   // dp_initialize
 
 
@@ -652,17 +617,39 @@ static void rp2040_target_before_init_debug(void)
 
 
 
+/**
+* List of start and size for each size of flash sector
+* The size will apply to all sectors between the listed address and the next address
+* in the list.
+* The last pair in the list will have sectors starting at that address and ending
+* at address start + size.
+*/
+static const sector_info_t sectors_info[] = {
+    {DAPLINK_ROM_IF_START, DAPLINK_SECTOR_SIZE},
+};
+
+static target_cfg_t rp2040_target_device = {
+    .version                    = kTargetConfigVersion,
+    .sectors_info               = sectors_info,
+    .sector_info_length         = (sizeof(sectors_info))/(sizeof(sector_info_t)),
+    .flash_regions[0].start     = DAPLINK_ROM_IF_START,
+    .flash_regions[0].end       = DAPLINK_ROM_IF_START + DAPLINK_ROM_IF_SIZE,
+    .flash_regions[0].flags     = kRegionIsDefault,
+    .ram_regions[0].start       = DAPLINK_RAM_APP_START,
+    .ram_regions[0].end         = DAPLINK_RAM_APP_START + DAPLINK_RAM_APP_SIZE,
+};
+
 const board_info_t g_board_info = {
     .info_version       = kBoardInfoVersion,
-    .board_id           = "0000",
-    .daplink_url_name   = "HELP_FAQHTM",
-    .daplink_drive_name = "BOOTLOADER",
+    .board_id           = "0000",                // see e.g. https://github.com/pyocd/pyOCD/blob/main/pyocd/board/board_ids.py and https://os.mbed.com/request-board-id
+    .daplink_url_name   = "-unknown-",
+    .daplink_drive_name = "-unknown-",
     .daplink_target_url = "https://daplink.io",
     .target_cfg         = &rp2040_target_device,
 };
 
 static const target_family_descriptor_t g_rp2040_family = {
-    .swd_set_target_reset     = &rp2040_swd_set_target_reset,  // dummy, der set_state aufruft
+    .swd_set_target_reset     = &rp2040_swd_set_target_reset,
     .target_set_state         = &rp2040_target_set_state,
 	.target_before_init_debug = &rp2040_target_before_init_debug,
 };
