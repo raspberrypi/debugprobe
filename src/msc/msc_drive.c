@@ -23,6 +23,14 @@
  *
  */
 
+/*
+ * Mounting under Linux
+ * --------------------
+ * I don't know why, but Linux does some prefetching on mounting the device: CURRENT.UF2 is
+ * partially read while RAM.UF2 is not.  Unfortunately this also caches the data so that
+ * the target must be already connected.
+ */
+
 #include "FreeRTOS.h"
 #include "task.h"
 
@@ -77,7 +85,7 @@ const uint32_t BS_VolID        = 0x1234;
 const uint8_t  BPB_Media       = 0xf8;                                          // f0=floppy, f8=HDD, fa=RAM disk (format prompt)
 const uint8_t  BS_DrvNum       = 0x80;                                          // 00=floppy, 80=fixed disk
 
-// some calulations
+// some calculations
 const uint32_t c_TotalCluster = BPB_TotSec16 / BPB_SecPerClus;                  // -> 256 cluster for 16MB total size and 64KByte cluster size
 const uint32_t c_BootStartSector = 0;
 const uint32_t c_BootSectors = 1;                                               // must be 1
@@ -118,13 +126,13 @@ const uint32_t f_IndexHtmClusters = 1;
 const uint32_t f_IndexHtmStartSector = c_FirstSectorofCluster(f_IndexHtmStartCluster);
 const uint32_t f_IndexHtmSectors = BPB_SecPerClus * f_IndexHtmClusters;
 
-const uint32_t f_CurrentUF2StartCluster = 8;
+const uint32_t f_CurrentUF2StartCluster = 16;
 const uint32_t f_CurrentUF2Clusters = CLUSTERS(RP2040_UF2_SIZE);
 const uint32_t f_CurrentUF2StartSector = c_FirstSectorofCluster(f_CurrentUF2StartCluster);
 const uint32_t f_CurrentUF2Sectors = BPB_SecPerClus * f_CurrentUF2Clusters;
 
 #ifdef INCLUDE_RAM_UTF2
-    const uint32_t f_RAMUF2StartCluster = 72;
+    const uint32_t f_RAMUF2StartCluster = 80;
     const uint32_t f_RAMUF2Clusters = CLUSTERS(RP2040_RAM_UF2_SIZE);
     const uint32_t f_RAMUF2StartSector = c_FirstSectorofCluster(f_RAMUF2StartCluster);
     const uint32_t f_RAMUF2Sectors = BPB_SecPerClus * f_RAMUF2Clusters;
@@ -203,20 +211,23 @@ const uint8_t fatsector[BPB_BytsPerSec] =
         // cluster 6 (0_README.TXT) & 7 (bad) - must be f_IndexHtmStartCluster
         AFAT12(0xfff, 0xff7),
 
-        // cluster 8..71 (64) - must be f_CurrentUF2StartCluster (twice the size of the image)
-        AFAT12( 9, 10), AFAT12(11, 12), AFAT12(13, 14), 
-        AFAT12(15, 16), AFAT12(17, 18), AFAT12(19, 20), AFAT12(21, 22),
+		// cluster 8..15 (8) are spares
+		AFAT12( 0,  0), AFAT12( 0,  0), AFAT12( 0,  0), AFAT12( 0,  0),
+
+        // cluster 16..79 (64) - must be f_CurrentUF2StartCluster (twice the size of the image)
+        AFAT12(17, 18), AFAT12(19, 20), AFAT12(21, 22),
         AFAT12(23, 24), AFAT12(25, 26), AFAT12(27, 28), AFAT12(29, 30), 
         AFAT12(31, 32), AFAT12(33, 34), AFAT12(35, 36), AFAT12(37, 38),
         AFAT12(39, 40), AFAT12(41, 42), AFAT12(43, 44), AFAT12(45, 46),
         AFAT12(47, 48), AFAT12(49, 50), AFAT12(51, 52), AFAT12(53, 54),
         AFAT12(55, 56), AFAT12(57, 58), AFAT12(59, 60), AFAT12(61, 62),
         AFAT12(63, 64), AFAT12(65, 66), AFAT12(67, 68), AFAT12(69, 70),
-        AFAT12(71, 0xfff),
+        AFAT12(71, 72), AFAT12(73, 74), AFAT12(75, 76), AFAT12(77, 78),
+		AFAT12(79, 0xfff),
 
 #ifdef INCLUDE_RAM_UTF2
-        // cluster 72..79 (8) - must be f_RAMUF2StartCluster (twice the size of the image)
-        AFAT12(73, 74), AFAT12(75, 76), AFAT12(77, 78), AFAT12(79, 0xfff), 
+        // cluster 80..87 (8) - must be f_RAMUF2StartCluster (twice the size of the image)
+        AFAT12(81, 82), AFAT12(83, 84), AFAT12(85, 86), AFAT12(87, 0xfff),
 #endif
     };
 
@@ -294,7 +305,7 @@ const uint8_t rootdirsector[BPB_BytsPerSec] =
         ADWORD(RP2040_UF2_SIZE),                                          // DIR_FileSize
 
 #ifdef INCLUDE_RAM_UTF2
-        // fifth entry is "CURRENT.UF2"
+        // sixth entry is "CURRENT.UF2"
         'R', 'A', 'M', ' ', ' ', ' ', ' ', ' ', 'U', 'F', '2',
         0x01,                                                             // DIR_Attr: ATTR_READ_ONLY
         0,                                                                // DIR_NTRes
@@ -420,9 +431,8 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
 {
     int32_t r = bufsize;
 
-    // picoprobe_info("tud_msc_read10_cb(%d, %lu, %lu, 0x%p, %lu)\n", lun, lba, offset, buffer, bufsize);
+//     picoprobe_info("tud_msc_read10_cb(%d, %lu, %lu, 0x%p, %lu)\n", lun, lba, offset, buffer, bufsize);
 
-    // out of ramdisk
     if (lba >= BPB_TotSec16)
         return -1;
 
@@ -442,11 +452,11 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
         memcpy(buffer, rootdirsector, r);
     }
     else if (lba >= f_ReadmeStartSector  &&  lba < f_ReadmeStartSector + f_ReadmeSectors) {
-        picoprobe_info("  README\n");
+//        picoprobe_info("  README\n");
         r = read_sector_from_buffer(buffer, (const uint8_t *)README_CONTENTS, README_SIZE, lba - f_ReadmeStartSector);
     }
     else if (lba >= f_InfoUF2TxtStartSector  &&  lba < f_InfoUF2TxtStartSector + f_InfoUF2TxtSectors) {
-        picoprobe_info("  INFO_UF2.TXT\n");
+//        picoprobe_info("  INFO_UF2.TXT\n");
         // TODO fill with content
         memset(buffer, 'i', BPB_BytsPerSec);
         r = BPB_BytsPerSec;
@@ -465,16 +475,18 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
 
         static_assert(BPB_BytsPerSec == 512);
 
-        picoprobe_debug("  CURRENT.UF2 0x%lx\n", target_addr);
+//        picoprobe_debug("  CURRENT.UF2 0x%lx\n", target_addr);
         setup_uf2_record(uf2, target_addr, payload_size, block_no, num_blocks);
         r = -1;
         connected = swd_connect_target(false);
-        if (connected) {
-            if (swd_read_memory(target_addr, uf2->data, payload_size) != 0) {
+        if (connected)
+        {
+//            if (swd_read_memory(target_addr, uf2->data, payload_size) != 0)
+            {
                 r = BPB_BytsPerSec;
             }
         }
-        picoprobe_debug("    %lu\n", r);
+//        picoprobe_debug("    %lu\n", r);
     }
 #ifdef INCLUDE_RAM_UTF2
     else if (lba >= f_RAMUF2StartSector  &&  lba < f_RAMUF2StartSector + f_RAMUF2Sectors) {
@@ -491,17 +503,18 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
         setup_uf2_record(uf2, target_addr, payload_size, block_no, num_blocks);
         r = -1;
         connected = swd_connect_target(false);
-        if (connected) {
-            if (swd_read_memory(target_addr, uf2->data, payload_size) != 0) 
+        if (connected)
+        {
+//            if (swd_read_memory(target_addr, uf2->data, payload_size) != 0)
             {
                 r = BPB_BytsPerSec;
             }
         }
-        picoprobe_info("    %lu\n", r);
+//        picoprobe_info("    %lu\n", r);
     }
 #endif
     else {
-        picoprobe_info("  OTHER\n");
+//        picoprobe_info("  OTHER\n");
         memset(buffer, 0, bufsize);
     }
 
@@ -531,7 +544,6 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
 
     picoprobe_info("tud_msc_write10_cb(%d, %lu, %lu, 0x%p, %lu)\n", lun, lba, offset, buffer, bufsize);
     
-    // out of ramdisk
     if (lba >= BPB_TotSec16)
         return -1;
 
@@ -585,34 +597,25 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
 // - READ10 and WRITE10 has their own callbacks
 int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize)
 {
-    void const* response = NULL;
     int32_t resplen = 0;
 
-    picoprobe_info("tud_msc_scsi_cb(%d, %02x %02x %02x %02x, 0x%p, %u)\n", lun, scsi_cmd[0], scsi_cmd[1], scsi_cmd[2], scsi_cmd[3], buffer, bufsize);
-    
-    // most scsi handled is input
-    bool in_xfer = true;
-
     switch (scsi_cmd[0]) {
-        default:
+    	case SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL:
+            /* SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL is the Prevent/Allow Medium Removal
+            command (1Eh) that requests the library to enable or disable user access to
+            the storage media/partition. */
+    		picoprobe_debug("tud_msc_scsi_cb() invoked: SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL\n");
+            resplen = 0;
+            break;
+	   default:
+		    picoprobe_info("tud_msc_scsi_cb(%d, %02x %02x %02x %02x, 0x%p, %u)\n", lun, scsi_cmd[0], scsi_cmd[1], scsi_cmd[2], scsi_cmd[3], buffer, bufsize);
+
             // Set Sense = Invalid Command Operation
             tud_msc_set_sense(lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);
 
             // negative means error -> tinyusb could stall and/or response with failed status
             resplen = -1;
             break;
-    }
-
-    // return resplen must not larger than bufsize
-    if (resplen > bufsize)
-        resplen = bufsize;
-
-    if (response && (resplen > 0)) {
-        if (in_xfer) {
-            memcpy(buffer, response, resplen);
-        } else {
-            // SCSI output
-        }
     }
 
     return resplen;

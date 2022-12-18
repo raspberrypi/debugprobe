@@ -167,6 +167,21 @@ static const uint8_t cmd_initdp_target[] = {
 };
 
 
+static const uint8_t cmd_wakeup_target[] = {
+    /* len */  2, /* ID_DAP_Info               */ 0x00, 0xfe,
+    /* len */  2, /* ID_DAP_Info               */ 0x00, 0x04,
+    /* len */  2, /* ID_DAP_Info               */ 0x00, 0xff,
+    /* len */  2, /* ID_DAP_Info               */ 0x00, 0xf0,
+    /* len */  5, /* ID_DAP_SWJ_Clock          */ 0x11, ADWORD(DAP_DEFAULT_SWJ_CLOCK),
+    /* len */  2, /* ID_DAP_Connect            */ 0x02, 0x01,
+    /* len */  5, /* ID_DAP_SWJ_Clock          */ 0x11, ADWORD(DAP_DEFAULT_SWJ_CLOCK),
+    /* len */  6, /* ID_DAP_TransferConfigure  */ 0x04, 0x02, 0x50, 0x00, 0x00, 0x00,
+    /* len */  2, /* ID_DAP_SWD_Configure      */ 0x13, 0x00,
+    /* len */ 19, /* ID_DAP_SWJ_Sequence       */ 0x12, 0x88, SEQ_SWJ_FROM_DORMANT_1,
+    /* len */  4, /* ID_DAP_SWJ_Sequence       */ 0x12, 0x0c, SEQ_SWJ_FROM_DORMANT_2,
+};
+
+
 /// Connect to the target.  After this sequence the target is ready to receive "standard" swd_host commands
 static const uint8_t cmd_setup_target[] = {
     // this was recorded from: pyocd cmd --target=rp2040
@@ -253,36 +268,95 @@ bool swd_connect_target(bool write_mode)
     bool ok = true;
 
     if (now_us - last_trigger_us > 1000*1000) {
-        picoprobe_info("----------------------------------\n");
-        // picoprobe_info("---------------------------------- swd_init\n");
-        // swd_init();
-        picoprobe_info("---------------------------------- swd_set_target_state_sw\n");
-        ok = swd_set_target_state_sw(RESET_PROGRAM);
-        picoprobe_info("----------------------------------\n");
-        // picoprobe_info("----------------------------------\n");
-        // ok = swd_send_recorded_data(cmd_setup_target);
-        // picoprobe_info("---------------------------------- %d\n", ok);
+    	picoprobe_info("========================================================================\n");
+
+#if 0
+    	// so funktioniert das Lesen des Speichers :-/
+        picoprobe_info("---------------------------------- swd_init\n");
+        swd_init();
+        picoprobe_info("---------------------------------- swd_send_recorded_data(cmd_setup_target)\n");
+        ok = swd_send_recorded_data(cmd_setup_target);
+#endif
+
+//        picoprobe_info("---------------------------------- swd_send_recorded_data(cmd_wakeup_target)\n");
+//        ok = swd_send_recorded_data(cmd_wakeup_target);
+
+//        picoprobe_info("---------------------------------- JTAG2SWD()\n");
+//        ok = JTAG2SWD();
+//        ok = JTAG2SWD();
+
+//        picoprobe_info("---------------------------------- swd_send_recorded_data(cmd_setup_target)\n");
+//        ok = swd_send_recorded_data(cmd_setup_target);
+
+
+#if 0
+        // das funktioniert prinzipiell, Speicher kann man trotzdem nicht lesen :-/
+        picoprobe_info("---------------------------------- swd_init_debug\n");
+        swd_init_debug();
+
+        picoprobe_info("---------------------------------- %d\n", ok);
+
+        {
+        	uint32_t val;
+
+        	ok = swd_read_dp(DP_CTRL_STAT, &val);
+        	picoprobe_info("                1 !!!!!!!! %d %lx\n", ok, val);
+
+        	ok = swd_write_dp(DP_CTRL_STAT, 0x50000000);
+        	picoprobe_info("                2 !!!!!!!! %d %lx\n", ok, val);
+
+        	for (int i = 0;  i < 10;  ++i)
+        	{
+        		ok = swd_read_dp(DP_CTRL_STAT, &val);
+        		picoprobe_info("                 !!!!!!!! %d %lx\n", ok, val);
+        	}
+        }
+#endif
 
         // cmd_halt_target -> flash/RAM read successful
 
         // ok = swd_send_recorded_data(cmd_halt_target);
         // picoprobe_info("---------------------------------- %d\n", ok);
 
-        // RESET_RUN, DEBUG         -> cannot read RAM nor flash (but not blocked)
-        // HALT                     -> read blocked (probe hangs?)
-        // RESET_PROGRAM, NO_DEBUG  -> probe crashes
+        // vorher immer swd_init_debug()
+        // RESET_HOLD               -> ok, Flash nok
+        // RESET_RUN                -> bleibt natürlich wegen dem swd_off() stehen
+        // RESET_PROGRAM            -> bleibt bei "Wait until core is halted" hängen (wenn man das überspringt, läuft er durch, der Speicher ist aber 0)
+        // NO_DEBUG                 -> ok, Flash nok
+        // DEBUG                    -> ok, Flash nok
+        // HALT                     -> bleibt ebenfalls bei "Wait until core is halted" hängen
+        // RUN                      -> bleibt dann hinterher irgendwo hängen (bei einem Zugriff aufs Ziel)
 
-        // ok = target_set_state(HALT);
-        // ok = swd_set_target_state_hw(RESET_RUN);
-        // picoprobe_info("---------------------------------- %d\n", ok);
-        // ok = target_set_state(RESET_PROGRAM);
-        // picoprobe_info("---------------------------------- %d\n", ok);
-        // ok = target_set_state(DEBUG);
-        // picoprobe_info("---------------------------------- %d\n", ok);
-        // ok = target_set_state(NO_DEBUG);
-        // picoprobe_info("---------------------------------- %d\n", ok);
-        // ok = target_set_state(RESET_RUN);
-        // picoprobe_info("---------------------------------- %d\n", ok);
+#if 1
+        swd_init_debug();
+#else
+        swd_init();
+        g_target_family->target_before_init_debug();
+#endif
+        ok = target_set_state(RESET_PROGRAM);
+        picoprobe_info("---------------------------------- %d\n", ok);
+
+        //
+        // cheap test to read some memory
+        //
+        if (1) {
+        	uint8_t buff[32];
+        	uint8_t r;
+
+        	picoprobe_info("---------------------------------- buff:\n");
+        	memset(buff, 0xaa, sizeof(buff));
+        	r = swd_read_memory(0x10000000, buff,  sizeof(buff));
+        	picoprobe_info("   %u -", r);
+        	for (int i = 0;  i < sizeof(buff);  ++i)
+        		picoprobe_info(" %02x", buff[i]);
+        	picoprobe_info("\n");
+        	r = swd_read_memory(0x10000000, buff,  sizeof(buff));
+        	picoprobe_info("   %u -", r);
+        	for (int i = 0;  i < sizeof(buff);  ++i)
+        		picoprobe_info(" %02x", buff[i]);
+        	picoprobe_info("\n");
+            picoprobe_info("----------------------------------\n");
+        }
     }
     last_trigger_us = now_us;
 

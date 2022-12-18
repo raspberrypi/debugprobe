@@ -57,10 +57,6 @@
 static uint8_t core;
 
 
-static void swd_targetsel(uint8_t core);
-static int core_enable_debug(void);
-
-
 
 void osDelay(uint32_t ticks)
 {
@@ -314,9 +310,9 @@ static int dp_power_on()
         	swd_clear_errors();
         	continue;
         }
-        if (!(rv & CDBGPWRUPACK))
+        if ( !(rv & CDBGPWRUPACK))
         	continue;
-        if (!(rv & CSYSPWRUPACK))
+        if ( !(rv & CSYSPWRUPACK))
         	continue;
         return SWD_OK;
     }
@@ -384,6 +380,13 @@ static int dp_initialize(void)
 
     swd_from_dormant();
 
+#if 0
+    cdc_debug_printf("JTAG2SWD()\n");
+    JTAG2SWD();
+    cdc_debug_printf("JTAG2SWD() finished\n");
+#endif
+
+#if 1
     int have_reset = 0;
 
     // Now try to connect to each core and setup power and debug status...
@@ -400,28 +403,69 @@ static int dp_initialize(void)
                     continue;
                 }
             }
+
             // Make sure we can use dp_xxx calls...
             core = c;
-#if 1
+#if 0
             if (dp_power_on() != SWD_OK) 
                 continue;
-#endif
 
 #if 1
             // Now we can enable debugging... (and remove breakpoints)
             if (core_enable_debug() != SWD_OK)
                 continue;
 #endif
+#endif
 
             // If we get here, then this core is fine...
             break;
         }
     }
+#else
+    dp_core_select_and_confirm(0);
+    core = 0;
+    dp_power_on();
+
+#if 1
+    cdc_debug_printf("second init....................................\n");
+    JTAG2SWD();
+#if 0
+    swd_clear_errors();
+    swd_write_dp(DP_SELECT, 0);
+#else
+    dp_core_select_and_confirm(0);
+#endif
+    dp_power_on();
+    {
+    	uint32_t tmp;
+		swd_read_ap(0xfc, &tmp);
+    }
+#endif
+#endif
+
+#if 1
     // And lets make sure we end on core 0
-    if (dp_core_select(0) != SWD_OK) {
+    if (core_select(0) != SWD_OK) {
         return SWD_ERROR;
     }
     core = 0;
+#endif
+
+#if 0
+    // Now try to read DP_DLIDR (bank 3)
+    {
+    	uint8_t rc;
+    	uint32_t rv;
+
+    	cdc_debug_printf("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n");
+		rc = swd_write_dp(DP_SELECT, 0x3);
+		if (rc != SWD_OK) {
+			cdc_debug_printf("rc=%d\r\n", rc);
+		}
+		rc = swd_read_dp(0x4, &rv);
+		cdc_debug_printf("DP_DLIDR rc=%d val=0x%08lx\r\n", rc, rv);
+    }
+#endif
 
     return SWD_OK;
 }   // dp_initialize
@@ -430,17 +474,18 @@ static int dp_initialize(void)
 /*************************************************************************************************/
 
 
-
+#if 0
 extern void probe_assert_reset(bool);
 
-void rp2040_swd_set_target_reset(uint8_t asserted)
+static void rp2040_swd_set_target_reset(uint8_t asserted)
 {
     // TODO set HW signal accordingly, asserted means "active"
     cdc_debug_printf("----- rp2040_swd_set_target_reset(%d)\n", asserted);
     probe_assert_reset(asserted);
 }
+#endif
 
-void rp2040_prerun_board_config(void)
+static void rp2040_prerun_board_config(void)
 {
     cdc_debug_printf("----- rp2040_prerun_board_config()\n");
 }
@@ -450,27 +495,54 @@ void board_bootloader_init(void)
     cdc_debug_printf("----- board_bootloader_init()\n");
 }
 
-uint8_t rp2040_target_set_state(target_state_t state)
+#if 0
+static uint8_t rp2040_target_set_state(target_state_t state)
 {
     cdc_debug_printf("----- rp2040_target_set_state(%d)\n", state);
     return swd_set_target_state_hw(state);
 }
+#endif
 
-void rp2040_target_before_init_debug(void)
+static void rp2040_target_before_init_debug(void)
 {
 	int r;
 
-    cdc_debug_printf("----- rp2040_target_before_init_debug()\n");
+    cdc_debug_printf("----- rp2040_target_before_init_debug()                               BEGIN\n");
     r = dp_initialize();
-    cdc_debug_printf("----- rp2040_target_before_init_debug() - dp_initialize: %d\n", r);
+    {
+    	uint32_t tmp;
+    	swd_read_ap(0xfc, &tmp);
+    	swd_write_dp(DP_SELECT, 0);
+    }
+    cdc_debug_printf("----- rp2040_target_before_init_debug()                               dp_initialize: %d\n", r);
+#if 0
     r = core_select(0);
-    cdc_debug_printf("----- rp2040_target_before_init_debug() - core_select: %d\n", r);
+    cdc_debug_printf("----- rp2040_target_before_init_debug()                               core_select: %d\n", r);
+#endif
 }
 
-void rp2040_prerun_target_config(void)
+static void rp2040_prerun_target_config(void)
 {
     cdc_debug_printf("----- rp2040_prerun_target_config()\n");
 }
+
+#if 1
+static uint8_t rp2040_target_unlock_sequence(void)
+{
+    cdc_debug_printf("----- rp2040_target_unlock_sequence()                                 BEGIN\n");
+#if 1
+    // das funktioniert, wenn in swd_init_debug() auskommentiert wird
+    dp_core_select_and_confirm(core);
+    dp_power_on();
+#else
+    // und das hier crasht so richtig
+    dp_initialize();
+#endif
+    cdc_debug_printf("----- rp2040_target_unlock_sequence()                                 END\n");
+    return 1;
+}   // rp2040_target_unlock_sequence
+#endif
+
 
 const board_info_t g_board_info = {
     .info_version = kBoardInfoVersion,
@@ -491,6 +563,7 @@ static const target_family_descriptor_t g_rp2040_family = {
     // .target_set_state = &rp2040_target_set_state,
     .target_before_init_debug = &rp2040_target_before_init_debug,
     .prerun_target_config = &rp2040_prerun_target_config,
+//	.target_unlock_sequence = &rp2040_target_unlock_sequence,
 };
 
 const target_family_descriptor_t *g_target_family = &g_rp2040_family;
