@@ -72,8 +72,8 @@ void osDelay(uint32_t ticks)
 static void swd_from_dormant(void)
 {
     const uint8_t ones_seq[] = {0xff};
-    const uint8_t zero_seq[] = {0x00};
     const uint8_t selection_alert_seq[] = {0x92, 0xf3, 0x09, 0x62, 0x95, 0x2d, 0x85, 0x86, 0xe9, 0xaf, 0xdd, 0xe3, 0xa2, 0x0e, 0xbc, 0x19};
+    const uint8_t zero_seq[] = {0x00};
     const uint8_t act_seq[] = { 0x1a };
 
 	cdc_debug_printf("---swd_from_dormant()\n");
@@ -161,21 +161,27 @@ static bool dp_rescue_reset()
 /**
  * @brief Does the basic core select and then reads DP_IDCODE as required
  *
- * @param num
+ * @param _core
  * @return true -> ok
  */
-static bool dp_core_select(uint8_t core)
+static bool dp_core_select(uint8_t _core)
 {
-    uint32_t rv;
+	uint32_t rv;
 
-	cdc_debug_printf("---dp_core_select(%u)\n", core);
+	cdc_debug_printf("---dp_core_select(%u)\n", _core);
+
+	if (core == _core) {
+		return true;
+	}
 
 	swd_line_reset();
-    swd_targetsel(core);
+	swd_targetsel(_core);
 
-    CHECK_OK_BOOL(swd_read_dp(DP_IDCODE, &rv));
-    cdc_debug_printf("---  id(%u)=0x%08lx\n", core, rv);
-    return true;
+	CHECK_OK_BOOL(swd_read_dp(DP_IDCODE, &rv));
+	cdc_debug_printf("---  id(%u)=0x%08lx\n", _core, rv);
+
+	core = _core;
+	return true;
 }   // dp_core_select
 
 
@@ -257,22 +263,6 @@ static bool core_enable_debug()
 }   // core_enable_debug
 
 
-static bool core_select(uint8_t num)
-{
-	cdc_debug_printf("---core_select(%u)\n", num);
-
-	// See if we are already selected...
-    if (core == num)
-    	return true;
-
-    CHECK_OK_BOOL(dp_core_select(num));
-
-    // Need to switch the core here for dp_read to work...
-    core = num;
-    return true;
-}   // core_select
-
-
 /**
  * @brief Send the required sequence to reset the line and start SWD ops
  *
@@ -303,9 +293,6 @@ static bool dp_initialize(void)
                     continue;
                 }
             }
-
-            // Make sure we can use dp_xxx calls...
-            core = c;
 
             if ( !dp_power_on())
                 continue;
