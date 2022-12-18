@@ -19,6 +19,12 @@
  * limitations under the License.
  */
 
+/*
+ * Code/ideas are partially taken from pico_probe.  Other parts from DAPLink.
+ *
+ * Note that handling of the rescue DP has been dropped (no idea how to test this).
+ */
+
 #include "DAP_config.h"
 #include "DAP.h"
 
@@ -120,45 +126,6 @@ static void swd_targetsel(uint8_t core)
 
 
 /**
- * @brief Use the rescue dp to perform a hardware reset
- *
- * @return true -> ok
- */
-static bool dp_rescue_reset()
-{
-    int rc;
-    uint32_t rv;
-    static const uint8_t zero[] = { 0, 0, 0, 0 };
-
-    cdc_debug_printf("---dp_rescue_reset()\n");
-
-    swd_from_dormant();
-    swd_line_reset();
-    swd_targetsel(0xff);
-    rc = swd_read_dp(DP_IDCODE, &rv);
-    if ( !rc) {
-        cdc_debug_printf("---rescue failed (DP_IDR read rc=%d)\n", rc);
-        return false;
-    }
-
-    // Now toggle the power request which will cause the reset...
-    rc = swd_write_dp(DP_CTRL_STAT, CDBGPWRUPREQ);
-    cdc_debug_printf("---RESET rc=%d\n", rc);
-    rc = swd_write_dp(DP_CTRL_STAT, 0);
-    cdc_debug_printf("---RESET rc=%d\n", rc);
-
-    // Make sure the write completes...
-    SWD_Sequence(8, zero, NULL);
-
-    // And delay a bit... no idea how long we need, but we need something.
-    for (int i=0; i < 2; i++) {
-        SWD_Sequence(32, zero, NULL);
-    }
-    return true;
-}   // dp_rescue_reset
-
-
-/**
  * @brief Does the basic core select and then reads DP_IDCODE as required
  *
  * @param _core
@@ -178,7 +145,7 @@ static bool dp_core_select(uint8_t _core)
 	swd_targetsel(_core);
 
 	CHECK_OK_BOOL(swd_read_dp(DP_IDCODE, &rv));
-	cdc_debug_printf("---  id(%u)=0x%08lx\n", _core, rv);
+	cdc_debug_printf("---  id(%u)=0x%08lx\n", _core, rv);   // 0x0bc12477 is the RP2040
 
 	core = _core;
 	return true;
@@ -186,128 +153,22 @@ static bool dp_core_select(uint8_t _core)
 
 
 /**
- * @brief Select the core, but also make sure we can properly read
- *        from it. Used in the initialisation routine.
- *
- * @param num
- * @return true -> ok
- */
-static bool dp_core_select_and_confirm(uint8_t core)
-{
-    uint32_t rv;
-
-	cdc_debug_printf("---dp_core_select_and_confirm(%u)\n", core);
-
-	CHECK_OK_BOOL(dp_core_select(core));
-    CHECK_OK_BOOL(swd_clear_errors());
-    CHECK_OK_BOOL(swd_write_dp(DP_SELECT, 1));           // force dap_state.select to "0"
-    CHECK_OK_BOOL(swd_write_dp(DP_SELECT, 0));
-    CHECK_OK_BOOL(swd_read_dp(DP_CTRL_STAT, &rv));
-    return true;
-}   // dp_core_select_and_confirm
-
-
-/**
- * @brief Do everything we need to be able to utilise to the AP's
- *
- * This powers on the needed subdomains so that we can access the
- * other AP's.
- *
- * @return true -> ok
- */
-static int dp_power_on()
-{
-    uint32_t    rv;
-
-	for (int i=0; i < 10; i++) {
-		cdc_debug_printf("---dp_power_on() %d\n", i);
-        // Attempt to power up...
-        if ( !swd_write_dp(DP_CTRL_STAT, CDBGPWRUPREQ|CSYSPWRUPREQ))
-        	continue;
-        if ( !swd_read_dp(DP_CTRL_STAT, &rv))
-        	continue;
-        if (rv & SWDERRORS) {
-        	swd_clear_errors();
-        	continue;
-        }
-        if ( !(rv & CDBGPWRUPACK))
-        	continue;
-        if ( !(rv & CSYSPWRUPACK))
-        	continue;
-        return true;
-    }
-    return false;
-}   // dp_power_on
-
-
-
-/**
- * Enable debugging and clear all HW breakpoints.
+ * Clear all HW breakpoints.
  * \pre
  *    DP must be powered on
  */
-static bool core_enable_debug()
+static bool dp_disable_breakpoint()
 {
 	static const uint32_t bp_reg[4] = { 0xE0002008, 0xE000200C, 0xE0002010, 0xE0002014 };
 
-	cdc_debug_printf("---core_enable_debug()\n");
-
-	// Enable debug
-    CHECK_OK_BOOL(swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN));
+	cdc_debug_printf("---dp_disable_breakpoint()\n");
 
     // Clear each of the breakpoints...
     for (int i = 0;  i < 4;  ++i) {
         CHECK_OK_BOOL(swd_write_word(bp_reg[i], 0));
     }
     return true;
-}   // core_enable_debug
-
-
-/**
- * @brief Send the required sequence to reset the line and start SWD ops
- *
- * This routine needs to try to connect to each core and make sure it
- * responds, it also powers up the relevant bits and sets debug enabled.
- */
-static bool dp_initialize(void)
-{
-	cdc_debug_printf("---dp_initialize()\n");
-
-	core = 0xff;
-
-    swd_from_dormant();
-
-    int have_reset = 0;
-
-    // Now try to connect to each core and setup power and debug status...
-    for (int c = 1;  c >= 0;  --c) {
-        for(;;) {
-            if ( !dp_core_select_and_confirm(c)) {
-                if ( !dp_core_select_and_confirm(c)) {
-                    // If we've already reset, then this is fatal...
-                    if (have_reset)
-                        return false;
-                    dp_rescue_reset();
-                    swd_from_dormant();     // seem to need this?
-                    have_reset = 1;
-                    continue;
-                }
-            }
-
-            if ( !dp_power_on())
-                continue;
-
-            // Now we can enable debugging... (and remove breakpoints)
-            if ( !core_enable_debug())
-                continue;
-
-            // If we get here, then this core is fine...
-            break;
-        }
-    }
-
-    return true;
-}   // dp_initialize
+}   // dp_disable_breakpoint
 
 
 /*************************************************************************************************/
@@ -323,7 +184,7 @@ static bool dp_initialize(void)
  * \note
  *    swd_host has to be tricked in it's caching of DP_SELECT and AP_CSW
  */
-static uint8_t rp2040_swd_init_debug(void)
+static bool rp2040_swd_init_debug(uint8_t core)
 {
     uint32_t tmp = 0;
     int i = 0;
@@ -331,10 +192,14 @@ static uint8_t rp2040_swd_init_debug(void)
     int8_t retries = 4;
     int8_t do_abort = 0;
 
+	cdc_debug_printf("rp2040_swd_init_debug(%d)\n", core);
+
+    swd_init();
+    swd_from_dormant();
+
     do {
-		cdc_debug_printf("rp2040_swd_init_debug - 0 %d\n", do_abort);
         if (do_abort) {
-            //do an abort on stale target, then reset the device
+            // do an abort on stale target, then reset the device
             swd_write_dp(DP_ABORT, DAPABORT);
             swd_set_target_reset(1);
             osDelay(2);
@@ -342,14 +207,8 @@ static uint8_t rp2040_swd_init_debug(void)
             osDelay(2);
             do_abort = 0;
         }
-        swd_init();
 
-        // call a target dependant function
-        // this function can do several stuff before really
-        // initing the debug
-        if (g_target_family && g_target_family->target_before_init_debug) {
-            g_target_family->target_before_init_debug();
-        }
+        CHECK_ABORT( dp_core_select(core) );
 
         CHECK_ABORT( swd_clear_errors() );
 
@@ -373,24 +232,32 @@ static uint8_t rp2040_swd_init_debug(void)
         CHECK_ABORT( swd_write_ap(AP_CSW, 1) );                                // force dap_state.csw to "0"
         CHECK_ABORT( swd_write_ap(AP_CSW, 0) );
 
-		CHECK_ABORT( swd_read_ap(0xfc, &tmp) );
+		CHECK_ABORT( swd_read_ap(0xfc, &tmp) );                                // AP IDR: must it be 0x4770031?
 		CHECK_ABORT( swd_write_dp(DP_SELECT, 0) );
 
-        return 1;
+        return true;
 
     } while (--retries > 0);
 
-    return 0;
+    return false;
 }   // rp2040_swd_init_debug
 
 
 
-static uint8_t rp2040_swd_set_target_state(target_state_t state)
+/**
+ * Set state of a single core, the core will be selected as well.
+ * \return true -> ok
+ *
+ * \note
+ *    - the current (hardware) reset operation does a reset of both cores
+ *    -
+ */
+static bool rp2040_swd_set_target_state(uint8_t core, target_state_t state)
 {
     uint32_t val;
     int8_t ap_retries = 2;
 
-    cdc_debug_printf("+++++++++++++++ rp2040_swd_set_target_state(%d)\n", state);
+    cdc_debug_printf("+++++++++++++++ rp2040_swd_set_target_state(%d, %d)\n", core, state);
 
     /* Calling swd_init prior to entering RUN state causes operations to fail. */
     if (state != RUN) {
@@ -408,50 +275,48 @@ static uint8_t rp2040_swd_set_target_state(target_state_t state)
             swd_set_target_reset(0);
             osDelay(2);
 
-            if (!rp2040_swd_init_debug()) {
-                return 0;
+            if (!rp2040_swd_init_debug(core)) {
+                return false;
             }
 
             // Power down
             // Per ADIv6 spec. Clear first CSYSPWRUPREQ followed by CDBGPWRUPREQ
             if (!swd_read_dp(DP_CTRL_STAT, &val)) {
-                return 0;
+                return false;
             }
 
             if (!swd_write_dp(DP_CTRL_STAT, val & ~CSYSPWRUPREQ)) {
-                return 0;
+                return false;
             }
 
             // Wait until ACK is deasserted
             do {
                 if (!swd_read_dp(DP_CTRL_STAT, &val)) {
-                    return 0;
+                    return false;
                 }
             } while ((val & (CSYSPWRUPACK)) != 0);
 
             if (!swd_write_dp(DP_CTRL_STAT, val & ~CDBGPWRUPREQ)) {
-                return 0;
+                return false;
             }
 
             // Wait until ACK is deasserted
             do {
                 if (!swd_read_dp(DP_CTRL_STAT, &val)) {
-                    return 0;
+                    return false;
                 }
             } while ((val & (CDBGPWRUPACK)) != 0);
-
-            swd_off();
             break;
 
         case RESET_PROGRAM:
-            if (!rp2040_swd_init_debug()) {
-                return 0;
+            if (!rp2040_swd_init_debug(core)) {
+                return false;
             }
 
             // Enable debug and halt the core (DHCSR <- 0xA05F0003)
             while (swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_HALT) == 0) {
                 if ( --ap_retries <=0 ) {
-                    return 0;
+                    return false;
                 }
                 // Target is in invalid state?
                 swd_set_target_reset(1);
@@ -463,91 +328,91 @@ static uint8_t rp2040_swd_set_target_state(target_state_t state)
             // Wait until core is halted
             do {
                 if (!swd_read_word(DBG_HCSR, &val)) {
-                    return 0;
+                    return false;
                 }
             } while ((val & S_HALT) == 0);
 
+            if ( !dp_disable_breakpoint()) {
+            	return false;
+            }
+
             // Enable halt on reset
             if (!swd_write_word(DBG_EMCR, VC_CORERESET)) {
-                return 0;
+                return false;
             }
 
             // Perform a soft reset
             if (!swd_read_word(NVIC_AIRCR, &val)) {
-                return 0;
+                return false;
             }
 
             if (!swd_write_word(NVIC_AIRCR, VECTKEY | (val & SCB_AIRCR_PRIGROUP_Msk) | soft_reset)) {
-                return 0;
+                return false;
             }
 
             osDelay(2);
 
             do {
                 if (!swd_read_word(DBG_HCSR, &val)) {
-                    return 0;
+                    return false;
                 }
             } while ((val & S_HALT) == 0);
 
             // Disable halt on reset
             if (!swd_write_word(DBG_EMCR, 0)) {
-                return 0;
+                return false;
             }
-
             break;
 
         case NO_DEBUG:
             if (!swd_write_word(DBG_HCSR, DBGKEY)) {
-                return 0;
+                return false;
             }
-
             break;
 
         case DEBUG:
             if (!swd_clear_errors()) {
-                return 0;
+                return false;
             }
 
             // Ensure CTRL/STAT register selected in DPBANKSEL
             if (!swd_write_dp(DP_SELECT, 0)) {
-                return 0;
+                return false;
             }
 
             // Power up
             if (!swd_write_dp(DP_CTRL_STAT, CSYSPWRUPREQ | CDBGPWRUPREQ)) {
-                return 0;
+                return false;
             }
 
             // Enable debug
             if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN)) {
-                return 0;
+                return false;
             }
-
             break;
 
         case HALT:
-            if (!rp2040_swd_init_debug()) {
-                return 0;
+            if (!rp2040_swd_init_debug(core)) {
+                return false;
             }
 
             // Enable debug and halt the core (DHCSR <- 0xA05F0003)
             if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_HALT)) {
-                return 0;
+                return false;
             }
 
             // Wait until core is halted
             do {
                 if (!swd_read_word(DBG_HCSR, &val)) {
-                    return 0;
+                    return false;
                 }
             } while ((val & S_HALT) == 0);
             break;
 
         case RUN:
             if (!swd_write_word(DBG_HCSR, DBGKEY)) {
-                return 0;
+                return false;
             }
-            swd_off();
             break;
 
         case POST_FLASH_RESET:
@@ -555,10 +420,10 @@ static uint8_t rp2040_swd_set_target_state(target_state_t state)
             break;
 
         default:
-            return 0;
+            return false;
     }
 
-    return 1;
+    return true;
 }   // rp2040_swd_set_target_state
 
 
@@ -576,29 +441,88 @@ static void rp2040_swd_set_target_reset(uint8_t asserted)
 
 
 
+/**
+ * Set state of the RP2040.
+ * Currently core1 is held most of the time in HALT, so that it does not disturb operation.
+ *
+ * \note
+ *    Take care, that core0 is the selected core at end of function
+ */
 static uint8_t rp2040_target_set_state(target_state_t state)
 {
+	uint8_t r;
+
     cdc_debug_printf("----- rp2040_target_set_state(%d)\n", state);
-    return rp2040_swd_set_target_state(state);
-}   // rp2040_target_set_state
 
+    switch (state) {
+    	case RESET_HOLD:
+    		// Hold target in reset
+    		// pre: -
+    		r = rp2040_swd_set_target_state(0, RESET_HOLD);
+    		// post: both cores are in HW reset
+    		break;
 
+    	case RESET_PROGRAM:
+    		// Reset target and setup for flash programming
+    		// pre: -
+    		rp2040_swd_set_target_state(1, HALT);
+    		r = rp2040_swd_set_target_state(0, RESET_PROGRAM);
+    		// post: core1 in HALT, core0 ready for programming
+    		break;
 
-static void rp2040_target_before_init_debug(void)
-{
-	int r;
+    	case RESET_RUN:
+    		// Reset target and run normally
+    		// pre: -
+    		r = rp2040_swd_set_target_state(1, RESET_RUN)  &&  rp2040_swd_set_target_state(0, RESET_RUN);
+    		swd_off();
+    		// post: both cores are running
+    		break;
 
-    cdc_debug_printf("----- rp2040_target_before_init_debug()                               BEGIN\n");
-    r = dp_initialize();
-#if 1
-    {
-    	uint32_t tmp;
-    	swd_read_ap(0xfc, &tmp);
-    	swd_write_dp(DP_SELECT, 0);
+    	case NO_DEBUG:
+    		// Disable debug on running target
+    		// pre: !swd_off()  &&  core0 selected
+    		r = rp2040_swd_set_target_state(0, NO_DEBUG);
+    		// post: core0 in NO_DEBUG
+    		break;
+
+    	case DEBUG:
+    		// Enable debug on running target
+    		// pre: !swd_off()  &&  core0 selected
+    		r = rp2040_swd_set_target_state(0, NO_DEBUG);
+    		// post: core0 in DEBUG
+    		break;
+
+    	case HALT:
+    		// Halt the target without resetting it
+    		// pre: -
+    		r = rp2040_swd_set_target_state(1, HALT)  &&  rp2040_swd_set_target_state(0, HALT);
+    		// post: both cores in HALT
+    		break;
+
+    	case RUN:
+    		// Resume the target without resetting it
+    		// pre: -
+    		r = rp2040_swd_set_target_state(1, RUN)  &&  rp2040_swd_set_target_state(0, RUN);
+    		swd_off();
+    		// post: both cores are running
+    		break;
+
+    	case POST_FLASH_RESET:
+    		// Reset target after flash programming
+
+    	case POWER_ON:
+    		// Poweron the target
+
+    	case SHUTDOWN:
+    		// Poweroff the target
+
+    	default:
+    		r = false;
+    		break;
     }
-#endif
-    cdc_debug_printf("----- rp2040_target_before_init_debug()                               dp_initialize: %d\n", r);
-}   // rp2040_target_before_init_debug
+
+    return r;
+}   // rp2040_target_set_state
 
 
 
@@ -636,7 +560,6 @@ const board_info_t g_board_info = {
 static const target_family_descriptor_t g_rp2040_family = {
     .swd_set_target_reset     = &rp2040_swd_set_target_reset,
     .target_set_state         = &rp2040_target_set_state,
-	.target_before_init_debug = &rp2040_target_before_init_debug,
 };
 
 const target_family_descriptor_t *g_target_family = &g_rp2040_family;
