@@ -191,7 +191,7 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data)
 				}
 			}
 		}
-#if 1
+#if 0
 		// bits are reversed
 		if (prq == 0x81) {
 			picoprobe_debug("SWD_transfer - DP write ABORT 0x%lx (%d)\n", *data, ack);
@@ -247,10 +247,12 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data)
 
 #if 1
 	if (request & DAP_TRANSFER_RnW) {
-		picoprobe_debug("SWD_transfer - unknown FAILED write: 0x%02x 0x%lx (%d)\n", prq, *data, ack);
+		if (prq != 0x9f  &&  ack != DAP_TRANSFER_WAIT) {
+			picoprobe_debug("SWD_transfer - unknown FAILED read: 0x%02x (%d)\n", prq, ack);
+		}
 	}
 	else {
-		picoprobe_debug("SWD_transfer - unknown FAILED read: 0x%02x 0x%lx (%d)\n", prq, *data, ack);
+		picoprobe_debug("SWD_transfer - unknown FAILED write: 0x%02x 0x%lx (%d)\n", prq, *data, ack);
 	}
 #endif
 
