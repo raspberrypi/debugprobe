@@ -73,6 +73,12 @@
 </html>\r\n"
 #define INDEXHTM_SIZE   (sizeof(INDEXHTM_CONTENTS) - 1)
 
+#define INFOUF2_CONTENTS \
+"UF2 Target Programmer v0.0\r\n\
+Model: Raspberry Pi Picoprobe\r\n\
+Board-ID: RPI-RP2\r\n"
+#define INFOUF2_SIZE   (sizeof(INFOUF2_CONTENTS) - 1)
+
 #define BPB_BytsPerSec         512UL
 #define BPB_BytsPerClus        65536UL
 const uint16_t BPB_TotSec16    = 32768;                                         // 16MB
@@ -355,7 +361,6 @@ void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16
     memcpy(product_rev, rev, 4);
 
     picoprobe_info("tud_msc_inquiry_cb(%d, %s, %s, %s)\n", lun, vendor_id, product_id, product_rev);
-
 }
 
 
@@ -457,9 +462,7 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
     }
     else if (lba >= f_InfoUF2TxtStartSector  &&  lba < f_InfoUF2TxtStartSector + f_InfoUF2TxtSectors) {
 //        picoprobe_info("  INFO_UF2.TXT\n");
-        // TODO fill with content
-        memset(buffer, 'i', BPB_BytsPerSec);
-        r = BPB_BytsPerSec;
+        r = read_sector_from_buffer(buffer, (const uint8_t *)INFOUF2_CONTENTS, INFOUF2_SIZE, lba - f_InfoUF2TxtStartSector);
     }
     else if (lba >= f_IndexHtmStartSector  &&  lba < f_IndexHtmStartSector + f_IndexHtmSectors) {
         picoprobe_info("  INDEX.HTM\n");
