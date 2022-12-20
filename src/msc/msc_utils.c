@@ -40,6 +40,7 @@
 #include "debug_cm.h"
 
 
+#define DEBUG_MODULE    0
 
 #if 0
 	/*
@@ -124,7 +125,6 @@
 
 
 #define FOR_TARGET_CODE     __attribute__((noinline, section("for_target")))
-//#define FOR_TARGET_CODE
 #define DATA_BUFFER         0x20000000
 #define CODE_START          0x20010000
 #define BOOT2_START         0x20020000
@@ -142,8 +142,11 @@ typedef void *(*rom_void_fn)(void);
 typedef void *(*rom_flash_erase_fn)(uint32_t addr, size_t count, uint32_t block_size, uint8_t block_cmd);
 typedef void *(*rom_flash_prog_fn)(uint32_t addr, const uint8_t *data, size_t count);
 
-FOR_TARGET_CODE uint32_t flash_block(uint32_t offset, uint8_t *src, int length) {
-#if 0
+///
+/// Code should be checked via "arm-none-eabi-objdump -S build/picoprobe.elf"
+///
+FOR_TARGET_CODE uint32_t flash_block(uint32_t offset, uint8_t *src, int length)
+{
 	// Fill in the rom functions...
 	rom_table_lookup_fn rom_table_lookup = (rom_table_lookup_fn)rom_hword_as_ptr(0x18);
 	uint16_t            *function_table = (uint16_t *)rom_hword_as_ptr(0x14);
@@ -155,7 +158,6 @@ FOR_TARGET_CODE uint32_t flash_block(uint32_t offset, uint8_t *src, int length) 
 	rom_void_fn         _flash_flush_cache = rom_table_lookup(function_table, fn('F', 'C'));
 	rom_void_fn         _flash_enter_cmd_xip = rom_table_lookup(function_table, fn('C', 'X'));
 	rom_void_fn         _trampoline = rom_table_lookup(function_table, fn('D', 'T'));
-#endif
 
 	// We want to make sure the flash is connected so that we can compare
 	// with it's current contents...
@@ -271,6 +273,9 @@ FOR_TARGET_CODE uint32_t flash_block(uint32_t offset, uint8_t *src, int length) 
 }   // flash_block
 
 
+// -----------------------------------------------------------------------------------
+
+
 
 // Read 16-bit word from target memory.
 uint8_t swd_read_word16(uint32_t addr, uint16_t *val)
@@ -299,11 +304,8 @@ uint32_t rp2040_find_rom_func(char ch1, char ch2)
 
 	// First read the bootrom magic value...
 	uint32_t magic;
-	bool rc;
 
-	rc = swd_read_word(BOOTROM_MAGIC_ADDR, &magic);
-	cdc_debug_printf("rp2040_find_rom_func, magic: 0x%lx\n", magic);
-	if ( !rc)
+	if ( !swd_read_word(BOOTROM_MAGIC_ADDR, &magic))
 		return 0;
 	if ((magic & 0x00ffffff) != BOOTROM_MAGIC)
 		return 0;
@@ -311,23 +313,17 @@ uint32_t rp2040_find_rom_func(char ch1, char ch2)
 	// Now find the start of the table...
 	uint16_t v;
 	uint32_t tabaddr;
-	rc = swd_read_word16(BOOTROM_MAGIC_ADDR+4, &v);
-	if ( !rc)
+	if ( !swd_read_word16(BOOTROM_MAGIC_ADDR+4, &v))
 		return 0;
 	tabaddr = v;
-	cdc_debug_printf("rp2040_find_rom_func, tabaddr: 0x%lx\n", tabaddr);
 
 	// Now try to find our function...
 	uint16_t value;
 	do {
-		rc = swd_read_word16(tabaddr, &value);
-		cdc_debug_printf("   rp2040_find_rom_func, tabaddr 0x%lx = 0x%x\n", tabaddr, value);
-		if ( !rc)
+		if ( !swd_read_word16(tabaddr, &value))
 			return 0;
 		if (value == tag) {
-			rc = swd_read_word16(tabaddr+2, &value);
-			cdc_debug_printf("   rp2040_find_rom_func, tabaddr 0x%lx found 0x%x\n", tabaddr, value);
-			if ( !rc)
+			if ( !swd_read_word16(tabaddr+2, &value))
 				return 0;
 			return (uint32_t)value;
 		}
@@ -344,26 +340,14 @@ bool rp2040_copy_code(void)
     extern char __stop_for_target[];
     bool rc;
 
-    //if ( !flash_code_copied)
+    if ( !flash_code_copied)
     {
         int code_len = (__stop_for_target - __start_for_target);
 
-        cdc_debug_printf("FLASH: Copying custom flash code from 0x%p to 0x%08x (%d bytes)\r\n", __start_for_target, CODE_START, code_len);
+        picoprobe_info("FLASH: Copying custom flash code to 0x%08x (%d bytes)\r\n", CODE_START, code_len);
         rc = swd_write_memory(CODE_START, (uint8_t *)__start_for_target, code_len);
         if ( !rc)
         	return false;
-
-        // TESTING
-        {
-        	uint32_t addr = CODE_START - 0x100;
-        	uint32_t data = 0xaa55aa55;
-
-        	for (int i = 0;  i < 64;  ++i) {
-        		if ( !swd_write_word(addr, data))
-        			return false;
-        		addr += 4;
-        	}
-        }
         flash_code_copied = true;
 	}
     return true;
@@ -373,11 +357,9 @@ bool rp2040_copy_code(void)
 
 static bool core_is_halted(void)
 {
-	bool rc;
 	uint32_t value;
 
-	rc = swd_read_word(DBG_HCSR, &value);
-	if ( !rc)
+	if ( !swd_read_word(DBG_HCSR, &value))
 		return false;
 	if (value & S_HALT)
 		return true;
@@ -391,11 +373,9 @@ static bool core_halt(void)
 	if ( !swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_MASKINTS | C_HALT)) {
         return false;
     }
-    cdc_debug_printf("xx %d\n", __LINE__);
 
     while ( !core_is_halted())
     	;
-    cdc_debug_printf("xx %d\n", __LINE__);
     return true;
 }   // core_halt
 
@@ -406,7 +386,6 @@ static bool core_unhalt(void)
     if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN)) {
         return false;
     }
-    cdc_debug_printf("xx %d\n", __LINE__);
     return true;
 }   // core_unhalt
 
@@ -423,6 +402,7 @@ static bool core_unhalt_with_masked_ints(void)
 
 
 
+#if DEBUG_MODULE
 static bool display_reg(uint8_t num)
 {
 	uint32_t val;
@@ -434,24 +414,21 @@ static bool display_reg(uint8_t num)
     cdc_debug_printf("xx %d r%d=0x%lx\n", __LINE__, num, val);
     return true;
 }   // display_reg
+#endif
 
 
 
-bool rp2040_call_function(uint32_t addr, uint32_t args[], int argc)
+bool rp2040_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t *result)
 {
     static uint32_t trampoline_addr = 0;  // trampoline is fine to get the return value of the callee
     static uint32_t trampoline_end;
-    bool rc;
-    uint32_t r0;
 
     if ( !core_halt())
     	return false;
 
     rp2040_copy_code();
 
-    cdc_debug_printf("########################## rp2040_call_function(0x%lx,, %d)\n", addr, argc);
-
-    assert(argc <= 16);
+    assert(argc <= 4);
 
     // First get the trampoline address...  (actually not required, because the functions reside in RAM...)
     if (trampoline_addr == 0) {
@@ -463,45 +440,37 @@ bool rp2040_call_function(uint32_t addr, uint32_t args[], int argc)
 
     // Set the registers for the trampoline call...
     // function in r7, args in r0, r1, r2, and r3, end in lr?
-    cdc_debug_printf("xx %d\n", __LINE__);
     for (int i = 0;  i < argc;  ++i) {
-        rc = swd_write_core_register(i, args[i]);
-        if ( !rc)
-        	return rc;
+        if ( !swd_write_core_register(i, args[i]))
+        	return false;
     }
-    cdc_debug_printf("xx %d\n", __LINE__);
-    rc = swd_write_core_register(7, addr);
-    if ( !rc)
-    	return rc;
-    cdc_debug_printf("xx %d\n", __LINE__);
+    if ( !swd_write_core_register(7, addr))
+    	return false;
 
     // Set the stack pointer to something sensible... (MSP)
-    rc = swd_write_core_register(13, STACK_ADDR);        // was 17!?
-    if ( !rc)
-    	return rc;
-    cdc_debug_printf("xx %d\n", __LINE__);
+    if ( !swd_write_core_register(13, STACK_ADDR))
+    	return false;
 
     // Now set the PC to go to our address
-    rc = swd_write_core_register(15, trampoline_addr);
-    if ( !rc)
-    	return rc;
-    cdc_debug_printf("xx %d\n", __LINE__);
+    if ( !swd_write_core_register(15, trampoline_addr))
+    	return false;
 
     // Set xPSR for the thumb thingy...
-    rc = swd_write_core_register(16, (1 << 24));
-    if ( !rc)
-    	return rc;
-    cdc_debug_printf("xx %d\n", __LINE__);
+    if ( !swd_write_core_register(16, (1 << 24)))
+    	return false;
 
     if ( !core_halt())
     	return false;
 
+#if DEBUG_MODULE
     for (int i = 0;  i < 18;  ++i)
         display_reg(i);
+#endif
 
     // start execution
-    cdc_debug_printf(".................... execute\n");
-    core_unhalt();
+    picoprobe_info(".................... execute\n");
+    if ( !core_unhalt())
+    	return false;
 
     // check status
     {
@@ -510,11 +479,9 @@ bool rp2040_call_function(uint32_t addr, uint32_t args[], int argc)
 		if (!swd_read_dp(DP_CTRL_STAT, &status)) {
 			return false;
 		}
-	    cdc_debug_printf("xx %d\n", __LINE__);
 		if (status & (STICKYERR | WDATAERR)) {
 			return false;
 		}
-	    cdc_debug_printf("xx %d 0x%lx\n", __LINE__, status);
     }
 
     // Wait until core is halted (again)
@@ -525,25 +492,37 @@ bool rp2040_call_function(uint32_t addr, uint32_t args[], int argc)
     	while ( !core_is_halted()) {
     		if (++i > 100) {
     			core_halt();
-    			cdc_debug_printf("???????????????????? execution interrupted %d\n", i);
+    			picoprobe_error("TARGET: ???????????????????? execution timed out %d\n", i);
     			interrupted = true;
     		}
     	}
     	if ( !interrupted)
-			cdc_debug_printf("!!!!!!!!!!!!!!!!!!!! execution finished after %d iterations\n", i);
-
-	    cdc_debug_printf("xx %d\n", __LINE__);
+			picoprobe_info("!!!!!!!!!!!!!!!!!!!! execution finished after %d iterations\n", i);
     }
 
+#if DEBUG_MODULE
     for (int i = 0;  i < 18;  ++i)
         display_reg(i);
+#endif
 
-    // fetch result of function
-    rc = swd_read_core_register(0, &r0);                  // what for?
-    if ( !rc)
-    	return rc;
-    cdc_debug_printf("xx %d r0=0x%lx\n", __LINE__, r0);
+    if (result != NULL) {
+    	// fetch result of function (r0)
+    	if ( !swd_read_core_register(0, result))
+    		return false;
+    }
 
+    {
+    	uint32_t r15;
+
+    	if ( !swd_read_core_register(15, &r15)) {
+    		return false;
+    	}
+
+		if (r15 != (trampoline_end & 0xfffffffe)) {
+			picoprobe_error("rp2040_call_function: invoked target function did not run til end: 0x%0lx != 0x%0lx\n", r15, trampoline_end);
+			return false;
+		}
+    }
     return true;
 }   // rp2040_call_function
 
@@ -588,8 +567,12 @@ bool swd_connect_target(bool write_mode)
         }
 
         {
-        	uint32_t arg[] = {200, 400, 800, 1600, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
-        	rp2040_call_function(CODE_START, arg, sizeof(arg) / sizeof(arg[0]));
+        	uint32_t arg[] = {200, 400, 800, 1600};
+        	uint32_t res;
+        	bool rc;
+
+        	rc = rp2040_call_function(CODE_START, arg, sizeof(arg) / sizeof(arg[0]), &res);
+        	picoprobe_info("   result of %lu*%lu = %lu (%d)\n", arg[0], arg[0], res, rc);
         }
 #endif
 
