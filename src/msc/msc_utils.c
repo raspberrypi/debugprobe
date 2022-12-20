@@ -160,7 +160,13 @@ FOR_TARGET_CODE uint32_t flash_block(uint32_t offset, uint8_t *src, int length) 
 	// We want to make sure the flash is connected so that we can compare
 	// with it's current contents...
 
-	//__breakpoint();
+	//__breakpoint();  // stops execution as well but how to obtain a return value?
+	{
+		uint32_t *addr = (uint32_t *)(CODE_START - 0x200);
+		for (int i = 0;  i < 64;  ++i) {
+			addr[i] = 0x00110011;
+		}
+	}
 #if 0
 	for (;;)
 		;
@@ -334,24 +340,30 @@ uint32_t rp2040_find_rom_func(char ch1, char ch2)
 
 bool rp2040_copy_code(void)
 {
-#if 1
     extern char __start_for_target[];
     extern char __stop_for_target[];
-#endif
     bool rc;
 
     //if ( !flash_code_copied)
     {
-#if 0
         int code_len = (__stop_for_target - __start_for_target);
-#else
-        int code_len = 0x100;
-#endif
+
         cdc_debug_printf("FLASH: Copying custom flash code from 0x%p to 0x%08x (%d bytes)\r\n", __start_for_target, CODE_START, code_len);
-        cdc_debug_printf("FLASH: Copying custom flash code from 0x%p to 0x%08x (%d bytes)\r\n", rp2040_copy_code, CODE_START, code_len);
         rc = swd_write_memory(CODE_START, (uint8_t *)__start_for_target, code_len);
         if ( !rc)
         	return false;
+
+        // TESTING
+        {
+        	uint32_t addr = CODE_START - 0x100;
+        	uint32_t data = 0xaa55aa55;
+
+        	for (int i = 0;  i < 64;  ++i) {
+        		if ( !swd_write_word(addr, data))
+        			return false;
+        		addr += 4;
+        	}
+        }
         flash_code_copied = true;
 	}
     return true;
@@ -468,29 +480,9 @@ bool rp2040_call_function(uint32_t addr, uint32_t args[], int argc)
     if ( !rc)
     	return rc;
     cdc_debug_printf("xx %d\n", __LINE__);
-#if 0
-    rc = swd_write_core_register(17, STACK_ADDR);        // was 17!?
-    if ( !rc)
-    	return rc;
-    cdc_debug_printf("xx %d\n", __LINE__);
-#endif
 
-    // Put the end address in LR                          // what for?
-#if 0
-    rc = swd_write_core_register(14, trampoline_end);
-#else
-    rc = swd_write_core_register(14, STACK_ADDR+0x50);
-#endif
-    if ( !rc)
-    	return rc;
-    cdc_debug_printf("xx %d\n", __LINE__);
-
-#if 0
     // Now set the PC to go to our address
     rc = swd_write_core_register(15, trampoline_addr);
-#else
-    rc = swd_write_core_register(15, addr);
-#endif
     if ( !rc)
     	return rc;
     cdc_debug_printf("xx %d\n", __LINE__);
@@ -507,11 +499,9 @@ bool rp2040_call_function(uint32_t addr, uint32_t args[], int argc)
     for (int i = 0;  i < 18;  ++i)
         display_reg(i);
 
-#if 1
     // start execution
     cdc_debug_printf(".................... execute\n");
     core_unhalt();
-#endif
 
     // check status
     {
@@ -527,7 +517,6 @@ bool rp2040_call_function(uint32_t addr, uint32_t args[], int argc)
 	    cdc_debug_printf("xx %d 0x%lx\n", __LINE__, status);
     }
 
-#if 1
     // Wait until core is halted (again)
     {
     	int i = 0;
@@ -545,7 +534,6 @@ bool rp2040_call_function(uint32_t addr, uint32_t args[], int argc)
 
 	    cdc_debug_printf("xx %d\n", __LINE__);
     }
-#endif
 
     for (int i = 0;  i < 18;  ++i)
         display_reg(i);
