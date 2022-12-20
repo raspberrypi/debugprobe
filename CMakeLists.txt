@@ -95,6 +95,6 @@ target_link_libraries(picoprobe PRIVATE
         FreeRTOS-Kernel-Heap1
 )
 
-pico_set_binary_type(picoprobe copy_to_ram)
+pico_set_binary_type(picoprobe default)
 
 pico_add_extra_outputs(picoprobe)
