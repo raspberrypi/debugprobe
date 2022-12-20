@@ -36,6 +36,9 @@
 #include "DAP_config.h"
 #include "DAP.h"
 
+#define DBG_Addr     (0xe000edf0)
+#include "debug_cm.h"
+
 
 
 #if 0
@@ -106,6 +109,460 @@
 
 
 
+// -----------------------------------------------------------------------------------
+// THIS CODE IS DESIGNED TO RUN ON THE TARGET AND WILL BE COPIED OVER
+// (hence it has it's own section)
+// -----------------------------------------------------------------------------------
+//
+// Memory Map on target for programming:
+//
+// 0x2000 0000      64K incoming data buffer
+// 0x2001 0000      start of code
+// 0x2002 0000      stage2 bootloader copy
+// 0x2004 0800      top of stack
+//
+
+
+#define FOR_TARGET_CODE     __attribute__((noinline, section("for_target")))
+//#define FOR_TARGET_CODE
+#define DATA_BUFFER         0x20000000
+#define CODE_START          0x20010000
+#define BOOT2_START         0x20020000
+#define STACK_ADDR          0x20030800
+#define FLASH_BASE          0x10000000
+
+static bool flash_code_copied = false;
+
+
+#define rom_hword_as_ptr(rom_address) (void *)(uintptr_t)(*(uint16_t *)rom_address)
+#define fn(a, b)        (uint32_t)((b << 8) | a)
+typedef void *(*rom_table_lookup_fn)(uint16_t *table, uint32_t code);
+
+typedef void *(*rom_void_fn)(void);
+typedef void *(*rom_flash_erase_fn)(uint32_t addr, size_t count, uint32_t block_size, uint8_t block_cmd);
+typedef void *(*rom_flash_prog_fn)(uint32_t addr, const uint8_t *data, size_t count);
+
+FOR_TARGET_CODE uint32_t flash_block(uint32_t offset, uint8_t *src, int length) {
+#if 0
+	// Fill in the rom functions...
+	rom_table_lookup_fn rom_table_lookup = (rom_table_lookup_fn)rom_hword_as_ptr(0x18);
+	uint16_t            *function_table = (uint16_t *)rom_hword_as_ptr(0x14);
+
+	rom_void_fn         _connect_internal_flash = rom_table_lookup(function_table, fn('I', 'F'));
+	rom_void_fn         _flash_exit_xip = rom_table_lookup(function_table, fn('E', 'X'));
+	rom_flash_erase_fn  _flash_range_erase = rom_table_lookup(function_table, fn('R', 'E'));
+	rom_flash_prog_fn   flash_range_program = rom_table_lookup(function_table, fn('R', 'P'));
+	rom_void_fn         _flash_flush_cache = rom_table_lookup(function_table, fn('F', 'C'));
+	rom_void_fn         _flash_enter_cmd_xip = rom_table_lookup(function_table, fn('C', 'X'));
+	rom_void_fn         _trampoline = rom_table_lookup(function_table, fn('D', 'T'));
+#endif
+
+	// We want to make sure the flash is connected so that we can compare
+	// with it's current contents...
+
+	//__breakpoint();
+#if 0
+	for (;;)
+		;
+#endif
+	return offset * offset;
+
+#if 0
+////
+
+	_connect_internal_flash();
+//    _flash_flush_cache();
+//    _flash_enter_cmd_xip();     // would be better to call the boot stage2 to speed things up
+	_flash_exit_xip();
+
+	// If we are being called with a zero offset, then the block will include the bootloader
+	// so we can just copy it to use later...
+	if (offset == 0) {
+		uint32_t *s = (uint32_t *)src;
+		uint32_t *d = (uint32_t *)BOOT2_START;
+		for (int i=0; i < 64; i++) {
+			*d++ = *s++;
+		}
+	}
+	// Call the second stage bootloader... reconnect XIP
+	((void (*)(void))BOOT2_START+1)();
+
+	// Now lets get started...
+	uint8_t     *changed[3];
+	int         change_count = 0;
+
+	// Go through in 4k chunks seeing if we have deltas...
+	uint8_t     *src_block = src;
+	uint8_t     *dst_block = (uint8_t *)(FLASH_BASE + offset);
+	int         left = length;
+
+
+	while(left > 0) {
+		// Look at this block...
+		uint8_t *s = src_block;
+		uint8_t *d = dst_block;
+		int size = MIN(4096, left);
+		for (int i=0; i < size; i++) {
+			if (*s++ != *d++) {
+				changed[change_count++] = src_block;
+				break;
+			}
+		}
+		if (change_count > 2) break;
+		src_block += 4096;
+		dst_block += 4096;
+		left -= 4096;
+	}
+	if (!change_count) return 0;        // nothing to do
+
+	// turn off xip so we can do stuff...
+	//_connect_internal_flash();      // do we need this?
+	_flash_exit_xip();
+
+	// We will return the number of 4k blocks erased, and the size flashed in this...
+	uint32_t rc = 0;
+
+	if (change_count <= 2) {
+
+		// Program the individual blocks...
+		for (int i = 0; i < change_count; i++) {
+			uint8_t *block = changed[i];
+			uint32_t faddr = offset + (block - src);
+			uint32_t size = MIN(4096, length-offset);
+
+			// erase 4k
+			// program 4k
+			_flash_range_erase(faddr, 4096, 4096, 0x20);      // sector erase (4K)
+			flash_range_program(faddr, block, size);
+			rc += size;
+		}
+		// reconnect xip
+		_flash_flush_cache();
+//        _flash_enter_cmd_xip();
+		// Call the second stage bootloader... reconnect XIP
+		((void (*)(void))BOOT2_START+1)();
+		return (change_count << 24) | rc;
+	}
+
+	// Otherwise we program the whole thing... either 32K (if less than that) or all 64k
+	if (length <= 32768) {
+		_flash_range_erase(offset, 32768, 32768, 0x52); // 32K erase
+		rc = 0x08000000 | length;
+	} else {
+		_flash_range_erase(offset, 65536, 65536, 0xD8); // 64K erase
+		rc = 0x10000000 | length;
+	}
+	// program everything...
+	flash_range_program(offset, src, length);
+	// reconnect xip
+	_flash_flush_cache();
+//    _flash_enter_cmd_xip();
+	// Call the second stage bootloader... reconnect XIP
+	((void (*)(void))BOOT2_START+1)();
+
+	return rc;
+#endif
+}   // flash_block
+
+
+
+// Read 16-bit word from target memory.
+uint8_t swd_read_word16(uint32_t addr, uint16_t *val)
+{
+	uint8_t v1, v2;
+
+	if ( !swd_read_byte(addr+0, &v1))
+		return 0;
+	if ( !swd_read_byte(addr+1, &v2))
+		return 0;
+
+	*val = ((uint16_t)v2 << 8) + v1;
+	return 1;
+}   // swd_read_word16
+
+
+
+// this is 'M' 'u', 1 (version)
+#define BOOTROM_MAGIC 0x01754d
+#define BOOTROM_MAGIC_ADDR 0x00000010
+
+
+uint32_t rp2040_find_rom_func(char ch1, char ch2)
+{
+	uint16_t tag = (ch2 << 8) | ch1;
+
+	// First read the bootrom magic value...
+	uint32_t magic;
+	bool rc;
+
+	rc = swd_read_word(BOOTROM_MAGIC_ADDR, &magic);
+	cdc_debug_printf("rp2040_find_rom_func, magic: 0x%lx\n", magic);
+	if ( !rc)
+		return 0;
+	if ((magic & 0x00ffffff) != BOOTROM_MAGIC)
+		return 0;
+
+	// Now find the start of the table...
+	uint16_t v;
+	uint32_t tabaddr;
+	rc = swd_read_word16(BOOTROM_MAGIC_ADDR+4, &v);
+	if ( !rc)
+		return 0;
+	tabaddr = v;
+	cdc_debug_printf("rp2040_find_rom_func, tabaddr: 0x%lx\n", tabaddr);
+
+	// Now try to find our function...
+	uint16_t value;
+	do {
+		rc = swd_read_word16(tabaddr, &value);
+		cdc_debug_printf("   rp2040_find_rom_func, tabaddr 0x%lx = 0x%x\n", tabaddr, value);
+		if ( !rc)
+			return 0;
+		if (value == tag) {
+			rc = swd_read_word16(tabaddr+2, &value);
+			cdc_debug_printf("   rp2040_find_rom_func, tabaddr 0x%lx found 0x%x\n", tabaddr, value);
+			if ( !rc)
+				return 0;
+			return (uint32_t)value;
+		}
+		tabaddr += 4;
+	} while (value != 0);
+	return 0;
+}   // rp2040_find_rom_func
+
+
+
+bool rp2040_copy_code(void)
+{
+#if 1
+    extern char __start_for_target[];
+    extern char __stop_for_target[];
+#endif
+    bool rc;
+
+    //if ( !flash_code_copied)
+    {
+#if 0
+        int code_len = (__stop_for_target - __start_for_target);
+#else
+        int code_len = 0x100;
+#endif
+        cdc_debug_printf("FLASH: Copying custom flash code from 0x%p to 0x%08x (%d bytes)\r\n", __start_for_target, CODE_START, code_len);
+        cdc_debug_printf("FLASH: Copying custom flash code from 0x%p to 0x%08x (%d bytes)\r\n", rp2040_copy_code, CODE_START, code_len);
+        rc = swd_write_memory(CODE_START, (uint8_t *)__start_for_target, code_len);
+        if ( !rc)
+        	return false;
+        flash_code_copied = true;
+	}
+    return true;
+}   // rp2040_copy_code
+
+
+
+static bool core_is_halted(void)
+{
+	bool rc;
+	uint32_t value;
+
+	rc = swd_read_word(DBG_HCSR, &value);
+	if ( !rc)
+		return false;
+	if (value & S_HALT)
+		return true;
+	return false;
+}   // core_is_halted
+
+
+
+static bool core_halt(void)
+{
+	if ( !swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_MASKINTS | C_HALT)) {
+        return false;
+    }
+    cdc_debug_printf("xx %d\n", __LINE__);
+
+    while ( !core_is_halted())
+    	;
+    cdc_debug_printf("xx %d\n", __LINE__);
+    return true;
+}   // core_halt
+
+
+
+static bool core_unhalt(void)
+{
+    if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN)) {
+        return false;
+    }
+    cdc_debug_printf("xx %d\n", __LINE__);
+    return true;
+}   // core_unhalt
+
+
+
+static bool core_unhalt_with_masked_ints(void)
+{
+    if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_MASKINTS)) {
+        return false;
+    }
+    cdc_debug_printf("xx %d\n", __LINE__);
+    return true;
+}   // core_unhalt_with_masked_ints
+
+
+
+static bool display_reg(uint8_t num)
+{
+	uint32_t val;
+	bool rc;
+
+    rc = swd_read_core_register(num, &val);
+    if ( !rc)
+    	return rc;
+    cdc_debug_printf("xx %d r%d=0x%lx\n", __LINE__, num, val);
+    return true;
+}   // display_reg
+
+
+
+bool rp2040_call_function(uint32_t addr, uint32_t args[], int argc)
+{
+    static uint32_t trampoline_addr = 0;  // trampoline is fine to get the return value of the callee
+    static uint32_t trampoline_end;
+    bool rc;
+    uint32_t r0;
+
+    if ( !core_halt())
+    	return false;
+
+    rp2040_copy_code();
+
+    cdc_debug_printf("########################## rp2040_call_function(0x%lx,, %d)\n", addr, argc);
+
+    assert(argc <= 16);
+
+    // First get the trampoline address...  (actually not required, because the functions reside in RAM...)
+    if (trampoline_addr == 0) {
+        trampoline_addr = rp2040_find_rom_func('D', 'T');
+        trampoline_end = rp2040_find_rom_func('D', 'E');
+        if (trampoline_addr == 0  ||  trampoline_end == 0)
+        	return false;
+    }
+
+    // Set the registers for the trampoline call...
+    // function in r7, args in r0, r1, r2, and r3, end in lr?
+    cdc_debug_printf("xx %d\n", __LINE__);
+    for (int i = 0;  i < argc;  ++i) {
+        rc = swd_write_core_register(i, args[i]);
+        if ( !rc)
+        	return rc;
+    }
+    cdc_debug_printf("xx %d\n", __LINE__);
+    rc = swd_write_core_register(7, addr);
+    if ( !rc)
+    	return rc;
+    cdc_debug_printf("xx %d\n", __LINE__);
+
+    // Set the stack pointer to something sensible... (MSP)
+    rc = swd_write_core_register(13, STACK_ADDR);        // was 17!?
+    if ( !rc)
+    	return rc;
+    cdc_debug_printf("xx %d\n", __LINE__);
+#if 0
+    rc = swd_write_core_register(17, STACK_ADDR);        // was 17!?
+    if ( !rc)
+    	return rc;
+    cdc_debug_printf("xx %d\n", __LINE__);
+#endif
+
+    // Put the end address in LR                          // what for?
+#if 0
+    rc = swd_write_core_register(14, trampoline_end);
+#else
+    rc = swd_write_core_register(14, STACK_ADDR+0x50);
+#endif
+    if ( !rc)
+    	return rc;
+    cdc_debug_printf("xx %d\n", __LINE__);
+
+#if 0
+    // Now set the PC to go to our address
+    rc = swd_write_core_register(15, trampoline_addr);
+#else
+    rc = swd_write_core_register(15, addr);
+#endif
+    if ( !rc)
+    	return rc;
+    cdc_debug_printf("xx %d\n", __LINE__);
+
+    // Set xPSR for the thumb thingy...
+    rc = swd_write_core_register(16, (1 << 24));
+    if ( !rc)
+    	return rc;
+    cdc_debug_printf("xx %d\n", __LINE__);
+
+    if ( !core_halt())
+    	return false;
+
+    for (int i = 0;  i < 18;  ++i)
+        display_reg(i);
+
+#if 1
+    // start execution
+    cdc_debug_printf(".................... execute\n");
+    core_unhalt();
+#endif
+
+    // check status
+    {
+    	uint32_t status;
+
+		if (!swd_read_dp(DP_CTRL_STAT, &status)) {
+			return false;
+		}
+	    cdc_debug_printf("xx %d\n", __LINE__);
+		if (status & (STICKYERR | WDATAERR)) {
+			return false;
+		}
+	    cdc_debug_printf("xx %d 0x%lx\n", __LINE__, status);
+    }
+
+#if 1
+    // Wait until core is halted (again)
+    {
+    	int i = 0;
+    	bool interrupted = false;
+
+    	while ( !core_is_halted()) {
+    		if (++i > 100) {
+    			core_halt();
+    			cdc_debug_printf("???????????????????? execution interrupted %d\n", i);
+    			interrupted = true;
+    		}
+    	}
+    	if ( !interrupted)
+			cdc_debug_printf("!!!!!!!!!!!!!!!!!!!! execution finished after %d iterations\n", i);
+
+	    cdc_debug_printf("xx %d\n", __LINE__);
+    }
+#endif
+
+    for (int i = 0;  i < 18;  ++i)
+        display_reg(i);
+
+    // fetch result of function
+    rc = swd_read_core_register(0, &r0);                  // what for?
+    if ( !rc)
+    	return rc;
+    cdc_debug_printf("xx %d r0=0x%lx\n", __LINE__, r0);
+
+    return true;
+}   // rp2040_call_function
+
+
+
+#define DO_MSC  1
+
 bool swd_connect_target(bool write_mode)
 {
     static uint64_t last_trigger_us;
@@ -115,13 +572,14 @@ bool swd_connect_target(bool write_mode)
     if (now_us - last_trigger_us > 1000*1000) {
     	picoprobe_info("========================================================================\n");
 
+#if DO_MSC
         ok = target_set_state(RESET_PROGRAM);
         picoprobe_info("---------------------------------- %d\n", ok);
 
         //
-        // cheap test to read some memory
+        // simple test to read some memory
         //
-        if (1) {
+        if (0) {
         	uint8_t buff[32];
         	uint8_t r;
 
@@ -132,6 +590,7 @@ bool swd_connect_target(bool write_mode)
         	for (int i = 0;  i < sizeof(buff);  ++i)
         		picoprobe_info(" %02x", buff[i]);
         	picoprobe_info("\n");
+        	memset(buff, 0xaa, sizeof(buff));
         	r = swd_read_memory(0x10000000, buff,  sizeof(buff));
         	picoprobe_info("   %u -", r);
         	for (int i = 0;  i < sizeof(buff);  ++i)
@@ -139,6 +598,12 @@ bool swd_connect_target(bool write_mode)
         	picoprobe_info("\n");
             picoprobe_info("----------------------------------\n");
         }
+
+        {
+        	uint32_t arg[] = {200, 400, 800, 1600, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
+        	rp2040_call_function(CODE_START, arg, sizeof(arg) / sizeof(arg[0]));
+        }
+#endif
 
 //        ok = target_set_state(RESET_RUN);
     }
