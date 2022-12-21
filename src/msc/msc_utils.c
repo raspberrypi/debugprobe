@@ -124,11 +124,16 @@
 //
 
 
+extern char __start_for_target[];
+extern char __stop_for_target[];
+
 #define FOR_TARGET_CODE     __attribute__((noinline, section("for_target")))
-#define DATA_BUFFER         0x20000000
-#define CODE_START          0x20010000
+#define TARGET_CODE_START   0x20010000
+#define TARGET_STACK_ADDR   0x20030800
+#define TARGET_FLASH_BLOCK  ((uint32_t)flash_block - (uint32_t)__start_for_target + TARGET_CODE_START)
+
 #define BOOT2_START         0x20020000
-#define STACK_ADDR          0x20030800
+#define DATA_BUFFER         0x20000000
 #define FLASH_BASE          0x10000000
 
 static bool flash_code_copied = false;
@@ -141,6 +146,7 @@ typedef void *(*rom_table_lookup_fn)(uint16_t *table, uint32_t code);
 typedef void *(*rom_void_fn)(void);
 typedef void *(*rom_flash_erase_fn)(uint32_t addr, size_t count, uint32_t block_size, uint8_t block_cmd);
 typedef void *(*rom_flash_prog_fn)(uint32_t addr, const uint8_t *data, size_t count);
+
 
 ///
 /// Code should be checked via "arm-none-eabi-objdump -S build/picoprobe.elf"
@@ -164,7 +170,7 @@ FOR_TARGET_CODE uint32_t flash_block(uint32_t offset, uint8_t *src, int length)
 
 	//__breakpoint();  // stops execution as well but how to obtain a return value?
 	{
-		uint32_t *addr = (uint32_t *)(CODE_START - 0x200);
+		uint32_t *addr = (uint32_t *)(TARGET_CODE_START - 0x200);
 		for (int i = 0;  i < 64;  ++i) {
 			addr[i] = 0x00110011;
 		}
@@ -336,16 +342,14 @@ uint32_t rp2040_find_rom_func(char ch1, char ch2)
 
 bool rp2040_copy_code(void)
 {
-    extern char __start_for_target[];
-    extern char __stop_for_target[];
     bool rc;
 
     if ( !flash_code_copied)
     {
         int code_len = (__stop_for_target - __start_for_target);
 
-        picoprobe_info("FLASH: Copying custom flash code to 0x%08x (%d bytes)\r\n", CODE_START, code_len);
-        rc = swd_write_memory(CODE_START, (uint8_t *)__start_for_target, code_len);
+        picoprobe_info("FLASH: Copying custom flash code to 0x%08x (%d bytes)\r\n", TARGET_CODE_START, code_len);
+        rc = swd_write_memory(TARGET_CODE_START, (uint8_t *)__start_for_target, code_len);
         if ( !rc)
         	return false;
         flash_code_copied = true;
@@ -418,6 +422,15 @@ static bool display_reg(uint8_t num)
 
 
 
+///
+/// Call function on the target device at address \a addr.
+/// Arguments are in \a args[] / \a argc, result of the called function (from r0) will be
+/// put to \a *result (if != NULL).
+///
+/// \pre
+///    - target MCU must be connected
+///    - code must be already uploaded to target
+//
 bool rp2040_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t *result)
 {
     static uint32_t trampoline_addr = 0;  // trampoline is fine to get the return value of the callee
@@ -425,8 +438,6 @@ bool rp2040_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t *re
 
     if ( !core_halt())
     	return false;
-
-    rp2040_copy_code();
 
     assert(argc <= 4);
 
@@ -448,7 +459,7 @@ bool rp2040_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t *re
     	return false;
 
     // Set the stack pointer to something sensible... (MSP)
-    if ( !swd_write_core_register(13, STACK_ADDR))
+    if ( !swd_write_core_register(13, TARGET_STACK_ADDR))
     	return false;
 
     // Now set the PC to go to our address
@@ -571,7 +582,8 @@ bool swd_connect_target(bool write_mode)
         	uint32_t res;
         	bool rc;
 
-        	rc = rp2040_call_function(CODE_START, arg, sizeof(arg) / sizeof(arg[0]), &res);
+            rp2040_copy_code();
+        	rc = rp2040_call_function(TARGET_FLASH_BLOCK, arg, sizeof(arg) / sizeof(arg[0]), &res);
         	picoprobe_info("   result of %lu*%lu = %lu (%d)\n", arg[0], arg[0], res, rc);
         }
 #endif
