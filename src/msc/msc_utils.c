@@ -35,6 +35,7 @@
 #include "swd_host.h"
 #include "DAP_config.h"
 #include "DAP.h"
+#include "daplink_addr.h"
 
 #define DBG_Addr     (0xe000edf0)
 #include "debug_cm.h"
@@ -128,16 +129,16 @@ extern char __start_for_target[];
 extern char __stop_for_target[];
 
 #define FOR_TARGET_CODE     __attribute__((noinline, section("for_target")))
-#define TARGET_CODE_START   0x20010000
-#define TARGET_STACK_ADDR   0x20030800
-#define TARGET_FLASH_BLOCK  ((uint32_t)flash_block - (uint32_t)__start_for_target + TARGET_CODE_START)
+#define TARGET_CODE         0x20010000
+#define TARGET_STACK        0x20030800
+#define TARGET_FLASH_BLOCK  ((uint32_t)flash_block - (uint32_t)__start_for_target + TARGET_CODE)
+#define TARGET_BOOT2        0x20020000
+#define TARGET_BOOT2_SIZE   256
 
-#define BOOT2_START         0x20020000
 #define DATA_BUFFER         0x20000000
 #define FLASH_BASE          0x10000000
 
 static bool flash_code_copied = false;
-
 
 #define rom_hword_as_ptr(rom_address) (void *)(uintptr_t)(*(uint16_t *)rom_address)
 #define fn(a, b)        (uint32_t)((b << 8) | a)
@@ -146,6 +147,72 @@ typedef void *(*rom_table_lookup_fn)(uint16_t *table, uint32_t code);
 typedef void *(*rom_void_fn)(void);
 typedef void *(*rom_flash_erase_fn)(uint32_t addr, size_t count, uint32_t block_size, uint8_t block_cmd);
 typedef void *(*rom_flash_prog_fn)(uint32_t addr, const uint8_t *data, size_t count);
+
+#define __compiler_barrier() asm volatile("" ::: "memory")
+
+#if 0
+#define BOOT2_SIZE_WORDS 64
+
+static uint32_t boot2_copyout[BOOT2_SIZE_WORDS];
+static bool boot2_copyout_valid = false;
+
+static void __no_inline_not_in_flash_func(flash_init_boot2_copyout)(void) {
+    if (boot2_copyout_valid)
+        return;
+    for (int i = 0; i < BOOT2_SIZE_WORDS; ++i)
+        boot2_copyout[i] = ((uint32_t *)XIP_BASE)[i];
+    __compiler_memory_barrier();
+    boot2_copyout_valid = true;
+}
+
+static void __no_inline_not_in_flash_func(flash_enable_xip_via_boot2)(void) {
+    ((void (*)(void))boot2_copyout+1)();
+}
+
+
+flash_init_boot2_copyout();
+
+// No flash accesses after this point
+__compiler_memory_barrier();
+
+connect_internal_flash();
+flash_exit_xip();
+flash_range_erase(flash_offs, count, FLASH_BLOCK_SIZE, FLASH_BLOCK_ERASE_CMD);
+flash_flush_cache(); // Note this is needed to remove CSn IO force as well as cache flushing
+flash_enable_xip_via_boot2();
+#endif
+
+#define FLASH_RANGE_ERASE(OFFS, CNT, BLKSIZE, CMD)           \
+	do {                                                     \
+		_flash_enter_cmd_xip();                              \
+		__compiler_barrier();                                \
+		_connect_internal_flash();                           \
+		_flash_exit_xip();                                   \
+		_flash_range_erase((OFFS), (CNT), (BLKSIZE), (CMD)); \
+		_flash_flush_cache();                                \
+		_flash_enter_cmd_xip();                              \
+	} while (0)
+
+#define FLASH_TO_XPI()                                       \
+	do {                                                     \
+		_flash_enter_cmd_xip();                              \
+		__compiler_barrier();                                \
+		_flash_enter_cmd_xip();                              \
+		__compiler_barrier();                                \
+		_flash_flush_cache();                                \
+	} while (0)
+
+#define FLASH_ENTER_CMD_XIP()                                \
+	do {                                                     \
+		_flash_flush_cache();                                \
+		if (*((uint32_t *)TARGET_BOOT2) == 0) {              \
+			_flash_enter_cmd_xip();                          \
+		}                                                    \
+		else {                                               \
+			((void (*)(void))TARGET_BOOT2+1)();              \
+		}                                                    \
+	} while (0)
+
 
 
 ///
@@ -160,26 +227,57 @@ FOR_TARGET_CODE uint32_t flash_block(uint32_t offset, uint8_t *src, int length)
 	rom_void_fn         _connect_internal_flash = rom_table_lookup(function_table, fn('I', 'F'));
 	rom_void_fn         _flash_exit_xip = rom_table_lookup(function_table, fn('E', 'X'));
 	rom_flash_erase_fn  _flash_range_erase = rom_table_lookup(function_table, fn('R', 'E'));
-	rom_flash_prog_fn   flash_range_program = rom_table_lookup(function_table, fn('R', 'P'));
+//	rom_flash_prog_fn   _flash_range_program = rom_table_lookup(function_table, fn('R', 'P'));
 	rom_void_fn         _flash_flush_cache = rom_table_lookup(function_table, fn('F', 'C'));
 	rom_void_fn         _flash_enter_cmd_xip = rom_table_lookup(function_table, fn('C', 'X'));
-	rom_void_fn         _trampoline = rom_table_lookup(function_table, fn('D', 'T'));
 
-	// We want to make sure the flash is connected so that we can compare
+	uint32_t res = 0xcafe;
+
+    // We want to make sure the flash is connected so that we can compare
 	// with it's current contents...
+	_connect_internal_flash();
+	_flash_exit_xip();
 
-	//__breakpoint();  // stops execution as well but how to obtain a return value?
-	{
-		uint32_t *addr = (uint32_t *)(TARGET_CODE_START - 0x200);
-		for (int i = 0;  i < 64;  ++i) {
-			addr[i] = 0x00110011;
+	FLASH_ENTER_CMD_XIP();
+
+	if (offset == DAPLINK_ROM_START) {
+		//
+		// erase chip if offset is at beginning of flash
+		//
+		const uint32_t step_64k = 0x10000;
+
+		for (uint32_t offs = 0;  offs < DAPLINK_ROM_SIZE;  offs += step_64k) {
+			bool already_erased = true;
+			uint32_t *a_64k = (uint32_t *)(DAPLINK_ROM_START + offs);
+
+			for (int i = 0;  i < step_64k / sizeof(uint32_t);  ++i) {
+				if (a_64k[i] != 0xffffffff) {
+#if 1
+					res = a_64k[i];
+//					res = i;
+//					res = (uint32_t)a_64k;
+#endif
+					already_erased = false;
+					break;
+				}
+			}
+
+			if ( !already_erased)
+			{
+				_flash_exit_xip();
+				FLASH_RANGE_ERASE(offs, step_64k, step_64k, 0xD8);     // 64K erase
+				FLASH_ENTER_CMD_XIP();
+			}
+			break;
 		}
 	}
-#if 0
-	for (;;)
-		;
-#endif
-	return offset * offset;
+	else {
+		res = 0xaa55aa55;
+	}
+
+	FLASH_ENTER_CMD_XIP();
+
+	return res;
 
 #if 0
 ////
@@ -348,10 +446,22 @@ bool rp2040_copy_code(void)
     {
         int code_len = (__stop_for_target - __start_for_target);
 
-        picoprobe_info("FLASH: Copying custom flash code to 0x%08x (%d bytes)\r\n", TARGET_CODE_START, code_len);
-        rc = swd_write_memory(TARGET_CODE_START, (uint8_t *)__start_for_target, code_len);
+        picoprobe_info("FLASH: Copying custom flash code to 0x%08x (%d bytes)\r\n", TARGET_CODE, code_len);
+        rc = swd_write_memory(TARGET_CODE, (uint8_t *)__start_for_target, code_len);
         if ( !rc)
         	return false;
+
+#if 1
+        // this works only if target and probe have the same BOOT2 code
+        picoprobe_info("FLASH: Copying BOOT2 code to 0x%08x (%d bytes)\r\n", TARGET_BOOT2, TARGET_BOOT2_SIZE);
+        rc = swd_write_memory(TARGET_BOOT2, (uint8_t *)DAPLINK_ROM_START, TARGET_BOOT2_SIZE);
+#else
+        // TODO this means, that the target function fetches the code from the image (actually this could be done here...)
+        rc = swd_write_word(TARGET_BOOT2, 0);
+#endif
+        if ( !rc)
+        	return false;
+
         flash_code_copied = true;
 	}
     return true;
@@ -400,7 +510,6 @@ static bool core_unhalt_with_masked_ints(void)
     if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_MASKINTS)) {
         return false;
     }
-    cdc_debug_printf("xx %d\n", __LINE__);
     return true;
 }   // core_unhalt_with_masked_ints
 
@@ -459,7 +568,7 @@ bool rp2040_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t *re
     	return false;
 
     // Set the stack pointer to something sensible... (MSP)
-    if ( !swd_write_core_register(13, TARGET_STACK_ADDR))
+    if ( !swd_write_core_register(13, TARGET_STACK))
     	return false;
 
     // Now set the PC to go to our address
@@ -480,7 +589,7 @@ bool rp2040_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t *re
 
     // start execution
     picoprobe_info(".................... execute\n");
-    if ( !core_unhalt())
+    if ( !core_unhalt_with_masked_ints())
     	return false;
 
     // check status
@@ -497,18 +606,21 @@ bool rp2040_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t *re
 
     // Wait until core is halted (again)
     {
-    	int i = 0;
+    	const uint32_t timeout_us = 5000000;
     	bool interrupted = false;
+    	uint32_t start_us = time_us_32();
 
     	while ( !core_is_halted()) {
-    		if (++i > 100) {
+    		uint32_t dt_us = time_us_32() - start_us;
+
+    		if (dt_us > timeout_us) {
     			core_halt();
-    			picoprobe_error("TARGET: ???????????????????? execution timed out %d\n", i);
+    			picoprobe_error("TARGET: ???????????????????? execution timed out after %lu ms\n", dt_us / 1000);
     			interrupted = true;
     		}
     	}
     	if ( !interrupted)
-			picoprobe_info("!!!!!!!!!!!!!!!!!!!! execution finished after %d iterations\n", i);
+			picoprobe_info("!!!!!!!!!!!!!!!!!!!! execution finished after %lu ms\n", (time_us_32() - start_us) / 1000);
     }
 
 #if DEBUG_MODULE
@@ -541,13 +653,22 @@ bool rp2040_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t *re
 
 #define DO_MSC  1
 
+static volatile bool in_function;
+
 bool swd_connect_target(bool write_mode)
 {
+	if (in_function) {
+		picoprobe_info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! reentered swd_connect_target()\n");
+		return false;
+	}
+	in_function = true;
+
     static uint64_t last_trigger_us;
     uint64_t now_us = time_us_64();
     bool ok = true;
 
     if (now_us - last_trigger_us > 1000*1000) {
+        last_trigger_us = now_us;
     	picoprobe_info("========================================================================\n");
 
 #if DO_MSC
@@ -578,19 +699,22 @@ bool swd_connect_target(bool write_mode)
         }
 
         {
-        	uint32_t arg[] = {200, 400, 800, 1600};
+        	//uint32_t arg[] = {200, 400, 800, 1600};
+        	uint32_t arg[] = {DAPLINK_ROM_START, (uint32_t)NULL, 0};
         	uint32_t res;
         	bool rc;
 
             rp2040_copy_code();
         	rc = rp2040_call_function(TARGET_FLASH_BLOCK, arg, sizeof(arg) / sizeof(arg[0]), &res);
-        	picoprobe_info("   result of %lu*%lu = %lu (%d)\n", arg[0], arg[0], res, rc);
+        	picoprobe_info("   result is 0x%lx (%d)\n", res, rc);
         }
 #endif
 
 //        ok = target_set_state(RESET_RUN);
     }
     last_trigger_us = now_us;
+
+    in_function = false;
 
     return ok;
 }   // swd_connect_target
