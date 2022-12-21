@@ -148,42 +148,29 @@ typedef void *(*rom_void_fn)(void);
 typedef void *(*rom_flash_erase_fn)(uint32_t addr, size_t count, uint32_t block_size, uint8_t block_cmd);
 typedef void *(*rom_flash_prog_fn)(uint32_t addr, const uint8_t *data, size_t count);
 
-#define __compiler_barrier() asm volatile("" ::: "memory")
 
-
+// pre: flash connected, post: generic XIP active
 #define FLASH_RANGE_ERASE(OFFS, CNT, BLKSIZE, CMD)             \
     do {                                                       \
-        _flash_enter_cmd_xip();                                \
-        __compiler_barrier();                                  \
-        _connect_internal_flash();                             \
         _flash_exit_xip();                                     \
         _flash_range_erase((OFFS), (CNT), (BLKSIZE), (CMD));   \
         _flash_flush_cache();                                  \
         _flash_enter_cmd_xip();                                \
     } while (0)
 
+// pre: flash connected, post: generic XIP active
 #define FLASH_RANGE_PROGRAM(ADDR, DATA, LEN)                   \
     do {                                                       \
-        _flash_enter_cmd_xip();                                \
-        __compiler_barrier();                                  \
-        _connect_internal_flash();                             \
         _flash_exit_xip();                                     \
         _flash_range_program((ADDR), (DATA), (LEN));           \
         _flash_flush_cache();                                  \
         _flash_enter_cmd_xip();                                \
     } while (0)
 
-#define FLASH_TO_XPI()                                         \
-    do {                                                       \
-        _flash_enter_cmd_xip();                                \
-        __compiler_barrier();                                  \
-        _flash_enter_cmd_xip();                                \
-        __compiler_barrier();                                  \
-        _flash_flush_cache();                                  \
-    } while (0)
-
+// post: flash connected && fast or generic XIP active
 #define FLASH_ENTER_CMD_XIP()                                  \
     do {                                                       \
+        _connect_internal_flash();                             \
         _flash_flush_cache();                                  \
         if (*((uint32_t *)TARGET_BOOT2) == 0xffffffff) {       \
             _flash_enter_cmd_xip();                            \
@@ -224,9 +211,6 @@ FOR_TARGET_CODE uint32_t flash_block(uint32_t addr, uint32_t *src, int length)
     uint32_t res = 0;
 
     // We want to make sure the flash is connected so that we can check its current content
-    _connect_internal_flash();
-    _flash_exit_xip();
-
     FLASH_ENTER_CMD_XIP();
 
     if ((offset & (erase_block_size - 1)) == 0) {
@@ -244,13 +228,9 @@ FOR_TARGET_CODE uint32_t flash_block(uint32_t addr, uint32_t *src, int length)
         }
 
         if ( !already_erased) {
-            _flash_exit_xip();
             FLASH_RANGE_ERASE(offset, erase_block_size, erase_block_size, 0xD8);     // 64K erase
             res |= 0x0001;
         }
-    }
-    else {
-        _flash_exit_xip();
     }
 
     if (src != NULL  &&  length != 0) {
