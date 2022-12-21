@@ -134,8 +134,8 @@ extern char __stop_for_target[];
 #define TARGET_FLASH_BLOCK  ((uint32_t)flash_block - (uint32_t)__start_for_target + TARGET_CODE)
 #define TARGET_BOOT2        0x20020000
 #define TARGET_BOOT2_SIZE   256
+#define TARGET_DATA         0x20000000
 
-#define DATA_BUFFER         0x20000000
 #define FLASH_BASE          0x10000000
 
 static bool flash_code_copied = false;
@@ -150,230 +150,127 @@ typedef void *(*rom_flash_prog_fn)(uint32_t addr, const uint8_t *data, size_t co
 
 #define __compiler_barrier() asm volatile("" ::: "memory")
 
-#if 0
-#define BOOT2_SIZE_WORDS 64
 
-static uint32_t boot2_copyout[BOOT2_SIZE_WORDS];
-static bool boot2_copyout_valid = false;
+#define FLASH_RANGE_ERASE(OFFS, CNT, BLKSIZE, CMD)             \
+    do {                                                       \
+        _flash_enter_cmd_xip();                                \
+        __compiler_barrier();                                  \
+        _connect_internal_flash();                             \
+        _flash_exit_xip();                                     \
+        _flash_range_erase((OFFS), (CNT), (BLKSIZE), (CMD));   \
+        _flash_flush_cache();                                  \
+        _flash_enter_cmd_xip();                                \
+    } while (0)
 
-static void __no_inline_not_in_flash_func(flash_init_boot2_copyout)(void) {
-    if (boot2_copyout_valid)
-        return;
-    for (int i = 0; i < BOOT2_SIZE_WORDS; ++i)
-        boot2_copyout[i] = ((uint32_t *)XIP_BASE)[i];
-    __compiler_memory_barrier();
-    boot2_copyout_valid = true;
-}
+#define FLASH_RANGE_PROGRAM(ADDR, DATA, LEN)                   \
+    do {                                                       \
+        _flash_enter_cmd_xip();                                \
+        __compiler_barrier();                                  \
+        _connect_internal_flash();                             \
+        _flash_exit_xip();                                     \
+        _flash_range_program((ADDR), (DATA), (LEN));           \
+        _flash_flush_cache();                                  \
+        _flash_enter_cmd_xip();                                \
+    } while (0)
 
-static void __no_inline_not_in_flash_func(flash_enable_xip_via_boot2)(void) {
-    ((void (*)(void))boot2_copyout+1)();
-}
+#define FLASH_TO_XPI()                                         \
+    do {                                                       \
+        _flash_enter_cmd_xip();                                \
+        __compiler_barrier();                                  \
+        _flash_enter_cmd_xip();                                \
+        __compiler_barrier();                                  \
+        _flash_flush_cache();                                  \
+    } while (0)
 
-
-flash_init_boot2_copyout();
-
-// No flash accesses after this point
-__compiler_memory_barrier();
-
-connect_internal_flash();
-flash_exit_xip();
-flash_range_erase(flash_offs, count, FLASH_BLOCK_SIZE, FLASH_BLOCK_ERASE_CMD);
-flash_flush_cache(); // Note this is needed to remove CSn IO force as well as cache flushing
-flash_enable_xip_via_boot2();
-#endif
-
-#define FLASH_RANGE_ERASE(OFFS, CNT, BLKSIZE, CMD)           \
-	do {                                                     \
-		_flash_enter_cmd_xip();                              \
-		__compiler_barrier();                                \
-		_connect_internal_flash();                           \
-		_flash_exit_xip();                                   \
-		_flash_range_erase((OFFS), (CNT), (BLKSIZE), (CMD)); \
-		_flash_flush_cache();                                \
-		_flash_enter_cmd_xip();                              \
-	} while (0)
-
-#define FLASH_TO_XPI()                                       \
-	do {                                                     \
-		_flash_enter_cmd_xip();                              \
-		__compiler_barrier();                                \
-		_flash_enter_cmd_xip();                              \
-		__compiler_barrier();                                \
-		_flash_flush_cache();                                \
-	} while (0)
-
-#define FLASH_ENTER_CMD_XIP()                                \
-	do {                                                     \
-		_flash_flush_cache();                                \
-		if (*((uint32_t *)TARGET_BOOT2) == 0) {              \
-			_flash_enter_cmd_xip();                          \
-		}                                                    \
-		else {                                               \
-			((void (*)(void))TARGET_BOOT2+1)();              \
-		}                                                    \
-	} while (0)
-
+#define FLASH_ENTER_CMD_XIP()                                  \
+    do {                                                       \
+        _flash_flush_cache();                                  \
+        if (*((uint32_t *)TARGET_BOOT2) == 0xffffffff) {       \
+            _flash_enter_cmd_xip();                            \
+        }                                                      \
+        else {                                                 \
+            ((void (*)(void))TARGET_BOOT2+1)();                \
+        }                                                      \
+    } while (0)
 
 
 ///
 /// Code should be checked via "arm-none-eabi-objdump -S build/picoprobe.elf"
+/// \param addr     \a DAPLINK_ROM_START....  A 64KByte block will be erased if \a addr is on a 64K boundary
+/// \param src      pointer to source data
+/// \param length   length of data block (256, 512, 1024, 2048 are legal (but unchecked)), packet may not overflow
+///                 into next 64K block
+/// \return         bit0=1 -> page erased, bit1=1->data flashed, bit31=1->data verify failed
 ///
-FOR_TARGET_CODE uint32_t flash_block(uint32_t offset, uint8_t *src, int length)
+/// \note
+///    This version is not optimized and depends on order of incoming sectors
+///
+FOR_TARGET_CODE uint32_t flash_block(uint32_t addr, uint32_t *src, int length)
 {
-	// Fill in the rom functions...
-	rom_table_lookup_fn rom_table_lookup = (rom_table_lookup_fn)rom_hword_as_ptr(0x18);
-	uint16_t            *function_table = (uint16_t *)rom_hword_as_ptr(0x14);
+    // Fill in the rom functions...
+    rom_table_lookup_fn rom_table_lookup = (rom_table_lookup_fn)rom_hword_as_ptr(0x18);
+    uint16_t            *function_table = (uint16_t *)rom_hword_as_ptr(0x14);
 
-	rom_void_fn         _connect_internal_flash = rom_table_lookup(function_table, fn('I', 'F'));
-	rom_void_fn         _flash_exit_xip = rom_table_lookup(function_table, fn('E', 'X'));
-	rom_flash_erase_fn  _flash_range_erase = rom_table_lookup(function_table, fn('R', 'E'));
-//	rom_flash_prog_fn   _flash_range_program = rom_table_lookup(function_table, fn('R', 'P'));
-	rom_void_fn         _flash_flush_cache = rom_table_lookup(function_table, fn('F', 'C'));
-	rom_void_fn         _flash_enter_cmd_xip = rom_table_lookup(function_table, fn('C', 'X'));
+    rom_void_fn         _connect_internal_flash = rom_table_lookup(function_table, fn('I', 'F'));
+    rom_void_fn         _flash_exit_xip = rom_table_lookup(function_table, fn('E', 'X'));
+    rom_flash_erase_fn  _flash_range_erase = rom_table_lookup(function_table, fn('R', 'E'));
+    rom_flash_prog_fn   _flash_range_program = rom_table_lookup(function_table, fn('R', 'P'));
+    rom_void_fn         _flash_flush_cache = rom_table_lookup(function_table, fn('F', 'C'));
+    rom_void_fn         _flash_enter_cmd_xip = rom_table_lookup(function_table, fn('C', 'X'));
 
-	uint32_t res = 0xcafe;
+    const uint32_t erase_block_size = 0x10000;
+    uint32_t offset = addr - DAPLINK_ROM_START;
 
-    // We want to make sure the flash is connected so that we can compare
-	// with it's current contents...
-	_connect_internal_flash();
-	_flash_exit_xip();
+    uint32_t res = 0;
 
-	FLASH_ENTER_CMD_XIP();
+    // We want to make sure the flash is connected so that we can check its current content
+    _connect_internal_flash();
+    _flash_exit_xip();
 
-	if (offset == DAPLINK_ROM_START) {
-		//
-		// erase chip if offset is at beginning of flash
-		//
-		const uint32_t step_64k = 0x10000;
+    FLASH_ENTER_CMD_XIP();
 
-		for (uint32_t offs = 0;  offs < DAPLINK_ROM_SIZE;  offs += step_64k) {
-			bool already_erased = true;
-			uint32_t *a_64k = (uint32_t *)(DAPLINK_ROM_START + offs);
+    if ((offset & (erase_block_size - 1)) == 0) {
+        //
+        // erase 64K page if on 64K boundary
+        //
+        bool already_erased = true;
+        uint32_t *a_64k = (uint32_t *)addr;
 
-			for (int i = 0;  i < step_64k / sizeof(uint32_t);  ++i) {
-				if (a_64k[i] != 0xffffffff) {
-#if 1
-					res = a_64k[i];
-//					res = i;
-//					res = (uint32_t)a_64k;
-#endif
-					already_erased = false;
-					break;
-				}
-			}
+        for (int i = 0; i < erase_block_size / sizeof(uint32_t); ++i) {
+            if (a_64k[i] != 0xffffffff) {
+                already_erased = false;
+                break;
+            }
+        }
 
-			if ( !already_erased)
-			{
-				_flash_exit_xip();
-				FLASH_RANGE_ERASE(offs, step_64k, step_64k, 0xD8);     // 64K erase
-				FLASH_ENTER_CMD_XIP();
-			}
-			break;
-		}
-	}
-	else {
-		res = 0xaa55aa55;
-	}
+        if ( !already_erased) {
+            _flash_exit_xip();
+            FLASH_RANGE_ERASE(offset, erase_block_size, erase_block_size, 0xD8);     // 64K erase
+            res |= 0x0001;
+        }
+    }
+    else {
+        _flash_exit_xip();
+    }
+
+    if (src != NULL  &&  length != 0) {
+        FLASH_RANGE_PROGRAM(offset, (uint8_t *)src, length);
+        res |= 0x0002;
+    }
 
 	FLASH_ENTER_CMD_XIP();
+
+	// does data match?
+	{
+	    for (int i = 0;  i < length / 4;  ++i) {
+	        if (((uint32_t *)addr)[i] != src[i]) {
+	            res |= 0x80000000;
+	            break;
+	        }
+	    }
+	}
 
 	return res;
-
-#if 0
-////
-
-	_connect_internal_flash();
-//    _flash_flush_cache();
-//    _flash_enter_cmd_xip();     // would be better to call the boot stage2 to speed things up
-	_flash_exit_xip();
-
-	// If we are being called with a zero offset, then the block will include the bootloader
-	// so we can just copy it to use later...
-	if (offset == 0) {
-		uint32_t *s = (uint32_t *)src;
-		uint32_t *d = (uint32_t *)BOOT2_START;
-		for (int i=0; i < 64; i++) {
-			*d++ = *s++;
-		}
-	}
-	// Call the second stage bootloader... reconnect XIP
-	((void (*)(void))BOOT2_START+1)();
-
-	// Now lets get started...
-	uint8_t     *changed[3];
-	int         change_count = 0;
-
-	// Go through in 4k chunks seeing if we have deltas...
-	uint8_t     *src_block = src;
-	uint8_t     *dst_block = (uint8_t *)(FLASH_BASE + offset);
-	int         left = length;
-
-
-	while(left > 0) {
-		// Look at this block...
-		uint8_t *s = src_block;
-		uint8_t *d = dst_block;
-		int size = MIN(4096, left);
-		for (int i=0; i < size; i++) {
-			if (*s++ != *d++) {
-				changed[change_count++] = src_block;
-				break;
-			}
-		}
-		if (change_count > 2) break;
-		src_block += 4096;
-		dst_block += 4096;
-		left -= 4096;
-	}
-	if (!change_count) return 0;        // nothing to do
-
-	// turn off xip so we can do stuff...
-	//_connect_internal_flash();      // do we need this?
-	_flash_exit_xip();
-
-	// We will return the number of 4k blocks erased, and the size flashed in this...
-	uint32_t rc = 0;
-
-	if (change_count <= 2) {
-
-		// Program the individual blocks...
-		for (int i = 0; i < change_count; i++) {
-			uint8_t *block = changed[i];
-			uint32_t faddr = offset + (block - src);
-			uint32_t size = MIN(4096, length-offset);
-
-			// erase 4k
-			// program 4k
-			_flash_range_erase(faddr, 4096, 4096, 0x20);      // sector erase (4K)
-			flash_range_program(faddr, block, size);
-			rc += size;
-		}
-		// reconnect xip
-		_flash_flush_cache();
-//        _flash_enter_cmd_xip();
-		// Call the second stage bootloader... reconnect XIP
-		((void (*)(void))BOOT2_START+1)();
-		return (change_count << 24) | rc;
-	}
-
-	// Otherwise we program the whole thing... either 32K (if less than that) or all 64k
-	if (length <= 32768) {
-		_flash_range_erase(offset, 32768, 32768, 0x52); // 32K erase
-		rc = 0x08000000 | length;
-	} else {
-		_flash_range_erase(offset, 65536, 65536, 0xD8); // 64K erase
-		rc = 0x10000000 | length;
-	}
-	// program everything...
-	flash_range_program(offset, src, length);
-	// reconnect xip
-	_flash_flush_cache();
-//    _flash_enter_cmd_xip();
-	// Call the second stage bootloader... reconnect XIP
-	((void (*)(void))BOOT2_START+1)();
-
-	return rc;
-#endif
 }   // flash_block
 
 
@@ -457,7 +354,7 @@ bool rp2040_copy_code(void)
         rc = swd_write_memory(TARGET_BOOT2, (uint8_t *)DAPLINK_ROM_START, TARGET_BOOT2_SIZE);
 #else
         // TODO this means, that the target function fetches the code from the image (actually this could be done here...)
-        rc = swd_write_word(TARGET_BOOT2, 0);
+        rc = swd_write_word(TARGET_BOOT2, 0xffffffff);
 #endif
         if ( !rc)
         	return false;
@@ -699,14 +596,25 @@ bool swd_connect_target(bool write_mode)
         }
 
         {
-        	//uint32_t arg[] = {200, 400, 800, 1600};
-        	uint32_t arg[] = {DAPLINK_ROM_START, (uint32_t)NULL, 0};
+            const uint32_t data[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+                                      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+                                      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+                                      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+                                      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+                                      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+                                      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+                                      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
+
+//        	uint32_t arg[] = {DAPLINK_ROM_START, (uint32_t)NULL, 0};
+        	uint32_t arg[] = {DAPLINK_ROM_START, TARGET_DATA, sizeof(data)};
         	uint32_t res;
         	bool rc;
 
             rp2040_copy_code();
+            rc = swd_write_memory(TARGET_DATA, (uint8_t *)data, sizeof(data));
+            picoprobe_info("   rc is %d\n", rc);
         	rc = rp2040_call_function(TARGET_FLASH_BLOCK, arg, sizeof(arg) / sizeof(arg[0]), &res);
-        	picoprobe_info("   result is 0x%lx (%d)\n", res, rc);
+        	picoprobe_info("   result2 is 0x%lx (%d)\n", res, rc);
         }
 #endif
 
