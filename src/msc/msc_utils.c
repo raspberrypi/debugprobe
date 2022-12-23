@@ -36,6 +36,7 @@
 #include "DAP_config.h"
 #include "DAP.h"
 #include "daplink_addr.h"
+#include "rp2040.h"
 
 #define DBG_Addr     (0xe000edf0)
 #include "debug_cm.h"
@@ -118,10 +119,10 @@
 //
 // Memory Map on target for programming:
 //
-// 0x2000 0000      64K incoming data buffer
+// 0x2000 0000      (max) 64K incoming data buffer
 // 0x2001 0000      start of code
-// 0x2002 0000      stage2 bootloader copy
-// 0x2004 0800      top of stack
+// 0x2002 0000      stage2 bootloader copy (256 bytes)
+// 0x2003 0800      top of stack
 //
 
 
@@ -137,8 +138,6 @@ extern char __stop_for_target[];
 #define TARGET_DATA         0x20000000
 
 #define FLASH_BASE          0x10000000
-
-static bool flash_code_copied = false;
 
 #define rom_hword_as_ptr(rom_address) (void *)(uintptr_t)(*(uint16_t *)rom_address)
 #define fn(a, b)        (uint32_t)((b << 8) | a)
@@ -259,7 +258,7 @@ FOR_TARGET_CODE uint32_t flash_block(uint32_t addr, uint32_t *src, int length)
 
 
 // Read 16-bit word from target memory.
-uint8_t swd_read_word16(uint32_t addr, uint16_t *val)
+static uint8_t swd_read_word16(uint32_t addr, uint16_t *val)
 {
 	uint8_t v1, v2;
 
@@ -279,7 +278,10 @@ uint8_t swd_read_word16(uint32_t addr, uint16_t *val)
 #define BOOTROM_MAGIC_ADDR 0x00000010
 
 
-uint32_t rp2040_find_rom_func(char ch1, char ch2)
+//
+// find a function in the bootrom, see RP2040 datasheet, chapter 2.8
+//
+static uint32_t target_find_rom_func(char ch1, char ch2)
 {
 	uint16_t tag = (ch2 << 8) | ch1;
 
@@ -311,84 +313,7 @@ uint32_t rp2040_find_rom_func(char ch1, char ch2)
 		tabaddr += 4;
 	} while (value != 0);
 	return 0;
-}   // rp2040_find_rom_func
-
-
-
-bool rp2040_copy_code(void)
-{
-    bool rc;
-
-    if ( !flash_code_copied)
-    {
-        int code_len = (__stop_for_target - __start_for_target);
-
-        picoprobe_info("FLASH: Copying custom flash code to 0x%08x (%d bytes)\r\n", TARGET_CODE, code_len);
-        rc = swd_write_memory(TARGET_CODE, (uint8_t *)__start_for_target, code_len);
-        if ( !rc)
-        	return false;
-
-#if 1
-        // this works only if target and probe have the same BOOT2 code
-        picoprobe_info("FLASH: Copying BOOT2 code to 0x%08x (%d bytes)\r\n", TARGET_BOOT2, TARGET_BOOT2_SIZE);
-        rc = swd_write_memory(TARGET_BOOT2, (uint8_t *)DAPLINK_ROM_START, TARGET_BOOT2_SIZE);
-#else
-        // TODO this means, that the target function fetches the code from the image (actually this could be done here...)
-        rc = swd_write_word(TARGET_BOOT2, 0xffffffff);
-#endif
-        if ( !rc)
-        	return false;
-
-        flash_code_copied = true;
-	}
-    return true;
-}   // rp2040_copy_code
-
-
-
-static bool core_is_halted(void)
-{
-	uint32_t value;
-
-	if ( !swd_read_word(DBG_HCSR, &value))
-		return false;
-	if (value & S_HALT)
-		return true;
-	return false;
-}   // core_is_halted
-
-
-
-static bool core_halt(void)
-{
-	if ( !swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_MASKINTS | C_HALT)) {
-        return false;
-    }
-
-    while ( !core_is_halted())
-    	;
-    return true;
-}   // core_halt
-
-
-
-static bool core_unhalt(void)
-{
-    if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN)) {
-        return false;
-    }
-    return true;
-}   // core_unhalt
-
-
-
-static bool core_unhalt_with_masked_ints(void)
-{
-    if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_MASKINTS)) {
-        return false;
-    }
-    return true;
-}   // core_unhalt_with_masked_ints
+}   // target_find_rom_func
 
 
 
@@ -417,20 +342,20 @@ static bool display_reg(uint8_t num)
 ///    - target MCU must be connected
 ///    - code must be already uploaded to target
 //
-bool rp2040_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t *result)
+static bool target_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t *result)
 {
     static uint32_t trampoline_addr = 0;  // trampoline is fine to get the return value of the callee
     static uint32_t trampoline_end;
 
-    if ( !core_halt())
+    if ( !rp2040_core_halt())
     	return false;
 
     assert(argc <= 4);
 
     // First get the trampoline address...  (actually not required, because the functions reside in RAM...)
     if (trampoline_addr == 0) {
-        trampoline_addr = rp2040_find_rom_func('D', 'T');
-        trampoline_end = rp2040_find_rom_func('D', 'E');
+        trampoline_addr = target_find_rom_func('D', 'T');
+        trampoline_end = target_find_rom_func('D', 'E');
         if (trampoline_addr == 0  ||  trampoline_end == 0)
         	return false;
     }
@@ -456,7 +381,7 @@ bool rp2040_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t *re
     if ( !swd_write_core_register(16, (1 << 24)))
     	return false;
 
-    if ( !core_halt())
+    if ( !rp2040_core_halt())
     	return false;
 
 #if DEBUG_MODULE
@@ -465,8 +390,8 @@ bool rp2040_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t *re
 #endif
 
     // start execution
-    picoprobe_info(".................... execute\n");
-    if ( !core_unhalt_with_masked_ints())
+//    picoprobe_info(".................... execute\n");
+    if ( !rp2040_core_unhalt_with_masked_ints())
     	return false;
 
     // check status
@@ -487,17 +412,18 @@ bool rp2040_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t *re
     	bool interrupted = false;
     	uint32_t start_us = time_us_32();
 
-    	while ( !core_is_halted()) {
+    	while ( !rp2040_core_is_halted()) {
     		uint32_t dt_us = time_us_32() - start_us;
 
     		if (dt_us > timeout_us) {
-    			core_halt();
-    			picoprobe_error("TARGET: ???????????????????? execution timed out after %lu ms\n", dt_us / 1000);
+    			rp2040_core_halt();
+    			picoprobe_error("target_call_function: execution timed out after %lu ms\n", dt_us / 1000);
     			interrupted = true;
     		}
     	}
-    	if ( !interrupted)
-			picoprobe_info("!!!!!!!!!!!!!!!!!!!! execution finished after %lu ms\n", (time_us_32() - start_us) / 1000);
+    	if ( !interrupted) {
+			picoprobe_debug("target_call_function: execution finished after %lu ms\n", (time_us_32() - start_us) / 1000);
+    	}
     }
 
 #if DEBUG_MODULE
@@ -519,18 +445,59 @@ bool rp2040_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t *re
     	}
 
 		if (r15 != (trampoline_end & 0xfffffffe)) {
-			picoprobe_error("rp2040_call_function: invoked target function did not run til end: 0x%0lx != 0x%0lx\n", r15, trampoline_end);
+			picoprobe_error("target_call_function: invoked target function did not run til end: 0x%0lx != 0x%0lx\n", r15, trampoline_end);
 			return false;
 		}
     }
     return true;
-}   // rp2040_call_function
+}   // target_call_function
 
 
-
-#define DO_MSC  0
 
 static volatile bool in_function;
+static volatile bool is_connected;
+
+
+
+static bool target_copy_flash_code(void)
+{
+    bool rc;
+    int code_len = (__stop_for_target - __start_for_target);
+
+    picoprobe_info("FLASH: Copying custom flash code to 0x%08x (%d bytes)\r\n", TARGET_CODE, code_len);
+    rc = swd_write_memory(TARGET_CODE, (uint8_t *)__start_for_target, code_len);
+    if ( !rc)
+        return false;
+
+#if 1
+    // this works only if target and probe have the same BOOT2 code
+    picoprobe_info("FLASH: Copying BOOT2 code to 0x%08x (%d bytes)\r\n", TARGET_BOOT2, TARGET_BOOT2_SIZE);
+    rc = swd_write_memory(TARGET_BOOT2, (uint8_t *)DAPLINK_ROM_START, TARGET_BOOT2_SIZE);
+#else
+    // TODO this means, that the target function fetches the code from the image (actually this could be done here...)
+    rc = swd_write_word(TARGET_BOOT2, 0xffffffff);
+#endif
+    if ( !rc)
+        return false;
+
+    return true;
+}   // target_copy_flash_code
+
+
+
+bool target_disconnect(void)
+{
+    bool ok = true;
+
+    if (is_connected) {
+        picoprobe_info("======================================================================== disconnect\n");
+        ok = target_set_state(RESET_RUN);
+        is_connected = false;
+    }
+    return ok;
+}   // target_disconnect
+
+
 
 bool target_connect(bool write_mode)
 {
@@ -544,61 +511,17 @@ bool target_connect(bool write_mode)
     uint64_t now_us = time_us_64();
     bool ok = true;
 
-    if (now_us - last_trigger_us > 1000*1000) {
-        last_trigger_us = now_us;
+    if ( !is_connected  ||  now_us - last_trigger_us > 1000*1000) {
     	picoprobe_info("========================================================================\n");
 
         ok = target_set_state(RESET_PROGRAM);
         picoprobe_info("---------------------------------- %d\n", ok);
-#if DO_MSC
 
-        //
-        // simple test to read some memory
-        //
-        if (0) {
-        	uint8_t buff[32];
-        	uint8_t r;
-
-        	picoprobe_info("---------------------------------- buff:\n");
-        	memset(buff, 0xaa, sizeof(buff));
-        	r = swd_read_memory(0x10000000, buff,  sizeof(buff));
-        	picoprobe_info("   %u -", r);
-        	for (int i = 0;  i < sizeof(buff);  ++i)
-        		picoprobe_info(" %02x", buff[i]);
-        	picoprobe_info("\n");
-        	memset(buff, 0xaa, sizeof(buff));
-        	r = swd_read_memory(0x10000000, buff,  sizeof(buff));
-        	picoprobe_info("   %u -", r);
-        	for (int i = 0;  i < sizeof(buff);  ++i)
-        		picoprobe_info(" %02x", buff[i]);
-        	picoprobe_info("\n");
-            picoprobe_info("----------------------------------\n");
+        if (ok) {
+            target_copy_flash_code();
         }
 
-        {
-            const uint32_t data[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
-                                      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
-                                      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
-                                      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
-                                      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
-                                      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
-                                      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
-                                      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
-
-//        	uint32_t arg[] = {DAPLINK_ROM_START, (uint32_t)NULL, 0};
-        	uint32_t arg[] = {DAPLINK_ROM_START, TARGET_DATA, sizeof(data)};
-        	uint32_t res;
-        	bool rc;
-
-            rp2040_copy_code();
-            rc = swd_write_memory(TARGET_DATA, (uint8_t *)data, sizeof(data));
-            picoprobe_info("   rc is %d\n", rc);
-        	rc = rp2040_call_function(TARGET_FLASH_BLOCK, arg, sizeof(arg) / sizeof(arg[0]), &res);
-        	picoprobe_info("   result2 is 0x%lx (%d)\n", res, rc);
-        }
-#endif
-
-//        ok = target_set_state(RESET_RUN);
+        is_connected = ok;
     }
     last_trigger_us = now_us;
 
@@ -659,6 +582,8 @@ bool is_uf2_record(const void *sector, uint32_t sector_size)
 
 bool target_write_memory(const struct uf2_block *uf2)
 {
+    picoprobe_info("target_write_memory(0x%lx, %ld, %ld)\n", uf2->target_addr, uf2->block_no, uf2->num_blocks);
+
 #if 1
     uint32_t arg[3];
     bool r;
@@ -668,16 +593,20 @@ bool target_write_memory(const struct uf2_block *uf2)
     arg[1] = TARGET_DATA;
     arg[2] = uf2->payload_size;
 
-    rp2040_copy_code();
     r = swd_write_memory(TARGET_DATA, (uint8_t *)uf2->data, uf2->payload_size);
-    picoprobe_info("   rc is %d\n", r);
+//    picoprobe_info("   rc is %d\n", r);
     if (r) {
-        r = rp2040_call_function(TARGET_FLASH_BLOCK, arg, sizeof(arg) / sizeof(arg[0]), &res);
-        picoprobe_info("   result2 is 0x%lx (%d)\n", res, r);
+        r = target_call_function(TARGET_FLASH_BLOCK, arg, sizeof(arg) / sizeof(arg[0]), &res);
+//        picoprobe_info("   result2 is 0x%lx (%d)\n", res, r);
+        if (res & 0x80000000)
+            r = false;
+        if (r  &&  uf2->block_no + 1  ==  uf2->num_blocks) {
+            r = target_disconnect();
+        }
     }
     return r;
 #else
-    picoprobe_info("target_write_memory(0x%lx)\n", uf2->target_addr);
+    // empty run to check transfer speed
     return true;
 #endif
 }   // target_write_memory

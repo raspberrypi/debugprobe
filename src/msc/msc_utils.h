@@ -39,6 +39,7 @@
 
 
 bool target_connect(bool write_mode);
+bool target_disconnect(void);
 bool target_write_memory(const struct uf2_block *uf2);
 bool target_read_memory(struct uf2_block *uf2, uint32_t target_addr, uint32_t block_no, uint32_t num_blocks);
 
