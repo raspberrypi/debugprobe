@@ -31,9 +31,6 @@
  * the target must be already connected.
  */
 
-#include "FreeRTOS.h"
-#include "task.h"
-
 #include "tusb.h"
 
 #include "picoprobe_config.h"

@@ -31,6 +31,11 @@
 
 #include "msc_utils.h"
 
+#include "FreeRTOS.h"
+#include "semphr.h"
+#include "task.h"
+#include "timers.h"
+
 #include "target_family.h"
 #include "swd_host.h"
 #include "DAP_config.h"
@@ -43,6 +48,11 @@
 
 
 #define DEBUG_MODULE    0
+
+static SemaphoreHandle_t semaSwdInUse;
+static TimerHandle_t     timerDisconnect;
+static void *timerDisconnectId;
+
 
 #if 0
 	/*
@@ -454,7 +464,6 @@ static bool target_call_function(uint32_t addr, uint32_t args[], int argc, uint3
 
 
 
-static volatile bool in_function;
 static volatile bool is_connected;
 
 
@@ -485,34 +494,42 @@ static bool target_copy_flash_code(void)
 
 
 
-bool target_disconnect(void)
+///
+/// Disconnect probe from the target and start the target.
+/// Called by software timer.
+///
+static void target_disconnect(TimerHandle_t xTimer)
 {
-    bool ok = true;
-
-    if (is_connected) {
-        picoprobe_info("======================================================================== disconnect\n");
-        ok = target_set_state(RESET_RUN);
-        is_connected = false;
+    if (xSemaphoreTake(semaSwdInUse, 0)) {
+        if (is_connected) {
+            picoprobe_info("======================================================================== disconnect\n");
+            target_set_state(RESET_RUN);
+            is_connected = false;
+        }
+        xSemaphoreGive(semaSwdInUse);
     }
-    return ok;
+    else {
+        xTimerReset(xTimer, pdMS_TO_TICKS(1000));
+    }
 }   // target_disconnect
 
 
 
+///
+/// Connect the probe to the target.
+/// This function must be called on every read/write to retrigger the disconnect functionality.
+///
 bool target_connect(bool write_mode)
 {
-	if (in_function) {
-		picoprobe_info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! reentered target_connect()\n");
-		return false;
-	}
-	in_function = true;
-
     static uint64_t last_trigger_us;
-    uint64_t now_us = time_us_64();
-    bool ok = true;
+    uint64_t now_us;
+    bool ok;
 
+    xSemaphoreTake(semaSwdInUse, portMAX_DELAY);
+    now_us = time_us_64();
+    ok = true;
     if ( !is_connected  ||  now_us - last_trigger_us > 1000*1000) {
-    	picoprobe_info("========================================================================\n");
+        picoprobe_info("======================================================================== connect\n");
 
         ok = target_set_state(RESET_PROGRAM);
         picoprobe_info("---------------------------------- %d\n", ok);
@@ -524,9 +541,8 @@ bool target_connect(bool write_mode)
         is_connected = ok;
     }
     last_trigger_us = now_us;
-
-    in_function = false;
-
+    xTimerReset(timerDisconnect, pdMS_TO_TICKS(1000));
+    xSemaphoreGive(semaSwdInUse);
     return ok;
 }   // target_connect
 
@@ -589,6 +605,7 @@ bool target_write_memory(const struct uf2_block *uf2)
     bool r;
     uint32_t res;
 
+    xSemaphoreTake(semaSwdInUse, portMAX_DELAY);
     arg[0] = uf2->target_addr;
     arg[1] = TARGET_DATA;
     arg[2] = uf2->payload_size;
@@ -600,10 +617,8 @@ bool target_write_memory(const struct uf2_block *uf2)
 //        picoprobe_info("   result2 is 0x%lx (%d)\n", res, r);
         if (res & 0x80000000)
             r = false;
-        if (r  &&  uf2->block_no + 1  ==  uf2->num_blocks) {
-            r = target_disconnect();
-        }
     }
+    xSemaphoreGive(semaSwdInUse);
     return r;
 #else
     // empty run to check transfer speed
@@ -616,9 +631,33 @@ bool target_write_memory(const struct uf2_block *uf2)
 bool target_read_memory(struct uf2_block *uf2, uint32_t target_addr, uint32_t block_no, uint32_t num_blocks)
 {
     const uint32_t payload_size = 256;
+    bool ok;
 
     static_assert(payload_size <= sizeof(uf2->data));
 
+    xSemaphoreTake(semaSwdInUse, portMAX_DELAY);
     setup_uf2_record(uf2, target_addr, payload_size, block_no, num_blocks);
-    return swd_read_memory(target_addr, uf2->data, payload_size);
+    ok = swd_read_memory(target_addr, uf2->data, payload_size);
+    xSemaphoreGive(semaSwdInUse);
+    return ok;
 }   // target_read_memory
+
+
+
+void msc_init(void)
+{
+    picoprobe_info("------------msc_init\n");
+
+    semaSwdInUse = xSemaphoreCreateBinary();
+    if (semaSwdInUse == NULL) {
+        picoprobe_error("msc_init: cannot create semaSwdInUse\n");
+    }
+    else {
+        xSemaphoreGive(semaSwdInUse);
+    }
+
+    timerDisconnect = xTimerCreate("timerDisconnect", pdMS_TO_TICKS(100), pdFALSE, timerDisconnectId, target_disconnect);
+    if (timerDisconnect == NULL) {
+        picoprobe_error("msc_init: cannot create timerDisconnect\n");
+    }
+}   // msc_init
