@@ -38,9 +38,11 @@
 #endif
 
 
-bool swd_connect_target(bool write_mode);
-void setup_uf2_record(struct uf2_block *uf2, uint32_t target_addr, uint32_t payload_size, uint32_t block_no, uint32_t num_blocks);
+bool target_connect(bool write_mode);
+bool target_write_memory(const struct uf2_block *uf2);
+bool target_read_memory(struct uf2_block *uf2, uint32_t target_addr, uint32_t block_no, uint32_t num_blocks);
 
+bool is_uf2_record(const void *sector, uint32_t sector_size);
 
 #ifdef __cplusplus
     }

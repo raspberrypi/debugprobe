@@ -528,14 +528,14 @@ bool rp2040_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t *re
 
 
 
-#define DO_MSC  1
+#define DO_MSC  0
 
 static volatile bool in_function;
 
-bool swd_connect_target(bool write_mode)
+bool target_connect(bool write_mode)
 {
 	if (in_function) {
-		picoprobe_info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! reentered swd_connect_target()\n");
+		picoprobe_info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! reentered target_connect()\n");
 		return false;
 	}
 	in_function = true;
@@ -548,9 +548,9 @@ bool swd_connect_target(bool write_mode)
         last_trigger_us = now_us;
     	picoprobe_info("========================================================================\n");
 
-#if DO_MSC
         ok = target_set_state(RESET_PROGRAM);
         picoprobe_info("---------------------------------- %d\n", ok);
+#if DO_MSC
 
         //
         // simple test to read some memory
@@ -605,7 +605,7 @@ bool swd_connect_target(bool write_mode)
     in_function = false;
 
     return ok;
-}   // swd_connect_target
+}   // target_connect
 
 
 
@@ -621,3 +621,75 @@ void setup_uf2_record(struct uf2_block *uf2, uint32_t target_addr, uint32_t payl
     uf2->file_size    = RP2040_FAMILY_ID;
     uf2->magic_end    = UF2_MAGIC_END;
 }   // setup_uf2_record
+
+
+
+bool is_uf2_record(const void *sector, uint32_t sector_size)
+{
+    const uint32_t payload_size = 256;
+    bool r = false;
+
+    if (sector_size >= sizeof(struct uf2_block)) {
+        const struct uf2_block *uf2 = (const struct uf2_block *)sector;
+
+        if (    uf2->magic_start0 == UF2_MAGIC_START0
+            &&  uf2->magic_start1 == UF2_MAGIC_START1
+            &&  uf2->magic_end == UF2_MAGIC_END
+            &&  uf2->block_no < uf2->num_blocks
+            &&  uf2->payload_size == payload_size
+            &&  uf2->target_addr >= DAPLINK_ROM_START
+            &&  uf2->target_addr - payload_size * uf2->block_no >= DAPLINK_ROM_START             // could underflow
+            &&  uf2->target_addr - payload_size * uf2->block_no + payload_size * uf2->num_blocks
+                        <= DAPLINK_ROM_START + DAPLINK_ROM_SIZE) {
+            if ((uf2->flags & UF2_FLAG_FAMILY_ID_PRESENT) != 0) {
+                if (uf2->file_size == RP2040_FAMILY_ID) {
+                    r = true;
+                }
+            }
+            else {
+                r = true;
+            }
+        }
+
+    }
+    return r;
+}   //is_uf2_record
+
+
+
+bool target_write_memory(const struct uf2_block *uf2)
+{
+#if 1
+    uint32_t arg[3];
+    bool r;
+    uint32_t res;
+
+    arg[0] = uf2->target_addr;
+    arg[1] = TARGET_DATA;
+    arg[2] = uf2->payload_size;
+
+    rp2040_copy_code();
+    r = swd_write_memory(TARGET_DATA, (uint8_t *)uf2->data, uf2->payload_size);
+    picoprobe_info("   rc is %d\n", r);
+    if (r) {
+        r = rp2040_call_function(TARGET_FLASH_BLOCK, arg, sizeof(arg) / sizeof(arg[0]), &res);
+        picoprobe_info("   result2 is 0x%lx (%d)\n", res, r);
+    }
+    return r;
+#else
+    picoprobe_info("target_write_memory(0x%lx)\n", uf2->target_addr);
+    return true;
+#endif
+}   // target_write_memory
+
+
+
+bool target_read_memory(struct uf2_block *uf2, uint32_t target_addr, uint32_t block_no, uint32_t num_blocks)
+{
+    const uint32_t payload_size = 256;
+
+    static_assert(payload_size <= sizeof(uf2->data));
+
+    setup_uf2_record(uf2, target_addr, payload_size, block_no, num_blocks);
+    return swd_read_memory(target_addr, uf2->data, payload_size);
+}   // target_read_memory

@@ -35,11 +35,11 @@
 #include "task.h"
 
 #include "tusb.h"
+
 #include "picoprobe_config.h"
 #include "boot/uf2.h"                // this is the Pico variant of the UF2 header
 
 #include "daplink_addr.h"
-#include "swd_host.h"
 
 #include "probe.h"
 #include "msc_utils.h"
@@ -474,18 +474,15 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
         uint32_t block_no     = lba - f_CurrentUF2StartSector;
         uint32_t target_addr  = payload_size * block_no + RP2040_IMG_BASE;
         struct uf2_block *uf2 = (struct uf2_block *)buffer;
-        bool connected;
 
         static_assert(BPB_BytsPerSec == 512);
+        static_assert(payload_size <= sizeof(uf2->data));
+        assert(bufsize >= sizeof(*uf2));
 
 //        picoprobe_debug("  CURRENT.UF2 0x%lx\n", target_addr);
-        setup_uf2_record(uf2, target_addr, payload_size, block_no, num_blocks);
         r = -1;
-        connected = swd_connect_target(false);
-        if (connected)
-        {
-//            if (swd_read_memory(target_addr, uf2->data, payload_size) != 0)
-            {
+        if (target_connect(false)) {
+            if (target_read_memory(uf2, target_addr, block_no, num_blocks) != 0) {
                 r = BPB_BytsPerSec;
             }
         }
@@ -498,18 +495,15 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
         uint32_t block_no     = lba - f_RAMUF2StartSector;
         uint32_t target_addr  = payload_size * block_no + RP2040_RAM_IMG_BASE;
         struct uf2_block *uf2 = (struct uf2_block *)buffer;
-        bool connected;
 
         static_assert(BPB_BytsPerSec == 512);
+        static_assert(payload_size <= sizeof(uf2->data));
+        assert(bufsize >= sizeof(*uf2));
 
         picoprobe_info("  RAM.UF2 0x%lx\n", target_addr);
-        setup_uf2_record(uf2, target_addr, payload_size, block_no, num_blocks);
         r = -1;
-        connected = swd_connect_target(false);
-        if (connected)
-        {
-//            if (swd_read_memory(target_addr, uf2->data, payload_size) != 0)
-            {
+        if (target_connect(false)) {
+            if (target_read_memory(uf2, target_addr, block_no, num_blocks) != 0) {
                 r = BPB_BytsPerSec;
             }
         }
@@ -545,7 +539,7 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
 
     (void)lun;
 
-    picoprobe_info("tud_msc_write10_cb(%d, %lu, %lu, 0x%p, %lu)\n", lun, lba, offset, buffer, bufsize);
+//    picoprobe_info("tud_msc_write10_cb(%d, %lu, %lu, 0x%p, %lu)\n", lun, lba, offset, buffer, bufsize);
     
     if (lba >= BPB_TotSec16)
         return -1;
@@ -562,36 +556,22 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
         picoprobe_info("  ROOTDIR\n");
         r = MIN(bufsize, BPB_BytsPerSec);
     }
-    else if (lba >= f_ReadmeStartSector  &&  lba < f_ReadmeStartSector + f_ReadmeSectors) {
-        picoprobe_info("  README\n");
-        r = BPB_BytsPerSec;
-    }
-    else if (lba >= f_InfoUF2TxtStartSector  &&  lba < f_InfoUF2TxtStartSector + f_InfoUF2TxtSectors) {
-        picoprobe_info("  INFO_UF2.TXT\n");
-        r = BPB_BytsPerSec;
-    }
-    else if (lba >= f_IndexHtmStartSector  &&  lba < f_IndexHtmStartSector + f_IndexHtmSectors) {
-        picoprobe_info("  INDEX.HTM\n");
-        r = BPB_BytsPerSec;
-    }
-    else if (lba >= f_CurrentUF2StartSector  &&  lba < f_CurrentUF2StartSector + f_CurrentUF2Sectors) {
-        picoprobe_info("  CURRENT.UF2\n");
-        r = BPB_BytsPerSec;
-    }
-#ifdef INCLUDE_RAM_UTF2
-    else if (lba >= f_RAMUF2StartSector  &&  lba < f_RAMUF2StartSector + f_RAMUF2Sectors) {
-        picoprobe_info("  RAM.UF2\n");
-        r = BPB_BytsPerSec;
-    }
-#endif
     else {
-        picoprobe_info("  OTHER\n");
+        r = -1;
+//        picoprobe_info("  tud_msc_write10_cb: check if UF2 data\n");
+        if (is_uf2_record(buffer,  bufsize)) {
+            if (target_connect(true)) {
+                if (target_write_memory((struct uf2_block *)buffer) != 0) {
+                    static_assert(sizeof(struct uf2_block) == 512);
+                    r = sizeof(struct uf2_block);
+                }
+            }
+        }
     }
 
     last_write_ms = (uint32_t)(time_us_64() / 1000);
-
     return r;
-}
+}   // tud_msc_write10_cb
 
 
 
