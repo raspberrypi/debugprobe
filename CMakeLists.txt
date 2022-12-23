@@ -95,6 +95,10 @@ target_link_libraries(picoprobe PRIVATE
         FreeRTOS-Kernel-Heap1
 )
 
+#
+# code resides in flash (in former versions it was in RAM)
+# if you want to force single functions into RAM, use "__no_inline_not_in_flash_func()" from platform.h
+# 
 pico_set_binary_type(picoprobe default)
 
 pico_add_extra_outputs(picoprobe)
