@@ -139,15 +139,15 @@ static void *timerDisconnectId;
 extern char __start_for_target[];
 extern char __stop_for_target[];
 
-#define FOR_TARGET_CODE     __attribute__((noinline, section("for_target")))
-#define TARGET_CODE         0x20010000
-#define TARGET_STACK        0x20030800
-#define TARGET_FLASH_BLOCK  ((uint32_t)flash_block - (uint32_t)__start_for_target + TARGET_CODE)
-#define TARGET_BOOT2        0x20020000
-#define TARGET_BOOT2_SIZE   256
-#define TARGET_DATA         0x20000000
-
-#define FLASH_BASE          0x10000000
+#define FOR_TARGET_CODE        __attribute__((noinline, section("for_target")))
+#define TARGET_CODE            0x20010000
+#define TARGET_STACK           0x20030800
+#define TARGET_FLASH_BLOCK     ((uint32_t)flash_block - (uint32_t)__start_for_target + TARGET_CODE)
+#define TARGET_BOOT2           0x20020000
+#define TARGET_BOOT2_SIZE      256
+#define TARGET_ERASE_MAP       0x20020100
+#define TARGET_ERASE_MAP_SIZE  256
+#define TARGET_DATA            0x20000000
 
 #define rom_hword_as_ptr(rom_address) (void *)(uintptr_t)(*(uint16_t *)rom_address)
 #define fn(a, b)        (uint32_t)((b << 8) | a)
@@ -196,7 +196,8 @@ typedef void *(*rom_flash_prog_fn)(uint32_t addr, const uint8_t *data, size_t co
 /// \param src      pointer to source data
 /// \param length   length of data block (256, 512, 1024, 2048 are legal (but unchecked)), packet may not overflow
 ///                 into next 64K block
-/// \return         bit0=1 -> page erased, bit1=1->data flashed, bit31=1->data verify failed
+/// \return         bit0=1 -> page erased, bit1=1->data flashed,
+///                 bit31=1->data verify failed, bit30=1->illegal address
 ///
 /// \note
 ///    This version is not optimized and depends on order of incoming sectors
@@ -214,15 +215,19 @@ FOR_TARGET_CODE uint32_t flash_block(uint32_t addr, uint32_t *src, int length)
     rom_void_fn         _flash_flush_cache = rom_table_lookup(function_table, fn('F', 'C'));
     rom_void_fn         _flash_enter_cmd_xip = rom_table_lookup(function_table, fn('C', 'X'));
 
-    const uint32_t erase_block_size = 0x10000;
-    uint32_t offset = addr - DAPLINK_ROM_START;
-
+    const uint32_t erase_block_size = 0x10000;        // if this is changed, then some logic below has to changed as well
+    uint32_t offset = addr - DAPLINK_ROM_START;       // this is actually the physical flash address
+    uint32_t erase_map_offset = (offset >> 16);       // 64K per map entry
+    uint8_t *erase_map_entry = ((uint8_t *)TARGET_ERASE_MAP) + erase_map_offset;
     uint32_t res = 0;
+
+    if (offset > DAPLINK_ROM_SIZE)
+        return 0x40000000;
 
     // We want to make sure the flash is connected so that we can check its current content
     FLASH_ENTER_CMD_XIP();
 
-    if ((offset & (erase_block_size - 1)) == 0) {
+    if (*erase_map_entry == 0) {
         //
         // erase 64K page if on 64K boundary
         //
@@ -240,6 +245,7 @@ FOR_TARGET_CODE uint32_t flash_block(uint32_t addr, uint32_t *src, int length)
             FLASH_RANGE_ERASE(offset, erase_block_size, erase_block_size, 0xD8);     // 64K erase
             res |= 0x0001;
         }
+        *erase_map_entry = 0xff;
     }
 
     if (src != NULL  &&  length != 0) {
@@ -432,7 +438,10 @@ static bool target_call_function(uint32_t addr, uint32_t args[], int argc, uint3
     		}
     	}
     	if ( !interrupted) {
-			picoprobe_debug("target_call_function: execution finished after %lu ms\n", (time_us_32() - start_us) / 1000);
+    	    uint32_t dt_ms = (time_us_32() - start_us) / 1000;
+    	    if (dt_ms > 10) {
+    	        picoprobe_debug("target_call_function: execution finished after %lu ms\n", dt_ms);
+    	    }
     	}
     }
 
@@ -470,24 +479,30 @@ static volatile bool is_connected;
 
 static bool target_copy_flash_code(void)
 {
-    bool rc;
     int code_len = (__stop_for_target - __start_for_target);
 
     picoprobe_info("FLASH: Copying custom flash code to 0x%08x (%d bytes)\r\n", TARGET_CODE, code_len);
-    rc = swd_write_memory(TARGET_CODE, (uint8_t *)__start_for_target, code_len);
-    if ( !rc)
+    if ( !swd_write_memory(TARGET_CODE, (uint8_t *)__start_for_target, code_len))
         return false;
 
+    // clear TARGET_ERASE_MAP
+    for (int i = 0;  i < TARGET_ERASE_MAP_SIZE;  i += sizeof(uint32_t)) {
+        if ( !swd_write_word(TARGET_ERASE_MAP + i, 0)) {
+            return false;
+        }
+    }
+
+    // copy BOOT2 code (TODO make it right)
 #if 1
     // this works only if target and probe have the same BOOT2 code
     picoprobe_info("FLASH: Copying BOOT2 code to 0x%08x (%d bytes)\r\n", TARGET_BOOT2, TARGET_BOOT2_SIZE);
-    rc = swd_write_memory(TARGET_BOOT2, (uint8_t *)DAPLINK_ROM_START, TARGET_BOOT2_SIZE);
+    if ( !swd_write_memory(TARGET_BOOT2, (uint8_t *)DAPLINK_ROM_START, TARGET_BOOT2_SIZE))
+        return false;
 #else
     // TODO this means, that the target function fetches the code from the image (actually this could be done here...)
-    rc = swd_write_word(TARGET_BOOT2, 0xffffffff);
-#endif
-    if ( !rc)
+    if ( !swd_write_word(TARGET_BOOT2, 0xffffffff))
         return false;
+#endif
 
     return true;
 }   // target_copy_flash_code
@@ -615,9 +630,12 @@ bool target_write_memory(const struct uf2_block *uf2)
     if (r) {
         r = target_call_function(TARGET_FLASH_BLOCK, arg, sizeof(arg) / sizeof(arg[0]), &res);
 //        picoprobe_info("   result2 is 0x%lx (%d)\n", res, r);
-        if (res & 0x80000000)
+        if (res & 0xf0000000) {
+            picoprobe_error("target_write_memory: target operation returned 0x%lx\n", res);
             r = false;
+        }
     }
+    xTimerReset(timerDisconnect, pdMS_TO_TICKS(10));    // the above operation could take several 100ms!
     xSemaphoreGive(semaSwdInUse);
     return r;
 #else
