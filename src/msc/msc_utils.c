@@ -32,6 +32,7 @@
 #include "msc_utils.h"
 
 #include "FreeRTOS.h"
+#include "message_buffer.h"
 #include "semphr.h"
 #include "task.h"
 #include "timers.h"
@@ -49,9 +50,14 @@
 
 #define DEBUG_MODULE    0
 
-static SemaphoreHandle_t semaSwdInUse;
-static TimerHandle_t     timerDisconnect;
-static void *timerDisconnectId;
+#define TARGET_WRITER_THREAD_PRIO           (tskIDLE_PRIORITY + 10)
+#define TARGET_WRITER_THREAD_MSGBUFF_SIZE   (4 * sizeof(struct uf2_block) + 100)
+
+static TaskHandle_t           task_target_writer_thread;
+static MessageBufferHandle_t  msgbuff_target_writer_thread;
+static SemaphoreHandle_t      sema_swd_in_use;
+static TimerHandle_t          timer_disconnect;
+static void                  *timer_disconnect_id;
 
 
 #if 0
@@ -515,13 +521,13 @@ static bool target_copy_flash_code(void)
 ///
 static void target_disconnect(TimerHandle_t xTimer)
 {
-    if (xSemaphoreTake(semaSwdInUse, 0)) {
+    if (xSemaphoreTake(sema_swd_in_use, 0)) {
         if (is_connected) {
             picoprobe_info("======================================================================== disconnect\n");
             target_set_state(RESET_RUN);
             is_connected = false;
         }
-        xSemaphoreGive(semaSwdInUse);
+        xSemaphoreGive(sema_swd_in_use);
     }
     else {
         xTimerReset(xTimer, pdMS_TO_TICKS(1000));
@@ -540,7 +546,7 @@ bool target_connect(bool write_mode)
     uint64_t now_us;
     bool ok;
 
-    xSemaphoreTake(semaSwdInUse, portMAX_DELAY);
+    xSemaphoreTake(sema_swd_in_use, portMAX_DELAY);
     now_us = time_us_64();
     ok = true;
     if ( !is_connected  ||  now_us - last_trigger_us > 1000*1000) {
@@ -556,8 +562,8 @@ bool target_connect(bool write_mode)
         is_connected = ok;
     }
     last_trigger_us = now_us;
-    xTimerReset(timerDisconnect, pdMS_TO_TICKS(1000));
-    xSemaphoreGive(semaSwdInUse);
+    xTimerReset(timer_disconnect, pdMS_TO_TICKS(1000));
+    xSemaphoreGive(sema_swd_in_use);
     return ok;
 }   // target_connect
 
@@ -611,37 +617,13 @@ bool is_uf2_record(const void *sector, uint32_t sector_size)
 
 
 
+//
+// send the UF2 block to \a target_writer_thread()
+//
 bool target_write_memory(const struct uf2_block *uf2)
 {
-    picoprobe_info("target_write_memory(0x%lx, %ld, %ld)\n", uf2->target_addr, uf2->block_no, uf2->num_blocks);
-
-#if 1
-    uint32_t arg[3];
-    bool r;
-    uint32_t res;
-
-    xSemaphoreTake(semaSwdInUse, portMAX_DELAY);
-    arg[0] = uf2->target_addr;
-    arg[1] = TARGET_DATA;
-    arg[2] = uf2->payload_size;
-
-    r = swd_write_memory(TARGET_DATA, (uint8_t *)uf2->data, uf2->payload_size);
-//    picoprobe_info("   rc is %d\n", r);
-    if (r) {
-        r = target_call_function(TARGET_FLASH_BLOCK, arg, sizeof(arg) / sizeof(arg[0]), &res);
-//        picoprobe_info("   result2 is 0x%lx (%d)\n", res, r);
-        if (res & 0xf0000000) {
-            picoprobe_error("target_write_memory: target operation returned 0x%lx\n", res);
-            r = false;
-        }
-    }
-    xTimerReset(timerDisconnect, pdMS_TO_TICKS(10));    // the above operation could take several 100ms!
-    xSemaphoreGive(semaSwdInUse);
-    return r;
-#else
-    // empty run to check transfer speed
+    xMessageBufferSend(msgbuff_target_writer_thread, uf2, sizeof(*uf2), portMAX_DELAY);
     return true;
-#endif
 }   // target_write_memory
 
 
@@ -653,29 +635,72 @@ bool target_read_memory(struct uf2_block *uf2, uint32_t target_addr, uint32_t bl
 
     static_assert(payload_size <= sizeof(uf2->data));
 
-    xSemaphoreTake(semaSwdInUse, portMAX_DELAY);
+    xSemaphoreTake(sema_swd_in_use, portMAX_DELAY);
     setup_uf2_record(uf2, target_addr, payload_size, block_no, num_blocks);
     ok = swd_read_memory(target_addr, uf2->data, payload_size);
-    xSemaphoreGive(semaSwdInUse);
+    xSemaphoreGive(sema_swd_in_use);
     return ok;
 }   // target_read_memory
 
 
 
+void target_writer_thread(void *ptr)
+{
+    static struct uf2_block uf2;
+    size_t   len;
+    uint32_t arg[3];
+    uint32_t res;
+
+    for (;;) {
+        len = xMessageBufferReceive(msgbuff_target_writer_thread, &uf2, sizeof(uf2), portMAX_DELAY);
+        assert(len == 512);
+
+        picoprobe_info("target_writer_thread(0x%lx, %ld, %ld), %u\n", uf2.target_addr, uf2.block_no, uf2.num_blocks, len);
+
+        xSemaphoreTake(sema_swd_in_use, portMAX_DELAY);
+        arg[0] = uf2.target_addr;
+        arg[1] = TARGET_DATA;
+        arg[2] = uf2.payload_size;
+
+        if (swd_write_memory(TARGET_DATA, (uint8_t *)uf2.data, uf2.payload_size)) {
+            target_call_function(TARGET_FLASH_BLOCK, arg, sizeof(arg) / sizeof(arg[0]), &res);
+            if (res & 0xf0000000) {
+                picoprobe_error("target_writer_thread: target operation returned 0x%lx\n", res);
+            }
+        }
+        else {
+            picoprobe_error("target_writer_thread: failed to write to 0x%lx/%ld\n", uf2.target_addr, uf2.payload_size);
+        }
+        xTimerReset(timer_disconnect, pdMS_TO_TICKS(10));    // the above operation could take several 100ms!
+        xSemaphoreGive(sema_swd_in_use);
+    }
+}   // target_writer_thread
+
+
+
 void msc_init(void)
 {
-    picoprobe_info("------------msc_init\n");
+    picoprobe_info("------------ msc_init\n");
 
-    semaSwdInUse = xSemaphoreCreateBinary();
-    if (semaSwdInUse == NULL) {
-        picoprobe_error("msc_init: cannot create semaSwdInUse\n");
+    sema_swd_in_use = xSemaphoreCreateBinary();
+    if (sema_swd_in_use == NULL) {
+        picoprobe_error("msc_init: cannot create sema_swd_in_use\n");
     }
     else {
-        xSemaphoreGive(semaSwdInUse);
+        xSemaphoreGive(sema_swd_in_use);
     }
 
-    timerDisconnect = xTimerCreate("timerDisconnect", pdMS_TO_TICKS(100), pdFALSE, timerDisconnectId, target_disconnect);
-    if (timerDisconnect == NULL) {
-        picoprobe_error("msc_init: cannot create timerDisconnect\n");
+    timer_disconnect = xTimerCreate("timer_disconnect", pdMS_TO_TICKS(100), pdFALSE, timer_disconnect_id, target_disconnect);
+    if (timer_disconnect == NULL) {
+        picoprobe_error("msc_init: cannot create timer_disconnect\n");
+    }
+
+    msgbuff_target_writer_thread = xMessageBufferCreate(TARGET_WRITER_THREAD_MSGBUFF_SIZE);
+    if (msgbuff_target_writer_thread == NULL) {
+        picoprobe_error("msc_init: cannot create msgbuff_target_writer_thread\n");
+    }
+    if (xTaskCreate(target_writer_thread, "Writer", configMINIMAL_STACK_SIZE+1024,
+                    NULL, TARGET_WRITER_THREAD_PRIO, &task_target_writer_thread) != pdPASS) {
+        picoprobe_error("msc_init: cannot create task_target_writer_thread\n");
     }
 }   // msc_init
