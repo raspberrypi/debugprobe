@@ -44,8 +44,12 @@
 #define configUSE_PREEMPTION                    1
 #define configUSE_TICKLESS_IDLE                 0
 #define configUSE_IDLE_HOOK                     0
-#define configUSE_TICK_HOOK                     1
+#define configUSE_TICK_HOOK                     0
+
+// TODO I guess this should be smaller than 1000 (and also a divisor of 1000)
+//      otherwise in portmacro.h (in FreeRTOS), definition of portTICK_PERIOD_MS is questionable...
 #define configTICK_RATE_HZ                      ( ( TickType_t ) 20000 )
+
 #define configMAX_PRIORITIES                    32
 #define configMINIMAL_STACK_SIZE                ( configSTACK_DEPTH_TYPE ) 256
 #define configUSE_16_BIT_TICKS                  0
@@ -71,7 +75,7 @@
 /* Memory allocation related definitions. */
 #define configSUPPORT_STATIC_ALLOCATION         0
 #define configSUPPORT_DYNAMIC_ALLOCATION        1
-#define configTOTAL_HEAP_SIZE                   (32*1024)
+#define configTOTAL_HEAP_SIZE                   (128*1024)
 #define configAPPLICATION_ALLOCATED_HEAP        0
 
 /* Hook function related definitions. */
@@ -102,9 +106,10 @@
 */
 
 /* SMP port only */
-#define configNUM_CORES                         1
+#define configNUM_CORES                         2
 #define configTICK_CORE                         1
 #define configRUN_MULTIPLE_PRIORITIES           1
+#define configUSE_CORE_AFFINITY                 0
 
 /* RP2040 specific */
 #define configSUPPORT_PICO_SYNC_INTEROP         1
