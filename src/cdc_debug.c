@@ -26,7 +26,10 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include "pico/stdlib.h"
+
 #include "FreeRTOS.h"
+#include "semphr.h"
+#include "stream_buffer.h"
 #include "task.h"
 
 #include "tusb.h"
@@ -34,92 +37,51 @@
 #include "picoprobe_config.h"
 
 
-#define CDC_DEBUG_N    1
+#define CDC_DEBUG_N           1
 
-TaskHandle_t cdc_debug_taskhandle;
+#define STREAM_PRINTF_SIZE    30000
+#define STREAM_PRINTF_TRIGGER 32
 
-static uint16_t cdc_debug_fifo_read;
-static uint16_t cdc_debug_fifo_write;
-static uint8_t cdc_debug_fifo[32768];
+static TaskHandle_t           task_printf = NULL;
+static SemaphoreHandle_t      sema_printf;
+static StreamBufferHandle_t   stream_printf;
+
 static uint8_t cdc_debug_buf[CFG_TUD_CDC_TX_BUFSIZE];
 
 
 
-bool cdc_debug_task(void)
+void cdc_debug_thread(void *ptr)
 /**
- * Transmit debug output via CDC with a timestamp on each line.
- * \return true -> characters have been transmitted
+ * Transmit debug output via CDC
  */
 {
-    static int was_connected = 0;
-    bool chars_sent = false;
+    bool was_connected = false;
 
-    if (tud_cdc_n_connected(CDC_DEBUG_N)) {
-        was_connected = 1;
-        if (cdc_debug_fifo_read != cdc_debug_fifo_write) {
-            int cnt;
-
-            if (cdc_debug_fifo_read > cdc_debug_fifo_write) {
-                cnt = sizeof(cdc_debug_fifo) - cdc_debug_fifo_read;
-            } else {
-                cnt = cdc_debug_fifo_write - cdc_debug_fifo_read;
-            }
-            cnt = MIN(cnt, sizeof(cdc_debug_buf));
-            cnt = MIN(tud_cdc_n_write_available(CDC_DEBUG_N), cnt);
-            memcpy(cdc_debug_buf, cdc_debug_fifo + cdc_debug_fifo_read, cnt);
-            cdc_debug_fifo_read = (cdc_debug_fifo_read + cnt) % sizeof(cdc_debug_fifo);
-            tud_cdc_n_write(CDC_DEBUG_N, cdc_debug_buf, cnt);
-            tud_cdc_n_write_flush(CDC_DEBUG_N);
-            chars_sent = true;
-        }
-    } else if (was_connected) {
-        tud_cdc_n_write_clear(CDC_DEBUG_N);
-        was_connected = 0;
-    }
-    return chars_sent;
-}   // cdc_debug_task
-
-
-
-void cdc_debug_thread(void* ptr)
-{
     for (;;) {
-        if (cdc_debug_task())
-            vTaskDelay(1);
-        else
-            vTaskDelay((10 * configTICK_RATE_HZ) / 1000);          // 10ms
+        if (tud_cdc_n_connected(CDC_DEBUG_N)) {
+            size_t cnt;
+            size_t max_cnt;
+
+            max_cnt = MIN(sizeof(cdc_debug_buf), tud_cdc_n_write_available(CDC_DEBUG_N));
+            cnt = xStreamBufferReceive(stream_printf, cdc_debug_buf, max_cnt, pdMS_TO_TICKS(50));
+            if (cnt != 0) {
+                tud_cdc_n_write(CDC_DEBUG_N, cdc_debug_buf, cnt);
+                tud_cdc_n_write_flush(CDC_DEBUG_N);
+            }
+        }
+        else if (was_connected) {
+            tud_cdc_n_write_clear(CDC_DEBUG_N);
+            was_connected = false;
+        }
     }
 }   // cdc_debug_thread
-
-
-
-static void cdc_to_fifo(const char* buf, int max_cnt)
-{
-    const char* buf_pnt;
-    int cnt;
-
-    buf_pnt = buf;
-    while (max_cnt > 0  &&  (cdc_debug_fifo_write + 1) % sizeof(cdc_debug_fifo) != cdc_debug_fifo_read) {
-        if (cdc_debug_fifo_read > cdc_debug_fifo_write) {
-            cnt = (cdc_debug_fifo_read - 1) - cdc_debug_fifo_write;
-        } else {
-            cnt = sizeof(cdc_debug_fifo) - cdc_debug_fifo_write;
-        }
-        cnt = MIN(cnt, max_cnt);
-        memcpy(cdc_debug_fifo + cdc_debug_fifo_write, buf_pnt, cnt);
-        buf_pnt += cnt;
-        max_cnt -= cnt;
-        cdc_debug_fifo_write = (cdc_debug_fifo_write + cnt) % sizeof(cdc_debug_fifo);
-    }
-} // cdc_to_fifo
 
 
 
 int cdc_debug_printf(const char* format, ...)
 /**
  * Debug printf()
- * Note that at the beginning of each output a timestamp is inserted.  Which means, that each call to cdc_printf()
- * should output a line.
+ * At the beginning of each output line a timestamp is inserted.
  */
 {
     static uint32_t prev_ms;
@@ -131,7 +93,12 @@ int cdc_debug_printf(const char* format, ...)
     char tbuf[30];
     int cnt;
     int ndx = 0;
-    const char* p;
+    const char *p;
+
+    if (task_printf == NULL)
+        return -1;
+
+    xSemaphoreTake(sema_printf, portMAX_DELAY);
 
     //
     // print formatted text into buffer
@@ -151,7 +118,7 @@ int cdc_debug_printf(const char* format, ...)
                 //
                 // more or less intelligent time stamp which allows better measurements:
                 // - show delta
-                // - reset time if there hase been no activity for 5s
+                // - reset time if there has been no activity for 5s
                 //
                 now_ms = (uint32_t)(time_us_64() / 1000) - base_ms;
                 if (now_ms - prev_ms > 5000) {
@@ -164,7 +131,7 @@ int cdc_debug_printf(const char* format, ...)
                 snprintf(tbuf, sizeof(tbuf), "%lu.%03lu (%3lu) - ", now_ms / 1000, now_ms % 1000, d_ms);
                 prev_ms = now_ms;
             }
-            cdc_to_fifo(tbuf, strnlen(tbuf, sizeof(tbuf)));
+            xStreamBufferSend(stream_printf, tbuf, strnlen(tbuf, sizeof(tbuf)), 1);
         }
 
         p = memchr(buf + ndx, '\n', total_cnt - ndx);
@@ -175,10 +142,31 @@ int cdc_debug_printf(const char* format, ...)
             newline = true;
         }
 
-        cdc_to_fifo(buf + ndx, cnt);
+        xStreamBufferSend(stream_printf, buf + ndx, cnt, 1);
 
         ndx += cnt;
     }
+    xSemaphoreGive(sema_printf);
 
     return total_cnt;
 } // cdc_debug_printf
+
+
+
+void cdc_debug_init(UBaseType_t task_prio)
+{
+    stream_printf = xStreamBufferCreate(STREAM_PRINTF_SIZE, STREAM_PRINTF_TRIGGER);
+    if (stream_printf == NULL) {
+        panic("cdc_debug_init: cannot create stream_printf\n");
+    }
+
+    sema_printf = xSemaphoreCreateBinary();
+    if (sema_printf == NULL) {
+        panic("cdc_debug_init: cannot create sema_printf\n");
+    }
+    else {
+        xSemaphoreGive(sema_printf);
+    }
+
+    xTaskCreate(cdc_debug_thread, "CDC_DEB", configMINIMAL_STACK_SIZE+1024, NULL, task_prio, &task_printf);
+}   // cdc_debug_init

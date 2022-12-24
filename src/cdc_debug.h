@@ -28,9 +28,6 @@
 
 int cdc_debug_printf(const char* format, ...) __attribute__ ((format (printf, 1, 2)));
 
-bool cdc_debug_task(void);
-void cdc_debug_thread(void *ptr);
-
-extern TaskHandle_t cdc_debug_taskhandle;
+void cdc_debug_init(UBaseType_t task_prio);
 
 #endif
