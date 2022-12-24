@@ -82,7 +82,7 @@ static void swd_from_dormant(void)
     const uint8_t zero_seq[] = {0x00};
     const uint8_t act_seq[] = { 0x1a };
 
-	cdc_debug_printf("---swd_from_dormant()\n");
+//	cdc_debug_printf("---swd_from_dormant()\n");
 
 	SWJ_Sequence(  8, ones_seq);
     SWJ_Sequence(128, selection_alert_seq);
@@ -96,7 +96,7 @@ static void swd_line_reset(void)
 {
     const uint8_t reset_seq[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x03};
 
-    cdc_debug_printf("---swd_line_reset()\n");
+//    cdc_debug_printf("---swd_line_reset()\n");
 
     SWJ_Sequence( 52, reset_seq);
 }   // swd_line_reset
@@ -111,7 +111,7 @@ static void swd_targetsel(uint8_t core)
     static const uint8_t out2[]        = {0x00};
     static uint8_t input;
 
-	cdc_debug_printf("---swd_targetsel(%u)\n", core);
+//	cdc_debug_printf("---swd_targetsel(%u)\n", core);
 
 	SWD_Sequence(8, out1, NULL);
     SWD_Sequence(0x80 + 5, NULL, &input);
@@ -135,7 +135,7 @@ static bool dp_core_select(uint8_t _core)
 {
 	uint32_t rv;
 
-	cdc_debug_printf("---dp_core_select(%u)\n", _core);
+//	cdc_debug_printf("---dp_core_select(%u)\n", _core);
 
 	if (core == _core) {
 		return true;
@@ -145,7 +145,7 @@ static bool dp_core_select(uint8_t _core)
 	swd_targetsel(_core);
 
 	CHECK_OK_BOOL(swd_read_dp(DP_IDCODE, &rv));
-	cdc_debug_printf("---  id(%u)=0x%08lx\n", _core, rv);   // 0x0bc12477 is the RP2040
+//	cdc_debug_printf("---  id(%u)=0x%08lx\n", _core, rv);   // 0x0bc12477 is the RP2040
 
 	core = _core;
 	return true;
@@ -161,7 +161,7 @@ static bool dp_disable_breakpoint()
 {
 	static const uint32_t bp_reg[4] = { 0xE0002008, 0xE000200C, 0xE0002010, 0xE0002014 };
 
-	cdc_debug_printf("---dp_disable_breakpoint()\n");
+//	cdc_debug_printf("---dp_disable_breakpoint()\n");
 
     // Clear each of the breakpoints...
     for (int i = 0;  i < 4;  ++i) {
@@ -192,7 +192,7 @@ static bool rp2040_swd_init_debug(uint8_t core)
     int8_t retries = 4;
     int8_t do_abort = 0;
 
-	cdc_debug_printf("rp2040_swd_init_debug(%d)\n", core);
+//	cdc_debug_printf("rp2040_swd_init_debug(%d)\n", core);
 
     swd_init();
     swd_from_dormant();
@@ -257,7 +257,7 @@ static bool rp2040_swd_set_target_state(uint8_t core, target_state_t state)
     uint32_t val;
     int8_t ap_retries = 2;
 
-    cdc_debug_printf("+++++++++++++++ rp2040_swd_set_target_state(%d, %d)\n", core, state);
+//    cdc_debug_printf("+++++++++++++++ rp2040_swd_set_target_state(%d, %d)\n", core, state);
 
     /* Calling swd_init prior to entering RUN state causes operations to fail. */
     if (state != RUN) {
@@ -435,7 +435,7 @@ static void rp2040_swd_set_target_reset(uint8_t asserted)
 	extern void probe_assert_reset(bool);
 
     // set HW signal accordingly, asserted means "active"
-    cdc_debug_printf("----- rp2040_swd_set_target_reset(%d)\n", asserted);
+//    cdc_debug_printf("----- rp2040_swd_set_target_reset(%d)\n", asserted);
     probe_assert_reset(asserted);
 }   // rp2040_swd_set_target_reset
 
@@ -452,7 +452,7 @@ static uint8_t rp2040_target_set_state(target_state_t state)
 {
 	uint8_t r;
 
-    cdc_debug_printf("----- rp2040_target_set_state(%d)\n", state);
+//    cdc_debug_printf("----- rp2040_target_set_state(%d)\n", state);
 
     switch (state) {
     	case RESET_HOLD:

@@ -26,30 +26,30 @@
 #ifndef PICOPROBE_H_
 #define PICOPROBE_H_
 
-#if !defined(NDEBUG)
+//#if !defined(NDEBUG)
     int cdc_debug_printf(const char* format, ...) __attribute__ ((format (printf, 1, 2)));
-#endif
+//#endif
 
 #if 1  &&  !defined(NDEBUG)
-    #define picoprobe_info(format,args...) cdc_debug_printf(format, ## args)
+    #define picoprobe_info(format,args...) cdc_debug_printf("(II) " format, ## args)
 #else
     #define picoprobe_info(format,...) ((void)0)
 #endif
 
 #if 1  &&  !defined(NDEBUG)
-    #define picoprobe_debug(format,args...) cdc_debug_printf(format, ## args)
+    #define picoprobe_debug(format,args...) cdc_debug_printf("(DD) " format, ## args)
 #else
     #define picoprobe_debug(format,...) ((void)0)
 #endif
 
 #if 0  &&  !defined(NDEBUG)
-    #define picoprobe_dump(format,args...) cdc_debug_printf(format, ## args)
+    #define picoprobe_dump(format,args...) cdc_debug_printf("(..) " format, ## args)
 #else
     #define picoprobe_dump(format,...) ((void)0)
 #endif
 
 #if 1  &&  !defined(NDEBUG)
-    #define picoprobe_error(format,args...) cdc_debug_printf(format, ## args)
+    #define picoprobe_error(format,args...) cdc_debug_printf("(EE) " format, ## args)
 #else
     #define picoprobe_error(format,...) ((void)0)
 #endif
@@ -86,7 +86,7 @@
 
     // Interface config
     #ifndef PICOPROBE_DEBUG_PROTOCOL
-        #define PICOPROBE_DEBUG_PROTOCOL PROTO_DAP_V1
+        #define PICOPROBE_DEBUG_PROTOCOL PROTO_DAP_V2
     #endif
 #endif
 

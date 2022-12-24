@@ -523,7 +523,7 @@ static void target_disconnect(TimerHandle_t xTimer)
 {
     if (xSemaphoreTake(sema_swd_in_use, 0)) {
         if (is_connected) {
-            picoprobe_info("======================================================================== disconnect\n");
+            picoprobe_info("=================================== disconnect target\n");
             target_set_state(RESET_RUN);
             is_connected = false;
         }
@@ -550,7 +550,7 @@ bool target_connect(bool write_mode)
     now_us = time_us_64();
     ok = true;
     if ( !is_connected  ||  now_us - last_trigger_us > 1000*1000) {
-        picoprobe_info("======================================================================== connect\n");
+        picoprobe_info("=================================== connect target\n");
 
         ok = target_set_state(RESET_PROGRAM);
         picoprobe_info("---------------------------------- %d\n", ok);
@@ -684,7 +684,7 @@ void msc_init(void)
 
     sema_swd_in_use = xSemaphoreCreateBinary();
     if (sema_swd_in_use == NULL) {
-        picoprobe_error("msc_init: cannot create sema_swd_in_use\n");
+        panic("msc_init: cannot create sema_swd_in_use\n");
     }
     else {
         xSemaphoreGive(sema_swd_in_use);
@@ -692,15 +692,15 @@ void msc_init(void)
 
     timer_disconnect = xTimerCreate("timer_disconnect", pdMS_TO_TICKS(100), pdFALSE, timer_disconnect_id, target_disconnect);
     if (timer_disconnect == NULL) {
-        picoprobe_error("msc_init: cannot create timer_disconnect\n");
+        panic("msc_init: cannot create timer_disconnect\n");
     }
 
     msgbuff_target_writer_thread = xMessageBufferCreate(TARGET_WRITER_THREAD_MSGBUFF_SIZE);
     if (msgbuff_target_writer_thread == NULL) {
-        picoprobe_error("msc_init: cannot create msgbuff_target_writer_thread\n");
+        panic("msc_init: cannot create msgbuff_target_writer_thread\n");
     }
     if (xTaskCreate(target_writer_thread, "Writer", configMINIMAL_STACK_SIZE+1024,
                     NULL, TARGET_WRITER_THREAD_PRIO, &task_target_writer_thread) != pdPASS) {
-        picoprobe_error("msc_init: cannot create task_target_writer_thread\n");
+        panic("msc_init: cannot create task_target_writer_thread\n");
     }
 }   // msc_init

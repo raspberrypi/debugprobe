@@ -47,7 +47,7 @@ void SWJ_Sequence (uint32_t count, const uint8_t *data) {
     probe_set_swclk_freq(MAKE_KHZ(DAP_Data.clock_delay));
     cached_delay = DAP_Data.clock_delay;
   }
-  picoprobe_debug("SWJ sequence count = %lu FDB=0x%2x\n", count, data[0]);
+//  picoprobe_debug("SWJ sequence count = %lu FDB=0x%2x\n", count, data[0]);
   n = count;
   while (n > 0) {
     if (n > 8)
@@ -80,7 +80,7 @@ void SWD_Sequence (uint32_t info, const uint8_t *swdo, uint8_t *swdi) {
   }
   bits = n;
   if (info & SWD_SEQUENCE_DIN) {
-    picoprobe_debug("SWD sequence in, %lu\n", bits);
+//    picoprobe_debug("SWD sequence in, %lu\n", bits);
     probe_read_mode();
     while (n > 0) {
       if (n > 8)
@@ -92,7 +92,7 @@ void SWD_Sequence (uint32_t info, const uint8_t *swdo, uint8_t *swdi) {
     }
     probe_write_mode();
   } else {
-    picoprobe_debug("SWD sequence out, %lu\n", bits);
+//    picoprobe_debug("SWD sequence out, %lu\n", bits);
     probe_write_mode();
     while (n > 0) {
       if (n > 8)
@@ -246,13 +246,13 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data)
 	}
 
 #if 1
-	if (request & DAP_TRANSFER_RnW) {
-		if (prq != 0x9f  &&  ack != DAP_TRANSFER_WAIT) {
+	if (ack != DAP_TRANSFER_WAIT) {
+	    if (request & DAP_TRANSFER_RnW) {
 			picoprobe_debug("SWD_transfer - unknown FAILED read: 0x%02x (%d)\n", prq, ack);
 		}
-	}
-	else {
-		picoprobe_debug("SWD_transfer - unknown FAILED write: 0x%02x 0x%lx (%d)\n", prq, *data, ack);
+	    else {
+	        picoprobe_debug("SWD_transfer - unknown FAILED write: 0x%02x 0x%lx (%d)\n", prq, *data, ack);
+	    }
 	}
 #endif
 

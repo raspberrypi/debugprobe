@@ -439,17 +439,17 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
         return -1;
 
     if (lba >= c_BootStartSector  &&  lba < c_BootStartSector + c_BootSectors) {
-        picoprobe_info("  BOOT\n");
+//        picoprobe_info("  BOOT\n");
         r = MIN(bufsize, BPB_BytsPerSec);
         memcpy(buffer, bootsector, r);
     }
     else if (lba >= c_FatStartSector  &&  lba < c_FatStartSector + c_FatSectors) {
-        picoprobe_info("  FAT\n");
+//        picoprobe_info("  FAT\n");
         r = MIN(bufsize, BPB_BytsPerSec);
         memcpy(buffer, fatsector, r);
     }
     else if (lba >= c_RootDirStartSector  &&  lba < c_RootDirStartSector + c_RootDirSectors) {
-        picoprobe_info("  ROOTDIR\n");
+//        picoprobe_info("  ROOTDIR\n");
         r = MIN(bufsize, BPB_BytsPerSec);
         memcpy(buffer, rootdirsector, r);
     }
@@ -462,7 +462,7 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
         r = read_sector_from_buffer(buffer, (const uint8_t *)INFOUF2_CONTENTS, INFOUF2_SIZE, lba - f_InfoUF2TxtStartSector);
     }
     else if (lba >= f_IndexHtmStartSector  &&  lba < f_IndexHtmStartSector + f_IndexHtmSectors) {
-        picoprobe_info("  INDEX.HTM\n");
+//        picoprobe_info("  INDEX.HTM\n");
         r = read_sector_from_buffer(buffer, (const uint8_t *)INDEXHTM_CONTENTS, INDEXHTM_SIZE, lba - f_IndexHtmStartSector);
     }
     else if (lba >= f_CurrentUF2StartSector  &&  lba < f_CurrentUF2StartSector + f_CurrentUF2Sectors) {
@@ -497,7 +497,7 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
         static_assert(payload_size <= sizeof(uf2->data));
         assert(bufsize >= sizeof(*uf2));
 
-        picoprobe_info("  RAM.UF2 0x%lx\n", target_addr);
+//        picoprobe_info("  RAM.UF2 0x%lx\n", target_addr);
         r = -1;
         if (target_connect(false)) {
             if (target_read_memory(uf2, target_addr, block_no, num_blocks) != 0) {
@@ -542,15 +542,15 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
         return -1;
 
     if (lba >= c_BootStartSector  &&  lba < c_BootStartSector + c_BootSectors) {
-        picoprobe_info("  BOOT\n");
+//        picoprobe_info("  BOOT\n");
         r = MIN(bufsize, BPB_BytsPerSec);
     }
     else if (lba >= c_FatStartSector  &&  lba < c_FatStartSector + c_FatSectors) {
-        picoprobe_info("  FAT\n");
+//        picoprobe_info("  FAT\n");
         r = MIN(bufsize, BPB_BytsPerSec);
     }
     else if (lba >= c_RootDirStartSector  &&  lba < c_RootDirStartSector + c_RootDirSectors) {
-        picoprobe_info("  ROOTDIR\n");
+//        picoprobe_info("  ROOTDIR\n");
         r = MIN(bufsize, BPB_BytsPerSec);
     }
     else {
