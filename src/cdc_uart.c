@@ -25,102 +25,156 @@
 
 #include <pico/stdlib.h>
 #include "FreeRTOS.h"
+#include "stream_buffer.h"
 #include "task.h"
 
 #include "tusb.h"
 
 #include "picoprobe_config.h"
 
-TaskHandle_t uart_taskhandle;
-TickType_t last_wake, interval = 100;
 
-static uint8_t tx_buf[CFG_TUD_CDC_TX_BUFSIZE];
-static uint8_t rx_buf[CFG_TUD_CDC_RX_BUFSIZE];
+#define CDC_UART_N            0
 
-void cdc_uart_init(void) {
+#define STREAM_UART_SIZE      512
+#define STREAM_UART_TRIGGER   32
+
+static TaskHandle_t           task_uart = NULL;
+static StreamBufferHandle_t   stream_uart;
+
+static uint8_t cdc_tx_buf[CFG_TUD_CDC_TX_BUFSIZE];
+
+
+
+void cdc_thread(void *ptr)
+{
+    bool was_connected = false;
+
+    for (;;) {
+        if (tud_cdc_n_connected(CDC_UART_N)) {
+            size_t cnt;
+            size_t max_cnt;
+
+            if ( !was_connected) {
+                // wait here some time (until my terminal program is ready)
+                was_connected = true;
+                vTaskDelay(pdMS_TO_TICKS(2000));
+            }
+
+            //
+            // transmit characters target -> picoprobe -> host
+            //
+            max_cnt = tud_cdc_n_write_available(CDC_UART_N);
+            if (max_cnt == 0) {
+                vTaskDelay(pdMS_TO_TICKS(1));
+            }
+            else {
+                max_cnt = MIN(sizeof(cdc_tx_buf), max_cnt);
+                cnt = xStreamBufferReceive(stream_uart, cdc_tx_buf, max_cnt, pdMS_TO_TICKS(50));
+                if (cnt != 0) {
+                    tud_cdc_n_write(CDC_UART_N, cdc_tx_buf, cnt);
+                    tud_cdc_n_write_flush(CDC_UART_N);
+                }
+            }
+
+            //
+            // transmit characters host -> picoprobe -> target
+            // (actually don't know if this works, but note that in worst case this loop is taken just every 50ms)
+            //
+            size_t watermark = tud_cdc_n_available(CDC_UART_N);
+            while (watermark > 0  &&  uart_is_writable(PICOPROBE_UART_INTERFACE)) {
+                uint8_t ch;
+                size_t tx_len;
+
+                tx_len = tud_cdc_n_read(CDC_UART_N, &ch, 1);
+                uart_write_blocking(PICOPROBE_UART_INTERFACE, &ch, tx_len);
+
+                --watermark;
+            }
+        }
+        else {
+            if (was_connected) {
+                tud_cdc_n_write_clear(CDC_UART_N);
+                was_connected = false;
+            }
+            vTaskDelay(pdMS_TO_TICKS(50));
+        }
+    }
+}   // cdc_thread
+
+
+
+//
+// CDC bitrate updates are reflected on \a PICOPROBE_UART_INTERFACE
+//
+void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding)
+{
+    if (itf == CDC_UART_N) {
+        vTaskSuspend(task_uart);
+        tud_cdc_n_write_clear(CDC_UART_N);
+        tud_cdc_n_read_flush(CDC_UART_N);
+        uart_set_baudrate(PICOPROBE_UART_INTERFACE, line_coding->bit_rate);
+        vTaskResume(task_uart);
+    }
+}   // tud_cdc_line_coding_cb
+
+
+
+void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
+{
+    if (itf == CDC_UART_N) {
+        /* CDC drivers use linestate as a bodge to activate/deactivate the interface.
+         * Resume our UART polling on activate, stop on deactivate */
+        if (!dtr && !rts)
+            vTaskSuspend(task_uart);
+        else
+            vTaskResume(task_uart);
+    }
+}   // tud_cdc_line_state_cb
+
+
+
+void on_uart_rx(void)
+{
+    uint8_t buf[40];
+    uint32_t cnt;
+    uint8_t ch;
+
+    cnt = 0;
+    while (uart_is_readable(PICOPROBE_UART_INTERFACE)) {
+        ch = (uint8_t)uart_getc(PICOPROBE_UART_INTERFACE);
+        if (cnt < sizeof(buf)) {
+            buf[cnt++] = ch;
+        }
+    }
+
+    if (cnt != 0) {
+        xStreamBufferSendFromISR(stream_uart, buf, cnt, NULL);
+    }
+}   // on_uart_rx
+
+
+
+void cdc_uart_init(uint32_t task_prio)
+{
+    stream_uart = xStreamBufferCreate(STREAM_UART_SIZE, STREAM_UART_TRIGGER);
+    if (stream_uart == NULL) {
+        picoprobe_error("cdc_uart_init: cannot create stream_uart\n");
+    }
+
     gpio_set_function(PICOPROBE_UART_TX, GPIO_FUNC_UART);
     gpio_set_function(PICOPROBE_UART_RX, GPIO_FUNC_UART);
     gpio_set_pulls(PICOPROBE_UART_TX, 1, 0);
     gpio_set_pulls(PICOPROBE_UART_RX, 1, 0);
+
     uart_init(PICOPROBE_UART_INTERFACE, PICOPROBE_UART_BAUDRATE);
-}
+    uart_set_format(PICOPROBE_UART_INTERFACE, 8, 1, UART_PARITY_NONE);
+    uart_set_fifo_enabled(PICOPROBE_UART_INTERFACE, true);
 
-void cdc_task(void)
-{
-    static int was_connected = 0;
-    uint rx_len = 0;
+    int UART_IRQ = (PICOPROBE_UART_INTERFACE == uart0) ? UART0_IRQ : UART1_IRQ;
+    irq_set_exclusive_handler(UART_IRQ, on_uart_rx);
+    irq_set_enabled(UART_IRQ, true);
+    uart_set_irq_enables(PICOPROBE_UART_INTERFACE, true, false);
 
-    // Consume uart fifo regardless even if not connected
-    while(uart_is_readable(PICOPROBE_UART_INTERFACE) && (rx_len < sizeof(rx_buf))) {
-        rx_buf[rx_len++] = uart_getc(PICOPROBE_UART_INTERFACE);
-    }
-
-    if (tud_cdc_connected()) {
-        was_connected = 1;
-        int written = 0;
-        /* Implicit overflow if we don't write all the bytes to the host.
-         * Also throw away bytes if we can't write... */
-        if (rx_len) {
-          written = MIN(tud_cdc_write_available(), rx_len);
-          if (written > 0) {
-            tud_cdc_write(rx_buf, written);
-            tud_cdc_write_flush();
-          }
-        }
-
-      /* Reading from a firehose and writing to a FIFO. */
-      size_t watermark = MIN(tud_cdc_available(), sizeof(tx_buf));
-      if (watermark > 0) {
-        size_t tx_len;
-        /* Batch up to half a FIFO of data - don't clog up on RX */
-        watermark = MIN(watermark, 16);
-        tx_len = tud_cdc_read(tx_buf, watermark);
-        uart_write_blocking(PICOPROBE_UART_INTERFACE, tx_buf, tx_len);
-      }
-    } else if (was_connected) {
-      tud_cdc_write_clear();
-      was_connected = 0;
-    }
-}
-
-void cdc_thread(void *ptr)
-{
-  BaseType_t delayed;
-  last_wake = xTaskGetTickCount();
-  /* Threaded with a polling interval that scales according to linerate */
-  while (1) {
-    cdc_task();
-    delayed = xTaskDelayUntil(&last_wake, interval);
-    if (delayed == pdFALSE)
-      last_wake = xTaskGetTickCount();
-  }
-}
-
-void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding)
-{
-  /* Set the tick thread interval to the amount of time it takes to
-   * fill up half a FIFO. Millis is too coarse for integer divide.
-   */
-  uint32_t micros = (1000 * 1000 * 16 * 10) / MAX(line_coding->bit_rate, 1);
-
-  /* Modifying state, so park the thread before changing it. */
-  vTaskSuspend(uart_taskhandle);
-  interval = MAX(1, micros / ((1000 * 1000) / configTICK_RATE_HZ));
-  picoprobe_info("New baud rate %lu micros %lu interval %lu\n",
-                  line_coding->bit_rate, micros, interval);
-  uart_deinit(PICOPROBE_UART_INTERFACE);
-  tud_cdc_write_clear();
-  tud_cdc_read_flush();
-  uart_init(PICOPROBE_UART_INTERFACE, line_coding->bit_rate);
-  vTaskResume(uart_taskhandle);
-}
-
-void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
-{
-  /* CDC drivers use linestate as a bodge to activate/deactivate the interface.
-   * Resume our UART polling on activate, stop on deactivate */
-  if (!dtr && !rts)
-    vTaskSuspend(uart_taskhandle);
-  else
-    vTaskResume(uart_taskhandle);
-}
+    /* UART needs to preempt USB as if we don't, characters get lost */
+    xTaskCreate(cdc_thread, "UART", configMINIMAL_STACK_SIZE+1024, NULL, task_prio, &task_uart);
+}   // cdc_uart_init

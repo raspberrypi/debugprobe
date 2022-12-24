@@ -83,12 +83,12 @@ void usb_thread(void *ptr)
     picoprobe_info("                                 Welcome to Picoprobe!\n");
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
+    cdc_uart_init(UART_TASK_PRIO);
+
 #if CFG_TUD_MSC
     msc_init(TARGET_WRITER_THREAD_PRIO);
 #endif
 
-    /* UART needs to preempt USB as if we don't, characters get lost */
-    xTaskCreate(cdc_thread, "UART", configMINIMAL_STACK_SIZE+1024, NULL, UART_TASK_PRIO, &uart_taskhandle);
     for (;;) {
         tud_task();
         dap_task();
@@ -103,7 +103,7 @@ int main(void)
     board_init();
     set_sys_clock_khz(CPU_CLOCK / 1000, true);
     usb_serial_init();
-    cdc_uart_init();
+
     tusb_init();
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
     probe_gpio_init();

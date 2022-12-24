@@ -26,10 +26,6 @@
 #ifndef CDC_UART_H
 #define CDC_UART_H
 
-void cdc_thread(void *ptr);
-void cdc_uart_init(void);
-void cdc_task(void);
-
-extern TaskHandle_t uart_taskhandle;
+void cdc_uart_init(uint32_t task_prio);
 
 #endif
