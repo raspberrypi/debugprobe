@@ -53,11 +53,12 @@ static uint8_t TxDataBuffer[CFG_TUD_VENDOR_TX_BUFSIZE];
 static uint8_t RxDataBuffer[CFG_TUD_VENDOR_RX_BUFSIZE];
 
 
-#define UART_TASK_PRIO           (tskIDLE_PRIORITY + 4)
-#if !defined(NDEBUG)
-    #define CDC_DEBUG_TASK_PRIO  (tskIDLE_PRIORITY + 2)
-#endif
-#define TUD_TASK_PRIO            (tskIDLE_PRIORITY + 10)
+// prios are critical and determine throughput
+// TODO use affinity for processes
+#define UART_TASK_PRIO              (tskIDLE_PRIORITY + 4)
+#define CDC_DEBUG_TASK_PRIO         (tskIDLE_PRIORITY + 2)
+#define TUD_TASK_PRIO               (tskIDLE_PRIORITY + 10)
+#define TARGET_WRITER_THREAD_PRIO   (tskIDLE_PRIORITY + 8)
 
 static TaskHandle_t tud_taskhandle;
 
@@ -83,7 +84,7 @@ void usb_thread(void *ptr)
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
 #if CFG_TUD_MSC
-    msc_init();
+    msc_init(TARGET_WRITER_THREAD_PRIO);
 #endif
 
     /* UART needs to preempt USB as if we don't, characters get lost */

@@ -44,7 +44,7 @@ bool target_read_memory(struct uf2_block *uf2, uint32_t target_addr, uint32_t bl
 
 bool is_uf2_record(const void *sector, uint32_t sector_size);
 
-void msc_init(void);
+void msc_init(uint32_t task_prio);
 
 #ifdef __cplusplus
     }

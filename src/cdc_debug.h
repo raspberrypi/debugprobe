@@ -28,6 +28,6 @@
 
 int cdc_debug_printf(const char* format, ...) __attribute__ ((format (printf, 1, 2)));
 
-void cdc_debug_init(UBaseType_t task_prio);
+void cdc_debug_init(uint32_t task_prio);
 
 #endif

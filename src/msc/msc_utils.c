@@ -29,6 +29,8 @@
 
 #include <pico/stdlib.h>
 
+#include "boot/uf2.h"                // this is the Pico variant of the UF2 header
+
 #include "msc_utils.h"
 
 #include "FreeRTOS.h"
@@ -50,7 +52,6 @@
 
 #define DEBUG_MODULE    0
 
-#define TARGET_WRITER_THREAD_PRIO           (tskIDLE_PRIORITY + 10)
 #define TARGET_WRITER_THREAD_MSGBUFF_SIZE   (4 * sizeof(struct uf2_block) + 100)
 
 static TaskHandle_t           task_target_writer_thread;
@@ -655,7 +656,7 @@ void target_writer_thread(void *ptr)
         len = xMessageBufferReceive(msgbuff_target_writer_thread, &uf2, sizeof(uf2), portMAX_DELAY);
         assert(len == 512);
 
-        picoprobe_info("target_writer_thread(0x%lx, %ld, %ld), %u\n", uf2.target_addr, uf2.block_no, uf2.num_blocks, len);
+//        picoprobe_info("target_writer_thread(0x%lx, %ld, %ld), %u\n", uf2.target_addr, uf2.block_no, uf2.num_blocks, len);
 
         xSemaphoreTake(sema_swd_in_use, portMAX_DELAY);
         arg[0] = uf2.target_addr;
@@ -678,7 +679,7 @@ void target_writer_thread(void *ptr)
 
 
 
-void msc_init(void)
+void msc_init(uint32_t task_prio)
 {
     picoprobe_info("------------ msc_init\n");
 
@@ -700,7 +701,7 @@ void msc_init(void)
         panic("msc_init: cannot create msgbuff_target_writer_thread\n");
     }
     if (xTaskCreate(target_writer_thread, "Writer", configMINIMAL_STACK_SIZE+1024,
-                    NULL, TARGET_WRITER_THREAD_PRIO, &task_target_writer_thread) != pdPASS) {
+                    NULL, task_prio, &task_target_writer_thread) != pdPASS) {
         panic("msc_init: cannot create task_target_writer_thread\n");
     }
 }   // msc_init

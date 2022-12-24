@@ -168,7 +168,7 @@ int cdc_debug_printf(const char* format, ...)
 
 
 
-void cdc_debug_init(UBaseType_t task_prio)
+void cdc_debug_init(uint32_t task_prio)
 {
     stream_printf = xStreamBufferCreate(STREAM_PRINTF_SIZE, STREAM_PRINTF_TRIGGER);
     if (stream_printf == NULL) {
