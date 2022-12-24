@@ -62,16 +62,31 @@ void cdc_debug_thread(void *ptr)
             size_t cnt;
             size_t max_cnt;
 
-            max_cnt = MIN(sizeof(cdc_debug_buf), tud_cdc_n_write_available(CDC_DEBUG_N));
-            cnt = xStreamBufferReceive(stream_printf, cdc_debug_buf, max_cnt, pdMS_TO_TICKS(50));
-            if (cnt != 0) {
-                tud_cdc_n_write(CDC_DEBUG_N, cdc_debug_buf, cnt);
-                tud_cdc_n_write_flush(CDC_DEBUG_N);
+            if ( !was_connected) {
+                // wait here some time (until my terminal program is ready)
+                was_connected = true;
+                vTaskDelay(pdMS_TO_TICKS(2000));
+            }
+
+            max_cnt = tud_cdc_n_write_available(CDC_DEBUG_N);
+            if (max_cnt == 0) {
+                vTaskDelay(pdMS_TO_TICKS(1));
+            }
+            else {
+                max_cnt = MIN(sizeof(cdc_debug_buf), max_cnt);
+                cnt = xStreamBufferReceive(stream_printf, cdc_debug_buf, max_cnt, pdMS_TO_TICKS(50));
+                if (cnt != 0) {
+                    tud_cdc_n_write(CDC_DEBUG_N, cdc_debug_buf, cnt);
+                    tud_cdc_n_write_flush(CDC_DEBUG_N);
+                }
             }
         }
-        else if (was_connected) {
-            tud_cdc_n_write_clear(CDC_DEBUG_N);
-            was_connected = false;
+        else {
+            if (was_connected) {
+                tud_cdc_n_write_clear(CDC_DEBUG_N);
+                was_connected = false;
+            }
+            vTaskDelay(pdMS_TO_TICKS(50));
         }
     }
 }   // cdc_debug_thread
