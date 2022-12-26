@@ -39,6 +39,7 @@
 #include "sw_lock.h"
 #include "RTT/SEGGER_RTT.h"
 #include "cdc_uart.h"
+#include "led.h"
 
 
 #define DO_TARGET_DISCONNECT  1
@@ -75,6 +76,7 @@ static uint32_t search_for_rtt_cb(void)
 
     if (rttAddr != 0) {
         picoprobe_info("RTT_CB found at 0x%lx\n", rttAddr);
+        led_state(LS_RTT_CB_FOUND);
     }
     else {
         picoprobe_info("no RTT_CB found\n");
@@ -116,6 +118,8 @@ static void do_rtt_console(uint32_t rtt_cb)
             ok = ok  &&  swd_write_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[0].RdOff), (aUp.RdOff + cnt) % aUp.SizeOfBuffer);
 
             cdc_uart_write(buf, cnt);
+
+            led_state(LS_RTT_DATA);
         }
     }
 }   // do_rtt_console
@@ -129,7 +133,12 @@ static void target_connect(void)
 {
     picoprobe_debug("=================================== RTT connect target\n");
 //    target_set_state(RESET_PROGRAM);
-    target_set_state(ATTACH);
+    if (target_set_state(ATTACH)) {
+        led_state(LS_TARGET_FOUND);
+    }
+    else {
+        led_state(LS_NO_TARGET);
+    }
 }   // target_connect
 
 
@@ -138,6 +147,7 @@ static void target_connect(void)
 static void target_disconnect(void)
 {
     picoprobe_debug("=================================== RTT disconnect target\n");
+    led_state(LS_RTT_OFF);
 //    target_set_state(RESET_RUN);
 }   // target_disconnect
 #endif

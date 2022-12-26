@@ -59,6 +59,7 @@ static uint8_t RxDataBuffer[CFG_TUD_VENDOR_RX_BUFSIZE];
 
 // prios are critical and determine throughput
 // TODO use affinity for processes
+#define LED_TASK_PRIO               (tskIDLE_PRIORITY + 12)
 #define TUD_TASK_PRIO               (tskIDLE_PRIORITY + 10)
 #define TARGET_WRITER_THREAD_PRIO   (tskIDLE_PRIORITY + 8)
 #define UART_TASK_PRIO              (tskIDLE_PRIORITY + 4)
@@ -82,6 +83,7 @@ void dap_task(void)
             if (sw_lock("DAPv2", true)) {
                 mounted = true;
                 picoprobe_debug("=================================== DAPv2 connect target\n");
+                led_state(LS_DAP_CONNECTED);
             }
         }
 
@@ -96,6 +98,7 @@ void dap_task(void)
     if (mounted  &&  time_us_32() - used_us > 500000) {
         mounted = false;
         picoprobe_debug("=================================== DAPv2 disconnect target\n");
+        led_state(LS_DAP_DISCONNECTED);
         sw_unlock("DAPv2");
     }
 }   // dap_task
@@ -144,7 +147,7 @@ int main(void)
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
     sw_lock_init();
-    led_init();
+    led_init(LED_TASK_PRIO);
 
     DAP_Setup();
 

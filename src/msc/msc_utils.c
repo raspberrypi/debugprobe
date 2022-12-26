@@ -33,6 +33,7 @@
 
 #include "msc_utils.h"
 #include "sw_lock.h"
+#include "led.h"
 
 #include "FreeRTOS.h"
 #include "message_buffer.h"
@@ -533,7 +534,8 @@ static void target_disconnect(TimerHandle_t xTimer)
 {
     if (xSemaphoreTake(sema_swd_in_use, 0)) {
         if (is_connected) {
-            picoprobe_info("=================================== disconnect target\n");
+            picoprobe_debug("=================================== MSC disconnect target\n");
+            led_state(LS_MSC_DISCONNECTED);
             target_set_state(RESET_RUN);
             is_connected = false;
         }
@@ -565,10 +567,11 @@ bool msc_target_connect(bool write_mode)
         now_us = time_us_64();
         ok = true;
         if ( !is_connected  ||  now_us - last_trigger_us > 1000*1000) {
-            picoprobe_info("=================================== connect target\n");
+            picoprobe_debug("=================================== MSC connect target\n");
+            led_state(LS_MSC_CONNECTED);
 
             ok = target_set_state(RESET_PROGRAM);
-            picoprobe_info("---------------------------------- %d\n", ok);
+//            picoprobe_debug("---------------------------------- %d\n", ok);
 
             if (ok) {
                 target_copy_flash_code();
@@ -699,7 +702,7 @@ void target_writer_thread(void *ptr)
 
 void msc_init(uint32_t task_prio)
 {
-    picoprobe_info("------------ msc_init\n");
+    picoprobe_debug("msc_init()\n");
 
     sema_swd_in_use = xSemaphoreCreateMutex();
     if (sema_swd_in_use == NULL) {

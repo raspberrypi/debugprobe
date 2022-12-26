@@ -26,8 +26,24 @@
 #ifndef LED_H
 #define LED_H
 
-void led_init(void);
-void led_task(void);
-void led_signal_activity(uint total_bits);
+
+#include <stdint.h>
+
+
+typedef enum _led_state {
+    LS_TARGET_FOUND,          // there is a target
+    LS_NO_TARGET,             // no target found
+    LS_RTT_CB_FOUND,          // found an RTT control block on target
+    LS_RTT_DATA,              // RTT data received from target
+    LS_RTT_OFF,               // switch off RTT
+    LS_UART_DATA,             // UART data received from target
+    LS_MSC_CONNECTED,         // MSC connected
+    LS_MSC_DISCONNECTED,      // MSC disconnected
+    LS_DAP_CONNECTED,         // DAP connected
+    LS_DAP_DISCONNECTED,      // DAP disconnected
+} led_state_t;
+
+void led_init(uint32_t task_prio);
+void led_state(led_state_t state);
 
 #endif
