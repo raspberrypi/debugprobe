@@ -144,14 +144,9 @@ int main(void)
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
     sw_lock_init();
-
-#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
-    probe_gpio_init();
-    probe_init();
-#else
-    DAP_Setup();
-#endif
     led_init();
+
+    DAP_Setup();
 
     xTaskCreate(usb_thread, "TUD", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, &tud_taskhandle);
     vTaskStartScheduler();

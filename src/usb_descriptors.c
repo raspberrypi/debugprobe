@@ -47,11 +47,7 @@ tusb_desc_device_t const desc_device =
     .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
 
     .idVendor           = 0x2E8A, // Pi
-#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
-    .idProduct          = 0x0004, // Picoprobe
-#else
     .idProduct          = 0x000c, // CMSIS-DAP adapter
-#endif
     .bcdDevice          = 0x0101, // Version 01.01
     .iManufacturer      = 0x01,
     .iProduct           = 0x02,
@@ -134,9 +130,6 @@ uint8_t const desc_configuration[] =
 #elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
     // Bulk (named interface)
     TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE, 5, PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, 64),
-#elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
-    // Bulk
-    TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE, 0, PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, 64),
 #endif
 
     // Interface 1 + 2

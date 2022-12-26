@@ -81,7 +81,6 @@
     #endif
 #endif
 
-#define PROTO_OPENOCD_CUSTOM 0
 #define PROTO_DAP_V1 1
 #define PROTO_DAP_V2 2
 
