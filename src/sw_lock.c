@@ -30,20 +30,39 @@
 #include "sw_lock.h"
 
 
-static SemaphoreHandle_t      sema_lock;
+static SemaphoreHandle_t  sema_lock;
+static volatile bool      lock_requested;
 
 
-bool sw_lock(const char *who, bool wait_some_ms)
+/**
+ * Lock SW access.  Idea is, that DAP/MSC access is exclusive, while the RTT console has a low priority and
+ * can be superseded by the former.
+ * To allow priority to DAP/MSC, the RTT console has to query sw_unlock_requested() periodically.
+ */
+bool sw_lock(const char *who, bool wait_just_some_ms)
 {
     BaseType_t r;
 
-    r = xSemaphoreTake(sema_lock, wait_some_ms ? pdMS_TO_TICKS(200) : 0);
-    picoprobe_debug("sw_lock('%s', %d) = %ld\n", who, wait_some_ms, r);
+    if (wait_just_some_ms) {
+        // wait just a short period and try to supersede RTT console
+        lock_requested = true;
+        picoprobe_debug("sw_lock('%s', %d)...\n", who, wait_just_some_ms);
+        r = xSemaphoreTake(sema_lock, pdMS_TO_TICKS(200));
+        lock_requested = false;
+    }
+    else {
+        // RTT console: wait until SW is free
+        r = xSemaphoreTake(sema_lock, portMAX_DELAY);
+    }
+    picoprobe_debug("sw_lock('%s', %d) = %ld\n", who, wait_just_some_ms, r);
     return (r == pdTRUE) ? true : false;
 }   // sw_lock
 
 
 
+/**
+ * Free SW access.
+ */
 void sw_unlock(const char *who)
 {
     BaseType_t r;
@@ -54,9 +73,12 @@ void sw_unlock(const char *who)
 
 
 
-void sw_unlock_request(uint32_t prio)
+/**
+ * Indicate if DAP/MSC want to lock SW.
+ */
+bool sw_unlock_requested(void)
 {
-
+    return lock_requested;
 }   // sw_unlock_request
 
 

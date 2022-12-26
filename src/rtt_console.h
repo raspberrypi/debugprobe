@@ -23,11 +23,10 @@
  *
  */
 
-#ifndef _SW_LOCK_H
-#define _SW_LOCK_H
+#ifndef _RTT_CONSOLE_H
+#define _RTT_CONSOLE_H
 
 
-#include <stdbool.h>
 #include <stdint.h>
 
 
@@ -36,10 +35,7 @@
 #endif
 
 
-void sw_lock_init(void);
-bool sw_lock(const char *who, bool wait_just_some_ms);
-void sw_unlock(const char *who);
-bool sw_unlock_requested(void);
+void rtt_console_init(uint32_t task_prio);
 
 
 #ifdef __cplusplus

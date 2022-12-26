@@ -47,6 +47,9 @@
 #if CFG_TUD_MSC
     #include "msc/msc_utils.h"
 #endif
+#if defined(INCLUDE_RTT_CONSOLE)
+    #include "rtt_console.h"
+#endif
 
 // UART1 for Picoprobe to target device
 
@@ -56,10 +59,11 @@ static uint8_t RxDataBuffer[CFG_TUD_VENDOR_RX_BUFSIZE];
 
 // prios are critical and determine throughput
 // TODO use affinity for processes
-#define UART_TASK_PRIO              (tskIDLE_PRIORITY + 4)
-#define CDC_DEBUG_TASK_PRIO         (tskIDLE_PRIORITY + 2)
 #define TUD_TASK_PRIO               (tskIDLE_PRIORITY + 10)
 #define TARGET_WRITER_THREAD_PRIO   (tskIDLE_PRIORITY + 8)
+#define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 6)
+#define UART_TASK_PRIO              (tskIDLE_PRIORITY + 4)
+#define CDC_DEBUG_TASK_PRIO         (tskIDLE_PRIORITY + 2)
 
 static TaskHandle_t tud_taskhandle;
 
@@ -126,6 +130,10 @@ int main(void)
     // should be done before anything else (that does cdc_debug_printf())
 #if !defined(NDEBUG)
     cdc_debug_init(CDC_DEBUG_TASK_PRIO);
+#endif
+
+#if defined(INCLUDE_RTT_CONSOLE)
+    rtt_console_init(RTT_CONSOLE_TASK_PRIO);
 #endif
 
     // now we can "print"

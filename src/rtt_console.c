@@ -23,28 +23,52 @@
  *
  */
 
-#ifndef _SW_LOCK_H
-#define _SW_LOCK_H
-
 
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "FreeRTOS.h"
+#include "task.h"
 
-#ifdef __cplusplus
-    extern "C" {
-#endif
-
-
-void sw_lock_init(void);
-bool sw_lock(const char *who, bool wait_just_some_ms);
-void sw_unlock(const char *who);
-bool sw_unlock_requested(void);
+#include "picoprobe_config.h"
+#include "rtt_console.h"
+#include "sw_lock.h"
 
 
-#ifdef __cplusplus
+static TaskHandle_t           task_rtt_console = NULL;
+
+
+
+void rtt_console_thread(void *ptr)
+{
+    static bool have_lock;
+
+    for (;;) {
+        if ( !have_lock) {
+            have_lock = sw_lock("RTT", false);
+        }
+
+        if (have_lock) {
+            // do operations
+            vTaskDelay(pdMS_TO_TICKS(100));
+
+            if (sw_unlock_requested()) {
+                have_lock = false;
+                sw_unlock("RTT");
+            }
+        }
+        else {
+            // wait until sw_lock is available again
+            vTaskDelay(pdMS_TO_TICKS(500));
+        }
     }
-#endif
+}   // rtt_console_thread
 
 
-#endif
+
+void rtt_console_init(uint32_t task_prio)
+{
+    picoprobe_debug("rtt_console_init\n");
+
+    xTaskCreate(rtt_console_thread, "RTT_CONSOLE", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_rtt_console);
+}   // rtt_console_init

@@ -10,14 +10,15 @@ project(picoprobe)
 pico_sdk_init()
 
 add_executable(picoprobe
-        src/led.c
-        src/main.c
-        src/usb_descriptors.c
-        src/probe.c
         src/cdc_uart.c
         src/get_serial.c
+        src/led.c
+        src/main.c
+        src/probe.c
+        src/rtt_console.c
         src/sw_dp_pio.c
         src/sw_lock.c
+        src/usb_descriptors.c
 )
 
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")

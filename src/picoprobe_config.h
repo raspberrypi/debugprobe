@@ -90,4 +90,6 @@
     #define PICOPROBE_DEBUG_PROTOCOL PROTO_DAP_V2
 #endif
 
+#define INCLUDE_RTT_CONSOLE
+
 #endif
