@@ -30,6 +30,9 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
+#include "target_family.h"
+#include "swd_host.h"
+
 #include "picoprobe_config.h"
 #include "rtt_console.h"
 #include "sw_lock.h"
@@ -39,28 +42,54 @@ static TaskHandle_t           task_rtt_console = NULL;
 
 
 
+static void search_for_rtt(void)
+{
+
+}   // search_for_rtt
+
+
+
+static void do_rtt_console(void)
+{
+
+}   // do_rtt_console
+
+
+
+static void target_connect(void)
+{
+    picoprobe_info("=================================== RTT connect target\n");
+    target_set_state(RESET_PROGRAM);
+}   // target_connect
+
+
+
+static void target_disconnect(void)
+{
+    picoprobe_info("=================================== RTT disconnect target\n");
+    target_set_state(RESET_RUN);
+}   // target_disconnect
+
+
+
 void rtt_console_thread(void *ptr)
 {
-    static bool have_lock;
-
     for (;;) {
-        if ( !have_lock) {
-            have_lock = sw_lock("RTT", false);
-        }
+        sw_lock("RTT", false);
+        // post: we have the interface
 
-        if (have_lock) {
-            // do operations
+        vTaskDelay(pdMS_TO_TICKS(100));
+        target_connect();
+
+        // do operations
+        while ( !sw_unlock_requested()) {
             vTaskDelay(pdMS_TO_TICKS(100));
+        }
 
-            if (sw_unlock_requested()) {
-                have_lock = false;
-                sw_unlock("RTT");
-            }
-        }
-        else {
-            // wait until sw_lock is available again
-            vTaskDelay(pdMS_TO_TICKS(500));
-        }
+        target_disconnect();
+        vTaskDelay(pdMS_TO_TICKS(200));        // TODO after disconnect some guard time seems to be required??
+
+        sw_unlock("RTT");
     }
 }   // rtt_console_thread
 
