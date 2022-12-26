@@ -143,7 +143,7 @@ int main(void)
 #endif
     led_init();
 
-    xTaskCreate(usb_thread, "TUD", configMINIMAL_STACK_SIZE+2048, NULL, TUD_TASK_PRIO, &tud_taskhandle);
+    xTaskCreate(usb_thread, "TUD", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, &tud_taskhandle);
     vTaskStartScheduler();
 
     return 0;
@@ -168,6 +168,8 @@ uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t
 void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t const* RxDataBuffer, uint16_t bufsize)
 {
     uint32_t response_size = TU_MIN(CFG_TUD_HID_EP_BUFSIZE, bufsize);
+
+    // TODO do sw_lock() / unlock! (with timer)
 
     // This doesn't use multiple report and report ID
     (void) itf;

@@ -488,7 +488,7 @@ static uint8_t rp2040_target_set_state(target_state_t state)
     	case DEBUG:
     		// Enable debug on running target
     		// pre: !swd_off()  &&  core0 selected
-    		r = rp2040_swd_set_target_state(0, NO_DEBUG);
+    		r = rp2040_swd_set_target_state(0, DEBUG);
     		// post: core0 in DEBUG
     		break;
 

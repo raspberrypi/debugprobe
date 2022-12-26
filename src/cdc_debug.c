@@ -180,5 +180,5 @@ void cdc_debug_init(uint32_t task_prio)
         panic("cdc_debug_init: cannot create sema_printf\n");
     }
 
-    xTaskCreate(cdc_debug_thread, "CDC_DEB", configMINIMAL_STACK_SIZE+1024, NULL, task_prio, &task_printf);
+    xTaskCreate(cdc_debug_thread, "CDC_DEB", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_printf);
 }   // cdc_debug_init

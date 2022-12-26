@@ -65,10 +65,10 @@
 #define PROBE_PIN_RESET 6
 
 // UART config
-#define PICOPROBE_UART_TX 4
-#define PICOPROBE_UART_RX 5
+#define PICOPROBE_UART_TX        4
+#define PICOPROBE_UART_RX        5
 #define PICOPROBE_UART_INTERFACE uart1
-#define PICOPROBE_UART_BAUDRATE 115200
+#define PICOPROBE_UART_BAUDRATE  115200
 
 // LED config
 #ifndef PICOPROBE_LED
@@ -79,15 +79,15 @@
     #else
         #define PICOPROBE_LED PICO_DEFAULT_LED_PIN
     #endif
+#endif
 
-    #define PROTO_OPENOCD_CUSTOM 0
-    #define PROTO_DAP_V1 1
-    #define PROTO_DAP_V2 2
+#define PROTO_OPENOCD_CUSTOM 0
+#define PROTO_DAP_V1 1
+#define PROTO_DAP_V2 2
 
-    // Interface config
-    #ifndef PICOPROBE_DEBUG_PROTOCOL
-        #define PICOPROBE_DEBUG_PROTOCOL PROTO_DAP_V2
-    #endif
+// Interface config
+#ifndef PICOPROBE_DEBUG_PROTOCOL
+    #define PICOPROBE_DEBUG_PROTOCOL PROTO_DAP_V2
 #endif
 
 #endif
