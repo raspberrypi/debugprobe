@@ -33,7 +33,9 @@ uint32_t probe_read_bits(uint bit_count);
 void probe_read_mode(void);
 void probe_write_mode(void);
 
-#if 0
+#if !defined(PICOPROBE_DEBUG_PROTOCOL)
+    #error "PICOPROBE_DEBUG_PROTOCOL must be defined"
+#elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
     void probe_handle_read(uint total_bits);
     void probe_handle_write(uint8_t *data, uint total_bits);
     void probe_task(void);

@@ -25,6 +25,7 @@
 
 #include <pico/stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <string.h>
 
 #include <hardware/clocks.h>
@@ -89,7 +90,7 @@ struct __attribute__((__packed__)) probe_pkt_hdr {
 
 void probe_set_swclk_freq(uint freq_khz) {
         uint clk_sys_freq_khz = clock_get_hz(clk_sys) / 1000;
-        picoprobe_info("Set swclk freq %dKHz sysclk %dkHz\n", freq_khz, clk_sys_freq_khz);
+//        picoprobe_info("Set swclk freq %dKHz sysclk %dkHz\n", freq_khz, clk_sys_freq_khz);
         // Worked out with saleae
 //   freq_khz = 15000;
         uint32_t divider = clk_sys_freq_khz / freq_khz / 2;
@@ -140,17 +141,22 @@ void probe_write_mode(void) {
 
 void probe_gpio_init()
 {
-    picoprobe_info("probe_gpio_init()\n");
+	static bool initialized;
 
-    // Funcsel pins
-    pio_gpio_init(pio0, PROBE_PIN_SWCLK);
-    pio_gpio_init(pio0, PROBE_PIN_SWDIO);
-    // Make sure SWDIO has a pullup on it. Idle state is high
-    gpio_pull_up(PROBE_PIN_SWDIO);
+	if ( !initialized) {
+		initialized = true;
+		picoprobe_debug("probe_gpio_init()\n");
+
+		// Funcsel pins
+		pio_gpio_init(pio0, PROBE_PIN_SWCLK);
+		pio_gpio_init(pio0, PROBE_PIN_SWDIO);
+		// Make sure SWDIO has a pullup on it. Idle state is high
+		gpio_pull_up(PROBE_PIN_SWDIO);
+	}
 }
 
 void probe_init() {
-    // picoprobe_info("probe_init()\n");
+//    picoprobe_info("probe_init()\n");
 
     // Target reset pin: pull up, input to emulate open drain pin
     gpio_pull_up(PROBE_PIN_RESET);
@@ -205,7 +211,8 @@ void probe_deinit(void)
 }
 
 
-#if 0
+
+#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
 void probe_handle_read(uint total_bits) {
     picoprobe_debug("Read %d bits\n", total_bits);
     probe_read_mode();
