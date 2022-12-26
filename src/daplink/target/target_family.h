@@ -43,6 +43,7 @@ typedef enum _target_state {
     POST_FLASH_RESET,        //!< Reset target after flash programming
     POWER_ON,                //!< Poweron the target
     SHUTDOWN,                //!< Poweroff the target
+    ATTACH,
 } target_state_t;
 
 //! @brief Options for reset.

@@ -419,6 +419,13 @@ static bool rp2040_swd_set_target_state(uint8_t core, target_state_t state)
             // This state should be handled in target_reset.c, nothing needs to be done here.
             break;
 
+        case ATTACH:
+            // attach without doing anything else
+            if (!rp2040_swd_init_debug(core)) {
+                return false;
+            }
+            break;
+
         default:
             return false;
     }
@@ -450,7 +457,7 @@ static void rp2040_swd_set_target_reset(uint8_t asserted)
  */
 static uint8_t rp2040_target_set_state(target_state_t state)
 {
-	uint8_t r;
+	uint8_t r = false;
 
 //    cdc_debug_printf("----- rp2040_target_set_state(%d)\n", state);
 
@@ -509,12 +516,19 @@ static uint8_t rp2040_target_set_state(target_state_t state)
 
     	case POST_FLASH_RESET:
     		// Reset target after flash programming
+    	    break;
 
     	case POWER_ON:
     		// Poweron the target
+    	    break;
 
     	case SHUTDOWN:
     		// Poweroff the target
+    	    break;
+
+    	case ATTACH:
+    	    r = rp2040_swd_set_target_state(1, ATTACH)  &&  rp2040_swd_set_target_state(0, ATTACH);
+    	    break;
 
     	default:
     		r = false;
