@@ -113,17 +113,19 @@ void led_state(led_state_t state)
 {
     switch (state) {
         case LS_TARGET_FOUND:
-            target_found = true;
-            uart_data    = false;
+            target_found  = true;
+            rtt_flash_cnt = 0;
+            uart_data     = false;
             break;
 
         case LS_NO_TARGET:
-            target_found = false;
+            target_found  = false;
             break;
 
         case LS_MSC_CONNECTED:
             msc_connected = true;
-            uart_data    = false;
+            rtt_flash_cnt = 0;
+            uart_data     = false;
             break;
 
         case LS_MSC_DISCONNECTED:
@@ -132,7 +134,8 @@ void led_state(led_state_t state)
 
         case LS_DAP_CONNECTED:
             dap_connected = true;
-            uart_data    = false;
+            rtt_flash_cnt = 0;
+            uart_data     = false;
             break;
 
         case LS_DAP_DISCONNECTED:
@@ -153,7 +156,8 @@ void led_state(led_state_t state)
             break;
 
         case LS_UART_DATA:
-            uart_data = true;
+            rtt_flash_cnt = 0;
+            uart_data     = true;
             break;
 
         default:

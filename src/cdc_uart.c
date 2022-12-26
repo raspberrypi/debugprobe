@@ -31,6 +31,7 @@
 #include "tusb.h"
 
 #include "picoprobe_config.h"
+#include "led.h"
 
 
 #define CDC_UART_N            0
@@ -149,6 +150,7 @@ void on_uart_rx(void)
     }
 
     if (cnt != 0) {
+        led_state(LS_UART_DATA);
         xStreamBufferSendFromISR(stream_uart, buf, cnt, NULL);
     }
 }   // on_uart_rx
