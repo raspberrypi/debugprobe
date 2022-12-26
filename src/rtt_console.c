@@ -37,18 +37,19 @@
 #include "picoprobe_config.h"
 #include "rtt_console.h"
 #include "sw_lock.h"
+#include "RTT/SEGGER_RTT.h"
 
 
 #define DO_TARGET_DISCONNECT  1
 
 
-static const uint8_t seggerRTT[16] = "SEGGER RTT\0\0\0\0\0\0";
+static const uint8_t    seggerRTT[16] = "SEGGER RTT\0\0\0\0\0\0";
 
 static TaskHandle_t           task_rtt_console = NULL;
 
 
 
-static void search_for_rtt(void)
+static uint32_t search_for_rtt_cb(void)
 {
     uint8_t buf[1024];
     bool ok;
@@ -77,15 +78,52 @@ static void search_for_rtt(void)
     else {
         picoprobe_info("no RTT_CB found\n");
     }
-}   // search_for_rtt
+    return rttAddr;
+}   // search_for_rtt_cb
 
 
 
-static void do_rtt_console(void)
+static void do_rtt_console(uint32_t rtt_cb)
 {
+    SEGGER_RTT_BUFFER_UP  aUp;       // Up buffer, transferring information up from target via debug probe to host
+    uint8_t buf[100];
+    bool ok = true;
+
+    ok = ok  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aUp),
+                                 (uint8_t *)&aUp, sizeof(aUp));
+
     // do operations
-    while ( !sw_unlock_requested()) {
-        vTaskDelay(pdMS_TO_TICKS(100));
+    while (ok  &&  !sw_unlock_requested()) {
+        ok = ok  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[0].WrOff), (uint8_t *)&(aUp.WrOff), 2*sizeof(unsigned));
+
+        if (aUp.WrOff == aUp.RdOff) {
+//            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+        else {
+            uint32_t cnt;
+
+            if (aUp.WrOff > aUp.RdOff) {
+                cnt = aUp.WrOff - aUp.RdOff;
+            }
+            else {
+                cnt = aUp.SizeOfBuffer - aUp.RdOff;
+            }
+            cnt = MIN(cnt, sizeof(buf));
+//            picoprobe_info("RTT_CB: p:%p size:%d wr:%d rd:%d cnt:%lu\n", aUp.pBuffer, aUp.SizeOfBuffer, aUp.WrOff, aUp.RdOff, cnt);
+
+            memset(buf, 0, sizeof(buf));
+            ok = ok  &&  swd_read_memory((uint32_t)aUp.pBuffer + aUp.RdOff, buf, cnt);
+            ok = ok  &&  swd_write_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[0].RdOff), (aUp.RdOff + cnt) % aUp.SizeOfBuffer);
+
+#if 0
+            for (int i = 0;  i < cnt;  ++i) {
+                picoprobe_debug(" %02x", buf[i]);
+            }
+            picoprobe_debug("\n");
+#else
+            picoprobe_debug(" %.100s", buf);
+#endif
+        }
     }
 }   // do_rtt_console
 
@@ -93,13 +131,12 @@ static void do_rtt_console(void)
 
 /**
  * Connect to the target, but let the target run
- *
- * TODO  just do an attach
  */
 static void target_connect(void)
 {
     picoprobe_debug("=================================== RTT connect target\n");
-    target_set_state(RESET_PROGRAM);
+//    target_set_state(RESET_PROGRAM);
+    target_set_state(ATTACH);
 }   // target_connect
 
 
@@ -116,6 +153,8 @@ static void target_disconnect(void)
 
 void rtt_console_thread(void *ptr)
 {
+    uint32_t rtt_cb;
+
     for (;;) {
         sw_lock("RTT", false);
         // post: we have the interface
@@ -123,8 +162,8 @@ void rtt_console_thread(void *ptr)
         vTaskDelay(pdMS_TO_TICKS(100));
         target_connect();
 
-        search_for_rtt();
-        do_rtt_console();
+        rtt_cb = search_for_rtt_cb();
+        do_rtt_console(rtt_cb);
 
 #if DO_TARGET_DISCONNECT
         target_disconnect();

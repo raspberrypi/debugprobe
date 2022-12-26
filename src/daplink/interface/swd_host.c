@@ -274,12 +274,24 @@ static uint8_t swd_write_block(uint32_t address, uint8_t *data, uint32_t size)
     // DRW write
     req = SWD_REG_AP | SWD_REG_W | (3 << 2);
 
-    for (i = 0; i < size_in_words; i++) {
-        if (swd_transfer_retry(req, (uint32_t *)data) != DAP_TRANSFER_OK) {
-            return 0;
-        }
+    if (((uint32_t)data & 0x03) != 0) {
+        for (i = 0; i < size_in_words; i++) {
+            uint32_t word;
 
-        data += 4;
+            memcpy(&word, data, 4);
+            if (swd_transfer_retry(req, &word) != DAP_TRANSFER_OK) {
+                return 0;
+            }
+            data += 4;
+        }
+    }
+    else {
+        for (i = 0; i < size_in_words; i++) {
+            if (swd_transfer_retry(req, (uint32_t *)data) != DAP_TRANSFER_OK) {
+                return 0;
+            }
+            data += 4;
+        }
     }
 
     // dummy read
@@ -322,17 +334,34 @@ static uint8_t swd_read_block(uint32_t address, uint8_t *data, uint32_t size)
         return 0;
     }
 
-    for (i = 0; i < (size_in_words - 1); i++) {
-        if (swd_transfer_retry(req, (uint32_t *)data) != DAP_TRANSFER_OK) {
-            return 0;
+    if (((uint32_t)data & 0x03) != 0) {
+        uint32_t word;
+
+        for (i = 0; i < (size_in_words - 1); i++) {
+            if (swd_transfer_retry(req, &word) != DAP_TRANSFER_OK) {
+                return 0;
+            }
+            memcpy(data, &word, 4);
+            data += 4;
         }
 
-        data += 4;
+        // read last word
+        req = SWD_REG_DP | SWD_REG_R | SWD_REG_ADR(DP_RDBUFF);
+        ack = swd_transfer_retry(req, &word);
+        memcpy(data, &word, 4);
     }
+    else {
+        for (i = 0; i < (size_in_words - 1); i++) {
+            if (swd_transfer_retry(req, (uint32_t *)data) != DAP_TRANSFER_OK) {
+                return 0;
+            }
+            data += 4;
+        }
 
-    // read last word
-    req = SWD_REG_DP | SWD_REG_R | SWD_REG_ADR(DP_RDBUFF);
-    ack = swd_transfer_retry(req, (uint32_t *)data);
+        // read last word
+        req = SWD_REG_DP | SWD_REG_R | SWD_REG_ADR(DP_RDBUFF);
+        ack = swd_transfer_retry(req, (uint32_t *)data);
+    }
     return (ack == DAP_TRANSFER_OK);
 }
 

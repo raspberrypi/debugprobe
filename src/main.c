@@ -61,9 +61,9 @@ static uint8_t RxDataBuffer[CFG_TUD_VENDOR_RX_BUFSIZE];
 // TODO use affinity for processes
 #define TUD_TASK_PRIO               (tskIDLE_PRIORITY + 10)
 #define TARGET_WRITER_THREAD_PRIO   (tskIDLE_PRIORITY + 8)
-#define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 6)
 #define UART_TASK_PRIO              (tskIDLE_PRIORITY + 4)
 #define CDC_DEBUG_TASK_PRIO         (tskIDLE_PRIORITY + 2)
+#define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 1)
 
 static TaskHandle_t tud_taskhandle;
 
@@ -81,6 +81,7 @@ void dap_task(void)
         if ( !mounted) {
             if (sw_lock("DAPv2", true)) {
                 mounted = true;
+                picoprobe_debug("=================================== DAPv2 connect target\n");
             }
         }
 
@@ -94,6 +95,7 @@ void dap_task(void)
 
     if (mounted  &&  time_us_32() - used_us > 500000) {
         mounted = false;
+        picoprobe_debug("=================================== DAPv2 disconnect target\n");
         sw_unlock("DAPv2");
     }
 }   // dap_task
