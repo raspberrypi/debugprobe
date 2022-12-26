@@ -32,11 +32,17 @@
 
 #include "target_family.h"
 #include "swd_host.h"
+#include "daplink_addr.h"
 
 #include "picoprobe_config.h"
 #include "rtt_console.h"
 #include "sw_lock.h"
 
+
+#define DO_TARGET_DISCONNECT  1
+
+
+static const uint8_t seggerRTT[16] = "SEGGER RTT\0\0\0\0\0\0";
 
 static TaskHandle_t           task_rtt_console = NULL;
 
@@ -44,31 +50,67 @@ static TaskHandle_t           task_rtt_console = NULL;
 
 static void search_for_rtt(void)
 {
+    uint8_t buf[1024];
+    bool ok;
+    uint32_t rttAddr = 0;
 
+    for (uint32_t addr = DAPLINK_RAM_START;  addr < DAPLINK_RAM_START + DAPLINK_RAM_SIZE;  addr += sizeof(buf)) {
+        ok = swd_read_memory(addr, buf, sizeof(buf));
+        if ( !ok  ||  sw_unlock_requested()) {
+            break;
+        }
+
+        for (uint32_t ndx = 0;  ndx < sizeof(buf) - sizeof(seggerRTT);  ndx += sizeof(seggerRTT)) {
+            if (memcmp(buf + ndx, seggerRTT, sizeof(seggerRTT)) == 0) {
+                rttAddr = addr + ndx;
+                break;
+            }
+        }
+        if (rttAddr != 0) {
+            break;
+        }
+    }
+
+    if (rttAddr != 0) {
+        picoprobe_info("RTT_CB found at 0x%lx\n", rttAddr);
+    }
+    else {
+        picoprobe_info("no RTT_CB found\n");
+    }
 }   // search_for_rtt
 
 
 
 static void do_rtt_console(void)
 {
-
+    // do operations
+    while ( !sw_unlock_requested()) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
 }   // do_rtt_console
 
 
 
+/**
+ * Connect to the target, but let the target run
+ *
+ * TODO  just do an attach
+ */
 static void target_connect(void)
 {
-    picoprobe_info("=================================== RTT connect target\n");
+    picoprobe_debug("=================================== RTT connect target\n");
     target_set_state(RESET_PROGRAM);
 }   // target_connect
 
 
 
+#if DO_TARGET_DISCONNECT
 static void target_disconnect(void)
 {
-    picoprobe_info("=================================== RTT disconnect target\n");
+    picoprobe_debug("=================================== RTT disconnect target\n");
     target_set_state(RESET_RUN);
 }   // target_disconnect
+#endif
 
 
 
@@ -81,13 +123,14 @@ void rtt_console_thread(void *ptr)
         vTaskDelay(pdMS_TO_TICKS(100));
         target_connect();
 
-        // do operations
-        while ( !sw_unlock_requested()) {
-            vTaskDelay(pdMS_TO_TICKS(100));
-        }
+        search_for_rtt();
+        do_rtt_console();
 
+#if DO_TARGET_DISCONNECT
         target_disconnect();
         vTaskDelay(pdMS_TO_TICKS(200));        // TODO after disconnect some guard time seems to be required??
+#endif
+        vTaskDelay(pdMS_TO_TICKS(100));        // TODO after disconnect some guard time seems to be required??
 
         sw_unlock("RTT");
     }
@@ -97,7 +140,7 @@ void rtt_console_thread(void *ptr)
 
 void rtt_console_init(uint32_t task_prio)
 {
-    picoprobe_debug("rtt_console_init\n");
+    picoprobe_debug("rtt_console_init()\n");
 
     xTaskCreate(rtt_console_thread, "RTT_CONSOLE", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_rtt_console);
 }   // rtt_console_init
