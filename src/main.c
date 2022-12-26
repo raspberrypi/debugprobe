@@ -42,6 +42,7 @@
 #include "led.h"
 #include "DAP_config.h"
 #include "DAP.h"
+#include "sw_lock.h"
 
 #if CFG_TUD_MSC
     #include "msc/msc_utils.h"
@@ -66,12 +67,30 @@ static TaskHandle_t tud_taskhandle;
 
 void dap_task(void)
 {
+    static bool mounted = false;
+    static uint32_t used_us;
+
     if (tud_vendor_available()) {
         uint32_t resp_len;
-        tud_vendor_read(RxDataBuffer, sizeof(RxDataBuffer));
-        resp_len = DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
-        tud_vendor_write(TxDataBuffer, resp_len);
-        tud_vendor_flush();
+
+        used_us = time_us_32();
+        if ( !mounted) {
+            if (sw_lock("DAPv2", true)) {
+                mounted = true;
+            }
+        }
+
+        if (mounted) {
+            tud_vendor_read(RxDataBuffer, sizeof(RxDataBuffer));
+            resp_len = DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
+            tud_vendor_write(TxDataBuffer, resp_len);
+            tud_vendor_flush();
+        }
+    }
+
+    if (mounted  &&  time_us_32() - used_us > 500000) {
+        mounted = false;
+        sw_unlock("DAPv2");
     }
 }   // dap_task
 
@@ -79,9 +98,7 @@ void dap_task(void)
 
 void usb_thread(void *ptr)
 {
-    picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
-    picoprobe_info("                                 Welcome to Picoprobe!\n");
-    picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+    picoprobe_info("system starting...\n");
 
     cdc_uart_init(UART_TASK_PRIO);
 
@@ -102,9 +119,22 @@ int main(void)
 {
     board_init();
     set_sys_clock_khz(CPU_CLOCK / 1000, true);
-    usb_serial_init();
 
+    usb_serial_init();
     tusb_init();
+
+    // should be done before anything else (that does cdc_debug_printf())
+#if !defined(NDEBUG)
+    cdc_debug_init(CDC_DEBUG_TASK_PRIO);
+#endif
+
+    // now we can "print"
+    picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+    picoprobe_info("                                 Welcome to Picoprobe!\n");
+    picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+
+    sw_lock_init();
+
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
     probe_gpio_init();
     probe_init();
@@ -112,11 +142,6 @@ int main(void)
     DAP_Setup();
 #endif
     led_init();
-
-    // should be done before anything else (that does cdc_debug_printf())
-#if !defined(NDEBUG)
-    cdc_debug_init(CDC_DEBUG_TASK_PRIO);
-#endif
 
     xTaskCreate(usb_thread, "TUD", configMINIMAL_STACK_SIZE+2048, NULL, TUD_TASK_PRIO, &tud_taskhandle);
     vTaskStartScheduler();

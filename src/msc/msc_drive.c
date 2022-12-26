@@ -478,8 +478,8 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
 
 //        picoprobe_debug("  CURRENT.UF2 0x%lx\n", target_addr);
         r = -1;
-        if (target_connect(false)) {
-            if (target_read_memory(uf2, target_addr, block_no, num_blocks) != 0) {
+        if (msc_target_connect(false)) {
+            if (msc_target_read_memory(uf2, target_addr, block_no, num_blocks) != 0) {
                 r = BPB_BytsPerSec;
             }
         }
@@ -499,8 +499,8 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
 
 //        picoprobe_info("  RAM.UF2 0x%lx\n", target_addr);
         r = -1;
-        if (target_connect(false)) {
-            if (target_read_memory(uf2, target_addr, block_no, num_blocks) != 0) {
+        if (msc_target_connect(false)) {
+            if (msc_target_read_memory(uf2, target_addr, block_no, num_blocks) != 0) {
                 r = BPB_BytsPerSec;
             }
         }
@@ -556,9 +556,9 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
     else {
         r = -1;
 //        picoprobe_info("  tud_msc_write10_cb: check if UF2 data\n");
-        if (is_uf2_record(buffer,  bufsize)) {
-            if (target_connect(true)) {
-                if (target_write_memory((struct uf2_block *)buffer) != 0) {
+        if (msc_is_uf2_record(buffer,  bufsize)) {
+            if (msc_target_connect(true)) {
+                if (msc_target_write_memory((struct uf2_block *)buffer) != 0) {
                     static_assert(sizeof(struct uf2_block) == 512);
                     r = sizeof(struct uf2_block);
                 }

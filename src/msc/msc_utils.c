@@ -32,6 +32,7 @@
 #include "boot/uf2.h"                // this is the Pico variant of the UF2 header
 
 #include "msc_utils.h"
+#include "sw_lock.h"
 
 #include "FreeRTOS.h"
 #include "message_buffer.h"
@@ -59,6 +60,7 @@ static MessageBufferHandle_t  msgbuff_target_writer_thread;
 static SemaphoreHandle_t      sema_swd_in_use;
 static TimerHandle_t          timer_disconnect;
 static void                  *timer_disconnect_id;
+static bool                   have_lock;
 
 
 #if 0
@@ -364,7 +366,11 @@ static bool display_reg(uint8_t num)
 /// \pre
 ///    - target MCU must be connected
 ///    - code must be already uploaded to target
-//
+///
+/// \note
+///    The called function could end with __breakpoint(), but with the help of the used trampoline
+///    functions in ROM, the functions can be fetched.
+///
 static bool target_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t *result)
 {
     static uint32_t trampoline_addr = 0;  // trampoline is fine to get the return value of the callee
@@ -516,10 +522,13 @@ static bool target_copy_flash_code(void)
 
 
 
-///
-/// Disconnect probe from the target and start the target.
-/// Called by software timer.
-///
+/**
+ * Disconnect probe from the target and start the target.
+ * Called by software timer.
+ *
+ * \pre
+ *    must have sw_lock()
+ */
 static void target_disconnect(TimerHandle_t xTimer)
 {
     if (xSemaphoreTake(sema_swd_in_use, 0)) {
@@ -528,7 +537,9 @@ static void target_disconnect(TimerHandle_t xTimer)
             target_set_state(RESET_RUN);
             is_connected = false;
         }
+        have_lock = false;
         xSemaphoreGive(sema_swd_in_use);
+        sw_unlock("MSC");
     }
     else {
         xTimerReset(xTimer, pdMS_TO_TICKS(1000));
@@ -540,33 +551,40 @@ static void target_disconnect(TimerHandle_t xTimer)
 ///
 /// Connect the probe to the target.
 /// This function must be called on every read/write to retrigger the disconnect functionality.
+/// Disconnecting is done after a certain delay without calling msc_target_connect().
 ///
-bool target_connect(bool write_mode)
+bool msc_target_connect(bool write_mode)
 {
     static uint64_t last_trigger_us;
     uint64_t now_us;
     bool ok;
 
-    xSemaphoreTake(sema_swd_in_use, portMAX_DELAY);
-    now_us = time_us_64();
-    ok = true;
-    if ( !is_connected  ||  now_us - last_trigger_us > 1000*1000) {
-        picoprobe_info("=================================== connect target\n");
+    if (have_lock  ||  sw_lock("MSC", true)) {
+        xSemaphoreTake(sema_swd_in_use, portMAX_DELAY);
+        have_lock = true;
+        now_us = time_us_64();
+        ok = true;
+        if ( !is_connected  ||  now_us - last_trigger_us > 1000*1000) {
+            picoprobe_info("=================================== connect target\n");
 
-        ok = target_set_state(RESET_PROGRAM);
-        picoprobe_info("---------------------------------- %d\n", ok);
+            ok = target_set_state(RESET_PROGRAM);
+            picoprobe_info("---------------------------------- %d\n", ok);
 
-        if (ok) {
-            target_copy_flash_code();
+            if (ok) {
+                target_copy_flash_code();
+            }
+
+            is_connected = ok;
         }
-
-        is_connected = ok;
+        last_trigger_us = now_us;
+        xTimerReset(timer_disconnect, pdMS_TO_TICKS(1000));
+        xSemaphoreGive(sema_swd_in_use);
     }
-    last_trigger_us = now_us;
-    xTimerReset(timer_disconnect, pdMS_TO_TICKS(1000));
-    xSemaphoreGive(sema_swd_in_use);
+    else {
+        ok = false;
+    }
     return ok;
-}   // target_connect
+}   // msc_target_connect
 
 
 
@@ -585,7 +603,7 @@ void setup_uf2_record(struct uf2_block *uf2, uint32_t target_addr, uint32_t payl
 
 
 
-bool is_uf2_record(const void *sector, uint32_t sector_size)
+bool msc_is_uf2_record(const void *sector, uint32_t sector_size)
 {
     const uint32_t payload_size = 256;
     bool r = false;
@@ -614,22 +632,22 @@ bool is_uf2_record(const void *sector, uint32_t sector_size)
 
     }
     return r;
-}   //is_uf2_record
+}   // msc_is_uf2_record
 
 
 
 //
 // send the UF2 block to \a target_writer_thread()
 //
-bool target_write_memory(const struct uf2_block *uf2)
+bool msc_target_write_memory(const struct uf2_block *uf2)
 {
     xMessageBufferSend(msgbuff_target_writer_thread, uf2, sizeof(*uf2), portMAX_DELAY);
     return true;
-}   // target_write_memory
+}   // msc_target_write_memory
 
 
 
-bool target_read_memory(struct uf2_block *uf2, uint32_t target_addr, uint32_t block_no, uint32_t num_blocks)
+bool msc_target_read_memory(struct uf2_block *uf2, uint32_t target_addr, uint32_t block_no, uint32_t num_blocks)
 {
     const uint32_t payload_size = 256;
     bool ok;
@@ -641,7 +659,7 @@ bool target_read_memory(struct uf2_block *uf2, uint32_t target_addr, uint32_t bl
     ok = swd_read_memory(target_addr, uf2->data, payload_size);
     xSemaphoreGive(sema_swd_in_use);
     return ok;
-}   // target_read_memory
+}   // msc_target_read_memory
 
 
 
@@ -683,12 +701,9 @@ void msc_init(uint32_t task_prio)
 {
     picoprobe_info("------------ msc_init\n");
 
-    sema_swd_in_use = xSemaphoreCreateBinary();
+    sema_swd_in_use = xSemaphoreCreateMutex();
     if (sema_swd_in_use == NULL) {
         panic("msc_init: cannot create sema_swd_in_use\n");
-    }
-    else {
-        xSemaphoreGive(sema_swd_in_use);
     }
 
     timer_disconnect = xTimerCreate("timer_disconnect", pdMS_TO_TICKS(100), pdFALSE, timer_disconnect_id, target_disconnect);

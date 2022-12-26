@@ -39,7 +39,7 @@
 
 #define CDC_DEBUG_N           1
 
-#define STREAM_PRINTF_SIZE    30000
+#define STREAM_PRINTF_SIZE    10000
 #define STREAM_PRINTF_TRIGGER 32
 
 static TaskHandle_t           task_printf = NULL;
@@ -175,12 +175,9 @@ void cdc_debug_init(uint32_t task_prio)
         panic("cdc_debug_init: cannot create stream_printf\n");
     }
 
-    sema_printf = xSemaphoreCreateBinary();
+    sema_printf = xSemaphoreCreateMutex();
     if (sema_printf == NULL) {
         panic("cdc_debug_init: cannot create sema_printf\n");
-    }
-    else {
-        xSemaphoreGive(sema_printf);
     }
 
     xTaskCreate(cdc_debug_thread, "CDC_DEB", configMINIMAL_STACK_SIZE+1024, NULL, task_prio, &task_printf);

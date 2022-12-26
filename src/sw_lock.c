@@ -23,31 +23,50 @@
  *
  */
 
-#ifndef _MSC_UTILS_H
-#define _MSC_UTILS_H
+#include "FreeRTOS.h"
+#include "semphr.h"
+
+#include "picoprobe_config.h"
+#include "sw_lock.h"
 
 
-#include <stdint.h>
-#include <stdbool.h>
-
-#include "boot/uf2.h"                // this is the Pico variant of the UF2 header
+static SemaphoreHandle_t      sema_lock;
 
 
-#ifdef __cplusplus
-    extern "C" {
-#endif
+bool sw_lock(const char *who, bool wait_some_ms)
+{
+    BaseType_t r;
+
+    r = xSemaphoreTake(sema_lock, wait_some_ms ? pdMS_TO_TICKS(200) : 0);
+    picoprobe_debug("sw_lock('%s', %d) = %ld\n", who, wait_some_ms, r);
+    return (r == pdTRUE) ? true : false;
+}   // sw_lock
 
 
-bool msc_target_connect(bool write_mode);
-bool msc_target_write_memory(const struct uf2_block *uf2);
-bool msc_target_read_memory(struct uf2_block *uf2, uint32_t target_addr, uint32_t block_no, uint32_t num_blocks);
 
-bool msc_is_uf2_record(const void *sector, uint32_t sector_size);
+void sw_unlock(const char *who)
+{
+    BaseType_t r;
 
-void msc_init(uint32_t task_prio);
+    r = xSemaphoreGive(sema_lock);
+    picoprobe_debug("sw_unlock('%s') = %ld\n", who, r);
+}   // sw_unlock
 
-#ifdef __cplusplus
+
+
+void sw_unlock_request(uint32_t prio)
+{
+
+}   // sw_unlock_request
+
+
+
+void sw_lock_init(void)
+{
+    picoprobe_debug("sw_lock_init\n");
+    sema_lock = xSemaphoreCreateBinary();    // don't know why, but xSemaphoreCreateMutex() leads to hang on ...Take()
+    if (sema_lock == NULL) {
+        panic("sw_lock_init: cannot create sema_lock\n");
     }
-#endif
-
-#endif
+    xSemaphoreGive(sema_lock);
+}   // sw_lock_init

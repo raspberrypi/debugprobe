@@ -23,14 +23,12 @@
  *
  */
 
-#ifndef _MSC_UTILS_H
-#define _MSC_UTILS_H
+#ifndef _SW_LOCK_H
+#define _SW_LOCK_H
 
 
-#include <stdint.h>
 #include <stdbool.h>
-
-#include "boot/uf2.h"                // this is the Pico variant of the UF2 header
+#include <stdint.h>
 
 
 #ifdef __cplusplus
@@ -38,16 +36,15 @@
 #endif
 
 
-bool msc_target_connect(bool write_mode);
-bool msc_target_write_memory(const struct uf2_block *uf2);
-bool msc_target_read_memory(struct uf2_block *uf2, uint32_t target_addr, uint32_t block_no, uint32_t num_blocks);
+void sw_lock_init(void);
+bool sw_lock(const char *who, bool wait_some_ms);
+void sw_unlock(const char *who);
+void sw_unlock_request(uint32_t prio);
 
-bool msc_is_uf2_record(const void *sector, uint32_t sector_size);
-
-void msc_init(uint32_t task_prio);
 
 #ifdef __cplusplus
     }
 #endif
+
 
 #endif
