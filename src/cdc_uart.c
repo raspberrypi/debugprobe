@@ -35,7 +35,7 @@
 
 #define CDC_UART_N            0
 
-#define STREAM_UART_SIZE      512
+#define STREAM_UART_SIZE      1024
 #define STREAM_UART_TRIGGER   32
 
 static TaskHandle_t           task_uart = NULL;

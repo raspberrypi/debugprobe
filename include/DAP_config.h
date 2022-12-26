@@ -43,6 +43,7 @@ This information includes:
  - Debug Access Port supported modes and settings (JTAG/SWD and SWO).
  - Optional information about a connected Target Device (for Evaluation Boards).
 */
+#include <stdbool.h>
 #include <pico/stdlib.h>
 #include <hardware/gpio.h>
 
@@ -83,7 +84,7 @@ This information includes:
 /// Default communication speed on the Debug Access Port for SWD and JTAG mode.
 /// Used to initialize the default SWD/JTAG clock frequency.
 /// The command \ref DAP_SWJ_Clock can be used to overwrite this default setting.
-#define DAP_DEFAULT_SWJ_CLOCK   10000000U        ///< Default SWD/JTAG clock frequency in Hz. (10MHz)
+#define DAP_DEFAULT_SWJ_CLOCK   12000000U        ///< Default SWD/JTAG clock frequency in Hz. (10MHz)
 
 /// Maximum Package Size for Command and Response data.
 /// This configuration settings is used to optimize the communication performance with the
@@ -493,14 +494,18 @@ It is recommended to provide the following LEDs for status indication:
            - 1: Connect LED ON: debugger is connected to CMSIS-DAP Debug Unit.
            - 0: Connect LED OFF: debugger is not connected to CMSIS-DAP Debug Unit.
 */
-__STATIC_INLINE void LED_CONNECTED_OUT (uint32_t bit) {}
+__STATIC_INLINE void LED_CONNECTED_OUT (uint32_t bit)
+{
+}
 
 /** Debug Unit: Set status Target Running LED.
 \param bit status of the Target Running LED.
            - 1: Target Running LED ON: program execution in target started.
            - 0: Target Running LED OFF: program execution in target stopped.
 */
-__STATIC_INLINE void LED_RUNNING_OUT (uint32_t bit) {}
+__STATIC_INLINE void LED_RUNNING_OUT (uint32_t bit)
+{
+}
 
 ///@}
 
@@ -544,8 +549,16 @@ Status LEDs. In detail the operation of Hardware I/O and LED pins are enabled an
  - for nTRST, nRESET a weak pull-up (if available) is enabled.
  - LED output pins are enabled and LEDs are turned off.
 */
-__STATIC_INLINE void DAP_SETUP (void) {
-  probe_gpio_init();
+__STATIC_INLINE void DAP_SETUP (void)
+{
+	extern void SWx_Configure(void);
+	static bool initialized;
+
+	if ( !initialized) {
+		initialized = true;
+		SWx_Configure();
+		probe_gpio_init();
+	}
 }
 
 /** Reset Target Device with custom specific I/O pin or command sequence.
