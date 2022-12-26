@@ -38,14 +38,15 @@
 #include "rtt_console.h"
 #include "sw_lock.h"
 #include "RTT/SEGGER_RTT.h"
+#include "cdc_uart.h"
 
 
 #define DO_TARGET_DISCONNECT  1
 
 
-static const uint8_t    seggerRTT[16] = "SEGGER RTT\0\0\0\0\0\0";
+static const uint8_t  seggerRTT[16] = "SEGGER RTT\0\0\0\0\0\0";
 
-static TaskHandle_t           task_rtt_console = NULL;
+static TaskHandle_t   task_rtt_console = NULL;
 
 
 
@@ -97,7 +98,7 @@ static void do_rtt_console(uint32_t rtt_cb)
         ok = ok  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[0].WrOff), (uint8_t *)&(aUp.WrOff), 2*sizeof(unsigned));
 
         if (aUp.WrOff == aUp.RdOff) {
-//            vTaskDelay(pdMS_TO_TICKS(100));
+            vTaskDelay(1);
         }
         else {
             uint32_t cnt;
@@ -109,20 +110,12 @@ static void do_rtt_console(uint32_t rtt_cb)
                 cnt = aUp.SizeOfBuffer - aUp.RdOff;
             }
             cnt = MIN(cnt, sizeof(buf));
-//            picoprobe_info("RTT_CB: p:%p size:%d wr:%d rd:%d cnt:%lu\n", aUp.pBuffer, aUp.SizeOfBuffer, aUp.WrOff, aUp.RdOff, cnt);
 
             memset(buf, 0, sizeof(buf));
             ok = ok  &&  swd_read_memory((uint32_t)aUp.pBuffer + aUp.RdOff, buf, cnt);
             ok = ok  &&  swd_write_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[0].RdOff), (aUp.RdOff + cnt) % aUp.SizeOfBuffer);
 
-#if 0
-            for (int i = 0;  i < cnt;  ++i) {
-                picoprobe_debug(" %02x", buf[i]);
-            }
-            picoprobe_debug("\n");
-#else
-            picoprobe_debug(" %.100s", buf);
-#endif
+            cdc_uart_write(buf, cnt);
         }
     }
 }   // do_rtt_console
@@ -145,7 +138,7 @@ static void target_connect(void)
 static void target_disconnect(void)
 {
     picoprobe_debug("=================================== RTT disconnect target\n");
-    target_set_state(RESET_RUN);
+//    target_set_state(RESET_RUN);
 }   // target_disconnect
 #endif
 

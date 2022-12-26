@@ -155,6 +155,13 @@ void on_uart_rx(void)
 
 
 
+void cdc_uart_write(const uint8_t *buf, uint32_t cnt)
+{
+    xStreamBufferSend(stream_uart, buf, cnt, pdMS_TO_TICKS(100));
+}   // cdc_uart_write
+
+
+
 void cdc_uart_init(uint32_t task_prio)
 {
     stream_uart = xStreamBufferCreate(STREAM_UART_SIZE, STREAM_UART_TRIGGER);

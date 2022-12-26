@@ -26,6 +26,9 @@
 #ifndef CDC_UART_H
 #define CDC_UART_H
 
+#include <stdint.h>
+
 void cdc_uart_init(uint32_t task_prio);
+void cdc_uart_write(const uint8_t *buf, uint32_t cnt);
 
 #endif
