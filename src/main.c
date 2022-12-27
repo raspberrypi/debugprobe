@@ -59,13 +59,12 @@ static uint8_t RxDataBuffer[DAP_PACKET_COUNT * DAP_PACKET_SIZE];
 
 
 // prios are critical and determine throughput
-// TODO use affinity for processes
-#define LED_TASK_PRIO               (tskIDLE_PRIORITY + 12)
-#define TUD_TASK_PRIO               (tskIDLE_PRIORITY + 10)
-#define TARGET_WRITER_THREAD_PRIO   (tskIDLE_PRIORITY + 8)
-#define UART_TASK_PRIO              (tskIDLE_PRIORITY + 4)
-#define CDC_DEBUG_TASK_PRIO         (tskIDLE_PRIORITY + 2)
-#define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 1)
+#define TUD_TASK_PRIO               (tskIDLE_PRIORITY + 20)       // uses one core continuously
+#define LED_TASK_PRIO               (tskIDLE_PRIORITY + 12)       // simple task which may interrupt everything else to periodic blinking
+#define MSC_WRITER_THREAD_PRIO      (tskIDLE_PRIORITY + 8)        // this is only running on writing UF2 files
+#define UART_TASK_PRIO              (tskIDLE_PRIORITY + 4)        // target -> host via UART
+#define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 4)        // target -> host via RTT
+#define CDC_DEBUG_TASK_PRIO         (tskIDLE_PRIORITY + 2)        // probe debugging output
 
 static TaskHandle_t tud_taskhandle;
 
@@ -141,13 +140,13 @@ void usb_thread(void *ptr)
     cdc_uart_init(UART_TASK_PRIO);
 
 #if CFG_TUD_MSC
-    msc_init(TARGET_WRITER_THREAD_PRIO);
+    msc_init(MSC_WRITER_THREAD_PRIO);
 #endif
 
     for (;;) {
         tud_task();
         dap_task();
-        vTaskDelay(1);
+        vTaskDelay(0);    // not sure, if this triggers the scheduler
     }
 }   // usb_thread
 

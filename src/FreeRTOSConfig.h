@@ -48,7 +48,8 @@
 
 // TODO I guess this should be smaller than 1000 (and also a divisor of 1000)
 //      otherwise in portmacro.h (in FreeRTOS), definition of portTICK_PERIOD_MS is questionable...
-#define configTICK_RATE_HZ                      ( ( TickType_t ) 20000 )
+// TODO values around 100 lead to errors in target communication!?
+#define configTICK_RATE_HZ                      ( ( TickType_t ) 1000 )
 
 #define configMAX_PRIORITIES                    32
 #define configMINIMAL_STACK_SIZE                ((configSTACK_DEPTH_TYPE) 2048)

@@ -100,7 +100,7 @@ static void do_rtt_console(uint32_t rtt_cb)
         ok = ok  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[0].WrOff), (uint8_t *)&(aUp.WrOff), 2*sizeof(unsigned));
 
         if (aUp.WrOff == aUp.RdOff) {
-            vTaskDelay(1);
+            vTaskDelay(pdMS_TO_TICKS(10));
         }
         else {
             uint32_t cnt;
