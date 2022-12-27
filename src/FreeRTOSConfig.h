@@ -44,10 +44,14 @@
 #define configUSE_PREEMPTION                    1
 #define configUSE_TICKLESS_IDLE                 0
 #define configUSE_IDLE_HOOK                     0
-#define configUSE_TICK_HOOK                     1
+#define configUSE_TICK_HOOK                     0
+
+// TODO I guess this should be smaller than 1000 (and also a divisor of 1000)
+//      otherwise in portmacro.h (in FreeRTOS), definition of portTICK_PERIOD_MS is questionable...
 #define configTICK_RATE_HZ                      ( ( TickType_t ) 20000 )
+
 #define configMAX_PRIORITIES                    32
-#define configMINIMAL_STACK_SIZE                ( configSTACK_DEPTH_TYPE ) 256
+#define configMINIMAL_STACK_SIZE                ((configSTACK_DEPTH_TYPE) 2048)
 #define configUSE_16_BIT_TICKS                  0
 
 #define configIDLE_SHOULD_YIELD                 1
@@ -81,7 +85,7 @@
 
 /* Run time and task stats gathering related definitions. */
 #define configGENERATE_RUN_TIME_STATS           0
-#define configUSE_TRACE_FACILITY                1
+#define configUSE_TRACE_FACILITY                0
 #define configUSE_STATS_FORMATTING_FUNCTIONS    0
 
 /* Co-routine related definitions. */
@@ -92,7 +96,7 @@
 #define configUSE_TIMERS                        1
 #define configTIMER_TASK_PRIORITY               ( configMAX_PRIORITIES - 1 )
 #define configTIMER_QUEUE_LENGTH                10
-#define configTIMER_TASK_STACK_DEPTH            1024
+#define configTIMER_TASK_STACK_DEPTH            configMINIMAL_STACK_SIZE
 
 /* Interrupt nesting behaviour configuration. */
 /*
@@ -102,9 +106,10 @@
 */
 
 /* SMP port only */
-#define configNUM_CORES                         1
+#define configNUM_CORES                         2
 #define configTICK_CORE                         1
 #define configRUN_MULTIPLE_PRIORITIES           1
+#define configUSE_CORE_AFFINITY                 0
 
 /* RP2040 specific */
 #define configSUPPORT_PICO_SYNC_INTEROP         1

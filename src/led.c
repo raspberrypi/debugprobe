@@ -26,36 +26,146 @@
 #include <pico/stdlib.h>
 #include <stdint.h>
 
+#include "FreeRTOS.h"
+#include "task.h"
+
 #include "picoprobe_config.h"
+#include "led.h"
 
-#define LED_COUNT_SHIFT 14
-#define LED_COUNT_MAX 5 * (1 << LED_COUNT_SHIFT)
 
-static uint32_t led_count;
 
-void led_init(void) {
-    led_count = 0;
+static TaskHandle_t task_led = NULL;
+static bool         msc_connected;
+static bool         dap_connected;
+static bool         target_found;
+static bool         uart_data;
+static unsigned     rtt_flash_cnt;
+
+
+
+void led_thread(void *ptr)
+{
+    for (;;) {
+        if ( !target_found) {
+            // -> 5Hz blinking
+            gpio_put(PICOPROBE_LED, 0);
+            vTaskDelay(pdMS_TO_TICKS(100));
+            gpio_put(PICOPROBE_LED, 1);
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+        else if (msc_connected) {
+            // -> LED on, off for 100ms once per second
+            gpio_put(PICOPROBE_LED, 0);
+            vTaskDelay(pdMS_TO_TICKS(100));
+            gpio_put(PICOPROBE_LED, 1);
+            vTaskDelay(pdMS_TO_TICKS(900));
+        }
+        else if (dap_connected) {
+            // -> LED on, off for 100ms twice per second
+            gpio_put(PICOPROBE_LED, 0);
+            vTaskDelay(pdMS_TO_TICKS(100));
+            gpio_put(PICOPROBE_LED, 1);
+            vTaskDelay(pdMS_TO_TICKS(100));
+            gpio_put(PICOPROBE_LED, 0);
+            vTaskDelay(pdMS_TO_TICKS(100));
+            gpio_put(PICOPROBE_LED, 1);
+            vTaskDelay(pdMS_TO_TICKS(700));
+        }
+        else if (uart_data) {
+            // -> slow flashing
+            gpio_put(PICOPROBE_LED, 1);
+            vTaskDelay(pdMS_TO_TICKS(300));
+            gpio_put(PICOPROBE_LED, 0);
+            vTaskDelay(pdMS_TO_TICKS(700));
+        }
+        else {
+            // -> LED off, flashes once per second for 20ms if no RTT control block found
+            // -> LED off, flashes twice per second for 20ms if RTT control block found
+            // -> LED off, flashes thrice per second for 20ms if RTT data received
+            for (unsigned u = 0;  u < rtt_flash_cnt;  ++u) {
+                gpio_put(PICOPROBE_LED, 1);
+                vTaskDelay(pdMS_TO_TICKS(20));
+                gpio_put(PICOPROBE_LED, 0);
+                vTaskDelay(pdMS_TO_TICKS(200));
+            }
+            gpio_put(PICOPROBE_LED, 0);
+            vTaskDelay(pdMS_TO_TICKS(1000 - rtt_flash_cnt * 220));
+        }
+    }
+}   // led_thread
+
+
+
+void led_init(uint32_t task_prio)
+{
+    picoprobe_debug("led_init()\n");
 
     gpio_init(PICOPROBE_LED);
     gpio_set_dir(PICOPROBE_LED, GPIO_OUT);
     gpio_put(PICOPROBE_LED, 1);
-}
+
+    xTaskCreate(led_thread, "LED", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_led);
+}   // led_init
 
 
 
-void led_task(void) {
-    if (led_count != 0) {
-        --led_count;
-        gpio_put(PICOPROBE_LED, !((led_count >> LED_COUNT_SHIFT) & 1));
+void led_state(led_state_t state)
+{
+    switch (state) {
+        case LS_TARGET_FOUND:
+            target_found  = true;
+            rtt_flash_cnt = 0;
+            uart_data     = false;
+            break;
+
+        case LS_NO_TARGET:
+            target_found  = false;
+            break;
+
+        case LS_MSC_CONNECTED:
+            msc_connected = true;
+            rtt_flash_cnt = 0;
+            uart_data     = false;
+            break;
+
+        case LS_MSC_DISCONNECTED:
+            msc_connected = false;
+            break;
+
+        case LS_DAP_CONNECTED:
+            dap_connected = true;
+            rtt_flash_cnt = 0;
+            uart_data     = false;
+            break;
+
+        case LS_DAP_DISCONNECTED:
+            dap_connected = false;
+            break;
+
+        case LS_RTT_CB_FOUND:
+            rtt_flash_cnt = 2;
+            uart_data     = false;
+            break;
+
+        case LS_RTT_DATA:
+            rtt_flash_cnt = 3;
+            break;
+
+        case LS_RTT_OFF:
+            rtt_flash_cnt = 1;
+            break;
+
+        case LS_UART_DATA:
+            rtt_flash_cnt = 0;
+            uart_data     = true;
+            break;
+
+        default:
+            msc_connected = false;
+            dap_connected = false;
+            target_found  = false;
+            rtt_flash_cnt = 0;
+            uart_data     = false;
+            break;
     }
-}
-
-void led_signal_activity(uint total_bits) {
-    if (led_count == 0) {
-        gpio_put(PICOPROBE_LED, 0);
-    }
-
-    if (led_count < LED_COUNT_MAX) {
-        led_count += total_bits;
-    }
-}
+}   // led_state

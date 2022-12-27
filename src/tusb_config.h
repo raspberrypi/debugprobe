@@ -58,21 +58,28 @@
 //--------------------------------------------------------------------
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
-#define CFG_TUD_ENDPOINT0_SIZE    64
+  #define CFG_TUD_ENDPOINT0_SIZE      64
 #endif
 
 //------------- CLASS -------------//
-#define CFG_TUD_HID             1
-#define CFG_TUD_CDC             1
-#define CFG_TUD_MSC             0
-#define CFG_TUD_MIDI            0
-#define CFG_TUD_VENDOR          1
+#define CFG_TUD_HID                   1
+#if !defined(NDEBUG)
+    #define CFG_TUD_CDC               2
+#else
+    #define CFG_TUD_CDC               1
+#endif
+#define CFG_TUD_MSC                   1
+#define CFG_TUD_MIDI                  0
+#define CFG_TUD_VENDOR                1
 
-#define CFG_TUD_CDC_RX_BUFSIZE 64
-#define CFG_TUD_CDC_TX_BUFSIZE 64
+#define CFG_TUD_CDC_RX_BUFSIZE        64
+#define CFG_TUD_CDC_TX_BUFSIZE        256
 
-#define CFG_TUD_VENDOR_RX_BUFSIZE 8192
-#define CFG_TUD_VENDOR_TX_BUFSIZE 8192
+#define CFG_TUD_VENDOR_RX_BUFSIZE     64
+#define CFG_TUD_VENDOR_TX_BUFSIZE     64
+
+ // note: this is optimized for DAPLink write speed
+#define CFG_TUD_MSC_EP_BUFSIZE        512
 
 #ifdef __cplusplus
  }

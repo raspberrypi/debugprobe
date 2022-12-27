@@ -36,166 +36,215 @@
 
 #include "picoprobe_config.h"
 #include "probe.h"
+#include "cdc_debug.h"
 #include "cdc_uart.h"
 #include "get_serial.h"
 #include "led.h"
+#include "DAP_config.h"
 #include "DAP.h"
+#include "sw_lock.h"
 
-// UART0 for Picoprobe debug
-// UART1 for picoprobe to target device
+#if CFG_TUD_MSC
+    #include "msc/msc_utils.h"
+#endif
+#if defined(INCLUDE_RTT_CONSOLE)
+    #include "rtt_console.h"
+#endif
 
-static uint8_t TxDataBuffer[CFG_TUD_HID_EP_BUFSIZE];
-static uint8_t RxDataBuffer[CFG_TUD_HID_EP_BUFSIZE];
+// UART1 for Picoprobe to target device
 
-#define THREADED 1
+static uint8_t TxDataBuffer[CFG_TUD_VENDOR_TX_BUFSIZE];
+static uint8_t RxDataBuffer[CFG_TUD_VENDOR_RX_BUFSIZE];
 
-#define UART_TASK_PRIO (tskIDLE_PRIORITY + 3)
-#define TUD_TASK_PRIO  (tskIDLE_PRIORITY + 2)
-#define DAP_TASK_PRIO  (tskIDLE_PRIORITY + 1)
 
-static TaskHandle_t dap_taskhandle, tud_taskhandle;
+// prios are critical and determine throughput
+// TODO use affinity for processes
+#define LED_TASK_PRIO               (tskIDLE_PRIORITY + 12)
+#define TUD_TASK_PRIO               (tskIDLE_PRIORITY + 10)
+#define TARGET_WRITER_THREAD_PRIO   (tskIDLE_PRIORITY + 8)
+#define UART_TASK_PRIO              (tskIDLE_PRIORITY + 4)
+#define CDC_DEBUG_TASK_PRIO         (tskIDLE_PRIORITY + 2)
+#define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 1)
+
+static TaskHandle_t tud_taskhandle;
+
+
+
+void dap_task(void)
+{
+    static bool mounted = false;
+    static uint32_t used_us;
+
+    if (tud_vendor_available()) {
+        uint32_t resp_len;
+
+        used_us = time_us_32();
+        if ( !mounted) {
+            if (sw_lock("DAPv2", true)) {
+                mounted = true;
+                picoprobe_debug("=================================== DAPv2 connect target\n");
+                led_state(LS_DAP_CONNECTED);
+            }
+        }
+
+        if (mounted) {
+            tud_vendor_read(RxDataBuffer, sizeof(RxDataBuffer));
+            resp_len = DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
+            tud_vendor_write(TxDataBuffer, resp_len);
+            tud_vendor_flush();
+        }
+    }
+
+    if (mounted  &&  time_us_32() - used_us > 500000) {
+        mounted = false;
+        picoprobe_debug("=================================== DAPv2 disconnect target\n");
+        led_state(LS_DAP_DISCONNECTED);
+        sw_unlock("DAPv2");
+    }
+}   // dap_task
+
+
 
 void usb_thread(void *ptr)
 {
-    do {
+    picoprobe_info("system starting...\n");
+
+    cdc_uart_init(UART_TASK_PRIO);
+
+#if CFG_TUD_MSC
+    msc_init(TARGET_WRITER_THREAD_PRIO);
+#endif
+
+    for (;;) {
         tud_task();
-        // Trivial delay to save power
+        dap_task();
         vTaskDelay(1);
-    } while (1);
-}
+    }
+}   // usb_thread
 
-void dap_thread(void *ptr)
+
+
+int main(void)
 {
-    uint32_t resp_len;
-    do {
-        if (tud_vendor_available()) {
-            tud_vendor_read(RxDataBuffer, sizeof(RxDataBuffer));
-            resp_len = DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
-            tud_vendor_write(TxDataBuffer, resp_len);
-        } else {
-            // Trivial delay to save power
-            vTaskDelay(2);
-        }
-    } while (1);
-}
-
-int main(void) {
-    uint32_t resp_len;
-
     board_init();
+    set_sys_clock_khz(CPU_CLOCK / 1000, true);
+
     usb_serial_init();
-    cdc_uart_init();
     tusb_init();
-#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
-    probe_gpio_init();
-    probe_init();
-#else
+
+    // should be done before anything else (that does cdc_debug_printf())
+#if !defined(NDEBUG)
+    cdc_debug_init(CDC_DEBUG_TASK_PRIO);
+#endif
+
+#if defined(INCLUDE_RTT_CONSOLE)
+    rtt_console_init(RTT_CONSOLE_TASK_PRIO);
+#endif
+
+    // now we can "print"
+    picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+    picoprobe_info("                                 Welcome to Picoprobe!\n");
+    picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+
+    sw_lock_init();
+    led_init(LED_TASK_PRIO);
+
     DAP_Setup();
-#endif
-    led_init();
 
-    picoprobe_info("Welcome to Picoprobe!\n");
-
-    if (THREADED) {
-        /* UART needs to preempt USB as if we don't, characters get lost */
-        xTaskCreate(cdc_thread, "UART", configMINIMAL_STACK_SIZE, NULL, UART_TASK_PRIO, &uart_taskhandle);
-        xTaskCreate(usb_thread, "TUD", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, &tud_taskhandle);
-        /* Lowest priority thread is debug - need to shuffle buffers before we can toggle swd... */
-        xTaskCreate(dap_thread, "DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);
-        vTaskStartScheduler();
-    }
-
-    while (!THREADED) {
-        tud_task();
-        cdc_task();
-#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
-        probe_task();
-        led_task();
-#elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
-        if (tud_vendor_available()) {
-            tud_vendor_read(RxDataBuffer, sizeof(RxDataBuffer));
-            resp_len = DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
-            tud_vendor_write(TxDataBuffer, resp_len);
-        }
-#endif
-    }
+    xTaskCreate(usb_thread, "TUD", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, &tud_taskhandle);
+    vTaskStartScheduler();
 
     return 0;
 }
 
+
+
 uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
 {
-  // TODO not Implemented
-  (void) itf;
-  (void) report_id;
-  (void) report_type;
-  (void) buffer;
-  (void) reqlen;
+    // TODO not Implemented
+    (void) itf;
+    (void) report_id;
+    (void) report_type;
+    (void) buffer;
+    (void) reqlen;
 
-  return 0;
+    return 0;
 }
+
+
 
 void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t const* RxDataBuffer, uint16_t bufsize)
 {
-  uint32_t response_size = TU_MIN(CFG_TUD_HID_EP_BUFSIZE, bufsize);
+    uint32_t response_size = TU_MIN(CFG_TUD_HID_EP_BUFSIZE, bufsize);
 
-  // This doesn't use multiple report and report ID
-  (void) itf;
-  (void) report_id;
-  (void) report_type;
+    // TODO do sw_lock() / unlock! (with timer)
 
-  DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
+    // This doesn't use multiple report and report ID
+    (void) itf;
+    (void) report_id;
+    (void) report_type;
 
-  tud_hid_report(0, TxDataBuffer, response_size);
+    DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
+
+    tud_hid_report(0, TxDataBuffer, response_size);
 }
+
+
 
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
 extern uint8_t const desc_ms_os_20[];
 
 bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
 {
-  // nothing to with DATA & ACK stage
-  if (stage != CONTROL_STAGE_SETUP) return true;
+    // nothing to with DATA & ACK stage
+    if (stage != CONTROL_STAGE_SETUP)
+        return true;
 
-  switch (request->bmRequestType_bit.type)
-  {
-    case TUSB_REQ_TYPE_VENDOR:
-      switch (request->bRequest)
-      {
-        case 1:
-          if ( request->wIndex == 7 )
-          {
-            // Get Microsoft OS 2.0 compatible descriptor
-            uint16_t total_len;
-            memcpy(&total_len, desc_ms_os_20+8, 2);
+    switch (request->bmRequestType_bit.type) {
+        case TUSB_REQ_TYPE_VENDOR:
+            switch (request->bRequest) {
+                case 1:
+                    if (request->wIndex == 7) {
+                        // Get Microsoft OS 2.0 compatible descriptor
+                        uint16_t total_len;
+                        memcpy(&total_len, desc_ms_os_20 + 8, 2);
 
-            return tud_control_xfer(rhport, request, (void*) desc_ms_os_20, total_len);
-          }else
-          {
-            return false;
-          }
+                        return tud_control_xfer(rhport, request, (void*) desc_ms_os_20, total_len);
+                    }
+                    else {
+                        return false;
+                    }
 
-        default: break;
-      }
-    break;
-    default: break;
-  }
+                default:
+                    break;
+            }
+            break;
 
-  // stall unknown request
-  return false;
+        default:
+            break;
+    }
+
+    // stall unknown request
+    return false;
 }
 #endif
 
+
+
 void vApplicationTickHook (void)
 {
-};
+}
+
+
 
 void vApplicationStackOverflowHook(TaskHandle_t Task, char *pcTaskName)
 {
   panic("stack overflow (not the helpful kind) for %s\n", *pcTaskName);
 }
 
+
+
 void vApplicationMallocFailedHook(void)
 {
   panic("Malloc Failed\n");
-};
+}

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2021 a-pushkin on GitHub
+ * Copyright (c) 2021 Raspberry Pi (Trading) Ltd.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,27 +23,31 @@
  *
  */
 
-#ifndef LED_H
-#define LED_H
+#ifndef _MSC_UTILS_H
+#define _MSC_UTILS_H
 
 
 #include <stdint.h>
+#include <stdbool.h>
+
+#include "boot/uf2.h"                // this is the Pico variant of the UF2 header
 
 
-typedef enum _led_state {
-    LS_TARGET_FOUND,          // there is a target
-    LS_NO_TARGET,             // no target found
-    LS_RTT_CB_FOUND,          // found an RTT control block on target
-    LS_RTT_DATA,              // RTT data received from target
-    LS_RTT_OFF,               // switch off RTT
-    LS_UART_DATA,             // UART data received from target
-    LS_MSC_CONNECTED,         // MSC connected
-    LS_MSC_DISCONNECTED,      // MSC disconnected
-    LS_DAP_CONNECTED,         // DAP connected
-    LS_DAP_DISCONNECTED,      // DAP disconnected
-} led_state_t;
+#ifdef __cplusplus
+    extern "C" {
+#endif
 
-void led_init(uint32_t task_prio);
-void led_state(led_state_t state);
+
+bool msc_target_connect(bool write_mode);
+bool msc_target_write_memory(const struct uf2_block *uf2);
+bool msc_target_read_memory(struct uf2_block *uf2, uint32_t target_addr, uint32_t block_no, uint32_t num_blocks);
+
+bool msc_is_uf2_record(const void *sector, uint32_t sector_size);
+
+void msc_init(uint32_t task_prio);
+
+#ifdef __cplusplus
+    }
+#endif
 
 #endif
