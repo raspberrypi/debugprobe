@@ -38,6 +38,7 @@
 #include "probe.h"
 #include "cdc_debug.h"
 #include "cdc_uart.h"
+#include "dap_util.h"
 #include "get_serial.h"
 #include "led.h"
 #include "DAP_config.h"
@@ -53,8 +54,8 @@
 
 // UART1 for Picoprobe to target device
 
-static uint8_t TxDataBuffer[CFG_TUD_VENDOR_TX_BUFSIZE];
-static uint8_t RxDataBuffer[CFG_TUD_VENDOR_RX_BUFSIZE];
+static uint8_t TxDataBuffer[DAP_PACKET_COUNT * DAP_PACKET_SIZE];
+static uint8_t RxDataBuffer[DAP_PACKET_COUNT * DAP_PACKET_SIZE];
 
 
 // prios are critical and determine throughput
@@ -74,10 +75,9 @@ void dap_task(void)
 {
     static bool mounted = false;
     static uint32_t used_us;
+    static uint32_t rx_len;
 
     if (tud_vendor_available()) {
-        uint32_t resp_len;
-
         used_us = time_us_32();
         if ( !mounted) {
             if (sw_lock("DAPv2", true)) {
@@ -88,10 +88,39 @@ void dap_task(void)
         }
 
         if (mounted) {
-            tud_vendor_read(RxDataBuffer, sizeof(RxDataBuffer));
-            resp_len = DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
-            tud_vendor_write(TxDataBuffer, resp_len);
-            tud_vendor_flush();
+            rx_len += tud_vendor_read(RxDataBuffer + rx_len, sizeof(RxDataBuffer));
+
+            if (rx_len != 0)
+            {
+                uint32_t request_len;
+
+                request_len = DAP_GetCommandLength(RxDataBuffer, rx_len);
+                if (rx_len >= request_len)
+                {
+                    uint32_t resp_len;
+
+                    resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
+                    tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
+                    tud_vendor_flush();
+
+                    if (request_len != (resp_len >> 16))
+                    {
+                        // there is a bug in CMSIS-DAP, see https://github.com/ARM-software/CMSIS_5/pull/1503
+                        // but we trust our own length calculation
+                        picoprobe_error("   !!!!!!!! request (%lu) and executed length (%lu) differ\n", request_len, resp_len >> 16);
+                    }
+
+                    if (rx_len == request_len)
+                    {
+                        rx_len = 0;
+                    }
+                    else
+                    {
+                        memmove(RxDataBuffer, RxDataBuffer + request_len, rx_len - request_len);
+                        rx_len -= request_len;
+                    }
+                }
+            }
         }
     }
 

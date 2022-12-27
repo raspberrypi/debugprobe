@@ -11,6 +11,7 @@ pico_sdk_init()
 
 add_executable(picoprobe
         src/cdc_uart.c
+        src/dap_util.c
         src/get_serial.c
         src/led.c
         src/main.c
