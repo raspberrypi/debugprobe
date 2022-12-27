@@ -296,6 +296,8 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data)
 
 void SWx_Configure(void)
 {
+    // idle_cycles is always zero
+    // TODO check the several initializations
 	DAP_Data.transfer.idle_cycles = 2;
 	DAP_Data.transfer.retry_count = 80;
 	DAP_Data.transfer.match_retry = 0;
