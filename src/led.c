@@ -114,7 +114,7 @@ void led_state(led_state_t state)
     switch (state) {
         case LS_TARGET_FOUND:
             target_found  = true;
-            rtt_flash_cnt = 0;
+            rtt_flash_cnt = 1;
             uart_data     = false;
             break;
 
@@ -149,10 +149,6 @@ void led_state(led_state_t state)
 
         case LS_RTT_DATA:
             rtt_flash_cnt = 3;
-            break;
-
-        case LS_RTT_OFF:
-            rtt_flash_cnt = 1;
             break;
 
         case LS_UART_DATA:

@@ -90,6 +90,10 @@ static void do_rtt_console(uint32_t rtt_cb)
     uint8_t buf[100];
     bool ok = true;
 
+    if (rtt_cb < DAPLINK_RAM_START  ||  rtt_cb >= DAPLINK_RAM_START + DAPLINK_RAM_SIZE) {
+        return;
+    }
+
     ok = ok  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aUp),
                                  (uint8_t *)&aUp, sizeof(aUp));
 
@@ -129,7 +133,7 @@ static void do_rtt_console(uint32_t rtt_cb)
  */
 static void target_connect(void)
 {
-    picoprobe_debug("=================================== RTT connect target\n");
+//    picoprobe_debug("=================================== RTT connect target\n");
 //    target_set_state(RESET_PROGRAM);
     if (target_set_state(ATTACH)) {
         led_state(LS_TARGET_FOUND);
@@ -143,8 +147,7 @@ static void target_connect(void)
 
 static void target_disconnect(void)
 {
-    picoprobe_debug("=================================== RTT disconnect target\n");
-    led_state(LS_RTT_OFF);
+//    picoprobe_debug("=================================== RTT disconnect target\n");
 //    target_set_state(RESET_RUN);
 }   // target_disconnect
 

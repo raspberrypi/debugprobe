@@ -35,7 +35,6 @@ typedef enum _led_state {
     LS_NO_TARGET,             // no target found
     LS_RTT_CB_FOUND,          // found an RTT control block on target
     LS_RTT_DATA,              // RTT data received from target
-    LS_RTT_OFF,               // switch off RTT
     LS_UART_DATA,             // UART data received from target
     LS_MSC_CONNECTED,         // MSC connected
     LS_MSC_DISCONNECTED,      // MSC disconnected
