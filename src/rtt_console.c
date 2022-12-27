@@ -42,8 +42,6 @@
 #include "led.h"
 
 
-#define DO_TARGET_DISCONNECT  1
-
 
 static const uint8_t  seggerRTT[16] = "SEGGER RTT\0\0\0\0\0\0";
 
@@ -100,7 +98,7 @@ static void do_rtt_console(uint32_t rtt_cb)
         ok = ok  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[0].WrOff), (uint8_t *)&(aUp.WrOff), 2*sizeof(unsigned));
 
         if (aUp.WrOff == aUp.RdOff) {
-            vTaskDelay(1);
+            vTaskDelay(pdMS_TO_TICKS(10));
         }
         else {
             uint32_t cnt;
@@ -143,14 +141,12 @@ static void target_connect(void)
 
 
 
-#if DO_TARGET_DISCONNECT
 static void target_disconnect(void)
 {
     picoprobe_debug("=================================== RTT disconnect target\n");
     led_state(LS_RTT_OFF);
 //    target_set_state(RESET_RUN);
 }   // target_disconnect
-#endif
 
 
 
@@ -168,13 +164,12 @@ void rtt_console_thread(void *ptr)
         rtt_cb = search_for_rtt_cb();
         do_rtt_console(rtt_cb);
 
-#if DO_TARGET_DISCONNECT
         target_disconnect();
         vTaskDelay(pdMS_TO_TICKS(200));        // TODO after disconnect some guard time seems to be required??
-#endif
-        vTaskDelay(pdMS_TO_TICKS(100));        // TODO after disconnect some guard time seems to be required??
 
         sw_unlock("RTT");
+
+        vTaskDelay(pdMS_TO_TICKS(300));        // give the other task the opportunity to catch sw_lock();
     }
 }   // rtt_console_thread
 

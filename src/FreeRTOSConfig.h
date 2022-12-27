@@ -42,13 +42,14 @@
 
 /* Scheduler Related */
 #define configUSE_PREEMPTION                    1
-#define configUSE_TICKLESS_IDLE                 0
+#define configUSE_TICKLESS_IDLE                 1
 #define configUSE_IDLE_HOOK                     0
 #define configUSE_TICK_HOOK                     0
 
 // TODO I guess this should be smaller than 1000 (and also a divisor of 1000)
 //      otherwise in portmacro.h (in FreeRTOS), definition of portTICK_PERIOD_MS is questionable...
-#define configTICK_RATE_HZ                      ( ( TickType_t ) 20000 )
+// TODO values around 100 lead to errors in target communication!?
+#define configTICK_RATE_HZ                      ( ( TickType_t ) 1000 )
 
 #define configMAX_PRIORITIES                    32
 #define configMINIMAL_STACK_SIZE                ((configSTACK_DEPTH_TYPE) 2048)
@@ -58,9 +59,9 @@
 
 /* Synchronization Related */
 #define configUSE_MUTEXES                       1
-#define configUSE_RECURSIVE_MUTEXES             1
+#define configUSE_RECURSIVE_MUTEXES             0
 #define configUSE_APPLICATION_TASK_TAG          0
-#define configUSE_COUNTING_SEMAPHORES           1
+#define configUSE_COUNTING_SEMAPHORES           0
 #define configQUEUE_REGISTRY_SIZE               8
 #define configUSE_QUEUE_SETS                    1
 #define configUSE_TIME_SLICING                  1
@@ -121,22 +122,22 @@
 
 /* Set the following definitions to 1 to include the API function, or zero
 to exclude the API function. */
-#define INCLUDE_vTaskPrioritySet                1
-#define INCLUDE_uxTaskPriorityGet               1
-#define INCLUDE_vTaskDelete                     1
+#define INCLUDE_vTaskPrioritySet                0
+#define INCLUDE_uxTaskPriorityGet               0
+#define INCLUDE_vTaskDelete                     0
 #define INCLUDE_vTaskSuspend                    1
-#define INCLUDE_vTaskDelayUntil                 1
+#define INCLUDE_vTaskDelayUntil                 0
 #define INCLUDE_vTaskDelay                      1
-#define INCLUDE_xTaskGetSchedulerState          1
-#define INCLUDE_xTaskGetCurrentTaskHandle       1
-#define INCLUDE_uxTaskGetStackHighWaterMark     1
-#define INCLUDE_xTaskGetIdleTaskHandle          1
-#define INCLUDE_eTaskGetState                   1
+#define INCLUDE_xTaskGetSchedulerState          0
+#define INCLUDE_xTaskGetCurrentTaskHandle       0
+#define INCLUDE_uxTaskGetStackHighWaterMark     0
+#define INCLUDE_xTaskGetIdleTaskHandle          0
+#define INCLUDE_eTaskGetState                   0
 #define INCLUDE_xTimerPendFunctionCall          1
-#define INCLUDE_xTaskAbortDelay                 1
-#define INCLUDE_xTaskGetHandle                  1
-#define INCLUDE_xTaskResumeFromISR              1
-#define INCLUDE_xQueueGetMutexHolder            1
+#define INCLUDE_xTaskAbortDelay                 0
+#define INCLUDE_xTaskGetHandle                  0
+#define INCLUDE_xTaskResumeFromISR              0
+#define INCLUDE_xQueueGetMutexHolder            0
 
 /* A header file that defines trace macro can be included here. */
 

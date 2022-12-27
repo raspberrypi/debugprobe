@@ -38,6 +38,7 @@
 #include "probe.h"
 #include "cdc_debug.h"
 #include "cdc_uart.h"
+#include "dap_util.h"
 #include "get_serial.h"
 #include "led.h"
 #include "DAP_config.h"
@@ -53,53 +54,86 @@
 
 // UART1 for Picoprobe to target device
 
-static uint8_t TxDataBuffer[CFG_TUD_VENDOR_TX_BUFSIZE];
-static uint8_t RxDataBuffer[CFG_TUD_VENDOR_RX_BUFSIZE];
+static uint8_t TxDataBuffer[DAP_PACKET_COUNT * DAP_PACKET_SIZE];
+static uint8_t RxDataBuffer[DAP_PACKET_COUNT * DAP_PACKET_SIZE];
 
 
 // prios are critical and determine throughput
-// TODO use affinity for processes
-#define LED_TASK_PRIO               (tskIDLE_PRIORITY + 12)
-#define TUD_TASK_PRIO               (tskIDLE_PRIORITY + 10)
-#define TARGET_WRITER_THREAD_PRIO   (tskIDLE_PRIORITY + 8)
-#define UART_TASK_PRIO              (tskIDLE_PRIORITY + 4)
-#define CDC_DEBUG_TASK_PRIO         (tskIDLE_PRIORITY + 2)
-#define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 1)
+#define TUD_TASK_PRIO               (tskIDLE_PRIORITY + 20)       // uses one core continuously
+#define LED_TASK_PRIO               (tskIDLE_PRIORITY + 12)       // simple task which may interrupt everything else to periodic blinking
+#define MSC_WRITER_THREAD_PRIO      (tskIDLE_PRIORITY + 8)        // this is only running on writing UF2 files
+#define UART_TASK_PRIO              (tskIDLE_PRIORITY + 5)        // target -> host via UART
+#define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 5)        // target -> host via RTT
+#define CDC_DEBUG_TASK_PRIO         (tskIDLE_PRIORITY + 4)        // probe debugging output
+#define DAP_TASK_PRIO               (tskIDLE_PRIORITY + 1)        // DAP execution, during connection this takes the other core
 
 static TaskHandle_t tud_taskhandle;
+static TaskHandle_t dap_taskhandle;
 
 
 
-void dap_task(void)
+void dap_task(void *ptr)
 {
-    static bool mounted = false;
-    static uint32_t used_us;
+    bool mounted = false;
+    uint32_t used_us;
+    uint32_t rx_len = 0;
 
-    if (tud_vendor_available()) {
-        uint32_t resp_len;
+    for (;;) {
+        if (tud_vendor_available()) {
+            used_us = time_us_32();
+            if ( !mounted) {
+                if (sw_lock("DAPv2", true)) {
+                    mounted = true;
+                    picoprobe_debug("=================================== DAPv2 connect target\n");
+                    led_state(LS_DAP_CONNECTED);
+                }
+            }
 
-        used_us = time_us_32();
-        if ( !mounted) {
-            if (sw_lock("DAPv2", true)) {
-                mounted = true;
-                picoprobe_debug("=================================== DAPv2 connect target\n");
-                led_state(LS_DAP_CONNECTED);
+            if (mounted) {
+                rx_len += tud_vendor_read(RxDataBuffer + rx_len, sizeof(RxDataBuffer));
+
+                if (rx_len != 0)
+                {
+                    uint32_t request_len;
+
+                    request_len = DAP_GetCommandLength(RxDataBuffer, rx_len);
+                    if (rx_len >= request_len)
+                    {
+                        uint32_t resp_len;
+
+                        resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
+                        tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
+                        tud_vendor_flush();
+
+                        if (request_len != (resp_len >> 16))
+                        {
+                            // there is a bug in CMSIS-DAP, see https://github.com/ARM-software/CMSIS_5/pull/1503
+                            // but we trust our own length calculation
+                            picoprobe_error("   !!!!!!!! request (%lu) and executed length (%lu) differ\n", request_len, resp_len >> 16);
+                        }
+
+                        if (rx_len == request_len)
+                        {
+                            rx_len = 0;
+                        }
+                        else
+                        {
+                            memmove(RxDataBuffer, RxDataBuffer + request_len, rx_len - request_len);
+                            rx_len -= request_len;
+                        }
+                    }
+                }
             }
         }
-
-        if (mounted) {
-            tud_vendor_read(RxDataBuffer, sizeof(RxDataBuffer));
-            resp_len = DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
-            tud_vendor_write(TxDataBuffer, resp_len);
-            tud_vendor_flush();
+        else {
+            if (mounted  &&  time_us_32() - used_us > 500000) {
+                mounted = false;
+                picoprobe_debug("=================================== DAPv2 disconnect target\n");
+                led_state(LS_DAP_DISCONNECTED);
+                sw_unlock("DAPv2");
+            }
+            vTaskDelay(0);
         }
-    }
-
-    if (mounted  &&  time_us_32() - used_us > 500000) {
-        mounted = false;
-        picoprobe_debug("=================================== DAPv2 disconnect target\n");
-        led_state(LS_DAP_DISCONNECTED);
-        sw_unlock("DAPv2");
     }
 }   // dap_task
 
@@ -112,13 +146,12 @@ void usb_thread(void *ptr)
     cdc_uart_init(UART_TASK_PRIO);
 
 #if CFG_TUD_MSC
-    msc_init(TARGET_WRITER_THREAD_PRIO);
+    msc_init(MSC_WRITER_THREAD_PRIO);
 #endif
 
     for (;;) {
         tud_task();
-        dap_task();
-        vTaskDelay(1);
+        vTaskDelay(0);    // not sure, if this triggers the scheduler
     }
 }   // usb_thread
 
@@ -152,6 +185,7 @@ int main(void)
     DAP_Setup();
 
     xTaskCreate(usb_thread, "TUD", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, &tud_taskhandle);
+    xTaskCreate(dap_task, "DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);
     vTaskStartScheduler();
 
     return 0;
