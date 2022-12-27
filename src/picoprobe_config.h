@@ -56,10 +56,12 @@
 
 
 // PIO config
-#define PROBE_SM 0
-#define PROBE_PIN_OFFSET 2
-#define PROBE_PIN_SWCLK (PROBE_PIN_OFFSET + 0) // 2
-#define PROBE_PIN_SWDIO (PROBE_PIN_OFFSET + 1) // 3
+#define PROBE_SM            0
+#define PROBE_PIN_OFFSET    2
+#define PROBE_PIN_SWCLK     (PROBE_PIN_OFFSET + 0) // 2
+#define PROBE_PIN_SWDIO     (PROBE_PIN_OFFSET + 1) // 3
+#define PROBE_MAX_KHZ       20000U
+#define PROBE_DEFAULT_KHZ   12500U
 
 // Target reset config
 #define PROBE_PIN_RESET 6

@@ -36,6 +36,8 @@
 #include "probe.pio.h"
 #include "tusb.h"
 
+#include "DAP_config.h"
+
 #define DIV_ROUND_UP(m, n)	(((m) + (n) - 1) / (n))
 
 // Only want to set / clear one gpio per event so go up in powers of 2
@@ -88,22 +90,32 @@ struct __attribute__((__packed__)) probe_pkt_hdr {
     uint32_t total_packet_length;
 };
 
-void probe_set_swclk_freq(uint freq_khz) {
-        uint clk_sys_freq_khz = clock_get_hz(clk_sys) / 1000;
-//        picoprobe_info("Set swclk freq %dKHz sysclk %dkHz\n", freq_khz, clk_sys_freq_khz);
-        // Worked out with saleae
-//   freq_khz = 15000;
-        uint32_t divider = clk_sys_freq_khz / freq_khz / 2;
-        pio_sm_set_clkdiv_int_frac(pio0, PROBE_SM, divider, 0);
-}
+
+
+void probe_set_swclk_freq(uint freq_khz)
+{
+    uint clk_sys_freq_khz = clock_get_hz(clk_sys) / 1000;
+    if (freq_khz > PROBE_MAX_KHZ) {
+        freq_khz = PROBE_MAX_KHZ;
+    }
+//    picoprobe_debug("Set swclk freq %dkHz sysclk %dkHz\n", freq_khz, clk_sys_freq_khz);
+    // Worked out with saleae
+    uint32_t divider = clk_sys_freq_khz / freq_khz / 2;
+    pio_sm_set_clkdiv_int_frac(pio0, PROBE_SM, divider, 0);
+}   // probe_set_swclk_freq
+
+
 
 void probe_assert_reset(bool state)
 {
     /* Change the direction to out to drive pin to 0 or to in to emulate open drain */
     gpio_set_dir(PROBE_PIN_RESET, state);
-}
+}   // probe_assert_reset
 
-void probe_write_bits(uint bit_count, uint32_t data_byte) {
+
+
+void probe_write_bits(uint bit_count, uint32_t data_byte)
+{
     DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE);
     pio_sm_put_blocking(pio0, PROBE_SM, bit_count - 1);
     pio_sm_put_blocking(pio0, PROBE_SM, data_byte);
@@ -113,9 +125,12 @@ void probe_write_bits(uint bit_count, uint32_t data_byte) {
     pio_sm_get_blocking(pio0, PROBE_SM);
     DEBUG_PINS_CLR(probe_timing, DBG_PIN_WRITE_WAIT);
     DEBUG_PINS_CLR(probe_timing, DBG_PIN_WRITE);
-}
+}   // probe_write_bits
 
-uint32_t probe_read_bits(uint bit_count) {
+
+
+uint32_t probe_read_bits(uint bit_count)
+{
     DEBUG_PINS_SET(probe_timing, DBG_PIN_READ);
     pio_sm_put_blocking(pio0, PROBE_SM, bit_count - 1);
     uint32_t data = pio_sm_get_blocking(pio0, PROBE_SM);
@@ -123,21 +138,30 @@ uint32_t probe_read_bits(uint bit_count) {
     if (bit_count < 32) {
         data_shifted = data >> (32 - bit_count);
     }
-
     picoprobe_dump("Read %u bits 0x%lx (shifted 0x%lx)\n", bit_count, data, data_shifted);
     DEBUG_PINS_CLR(probe_timing, DBG_PIN_READ);
     return data_shifted;
-}
+}   // probe_read_bits
 
-void probe_read_mode(void) {
+
+
+void probe_read_mode(void)
+{
     pio_sm_exec(pio0, PROBE_SM, pio_encode_jmp(probe.offset + probe_offset_in_posedge));
-    while(pio0->dbg_padoe & (1 << PROBE_PIN_SWDIO));
-}
+    while(pio0->dbg_padoe & (1 << PROBE_PIN_SWDIO))
+        ;
+}   // probe_read_mode
 
-void probe_write_mode(void) {
+
+
+void probe_write_mode(void)
+{
     pio_sm_exec(pio0, PROBE_SM, pio_encode_jmp(probe.offset + probe_offset_out_negedge));
-    while(!(pio0->dbg_padoe & (1 << PROBE_PIN_SWDIO)));
-}
+    while( !(pio0->dbg_padoe & (1 << PROBE_PIN_SWDIO)))
+        ;
+}   // probe_write_mode
+
+
 
 void probe_gpio_init()
 {
@@ -153,16 +177,19 @@ void probe_gpio_init()
 		// Make sure SWDIO has a pullup on it. Idle state is high
 		gpio_pull_up(PROBE_PIN_SWDIO);
 	}
-}
+}   // probe_gpio_init
 
-void probe_init() {
-//    picoprobe_info("probe_init()\n");
+
+
+void probe_init()
+{
+    //    picoprobe_info("probe_init()\n");
 
     // Target reset pin: pull up, input to emulate open drain pin
     gpio_pull_up(PROBE_PIN_RESET);
     // gpio_init will leave the pin cleared and set as input
     gpio_init(PROBE_PIN_RESET);
-    if (!probe.initted) {
+    if ( !probe.initted) {
         // picoprobe_info("     2. probe_init()\n");
         uint offset = pio_add_program(pio0, &probe_program);
         probe.offset = offset;
@@ -189,7 +216,7 @@ void probe_init() {
         pio_sm_init(pio0, PROBE_SM, offset, &sm_config);
 
         // Set up divisor
-        probe_set_swclk_freq(1000);
+        probe_set_swclk_freq(DAP_DEFAULT_SWJ_CLOCK / 1000);
 
         // Enable SM
         pio_sm_set_enabled(pio0, PROBE_SM, 1);
@@ -198,14 +225,16 @@ void probe_init() {
 
     // Jump to write program
     probe_write_mode();
-}
+}   // probe_init
+
+
 
 void probe_deinit(void)
 {
-  probe_read_mode();
-  if (probe.initted) {
-    pio_sm_set_enabled(pio0, PROBE_SM, 0);
-    pio_remove_program(pio0, &probe_program, probe.offset);
-    probe.initted = 0;
-  }
-}
+    probe_read_mode();
+    if (probe.initted) {
+        pio_sm_set_enabled(pio0, PROBE_SM, 0);
+        pio_remove_program(pio0, &probe_program, probe.offset);
+        probe.initted = 0;
+    }
+}   // prebe_deinit
