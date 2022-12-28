@@ -109,7 +109,7 @@ Benchmarking is done with an image with a size around 400KByte.  Command lines a
 * **cp**: `time cp firmware.uf2 /media/picoprobe/`
 * **openocd 0.12.0-rc2** (CMSIS-DAP)v2: `time openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c "adapter speed 25000" -c "program {firmware.elf}  verify reset; shutdown;"`
 * **openocd 0.12.0-rc2** (CMSIS-DAP)v1: `time openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c "cmsis_dap_backend hid; adapter speed 25000" -c "program {firmware.elf}  verify reset; shutdown;"`
-* **pyocd 0.34.3**: `time pyocd flash -f 25000000 firmware.elf`
+* **pyocd 0.34.3**: `time pyocd flash -f 25000000 firmware.elf`, pyocd ignores silently "-O cmsis_dap.prefer_v1=true", except for the "list" option
 
 Note that benchmarking takes place under Linux.  Surprisingly `openocd` and `pyocd` behave differently under Windows.
 DAPv2 is always used, because DAPv1 does not run under Linux(?).
@@ -121,6 +121,8 @@ DAPv2 is always used, because DAPv1 does not run under Linux(?).
 | git-3120a90        |  5.7s |         -  |      7.8s  | 15.4s |         |
 | - same but NDEBUG -|  7.3s |         -  |      9.5s  | 16.6s | a bad miracle... to make things worse, pyocd is very instable |
 | git-bd8c41f        |  5.7s |     28.6s  |      7.7s  | 19.9s | there was a python update :-/ |
+| git-0d6c6a8        |  5.7s |     28.5s  |      6.8s  | 20.2s |         |
+| - same but optimized for openocd | 5.7s | 28.5s | 6.1s | - | pyocd crashes |
 
 
 # TODO / Known Bugs
