@@ -96,7 +96,10 @@ This information includes:
 /// This configuration settings is used to optimize the communication performance with the
 /// debugger and depends on the USB peripheral. For devices with limited RAM or USB buffer the
 /// setting can be reduced (valid range is 1 .. 255).
-#define DAP_PACKET_COUNT        2U              ///< Specifies number of packets buffered.
+/// ATTENTION: terrible hack to make "dap_packet_count" a variable because CMSIS-DAPv2 has better performance with "2"
+///            and CMSIS-DAPv1 works only with "1" (openocd)
+extern uint8_t dap_packet_count;
+#define DAP_PACKET_COUNT     ((__LINE__ < 50) ? 2 : dap_packet_count)
 
 /// Indicate that UART Serial Wire Output (SWO) trace is available.
 /// This information is returned by the command \ref DAP_Info as part of <b>Capabilities</b>.

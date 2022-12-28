@@ -53,10 +53,19 @@
     #include "rtt_console.h"
 #endif
 
-// UART1 for Picoprobe to target device
 
-static uint8_t TxDataBuffer[DAP_PACKET_COUNT * DAP_PACKET_SIZE];
-static uint8_t RxDataBuffer[DAP_PACKET_COUNT * DAP_PACKET_SIZE];
+/*
+ * The following is part of a hack to make DAP_PACKET_COUNT a variable.
+ * CMSIS-DAPv2 has better performance with 2 packets while
+ * CMSIS-DAPv1 only works with one packet (at least with openocd)
+ * The correct packet count has to be set on connection.
+ */
+#define _DAP_PACKET_COUNT 2
+
+uint8_t dap_packet_count = _DAP_PACKET_COUNT;
+
+static uint8_t TxDataBuffer[_DAP_PACKET_COUNT * DAP_PACKET_SIZE];
+static uint8_t RxDataBuffer[_DAP_PACKET_COUNT * DAP_PACKET_SIZE];
 
 
 // prios are critical and determine throughput
@@ -85,6 +94,7 @@ void dap_task(void *ptr)
             if ( !mounted) {
                 if (sw_lock("DAPv2", true)) {
                     mounted = true;
+                    dap_packet_count = 2;
                     picoprobe_debug("=================================== DAPv2 connect target\n");
                     led_state(LS_DAPV2_CONNECTED);
                 }
@@ -251,6 +261,7 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
     if ( !hid_mounted) {
         if (sw_lock("DAPv1", true)) {
             hid_mounted = true;
+            dap_packet_count = 1;
             picoprobe_debug("=================================== DAPv1 connect target\n");
             led_state(LS_DAPV1_CONNECTED);
         }
