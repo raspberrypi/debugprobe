@@ -68,7 +68,8 @@ uint8_t const * tud_descriptor_device_cb(void)
 
 enum
 {
-    ITF_NUM_PROBE, // Old versions of Keil MDK only look at interface 0
+    ITF_NUM_PROBE_VENDOR,               // Old versions of Keil MDK only look at interface 0
+    ITF_NUM_PROBE_HID,
     ITF_NUM_CDC_COM,
     ITF_NUM_CDC_DATA,
 #if !defined(NDEBUG)
@@ -84,23 +85,21 @@ enum
 #define CDC_NOTIFICATION_EP_NUM             0x81
 #define CDC_DATA_OUT_EP_NUM                 0x02
 #define CDC_DATA_IN_EP_NUM                  0x83
-#define PROBE_OUT_EP_NUM                    0x04
-#define PROBE_IN_EP_NUM                     0x85
+#define PROBE_VENDOR_OUT_EP_NUM             0x04
+#define PROBE_VENDOR_IN_EP_NUM              0x85
+#define PROBE_HID_OUT_EP_NUM                0x06
+#define PROBE_HID_IN_EP_NUM                 0x87
 #if !defined(NDEBUG)
-    #define CDC_DEBUG_NOTIFICATION_EP_NUM   0x86
-    #define CDC_DEBUG_DATA_OUT_EP_NUM       0x07
-    #define CDC_DEBUG_DATA_IN_EP_NUM        0x88
+    #define CDC_DEBUG_NOTIFICATION_EP_NUM   0x88
+    #define CDC_DEBUG_DATA_OUT_EP_NUM       0x09
+    #define CDC_DEBUG_DATA_IN_EP_NUM        0x8a
 #endif
 #if CFG_TUD_MSC
-    #define MSC_OUT_EP_NUM                  0x09
-    #define MSC_IN_EP_NUM                   0x8a
+    #define MSC_OUT_EP_NUM                  0x0b
+    #define MSC_IN_EP_NUM                   0x8c
 #endif
 
-#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
-    #define _CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + TUD_HID_INOUT_DESC_LEN)
-#else
-    #define _CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + TUD_VENDOR_DESC_LEN)
-#endif
+#define _CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + TUD_VENDOR_DESC_LEN + TUD_HID_INOUT_DESC_LEN)
 
 #if CFG_TUD_MSC
     #define CONFIG_TOTAL_LEN   (_CONFIG_TOTAL_LEN + TUD_MSC_DESC_LEN)
@@ -124,13 +123,12 @@ uint8_t const desc_configuration[] =
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
 
     // Interface 0
-#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
-    // HID (named interface)
-    TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_PROBE, 4, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, CFG_TUD_HID_EP_BUFSIZE, 1),
-#elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
+
     // Bulk (named interface)
-    TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE, 5, PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, 64),
-#endif
+    TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE_VENDOR, 5, PROBE_VENDOR_OUT_EP_NUM, PROBE_VENDOR_IN_EP_NUM, 64),
+
+    // HID (named interface)
+    TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_PROBE_HID, 4, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), PROBE_HID_OUT_EP_NUM, PROBE_HID_IN_EP_NUM, CFG_TUD_HID_EP_BUFSIZE, 1),
 
     // Interface 1 + 2
     TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_COM, 6, CDC_NOTIFICATION_EP_NUM, 64, CDC_DATA_OUT_EP_NUM, CDC_DATA_IN_EP_NUM, 64),
@@ -164,13 +162,13 @@ char const* string_desc_arr [] =
 {
   (const char[]) { 0x09, 0x04 },       // 0: is supported language is English (0x0409)
   "Raspberry Pi",                      // 1: Manufacturer
-  "Picoprobe CMSIS-DAP",               // 2: Product
+  "YAPicoprobe CMSIS-DAP",             // 2: Product
   usb_serial,                          // 3: Serial, uses flash unique ID
-  "Picoprobe CMSIS-DAP v1",            // 4: Interface descriptor for HID transport
-  "Picoprobe CMSIS-DAP v2",            // 5: Interface descriptor for Bulk transport
-  "Picoprobe CDC-ACM UART",            // 6: Interface descriptor for CDC UART (from target)
-  "Picoprobe CDC-DEBUG",               // 7: Interface descriptor for CDC DEBUG
-  "Picoprobe Flash Drive",             // 8: Interface descriptor for MSC interface
+  "YAPicoprobe CMSIS-DAP v1",          // 4: Interface descriptor for HID transport
+  "YAPicoprobe CMSIS-DAP v2",          // 5: Interface descriptor for Bulk transport
+  "YAPicoprobe CDC-ACM UART",          // 6: Interface descriptor for CDC UART (from target)
+  "YAPicoprobe CDC-DEBUG",             // 7: Interface descriptor for CDC DEBUG
+  "YAPicoprobe Flash Drive",           // 8: Interface descriptor for MSC interface
 };
 
 static uint16_t _desc_str[32];
@@ -248,7 +246,7 @@ uint8_t const desc_ms_os_20[] = {
     U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_CONFIGURATION), 0, 0, U16_TO_U8S_LE(MS_OS_20_DESC_LEN - 0x0A),
 
     // Function Subset header: length, type, first interface, reserved, subset length
-    U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_FUNCTION), ITF_NUM_PROBE, 0, U16_TO_U8S_LE(MS_OS_20_DESC_LEN - 0x0A - 0x08),
+    U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_FUNCTION), ITF_NUM_PROBE_VENDOR, 0, U16_TO_U8S_LE(MS_OS_20_DESC_LEN - 0x0A - 0x08),
 
     // MS OS 2.0 Compatible ID descriptor: length, type, compatible ID, sub compatible ID
     U16_TO_U8S_LE(0x0014), U16_TO_U8S_LE(MS_OS_20_FEATURE_COMPATBLE_ID), 'W', 'I', 'N', 'U', 'S', 'B', 0x00, 0x00,

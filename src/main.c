@@ -26,6 +26,7 @@
 
 #include "FreeRTOS.h"
 #include "task.h"
+#include "timers.h"
 
 #include <pico/stdlib.h>
 #include <stdio.h>
@@ -52,10 +53,20 @@
     #include "rtt_console.h"
 #endif
 
-// UART1 for Picoprobe to target device
 
-static uint8_t TxDataBuffer[DAP_PACKET_COUNT * DAP_PACKET_SIZE];
-static uint8_t RxDataBuffer[DAP_PACKET_COUNT * DAP_PACKET_SIZE];
+/*
+ * The following is part of a hack to make DAP_PACKET_COUNT a variable.
+ * CMSIS-DAPv2 has better performance with 2 packets while
+ * CMSIS-DAPv1 only works with one packet, at least with openocd which throws a
+ *     "CMSIS-DAP transfer count mismatch: expected 12, got 8" on flashing.
+ * The correct packet count has to be set on connection.
+ */
+#define _DAP_PACKET_COUNT 2
+
+uint8_t dap_packet_count = _DAP_PACKET_COUNT;
+
+static uint8_t TxDataBuffer[_DAP_PACKET_COUNT * DAP_PACKET_SIZE];
+static uint8_t RxDataBuffer[_DAP_PACKET_COUNT * DAP_PACKET_SIZE];
 
 
 // prios are critical and determine throughput
@@ -84,8 +95,9 @@ void dap_task(void *ptr)
             if ( !mounted) {
                 if (sw_lock("DAPv2", true)) {
                     mounted = true;
-                    picoprobe_debug("=================================== DAPv2 connect target\n");
-                    led_state(LS_DAP_CONNECTED);
+                    dap_packet_count = 2;
+                    picoprobe_info("=================================== DAPv2 connect target\n");
+                    led_state(LS_DAPV2_CONNECTED);
                 }
             }
 
@@ -129,8 +141,8 @@ void dap_task(void *ptr)
             // disconnect after 1s without data
             if (mounted  &&  time_us_32() - used_us > 1000000) {
                 mounted = false;
-                picoprobe_debug("=================================== DAPv2 disconnect target\n");
-                led_state(LS_DAP_DISCONNECTED);
+                picoprobe_info("=================================== DAPv2 disconnect target\n");
+                led_state(LS_DAPV2_DISCONNECTED);
                 sw_unlock("DAPv2");
             }
             taskYIELD();
@@ -194,6 +206,23 @@ int main(void)
 
 
 
+static bool hid_mounted;
+static TimerHandle_t     timer_hid_disconnect = NULL;
+static void             *timer_hid_disconnect_id;
+
+
+static void hid_disconnect(TimerHandle_t xTimer)
+{
+    if (hid_mounted) {
+        hid_mounted = false;
+        picoprobe_info("=================================== DAPv1 disconnect target\n");
+        led_state(LS_DAPV1_DISCONNECTED);
+        sw_unlock("DAPv1");
+    }
+}   // hid_disconnect
+
+
+
 uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
 {
     // TODO not Implemented
@@ -219,10 +248,47 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
     (void) report_id;
     (void) report_type;
 
-    DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
+    if (timer_hid_disconnect == NULL) {
+        timer_hid_disconnect = xTimerCreate("timer_hid_disconnect", pdMS_TO_TICKS(1000), pdFALSE, timer_hid_disconnect_id,
+                                            hid_disconnect);
+        if (timer_hid_disconnect == NULL) {
+            picoprobe_error("tud_hid_set_report_cb: cannot create timer_hid_disconnect\n");
+        }
+    }
+    else {
+        xTimerReset(timer_hid_disconnect, pdMS_TO_TICKS(1000));
+    }
 
-    tud_hid_report(0, TxDataBuffer, response_size);
-}
+    if ( !hid_mounted) {
+        if (sw_lock("DAPv1", true)) {
+            hid_mounted = true;
+            dap_packet_count = 1;
+            picoprobe_info("=================================== DAPv1 connect target\n");
+            led_state(LS_DAPV1_CONNECTED);
+        }
+    }
+
+    if (hid_mounted) {
+#if 0
+        // heavy debug output, set dap_packet_count=2 to stumble into the bug
+        uint32_t request_len = DAP_GetCommandLength(RxDataBuffer, bufsize);
+        picoprobe_info("< ");
+        for (int i = 0;  i < bufsize;  ++i) {
+            picoprobe_out(" %02x", RxDataBuffer[i]);
+            if (i == request_len - 1) {
+                picoprobe_out(" !!!!");
+            }
+        }
+        picoprobe_out("\n");
+        vTaskDelay(pdMS_TO_TICKS(30));
+        uint32_t res = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
+        picoprobe_info("> %lu %lu\n", res >> 16, res & 0xffff);
+#else
+        DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
+#endif
+        tud_hid_report(0, TxDataBuffer, response_size);
+    }
+}   // tud_hid_set_report_cb
 
 
 

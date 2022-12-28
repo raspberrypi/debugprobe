@@ -38,8 +38,10 @@ typedef enum _led_state {
     LS_UART_DATA,             // UART data received from target
     LS_MSC_CONNECTED,         // MSC connected
     LS_MSC_DISCONNECTED,      // MSC disconnected
-    LS_DAP_CONNECTED,         // DAP connected
-    LS_DAP_DISCONNECTED,      // DAP disconnected
+    LS_DAPV1_CONNECTED,       // DAPV1 connected
+    LS_DAPV1_DISCONNECTED,    // DAPV1 disconnected
+    LS_DAPV2_CONNECTED,       // DAPV2 connected
+    LS_DAPV2_DISCONNECTED,    // DAPV2 disconnected
 } led_state_t;
 
 void led_init(uint32_t task_prio);

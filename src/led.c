@@ -34,9 +34,11 @@
 
 
 
-static TaskHandle_t task_led = NULL;
+static TaskHandle_t task_led;
+
 static bool         msc_connected;
-static bool         dap_connected;
+static bool         dapv1_connected;
+static bool         dapv2_connected;
 static bool         target_found;
 static unsigned     rtt_flash_cnt;
 static uint64_t     uart_data_trigger;
@@ -54,14 +56,14 @@ void led_thread(void *ptr)
             gpio_put(PICOPROBE_LED, 1);
             vTaskDelay(pdMS_TO_TICKS(100));
         }
-        else if (msc_connected) {
+        else if (dapv1_connected) {
             // -> LED on, off for 100ms once per second
             gpio_put(PICOPROBE_LED, 0);
             vTaskDelay(pdMS_TO_TICKS(100));
             gpio_put(PICOPROBE_LED, 1);
             vTaskDelay(pdMS_TO_TICKS(900));
         }
-        else if (dap_connected) {
+        else if (dapv2_connected) {
             // -> LED on, off for 100ms twice per second
             gpio_put(PICOPROBE_LED, 0);
             vTaskDelay(pdMS_TO_TICKS(100));
@@ -71,6 +73,21 @@ void led_thread(void *ptr)
             vTaskDelay(pdMS_TO_TICKS(100));
             gpio_put(PICOPROBE_LED, 1);
             vTaskDelay(pdMS_TO_TICKS(700));
+        }
+        else if (msc_connected) {
+            // -> LED on, off for 100ms thrice per second
+            gpio_put(PICOPROBE_LED, 0);
+            vTaskDelay(pdMS_TO_TICKS(100));
+            gpio_put(PICOPROBE_LED, 1);
+            vTaskDelay(pdMS_TO_TICKS(100));
+            gpio_put(PICOPROBE_LED, 0);
+            vTaskDelay(pdMS_TO_TICKS(100));
+            gpio_put(PICOPROBE_LED, 1);
+            vTaskDelay(pdMS_TO_TICKS(100));
+            gpio_put(PICOPROBE_LED, 0);
+            vTaskDelay(pdMS_TO_TICKS(100));
+            gpio_put(PICOPROBE_LED, 1);
+            vTaskDelay(pdMS_TO_TICKS(500));
         }
         else if (time_us_64() - uart_data_trigger < 5000000) {
             // -> slow flashing
@@ -128,13 +145,22 @@ void led_state(led_state_t state)
             msc_connected = false;
             break;
 
-        case LS_DAP_CONNECTED:
-            dap_connected = true;
+        case LS_DAPV1_CONNECTED:
+            dapv1_connected = true;
             rtt_flash_cnt = 0;
             break;
 
-        case LS_DAP_DISCONNECTED:
-            dap_connected = false;
+        case LS_DAPV1_DISCONNECTED:
+            dapv1_connected = false;
+            break;
+
+        case LS_DAPV2_CONNECTED:
+            dapv2_connected = true;
+            rtt_flash_cnt = 0;
+            break;
+
+        case LS_DAPV2_DISCONNECTED:
+            dapv2_connected = false;
             break;
 
         case LS_RTT_CB_FOUND:
@@ -142,7 +168,7 @@ void led_state(led_state_t state)
             break;
 
         case LS_RTT_DATA:
-            rtt_data_trigger  = time_us_64();
+            rtt_data_trigger = time_us_64();
             break;
 
         case LS_UART_DATA:
