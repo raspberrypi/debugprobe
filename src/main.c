@@ -66,7 +66,7 @@
     #define _DAP_PACKET_SIZE    CFG_TUD_VENDOR_RX_BUFSIZE
 #else
     // pyocd does not like packets > 128
-    #define _DAP_PACKET_SIZE    128
+    #define _DAP_PACKET_SIZE    MIN(CFG_TUD_VENDOR_RX_BUFSIZE, 128)
 #endif
 
 uint8_t  dap_packet_count = _DAP_PACKET_COUNT;
@@ -269,9 +269,11 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
 
     if ( !hid_mounted) {
         if (sw_lock("DAPv1", true)) {
-            hid_mounted = true;
+            // this is the minimum version which should always work
             dap_packet_count = 1;
             dap_packet_size  = 64;
+
+            hid_mounted = true;
             picoprobe_info("=================================== DAPv1 connect target\n");
             led_state(LS_DAPV1_CONNECTED);
         }

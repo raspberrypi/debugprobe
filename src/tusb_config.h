@@ -75,7 +75,7 @@
 #define CFG_TUD_CDC_RX_BUFSIZE        64
 #define CFG_TUD_CDC_TX_BUFSIZE        256
 
-// these numbers must be >= 128 (and the same)
+// these numbers must be in the range 64..1024 (and the same)
 #define CFG_TUD_VENDOR_RX_BUFSIZE     1024
 #define CFG_TUD_VENDOR_TX_BUFSIZE     CFG_TUD_VENDOR_RX_BUFSIZE
 
