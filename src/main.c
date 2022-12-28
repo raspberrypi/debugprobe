@@ -26,6 +26,7 @@
 
 #include "FreeRTOS.h"
 #include "task.h"
+#include "timers.h"
 
 #include <pico/stdlib.h>
 #include <stdio.h>
@@ -85,7 +86,7 @@ void dap_task(void *ptr)
                 if (sw_lock("DAPv2", true)) {
                     mounted = true;
                     picoprobe_debug("=================================== DAPv2 connect target\n");
-                    led_state(LS_DAP_CONNECTED);
+                    led_state(LS_DAPV2_CONNECTED);
                 }
             }
 
@@ -130,7 +131,7 @@ void dap_task(void *ptr)
             if (mounted  &&  time_us_32() - used_us > 1000000) {
                 mounted = false;
                 picoprobe_debug("=================================== DAPv2 disconnect target\n");
-                led_state(LS_DAP_DISCONNECTED);
+                led_state(LS_DAPV2_DISCONNECTED);
                 sw_unlock("DAPv2");
             }
             taskYIELD();
@@ -194,6 +195,23 @@ int main(void)
 
 
 
+static bool hid_mounted;
+static TimerHandle_t     timer_hid_disconnect = NULL;
+static void             *timer_hid_disconnect_id;
+
+
+static void hid_disconnect(TimerHandle_t xTimer)
+{
+    if (hid_mounted) {
+        hid_mounted = false;
+        picoprobe_debug("=================================== DAPv1 disconnect target\n");
+        led_state(LS_DAPV1_DISCONNECTED);
+        sw_unlock("DAPv1");
+    }
+}   // hid_disconnect
+
+
+
 uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
 {
     // TODO not Implemented
@@ -219,10 +237,30 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
     (void) report_id;
     (void) report_type;
 
-    DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
+    if (timer_hid_disconnect == NULL) {
+        timer_hid_disconnect = xTimerCreate("timer_hid_disconnect", pdMS_TO_TICKS(1000), pdFALSE, timer_hid_disconnect_id,
+                                            hid_disconnect);
+        if (timer_hid_disconnect == NULL) {
+            picoprobe_error("tud_hid_set_report_cb: cannot create timer_hid_disconnect\n");
+        }
+    }
+    else {
+        xTimerReset(timer_hid_disconnect, pdMS_TO_TICKS(1000));
+    }
 
-    tud_hid_report(0, TxDataBuffer, response_size);
-}
+    if ( !hid_mounted) {
+        if (sw_lock("DAPv1", true)) {
+            hid_mounted = true;
+            picoprobe_debug("=================================== DAPv1 connect target\n");
+            led_state(LS_DAPV1_CONNECTED);
+        }
+    }
+
+    if (hid_mounted) {
+        DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
+        tud_hid_report(0, TxDataBuffer, response_size);
+    }
+}   // tud_hid_set_report_cb
 
 
 
