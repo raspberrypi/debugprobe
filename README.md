@@ -5,7 +5,7 @@ Yet another Picoprobe is a fork of the original [Picoprobe](https://github.com/r
 
 Another reason for this fork is that I wanted to play around with SWD, RTT etc pp, so the established development process was a little bit hindering.
 
-So there is unfortunately one more Picoprobe around.
+So there is unfortunately one more Picoprobe around, the YAPicoprobe.
 
 
 
@@ -38,6 +38,7 @@ Wires between probe and target board are the same as before, but the UART wires 
 
 I recommend to use a simple Pico board as the probe.  The PicoW does not add any features, instead the LED indicator does not work there.
 
+
 ## Tool Compatibility
 
 | Tool | Linux | Windows (10) | Command line |
@@ -46,6 +47,21 @@ I recommend to use a simple Pico board as the probe.  The PicoW does not add any
 | pyocd | yes | no | `pyocd flash -f 2500000 -firmware.elf` |
 | cp / copy | yes | yes | `cp firmware.uf2 /media/picoprobe` |
 
+
+## MSC - Mass Storage Device Class
+Via MSC the so called "drag-n-drop" supported is implemented.  Actually this also helps in copying a UF2 image directly into the target via command line.
+
+Note, that flash erase takes place on a 64KByte base:  on the first write to a 64 KByte page, the corresponding page is erased.  That means, that multiple UF2 images can be flashed into the target as long as there is no overlapping within 64 KByte boundaries.
+
+Because writing/erasing of the flash is target depending, the current implementation is limited to the RP2040 and its "win w25q16jv".
+CMSIS-DAP should be generic, which means that its tools dependant (openocd/pyocd).
+
+## RTT - Real Time Transfer
+[RTT](https://www.segger.com/products/debug-probes/j-link/technology/about-real-time-transfer/) allows transfer from the target to the host in "realtime".  YAPicoprobe currently reads channel 0 of the targets RTT and sends it into the CDC of the target.  Effectively this allows RTT debug output into a terminal.
+
+Note that only the RP2040 RAM is scanned for an RTT control block which means 0x20000000-0x2003ffff.
+
+Another note: don't be too overwhelmed about Seggers numbers in the above mentioned document.  The data must still be transferred which to my opinion is not taken into account (of course the target processor has finished after writing the data).
 
 
 ## LED Indication

@@ -93,6 +93,12 @@
     #endif
 #endif
 
+/// which means: pyocd will not work.
+#ifndef OPTIMIZE_FOR_OPENOCD
+    #define OPTIMIZE_FOR_OPENOCD     0
+#endif
+
+
 #define INCLUDE_RTT_CONSOLE
 
 #endif

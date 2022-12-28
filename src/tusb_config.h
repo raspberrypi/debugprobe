@@ -75,8 +75,9 @@
 #define CFG_TUD_CDC_RX_BUFSIZE        64
 #define CFG_TUD_CDC_TX_BUFSIZE        256
 
-#define CFG_TUD_VENDOR_RX_BUFSIZE     64
-#define CFG_TUD_VENDOR_TX_BUFSIZE     64
+// these numbers must be >= 128 (and the same)
+#define CFG_TUD_VENDOR_RX_BUFSIZE     1024
+#define CFG_TUD_VENDOR_TX_BUFSIZE     CFG_TUD_VENDOR_RX_BUFSIZE
 
  // note: this is optimized for DAPLink write speed
 #define CFG_TUD_MSC_EP_BUFSIZE        512
