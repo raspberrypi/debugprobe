@@ -93,14 +93,6 @@
     #endif
 #endif
 
-#define PROTO_DAP_V1 1
-#define PROTO_DAP_V2 2
-
-// Interface config
-#ifndef PICOPROBE_DEBUG_PROTOCOL
-    #define PICOPROBE_DEBUG_PROTOCOL PROTO_DAP_V2
-#endif
-
 #define INCLUDE_RTT_CONSOLE
 
 #endif

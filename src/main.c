@@ -95,7 +95,7 @@ void dap_task(void *ptr)
             if ( !mounted) {
                 if (sw_lock("DAPv2", true)) {
                     mounted = true;
-                    dap_packet_count = 2;
+                    dap_packet_count = _DAP_PACKET_COUNT;
                     picoprobe_info("=================================== DAPv2 connect target\n");
                     led_state(LS_DAPV2_CONNECTED);
                 }
@@ -292,7 +292,6 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
 
 
 
-#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
 extern uint8_t const desc_ms_os_20[];
 
 bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
@@ -328,7 +327,6 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
     // stall unknown request
     return false;
 }
-#endif
 
 
 

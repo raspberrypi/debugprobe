@@ -36,11 +36,7 @@ tusb_desc_device_t const desc_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
-#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
     .bcdUSB             = 0x0210, // USB Specification version 2.1 for BOS
-#else
-    .bcdUSB             = 0x0110,
-#endif
     .bDeviceClass       = 0x00, // Each interface specifies its own
     .bDeviceSubClass    = 0x00, // Each interface specifies its own
     .bDeviceProtocol    = 0x00,
