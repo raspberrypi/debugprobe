@@ -32,7 +32,7 @@
 /* Slight hack - we're not bitbanging so we need to set baudrate off the DAP's delay cycles.
  * Ideally we don't want calls to udiv everywhere...
  * Parameter "fast" requests maximum allowed PIO clock */
-#define MAKE_KHZ(fast, delay) (fast ? 100000 : (CPU_CLOCK / 2000) / (delay * DELAY_SLOW_CYCLES + IO_PORT_WRITE_CYCLES))
+#define MAKE_KHZ(fast, delay) ((fast) ? 100000 : (CPU_CLOCK / 2000) / ((delay) * DELAY_SLOW_CYCLES + IO_PORT_WRITE_CYCLES))
 volatile uint32_t cached_delay = 0;
 
 // Generate SWJ Sequence
