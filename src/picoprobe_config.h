@@ -26,9 +26,13 @@
 #ifndef PICOPROBE_H_
 #define PICOPROBE_H_
 
-//#if !defined(NDEBUG)
+
+#define PICOPROBE_VERSION   0x0103
+
+
+#if !defined(NDEBUG)
     int cdc_debug_printf(const char* format, ...) __attribute__ ((format (printf, 1, 2)));
-//#endif
+#endif
 
 #if 1  &&  !defined(NDEBUG)
     #define picoprobe_info(format,args...) cdc_debug_printf("(II) " format, ## args)
@@ -36,7 +40,7 @@
     #define picoprobe_info(format,...) ((void)0)
 #endif
 
-#if 1  &&  !defined(NDEBUG)
+#if 0  &&  !defined(NDEBUG)
     #define picoprobe_debug(format,args...) cdc_debug_printf("(DD) " format, ## args)
 #else
     #define picoprobe_debug(format,...) ((void)0)

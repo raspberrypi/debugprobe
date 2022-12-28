@@ -56,25 +56,25 @@
 #define AFAT12(C1,C2)   (C1) & 0xff, (((C1) & 0xf00) >> 8) + (((C2) & 0x0f) << 4), (((C2) & 0xff0) >> 4)
 
 #define README_CONTENTS \
-"This is the Raspberry Pi Picoprobe DAPLink.\r\n\r\n\
+"This is Yet Another Picoprobe v%02x.%02x.\r\n\r\n\
 - CURRENT.UF2 mirrors the flash content of the target\r\n\
 - INFO_UF2.TXT holds some information about probe and target\r\n\
 - drop a UF2 file to flash the target device\r\n"
-#define README_SIZE   (sizeof(README_CONTENTS) - 1)
+#define README_SIZE   (sizeof(README_CONTENTS) - (4 + 1))
 
 #define INDEXHTM_CONTENTS \
 "<html><head>\r\n\
-<meta http-equiv=\"refresh\" content=\"0;URL='https://raspberrypi.com/device/RP2?version=XXXXXXXXXXXX'\"/>\r\n\
+<meta http-equiv=\"refresh\" content=\"0;URL='https://raspberrypi.com/device/RP2?version=%s'\"/>\r\n\
 </head>\r\n\
-<body>Redirecting to <a href=\"https://raspberrypi.com/device/RP2?version=XXXXXXXXXXXX\">raspberrypi.com</a></body>\r\n\
+<body>Redirecting to <a href=\"https://raspberrypi.com/device/RP2?version=%s\">raspberrypi.com</a></body>\r\n\
 </html>\r\n"
-#define INDEXHTM_SIZE   (sizeof(INDEXHTM_CONTENTS) - 1)
+#define INDEXHTM_SIZE   (sizeof(INDEXHTM_CONTENTS) + 28 - 1)
 
 #define INFOUF2_CONTENTS \
-"UF2 Target Programmer v0.0\r\n\
-Model: Raspberry Pi Picoprobe\r\n\
+"UF2 Target Programmer v%02x.%02x for RP2040\r\n\
+Model: Yet Another Picoprobe\r\n\
 Board-ID: RPI-RP2\r\n"
-#define INFOUF2_SIZE   (sizeof(INFOUF2_CONTENTS) - 1)
+#define INFOUF2_SIZE   (sizeof(INFOUF2_CONTENTS) - (4 + 1))
 
 #define BPB_BytsPerSec         512UL
 #define BPB_BytsPerClus        65536UL
@@ -163,8 +163,8 @@ const uint8_t bootsector[BPB_BytsPerSec] =
         ADWORD(0),                                        // BPB_TotSec32
 
         // byte 36 and more:
-                           BS_DrvNum, 0x00, 0x29,       ADWORD(BS_VolID),  'P',  'i',  'c',  'o',  'p',
-         'r',  'o',  'b',  'e',  ' ',  ' ', 
+                           BS_DrvNum, 0x00, 0x29,       ADWORD(BS_VolID),  'Y',  'A',  'P',  'i',  'c',
+         'o',  'p',  'r',  'o',  'b',  'e',
                                              'F',  'A',  'T',  '1',  '2',  ' ',  ' ',  ' ', 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -238,7 +238,7 @@ const uint8_t rootdirsector[BPB_BytsPerSec] =
     //------------- Block2: Root Directory -------------//
     {
         // first entry is volume label
-        'P', 'i', 'c', 'o', 'p', 'r', 'o', 'b', 'e', ' ', ' ',            // DIR_Name
+        'Y', 'A', 'P', 'i', 'c', 'o', 'p', 'r', 'o', 'b', 'e',            // DIR_Name
         0x08,                                                             // DIR_Attr: ATTR_VOLUME_ID
         0,                                                                // DIR_NTRes
         0,                                                                // DIR_CrtTimeTenth
@@ -277,7 +277,7 @@ const uint8_t rootdirsector[BPB_BytsPerSec] =
         ATIME(12, 0, 0),                                                  // DIR_WrtTime
         ADATE(2022, 12, 6),                                               // DIR_WrtDate
         AWORD(f_InfoUF2TxtStartCluster),                                  // DIR_FstClusLO
-        ADWORD(f_InfoUF2TxtSize),                                         // DIR_FileSize
+        ADWORD(INFOUF2_SIZE),                                             // DIR_FileSize
 
         // fourth entry is "INDEX.HTM"
         'I', 'N', 'D', 'E', 'X', ' ', ' ', ' ', 'H', 'T', 'M',
@@ -350,13 +350,13 @@ int32_t read_sector_from_buffer(void *sector_buffer, const uint8_t *src, uint32_
 void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4])
 {
     const char vid[ 8] = "DAPLink\0";
-    const char pid[16] = "Picoprobe\0\0\0\0\0\0\0";
-    const char rev[ 4] = "1.0\0";
+    const char pid[16] = "YAPicoprobe\0\0\0\0\0";
+    char buf[10];
 
     memcpy(vendor_id, vid, 8);
     memcpy(product_id, pid, 16);
-    memcpy(product_rev, rev, 4);
-
+    snprintf(buf, sizeof(buf), "%x.%02x", PICOPROBE_VERSION >> 8, PICOPROBE_VERSION & 0xff);
+    memcpy(product_rev, buf, 4);
 //    picoprobe_info("tud_msc_inquiry_cb(%d, %s, %s, %s)\n", lun, vendor_id, product_id, product_rev);
 }
 
@@ -454,16 +454,26 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
         memcpy(buffer, rootdirsector, r);
     }
     else if (lba >= f_ReadmeStartSector  &&  lba < f_ReadmeStartSector + f_ReadmeSectors) {
+        char buf[README_SIZE + 1];
+
 //        picoprobe_info("  README\n");
-        r = read_sector_from_buffer(buffer, (const uint8_t *)README_CONTENTS, README_SIZE, lba - f_ReadmeStartSector);
+        snprintf(buf, sizeof(buf), README_CONTENTS, PICOPROBE_VERSION >> 8, PICOPROBE_VERSION & 0xff);
+        r = read_sector_from_buffer(buffer, (const uint8_t *)buf, strlen(buf), lba - f_ReadmeStartSector);
     }
     else if (lba >= f_InfoUF2TxtStartSector  &&  lba < f_InfoUF2TxtStartSector + f_InfoUF2TxtSectors) {
+        char buf[INFOUF2_SIZE + 1];
+
 //        picoprobe_info("  INFO_UF2.TXT\n");
-        r = read_sector_from_buffer(buffer, (const uint8_t *)INFOUF2_CONTENTS, INFOUF2_SIZE, lba - f_InfoUF2TxtStartSector);
+        snprintf(buf, sizeof(buf), INFOUF2_CONTENTS, PICOPROBE_VERSION >> 8, PICOPROBE_VERSION & 0xff);
+        r = read_sector_from_buffer(buffer, (const uint8_t *)buf, strlen(buf), lba - f_InfoUF2TxtStartSector);
     }
     else if (lba >= f_IndexHtmStartSector  &&  lba < f_IndexHtmStartSector + f_IndexHtmSectors) {
+        extern char usb_serial[];
+        char buf[INDEXHTM_SIZE + 1];  // space for serial number
+
 //        picoprobe_info("  INDEX.HTM\n");
-        r = read_sector_from_buffer(buffer, (const uint8_t *)INDEXHTM_CONTENTS, INDEXHTM_SIZE, lba - f_IndexHtmStartSector);
+        snprintf(buf, sizeof(buf), INDEXHTM_CONTENTS, usb_serial, usb_serial);
+        r = read_sector_from_buffer(buffer, (const uint8_t *)buf, strlen(buf), lba - f_IndexHtmStartSector);
     }
     else if (lba >= f_CurrentUF2StartSector  &&  lba < f_CurrentUF2StartSector + f_CurrentUF2Sectors) {
         const uint32_t payload_size = 256;

@@ -60,7 +60,7 @@ static uint8_t RxDataBuffer[DAP_PACKET_COUNT * DAP_PACKET_SIZE];
 
 // prios are critical and determine throughput
 #define TUD_TASK_PRIO               (tskIDLE_PRIORITY + 20)       // uses one core continuously
-#define LED_TASK_PRIO               (tskIDLE_PRIORITY + 12)       // simple task which may interrupt everything else to periodic blinking
+#define LED_TASK_PRIO               (tskIDLE_PRIORITY + 12)       // simple task which may interrupt everything else for periodic blinking
 #define MSC_WRITER_THREAD_PRIO      (tskIDLE_PRIORITY + 8)        // this is only running on writing UF2 files
 #define UART_TASK_PRIO              (tskIDLE_PRIORITY + 5)        // target -> host via UART
 #define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 5)        // target -> host via RTT
@@ -126,13 +126,14 @@ void dap_task(void *ptr)
             }
         }
         else {
-            if (mounted  &&  time_us_32() - used_us > 500000) {
+            // disconnect after 1s without data
+            if (mounted  &&  time_us_32() - used_us > 1000000) {
                 mounted = false;
                 picoprobe_debug("=================================== DAPv2 disconnect target\n");
                 led_state(LS_DAP_DISCONNECTED);
                 sw_unlock("DAPv2");
             }
-            vTaskDelay(0);
+            taskYIELD();
         }
     }
 }   // dap_task
@@ -151,7 +152,7 @@ void usb_thread(void *ptr)
 
     for (;;) {
         tud_task();
-        vTaskDelay(0);    // not sure, if this triggers the scheduler
+        taskYIELD();    // not sure, if this triggers the scheduler
     }
 }   // usb_thread
 
@@ -176,7 +177,7 @@ int main(void)
 
     // now we can "print"
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
-    picoprobe_info("                                 Welcome to Picoprobe!\n");
+    picoprobe_info("                        Welcome to Yet Another Picoprobe v%02x.%02x\n", PICOPROBE_VERSION >> 8, PICOPROBE_VERSION & 0xff);
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
     sw_lock_init();

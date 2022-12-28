@@ -48,7 +48,7 @@ tusb_desc_device_t const desc_device =
 
     .idVendor           = 0x2E8A, // Pi
     .idProduct          = 0x000c, // CMSIS-DAP adapter
-    .bcdDevice          = 0x0101, // Version 01.01
+    .bcdDevice          = PICOPROBE_VERSION,
     .iManufacturer      = 0x01,
     .iProduct           = 0x02,
     .iSerialNumber      = 0x03,
@@ -170,7 +170,7 @@ char const* string_desc_arr [] =
   "Picoprobe CMSIS-DAP v2",            // 5: Interface descriptor for Bulk transport
   "Picoprobe CDC-ACM UART",            // 6: Interface descriptor for CDC UART (from target)
   "Picoprobe CDC-DEBUG",               // 7: Interface descriptor for CDC DEBUG
-  "Picoprobe Flash Drive",             // 8: Interface descriptor for flash target storage
+  "Picoprobe Flash Drive",             // 8: Interface descriptor for MSC interface
 };
 
 static uint16_t _desc_str[32];
