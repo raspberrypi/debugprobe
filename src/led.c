@@ -38,8 +38,9 @@ static TaskHandle_t task_led = NULL;
 static bool         msc_connected;
 static bool         dap_connected;
 static bool         target_found;
-static bool         uart_data;
 static unsigned     rtt_flash_cnt;
+static uint64_t     uart_data_trigger;
+static uint64_t     rtt_data_trigger;
 
 
 
@@ -71,7 +72,7 @@ void led_thread(void *ptr)
             gpio_put(PICOPROBE_LED, 1);
             vTaskDelay(pdMS_TO_TICKS(700));
         }
-        else if (uart_data) {
+        else if (time_us_64() - uart_data_trigger < 5000000) {
             // -> slow flashing
             gpio_put(PICOPROBE_LED, 1);
             vTaskDelay(pdMS_TO_TICKS(300));
@@ -82,7 +83,11 @@ void led_thread(void *ptr)
             // -> LED off, flashes once per second for 20ms if no RTT control block found
             // -> LED off, flashes twice per second for 20ms if RTT control block found
             // -> LED off, flashes thrice per second for 20ms if RTT data received
-            for (unsigned u = 0;  u < rtt_flash_cnt;  ++u) {
+            unsigned flash_cnt = rtt_flash_cnt;
+            if (time_us_64() - rtt_data_trigger < 5000000) {
+                flash_cnt = 3;
+            }
+            for (unsigned u = 0;  u < flash_cnt;  ++u) {
                 gpio_put(PICOPROBE_LED, 1);
                 vTaskDelay(pdMS_TO_TICKS(20));
                 gpio_put(PICOPROBE_LED, 0);
@@ -96,6 +101,64 @@ void led_thread(void *ptr)
 
 
 
+/**
+ * Set state of LED.
+ *
+ * \attention
+ *    This function is also called form interrupt!
+ */
+void led_state(led_state_t state)
+{
+    switch (state) {
+        case LS_TARGET_FOUND:
+            target_found  = true;
+            rtt_flash_cnt = 1;
+            break;
+
+        case LS_NO_TARGET:
+            target_found  = false;
+            break;
+
+        case LS_MSC_CONNECTED:
+            msc_connected = true;
+            rtt_flash_cnt = 0;
+            break;
+
+        case LS_MSC_DISCONNECTED:
+            msc_connected = false;
+            break;
+
+        case LS_DAP_CONNECTED:
+            dap_connected = true;
+            rtt_flash_cnt = 0;
+            break;
+
+        case LS_DAP_DISCONNECTED:
+            dap_connected = false;
+            break;
+
+        case LS_RTT_CB_FOUND:
+            rtt_flash_cnt = 2;
+            break;
+
+        case LS_RTT_DATA:
+            rtt_data_trigger  = time_us_64();
+            break;
+
+        case LS_UART_DATA:
+            uart_data_trigger = time_us_64();
+            break;
+
+        default:
+            break;
+    }
+}   // led_state
+
+
+
+/**
+ * Initialize the LED task.
+ */
 void led_init(uint32_t task_prio)
 {
     picoprobe_debug("led_init()\n");
@@ -106,62 +169,3 @@ void led_init(uint32_t task_prio)
 
     xTaskCreate(led_thread, "LED", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_led);
 }   // led_init
-
-
-
-void led_state(led_state_t state)
-{
-    switch (state) {
-        case LS_TARGET_FOUND:
-            target_found  = true;
-            rtt_flash_cnt = 1;
-            uart_data     = false;
-            break;
-
-        case LS_NO_TARGET:
-            target_found  = false;
-            break;
-
-        case LS_MSC_CONNECTED:
-            msc_connected = true;
-            rtt_flash_cnt = 0;
-            uart_data     = false;
-            break;
-
-        case LS_MSC_DISCONNECTED:
-            msc_connected = false;
-            break;
-
-        case LS_DAP_CONNECTED:
-            dap_connected = true;
-            rtt_flash_cnt = 0;
-            uart_data     = false;
-            break;
-
-        case LS_DAP_DISCONNECTED:
-            dap_connected = false;
-            break;
-
-        case LS_RTT_CB_FOUND:
-            rtt_flash_cnt = 2;
-            uart_data     = false;
-            break;
-
-        case LS_RTT_DATA:
-            rtt_flash_cnt = 3;
-            break;
-
-        case LS_UART_DATA:
-            rtt_flash_cnt = 0;
-            uart_data     = true;
-            break;
-
-        default:
-            msc_connected = false;
-            dap_connected = false;
-            target_found  = false;
-            rtt_flash_cnt = 0;
-            uart_data     = false;
-            break;
-    }
-}   // led_state

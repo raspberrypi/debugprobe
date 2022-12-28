@@ -77,7 +77,7 @@ static uint32_t search_for_rtt_cb(void)
         led_state(LS_RTT_CB_FOUND);
     }
     else {
-        picoprobe_info("no RTT_CB found\n");
+        picoprobe_debug("no RTT_CB found\n");
     }
     return rttAddr;
 }   // search_for_rtt_cb

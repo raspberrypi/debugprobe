@@ -102,16 +102,21 @@ int cdc_debug_printf(const char* format, ...)
     static uint32_t prev_ms;
     static uint32_t base_ms;
     static bool newline = true;
+    static char buf[128];            // buffers can be put into static so that it does not stress the task stack
+    static char tbuf[30];
     uint32_t now_ms;
     uint32_t d_ms;
-    char buf[128];
-    char tbuf[30];
     int cnt;
     int ndx = 0;
     const char *p;
 
     if (task_printf == NULL)
         return -1;
+
+    if (portCHECK_IF_IN_ISR()) {
+        // we suppress those messages silently
+        return -1;
+    }
 
     xSemaphoreTake(sema_printf, portMAX_DELAY);
 
