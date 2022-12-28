@@ -34,6 +34,12 @@
     int cdc_debug_printf(const char* format, ...) __attribute__ ((format (printf, 1, 2)));
 #endif
 
+#if !defined(NDEBUG)
+    #define picoprobe_out(format,args...) cdc_debug_printf(format, ## args)
+#else
+    #define picoprobe_out(format,...) ((void)0)
+#endif
+
 #if 1  &&  !defined(NDEBUG)
     #define picoprobe_info(format,args...) cdc_debug_printf("(II) " format, ## args)
 #else
@@ -70,7 +76,7 @@
 // Target reset config
 #define PROBE_PIN_RESET 6
 
-// UART config
+// UART config (UART target -> probe)
 #define PICOPROBE_UART_TX        4
 #define PICOPROBE_UART_RX        5
 #define PICOPROBE_UART_INTERFACE uart1

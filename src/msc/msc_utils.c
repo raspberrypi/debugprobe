@@ -534,7 +534,7 @@ static void target_disconnect(TimerHandle_t xTimer)
 {
     if (xSemaphoreTake(sema_swd_in_use, 0)) {
         if (is_connected) {
-            picoprobe_debug("=================================== MSC disconnect target\n");
+            picoprobe_info("=================================== MSC disconnect target\n");
             led_state(LS_MSC_DISCONNECTED);
             target_set_state(RESET_RUN);
             is_connected = false;
@@ -567,7 +567,7 @@ bool msc_target_connect(bool write_mode)
         now_us = time_us_64();
         ok = true;
         if ( !is_connected  ||  now_us - last_trigger_us > 1000*1000) {
-            picoprobe_debug("=================================== MSC connect target\n");
+            picoprobe_info("=================================== MSC connect target\n");
             led_state(LS_MSC_CONNECTED);
 
             ok = target_set_state(RESET_PROGRAM);

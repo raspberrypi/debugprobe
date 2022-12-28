@@ -57,7 +57,8 @@
 /*
  * The following is part of a hack to make DAP_PACKET_COUNT a variable.
  * CMSIS-DAPv2 has better performance with 2 packets while
- * CMSIS-DAPv1 only works with one packet (at least with openocd)
+ * CMSIS-DAPv1 only works with one packet, at least with openocd which throws a
+ *     "CMSIS-DAP transfer count mismatch: expected 12, got 8" on flashing.
  * The correct packet count has to be set on connection.
  */
 #define _DAP_PACKET_COUNT 2
@@ -95,7 +96,7 @@ void dap_task(void *ptr)
                 if (sw_lock("DAPv2", true)) {
                     mounted = true;
                     dap_packet_count = 2;
-                    picoprobe_debug("=================================== DAPv2 connect target\n");
+                    picoprobe_info("=================================== DAPv2 connect target\n");
                     led_state(LS_DAPV2_CONNECTED);
                 }
             }
@@ -140,7 +141,7 @@ void dap_task(void *ptr)
             // disconnect after 1s without data
             if (mounted  &&  time_us_32() - used_us > 1000000) {
                 mounted = false;
-                picoprobe_debug("=================================== DAPv2 disconnect target\n");
+                picoprobe_info("=================================== DAPv2 disconnect target\n");
                 led_state(LS_DAPV2_DISCONNECTED);
                 sw_unlock("DAPv2");
             }
@@ -214,7 +215,7 @@ static void hid_disconnect(TimerHandle_t xTimer)
 {
     if (hid_mounted) {
         hid_mounted = false;
-        picoprobe_debug("=================================== DAPv1 disconnect target\n");
+        picoprobe_info("=================================== DAPv1 disconnect target\n");
         led_state(LS_DAPV1_DISCONNECTED);
         sw_unlock("DAPv1");
     }
@@ -262,13 +263,29 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
         if (sw_lock("DAPv1", true)) {
             hid_mounted = true;
             dap_packet_count = 1;
-            picoprobe_debug("=================================== DAPv1 connect target\n");
+            picoprobe_info("=================================== DAPv1 connect target\n");
             led_state(LS_DAPV1_CONNECTED);
         }
     }
 
     if (hid_mounted) {
-        DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
+#if 0
+        // heavy debug output, set dap_packet_count=2 to stumble into the bug
+        uint32_t request_len = DAP_GetCommandLength(RxDataBuffer, bufsize);
+        picoprobe_info("< ");
+        for (int i = 0;  i < bufsize;  ++i) {
+            picoprobe_out(" %02x", RxDataBuffer[i]);
+            if (i == request_len - 1) {
+                picoprobe_out(" !!!!");
+            }
+        }
+        picoprobe_out("\n");
+        vTaskDelay(pdMS_TO_TICKS(30));
+        uint32_t res = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
+        picoprobe_info("> %lu %lu\n", res >> 16, res & 0xffff);
+#else
+        DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
+#endif
         tud_hid_report(0, TxDataBuffer, response_size);
     }
 }   // tud_hid_set_report_cb

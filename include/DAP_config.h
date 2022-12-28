@@ -98,6 +98,7 @@ This information includes:
 /// setting can be reduced (valid range is 1 .. 255).
 /// ATTENTION: terrible hack to make "dap_packet_count" a variable because CMSIS-DAPv2 has better performance with "2"
 ///            and CMSIS-DAPv1 works only with "1" (openocd)
+///            The __LINE__ test is required to skip the test in DAP.c successfully.
 extern uint8_t dap_packet_count;
 #define DAP_PACKET_COUNT     ((__LINE__ < 50) ? 2 : dap_packet_count)
 
