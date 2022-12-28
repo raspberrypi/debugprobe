@@ -90,7 +90,9 @@ This information includes:
 /// This configuration settings is used to optimize the communication performance with the
 /// debugger and depends on the USB peripheral. Typical vales are 64 for Full-speed USB HID or WinUSB,
 /// 1024 for High-speed USB HID and 512 for High-speed USB WinUSB.
-#define DAP_PACKET_SIZE         64U             ///< Specifies Packet Size in bytes.
+/// ATTENTION: terrible hack to make "dap_packet_size" a variable, see DAP_PACKET_COUNT
+extern uint16_t dap_packet_size;
+#define DAP_PACKET_SIZE     ((__LINE__ < 50) ? 64 : dap_packet_size)
 
 /// Maximum Package Buffers for Command and Response data.
 /// This configuration settings is used to optimize the communication performance with the

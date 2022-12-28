@@ -61,12 +61,19 @@
  *     "CMSIS-DAP transfer count mismatch: expected 12, got 8" on flashing.
  * The correct packet count has to be set on connection.
  */
-#define _DAP_PACKET_COUNT 2
+#define _DAP_PACKET_COUNT       2
+#if OPTIMIZE_FOR_OPENOCD
+    #define _DAP_PACKET_SIZE    CFG_TUD_VENDOR_RX_BUFSIZE
+#else
+    // pyocd does not like packets > 128
+    #define _DAP_PACKET_SIZE    MIN(CFG_TUD_VENDOR_RX_BUFSIZE, 128)
+#endif
 
-uint8_t dap_packet_count = _DAP_PACKET_COUNT;
+uint8_t  dap_packet_count = _DAP_PACKET_COUNT;
+uint16_t dap_packet_size  = _DAP_PACKET_SIZE;
 
-static uint8_t TxDataBuffer[_DAP_PACKET_COUNT * DAP_PACKET_SIZE];
-static uint8_t RxDataBuffer[_DAP_PACKET_COUNT * DAP_PACKET_SIZE];
+static uint8_t TxDataBuffer[_DAP_PACKET_COUNT * _DAP_PACKET_SIZE];
+static uint8_t RxDataBuffer[_DAP_PACKET_COUNT * _DAP_PACKET_SIZE];
 
 
 // prios are critical and determine throughput
@@ -95,7 +102,8 @@ void dap_task(void *ptr)
             if ( !mounted) {
                 if (sw_lock("DAPv2", true)) {
                     mounted = true;
-                    dap_packet_count = 2;
+                    dap_packet_count = _DAP_PACKET_COUNT;
+                    dap_packet_size  = _DAP_PACKET_SIZE;
                     picoprobe_info("=================================== DAPv2 connect target\n");
                     led_state(LS_DAPV2_CONNECTED);
                 }
@@ -261,8 +269,11 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
 
     if ( !hid_mounted) {
         if (sw_lock("DAPv1", true)) {
-            hid_mounted = true;
+            // this is the minimum version which should always work
             dap_packet_count = 1;
+            dap_packet_size  = 64;
+
+            hid_mounted = true;
             picoprobe_info("=================================== DAPv1 connect target\n");
             led_state(LS_DAPV1_CONNECTED);
         }
@@ -292,7 +303,6 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
 
 
 
-#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
 extern uint8_t const desc_ms_os_20[];
 
 bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
@@ -328,7 +338,6 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
     // stall unknown request
     return false;
 }
-#endif
 
 
 

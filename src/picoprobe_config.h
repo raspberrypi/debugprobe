@@ -93,13 +93,11 @@
     #endif
 #endif
 
-#define PROTO_DAP_V1 1
-#define PROTO_DAP_V2 2
-
-// Interface config
-#ifndef PICOPROBE_DEBUG_PROTOCOL
-    #define PICOPROBE_DEBUG_PROTOCOL PROTO_DAP_V2
+/// which means: pyocd will not work.
+#ifndef OPTIMIZE_FOR_OPENOCD
+    #define OPTIMIZE_FOR_OPENOCD     0
 #endif
+
 
 #define INCLUDE_RTT_CONSOLE
 
