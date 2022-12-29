@@ -27,7 +27,17 @@
 #define PICOPROBE_H_
 
 
-#define PICOPROBE_VERSION   0x0103
+#if !defined(PICOPROBE_VERSION)
+    #define PICOPROBE_VERSION   0x0103
+#endif
+
+/// which means: pyocd will not work.
+#ifndef OPTIMIZE_FOR_OPENOCD
+    #define OPTIMIZE_FOR_OPENOCD     0
+#endif
+
+#define INCLUDE_RTT_CONSOLE
+
 
 
 #if !defined(NDEBUG)
@@ -70,11 +80,9 @@
 #define PROBE_PIN_OFFSET    2
 #define PROBE_PIN_SWCLK     (PROBE_PIN_OFFSET + 0) // 2
 #define PROBE_PIN_SWDIO     (PROBE_PIN_OFFSET + 1) // 3
+#define PROBE_PIN_RESET     6                      // Target reset config
 #define PROBE_MAX_KHZ       20000U
 #define PROBE_DEFAULT_KHZ   12500U
-
-// Target reset config
-#define PROBE_PIN_RESET 6
 
 // UART config (UART target -> probe)
 #define PICOPROBE_UART_TX        4
@@ -92,13 +100,5 @@
         #define PICOPROBE_LED PICO_DEFAULT_LED_PIN
     #endif
 #endif
-
-/// which means: pyocd will not work.
-#ifndef OPTIMIZE_FOR_OPENOCD
-    #define OPTIMIZE_FOR_OPENOCD     0
-#endif
-
-
-#define INCLUDE_RTT_CONSOLE
 
 #endif

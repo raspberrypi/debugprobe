@@ -16,14 +16,14 @@ So there is unfortunately one more Picoprobe around, the YAPicoprobe.
 * MSC - drag-n-drop support a la [DAPLink](https://github.com/ARMmbed/DAPLink) for the RP2040 Pico / PicoW
 * CDC - virtual com port for logging of the target
   * UART connection between target and probe is redirected
-  * RTT terminal channel is automatically redirected into this CDC (if there is no DAPv2/MSC connection)
+  * RTT terminal channel is automatically redirected into this CDC (if there is no CMSIS-DAPv2/MSC connection)
 * CDC - virtual com port for logging of the probe
 * LED for state indication
 
 ## Other Benefits
-* no more Zadig fiddling
-* easy upload of a firmware image to the target via the probe
-* no more reset push button required for the target to put into BOOTSEL mode
+* no more Zadig fiddling because the underlying protocols of CMSIS-DAPv1 and v2 are driver-less
+* easy drag-n-drop (or copy) upload of a firmware image to the target via the probe
+* no more reset push button (or disconnect/connect cycle)  to put the target into BOOTSEL mode
 
 ## Minus
 * custom Picoprobe protocol has been dropped
@@ -36,7 +36,7 @@ Picoprobe documentation can be found in the [Pico Getting Started Guide](https:/
 
 Wires between probe and target board are the same as before, but the UART wires can be omitted if RTT is used for logging on the target device.
 
-I recommend to use a simple Pico board as the probe.  The PicoW does not add any features, instead the LED indicator does not work there.
+I recommend to use a simple Raspberry Pi Pico board as the probe.  The Pico W board does not add any features, instead the LED indicator does not work there.
 
 
 ## Tool Compatibility
