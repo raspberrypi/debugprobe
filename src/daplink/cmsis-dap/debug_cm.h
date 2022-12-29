@@ -22,6 +22,7 @@
 #ifndef DEBUG_CM_H
 #define DEBUG_CM_H
 
+#include "DAP_config.h"
 #include "DAP.h"
 
 // SWD register access
