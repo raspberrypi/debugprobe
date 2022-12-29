@@ -43,43 +43,76 @@
 
 
 
+static const uint32_t segger_alignment = 4;
 static const uint8_t  seggerRTT[16] = "SEGGER RTT\0\0\0\0\0\0";
+static uint32_t       prev_rtt_cb = 0;
 
 static TaskHandle_t   task_rtt_console = NULL;
 
 
 
+static uint32_t check_buffer_for_rtt_cb(uint8_t *buf, uint32_t buf_size, uint32_t base_addr)
+{
+    uint32_t rtt_cb = 0;
+
+    for (uint32_t ndx = 0;  ndx <= buf_size - sizeof(seggerRTT);  ndx += segger_alignment) {
+        if (memcmp(buf + ndx, seggerRTT, sizeof(seggerRTT)) == 0) {
+            rtt_cb = base_addr + ndx;
+            break;
+        }
+    }
+    return rtt_cb;
+}   // check_buffer_for_rtt_cb
+
+
+
+/**
+ * Search for the RTT control block.
+ *
+ * \return 0 -> nothing found, otherwise beginning of control block
+ *
+ * \note
+ *    - a small block at the end of RAM is not searched
+ *    - searching all 256KByte RAM of the RP2040 takes 600ms (at 12.5MHz interface clock)
+ */
 static uint32_t search_for_rtt_cb(void)
 {
     uint8_t buf[1024];
     bool ok;
-    uint32_t rttAddr = 0;
+    uint32_t rtt_cb = 0;
 
-    for (uint32_t addr = DAPLINK_RAM_START;  addr < DAPLINK_RAM_START + DAPLINK_RAM_SIZE;  addr += sizeof(buf)) {
-        ok = swd_read_memory(addr, buf, sizeof(buf));
-        if ( !ok  ||  sw_unlock_requested()) {
-            break;
-        }
-
-        for (uint32_t ndx = 0;  ndx < sizeof(buf) - sizeof(seggerRTT);  ndx += sizeof(seggerRTT)) {
-            if (memcmp(buf + ndx, seggerRTT, sizeof(seggerRTT)) == 0) {
-                rttAddr = addr + ndx;
-                break;
-            }
-        }
-        if (rttAddr != 0) {
-            break;
+    if (prev_rtt_cb != 0) {
+        // fast search, saves a little SW traffic and a few ms
+        ok = swd_read_memory(prev_rtt_cb, buf, sizeof(seggerRTT));
+        if (ok) {
+            rtt_cb = check_buffer_for_rtt_cb(buf, sizeof(seggerRTT), prev_rtt_cb);
         }
     }
 
-    if (rttAddr != 0) {
-        picoprobe_info("RTT_CB found at 0x%lx\n", rttAddr);
+    if (rtt_cb == 0) {
+        // note that searches must somehow overlap to find (unaligned) control blocks at the border of read chunks
+        for (uint32_t addr = DAPLINK_RAM_START;  addr <= DAPLINK_RAM_START + DAPLINK_RAM_SIZE - sizeof(buf);  addr += sizeof(buf) - sizeof(seggerRTT)) {
+            ok = swd_read_memory(addr, buf, sizeof(buf));
+            if ( !ok  ||  sw_unlock_requested()) {
+                break;
+            }
+
+            rtt_cb = check_buffer_for_rtt_cb(buf, sizeof(buf), addr);
+            if (rtt_cb != 0) {
+                break;
+            }
+        }
+    }
+
+    if (rtt_cb != 0) {
+        picoprobe_info("RTT_CB found at 0x%lx\n", rtt_cb);
         led_state(LS_RTT_CB_FOUND);
     }
     else {
         picoprobe_debug("no RTT_CB found\n");
     }
-    return rttAddr;
+    prev_rtt_cb = rtt_cb;
+    return rtt_cb;
 }   // search_for_rtt_cb
 
 

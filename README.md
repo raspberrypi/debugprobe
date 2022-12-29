@@ -130,7 +130,6 @@ DAPv2 is always used, because DAPv1 does not run under Linux(?).
   * check the benchmark "miracle" with the NDEBUG version 
   * if `configTICK_RATE_HZ` is around 100, the SWD IF no longer works
 * TODO
-  * fast search for RTT control block
   * TX host->target via RTT
   * pyocd auto-detect?
   * support of Nordic nRF52xxx (my other target)
