@@ -9,6 +9,18 @@ project(picoprobe)
 
 pico_sdk_init()
 
+
+if (PICOPROBE_VERSION)
+    add_definitions(-DPICOPROBE_VERSION=0x${PICOPROBE_VERSION})
+endif()
+if (OPTIMIZE_FOR_OPENOCD)
+    add_definitions(-DOPTIMIZE_FOR_OPENOCD=${OPTIMIZE_FOR_OPENOCD})
+endif()
+if (PICOPROBE_VERSION)
+    add_definitions(-DGIT_HASH="${GIT_HASH}")
+endif()
+
+
 add_executable(picoprobe
         src/cdc_uart.c
         src/dap_util.c

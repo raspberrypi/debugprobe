@@ -197,7 +197,10 @@ int main(void)
 
     // now we can "print"
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
-    picoprobe_info("                        Welcome to Yet Another Picoprobe v%02x.%02x\n", PICOPROBE_VERSION >> 8, PICOPROBE_VERSION & 0xff);
+    picoprobe_info("                     Welcome to Yet Another Picoprobe v%02x.%02x-" GIT_HASH "\n", PICOPROBE_VERSION >> 8, PICOPROBE_VERSION & 0xff);
+#if OPTIMIZE_FOR_OPENOCD
+    picoprobe_info("                               OpenOCD optimized version\n");
+#endif
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
     sw_lock_init();

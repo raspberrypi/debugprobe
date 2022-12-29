@@ -55,8 +55,19 @@
 #define CLUSTERS(BYTES) (((BYTES) + BPB_BytsPerClus - 1) / BPB_BytsPerClus)
 #define AFAT12(C1,C2)   (C1) & 0xff, (((C1) & 0xf00) >> 8) + (((C2) & 0x0f) << 4), (((C2) & 0xff0) >> 4)
 
+#if OPTIMIZE_FOR_OPENOCD
+    #define SPEC_VERSION "-openocd"
+#else
+    #define SPEC_VERSION
+#endif
+#if defined(GIT_HASH)
+    #define _GIT_HASH "-" GIT_HASH
+#else
+    #define GIT_HASH
+#endif
+
 #define README_CONTENTS \
-"This is Yet Another Picoprobe v%02x.%02x.\r\n\r\n\
+"This is Yet Another Picoprobe v%02x.%02x" _GIT_HASH SPEC_VERSION ".\r\n\r\n\
 - CURRENT.UF2 mirrors the flash content of the target\r\n\
 - INFO_UF2.TXT holds some information about probe and target\r\n\
 - drop a UF2 file to flash the target device\r\n"
@@ -71,7 +82,7 @@
 #define INDEXHTM_SIZE   (sizeof(INDEXHTM_CONTENTS) + 28 - 1)
 
 #define INFOUF2_CONTENTS \
-"UF2 Target Programmer v%02x.%02x for RP2040\r\n\
+"UF2 Target Programmer v%02x.%02x" _GIT_HASH SPEC_VERSION " for RP2040\r\n\
 Model: Yet Another Picoprobe\r\n\
 Board-ID: RPI-RP2\r\n"
 #define INFOUF2_SIZE   (sizeof(INFOUF2_CONTENTS) - (4 + 1))

@@ -1,38 +1,64 @@
+# Makefile to build YAPicoprobe
+#
+
+VERSION              := 0103
+OPTIMIZE_FOR_OPENOCD ?= 0
+
+
+GIT_HASH := $(shell git rev-parse --short HEAD)
+
+CMAKE_FLAGS  = -DPICOPROBE_VERSION=$(VERSION)
+CMAKE_FLAGS += -DOPTIMIZE_FOR_OPENOCD=$(OPTIMIZE_FOR_OPENOCD)
+CMAKE_FLAGS += -DGIT_HASH=$(GIT_HASH)
+CMAKE_FLAGS += -DCMAKE_EXPORT_COMPILE_COMMANDS=True
+
+
 .PHONY: clean
 clean:
-	cd build && ninja clean
+	ninja -C build -v clean
 
 
 .PHONY: all
 all:
-	cd build && ninja -v all
+	ninja -C build -v all
 
 
 .PHONY: cmake-create-debug
 cmake-create-debug:
-	mkdir -p build
-	cd build && cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=True ..
-	# don't know if this is required
-	cd build && sed -i 's/arm-none-eabi-gcc/gcc/' compile_commands.json
+	cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug $(CMAKE_FLAGS)
+    # don't know if this is required
+	@cd build && sed -i 's/arm-none-eabi-gcc/gcc/' compile_commands.json
 
 
 .PHONY: cmake-create-release
 cmake-create-release:
-	mkdir -p build
-	cd build && cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=True ..
-	# don't know if this is required
-	cd build && sed -i 's/arm-none-eabi-gcc/gcc/' compile_commands.json
+	cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release $(CMAKE_FLAGS)
+    # don't know if this is required
+	@cd build && sed -i 's/arm-none-eabi-gcc/gcc/' compile_commands.json
 
 
 .PHONY: clean-build
 clean-build:
 	rm -rfv build
-	mkdir -p build
 
 
 .PHONY: flash
 flash: all
 	@echo "Waiting for RPi bootloader..."
-	@until [ -f /media/pico/INDEX.HTM ]; do sleep 1; done; echo "ready!"
+	@until [ -f /media/pico/INDEX.HTM ]; do sleep 0.1; done; echo "ready!"
 	cp build/picoprobe.uf2 /media/pico
 	@echo "ok."
+
+
+.PHONY: create-images
+create-images:
+	$(MAKE) clean-build
+	$(MAKE) cmake-create-debug OPTIMIZE_FOR_OPENOCD=1
+	$(MAKE) all
+	mkdir -p images
+	rm images/*.uf2
+	cp build/picoprobe.uf2 images/yapicoprobe-$(VERSION)-$(GIT_HASH)-openocd.uf2
+	@
+	$(MAKE) cmake-create-debug OPTIMIZE_FOR_OPENOCD=0
+	$(MAKE) all
+	cp build/picoprobe.uf2 images/yapicoprobe-$(VERSION)-$(GIT_HASH).uf2
