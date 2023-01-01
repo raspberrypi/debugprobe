@@ -1,7 +1,9 @@
 # Makefile to build YAPicoprobe
 #
+# ATTENTION: to get the version number & git hash into the image, cmake-create-* has to be invoked.
+#
 
-VERSION              := 0103
+VERSION              := 0104
 OPTIMIZE_FOR_OPENOCD ?= 0
 
 
