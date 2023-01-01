@@ -38,7 +38,6 @@
 
 #include "DAP_config.h"
 
-#define DIV_ROUND_UP(m, n)	(((m) + (n) - 1) / (n))
 
 // Only want to set / clear one gpio per event so go up in powers of 2
 enum _dbg_pins {
@@ -50,20 +49,11 @@ enum _dbg_pins {
 
 CU_REGISTER_DEBUG_PINS(probe_timing)
 
+
 // Uncomment to enable debug
 //CU_SELECT_DEBUG_PINS(probe_timing)
 
-#define PROBE_BUF_SIZE 8192
 struct _probe {
-    // Total length
-    uint tx_len;
-    // Data back to host
-    uint8_t tx_buf[PROBE_BUF_SIZE];
-
-    // CMD / Data RX'd from
-    uint rx_len;
-    uint8_t rx_buf[PROBE_BUF_SIZE];
-
     // PIO offset
     uint offset;
     uint initted;
@@ -71,37 +61,27 @@ struct _probe {
 
 static struct _probe probe;
 
-enum PROBE_CMDS {
-    PROBE_INVALID      = 0, // Invalid command
-    PROBE_WRITE_BITS   = 1, // Host wants us to write bits
-    PROBE_READ_BITS    = 2, // Host wants us to read bits
-    PROBE_SET_FREQ     = 3, // Set TCK
-    PROBE_RESET        = 4, // Reset all state
-    PROBE_TARGET_RESET = 5, // Reset target
-};
-
-struct __attribute__((__packed__)) probe_cmd_hdr {
-	uint8_t id;
-    uint8_t cmd;
-    uint32_t bits;
-};
-
-struct __attribute__((__packed__)) probe_pkt_hdr {
-    uint32_t total_packet_length;
-};
 
 
-
-void probe_set_swclk_freq(uint freq_khz)
+void probe_set_swclk_freq(uint32_t freq_khz)
 {
-    uint clk_sys_freq_khz = clock_get_hz(clk_sys) / 1000;
+    uint32_t clk_sys_freq_khz = clock_get_hz(clk_sys) / 1000;
+    uint32_t div_256;
+    uint32_t div_int;
+    uint32_t div_frac;
+
     if (freq_khz > PROBE_MAX_KHZ) {
         freq_khz = PROBE_MAX_KHZ;
     }
-//    picoprobe_debug("Set swclk freq %dkHz sysclk %dkHz\n", freq_khz, clk_sys_freq_khz);
-    // Worked out with saleae
-    uint32_t divider = clk_sys_freq_khz / freq_khz / 2;
-    pio_sm_set_clkdiv_int_frac(pio0, PROBE_SM, divider, 0);
+
+    div_256 = (256 * clk_sys_freq_khz + freq_khz) / (2 * freq_khz);
+    div_int  = div_256 >> 8;
+    div_frac = div_256 & 0xff;
+
+    picoprobe_debug("Set sysclk %lukHz swclk freq %lukHz, divider %lu + %lu/256\n", clk_sys_freq_khz, freq_khz, div_int, div_frac);
+
+    // Worked out with pulseview
+    pio_sm_set_clkdiv_int_frac(pio0, PROBE_SM, div_int, div_frac);
 }   // probe_set_swclk_freq
 
 
