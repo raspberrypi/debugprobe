@@ -48,6 +48,18 @@ I recommend to use a simple Raspberry Pi Pico board as the probe.  The Pico W bo
 | cp / copy | yes | yes | `cp firmware.uf2 /media/picoprobe` |
 
 
+## Adapter Speed
+The tools above allow specification of the adapter speed.  This is the clock frequency between probe and target device.
+Unfortunately DAP converts internally the frequency into delays which are always even multiples of clock cycles.
+That means that actual clock speeds are `125MHz / (2*n)`, `n>=3` -> 20833kHz, 12500kHz, 10417kHz, ...
+
+Normally the requested frequency is rounded down according to the possible values from above.  But if the specified frequency 
+is completely out of range, the allowed maximum SWD frequency of the RP2040 is used, which is 24MHz.
+
+Actually usable frequency depends on cabling.  For instance my setup runs best with 12500kHz.  Above performance degrades
+due to communication errors between probe and target.
+
+
 ## MSC - Mass Storage Device Class
 Via MSC the so called "drag-n-drop" supported is implemented.  Actually this also helps in copying a UF2 image directly into the target via command line.
 
