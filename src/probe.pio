@@ -26,6 +26,7 @@
 // Output frequency is PIO clock / 4 (therefor the delay [1])
 // PIO clock is set to a high frequency to keep the timing effects of the instructions outside the shift loop small
 // BUT for clock /8 and /16 there must be another timing constraint I'm not aware of.
+//     I guess it is the jitter on the clock which kills the target, because for /16 the divider 0 + 83/256.
 
     .program probe
     .side_set 1 opt

@@ -104,11 +104,7 @@ int cdc_debug_printf(const char* format, ...)
     static bool newline = true;
     static char buf[128];            // buffers can be put into static so that it does not stress the task stack
     static char tbuf[30];
-    uint32_t now_ms;
-    uint32_t d_ms;
-    int cnt;
     int ndx = 0;
-    const char *p;
 
     if (task_printf == NULL)
         return -1;
@@ -131,6 +127,9 @@ int cdc_debug_printf(const char* format, ...)
     tbuf[0] = 0;
 
     while (ndx < total_cnt) {
+        const char *p;
+        int cnt;
+
         if (newline) {
             newline = false;
 
@@ -140,6 +139,9 @@ int cdc_debug_printf(const char* format, ...)
                 // - show delta
                 // - reset time if there has been no activity for 5s
                 //
+                uint32_t now_ms;
+                uint32_t d_ms;
+
                 now_ms = (uint32_t)(time_us_64() / 1000) - base_ms;
                 if (now_ms - prev_ms > 5000) {
                     base_ms = (uint32_t)(time_us_64() / 1000);
