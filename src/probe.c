@@ -44,14 +44,14 @@ enum _dbg_pins {
     DBG_PIN_WRITE = 1,
     DBG_PIN_WRITE_WAIT = 2,
     DBG_PIN_READ = 4,
-    DBG_PIN_PKT = 8,
 };
+
 
 CU_REGISTER_DEBUG_PINS(probe_timing)
 
-
 // Uncomment to enable debug
 //CU_SELECT_DEBUG_PINS(probe_timing)
+
 
 struct _probe {
     // PIO offset
@@ -74,7 +74,7 @@ void probe_set_swclk_freq(uint32_t freq_khz)
         freq_khz = PROBE_MAX_KHZ;
     }
 
-    div_256 = (256 * clk_sys_freq_khz + freq_khz) / (2 * freq_khz);
+    div_256 = (256 * clk_sys_freq_khz + freq_khz) / (4 * freq_khz);      // SWDCLK goes with PIOCLK / 4
     div_int  = div_256 >> 8;
     div_frac = div_256 & 0xff;
 
@@ -94,7 +94,7 @@ void probe_assert_reset(bool state)
 
 
 
-void probe_write_bits(uint bit_count, uint32_t data_byte)
+void __no_inline_not_in_flash_func(probe_write_bits)(uint bit_count, uint32_t data_byte)
 {
     DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE);
     pio_sm_put_blocking(pio0, PROBE_SM, bit_count - 1);
@@ -109,7 +109,7 @@ void probe_write_bits(uint bit_count, uint32_t data_byte)
 
 
 
-uint32_t probe_read_bits(uint bit_count)
+uint32_t __no_inline_not_in_flash_func(probe_read_bits)(uint bit_count)
 {
     DEBUG_PINS_SET(probe_timing, DBG_PIN_READ);
     pio_sm_put_blocking(pio0, PROBE_SM, bit_count - 1);
@@ -156,6 +156,8 @@ void probe_gpio_init()
 		pio_gpio_init(pio0, PROBE_PIN_SWDIO);
 		// Make sure SWDIO has a pullup on it. Idle state is high
 		gpio_pull_up(PROBE_PIN_SWDIO);
+
+		gpio_debug_pins_init();
 	}
 }   // probe_gpio_init
 
