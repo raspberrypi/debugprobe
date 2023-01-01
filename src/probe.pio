@@ -23,27 +23,32 @@
  *
  */
 
-.program probe
-.side_set 1 opt
+// Output frequency is PIO clock / 4 (therefor the delay [1])
+// PIO clock is set to a high frequency to keep the timing effects of the instructions outside the shift loop small
+// BUT for clock /8 and /16 there must be another timing constraint I'm not aware of.
+//     I guess it is the jitter on the clock which kills the target, because for /16 the divider 0 + 83/256.
+
+    .program probe
+    .side_set 1 opt
 
 public out_negedge:
-    set pindirs, 1 side 0x0 ; Init OE clock 0
-    pull           ; Pull number of bits to shift -1 from tx fifo and put into output shift register
-    mov x, osr     ; mov bits to shift -1 from output shift register into x
-    pull           ; Pull data to shift out
+    set pindirs, 1               side 0x0         ; Init OE clock 0
+    pull                                          ; Pull number of bits to shift -1 from tx fifo and put into output shift register
+    mov x, osr                                    ; mov bits to shift -1 from output shift register into x
+    pull                                          ; Pull data to shift out
 out_negedge_bitloop:
-    out pins, 1                  side 0x0 ; clock data out on falling edge
-    jmp  x-- out_negedge_bitloop side 0x1 ; data is present for posedge
-    set pins, 1                  side 0x0 ; Drive data high (idle bus state)
-    push                                 ; Push to rx fifo just so processor knows when done
-    jmp out_negedge                      ; Wait for next transaction
+    out pins, 1                  side 0x0  [1]       ; clock data out on falling edge
+    jmp  x-- out_negedge_bitloop side 0x1  [1]       ; data is present for posedge
+    set pins, 1                  side 0x0         ; Drive data high (idle bus state)
+    push                                          ; Push to rx fifo just so processor knows when done
+    jmp out_negedge                               ; Wait for next transaction
 
 public in_posedge:
-    set pindirs, 0 side 0x0 ; INIT IE clock 0
-    pull                   ; Pull number of bits to shift -1 from tx fifo and put into output shift register
-    mov x, osr             ; mov bits to shift -1 from output shift register into x into x
+    set pindirs, 0               side 0x0         ; INIT IE clock 0
+    pull                                          ; Pull number of bits to shift -1 from tx fifo and put into output shift register
+    mov x, osr                                    ; mov bits to shift -1 from output shift register into x into x
 in_posedge_bitloop:
-    in pins, 1                        side 0x1 ; Generate posedge and read data
-    jmp x-- in_posedge_bitloop        side 0x0 ;
-    push                                      ; Push to rx fifo when done
-    jmp in_posedge                            ; Jump back to start
+    in pins, 1                   side 0x1  [1]       ; Generate posedge and read data
+    jmp x-- in_posedge_bitloop   side 0x0  [1]       ;
+    push                                          ; Push to rx fifo when done
+    jmp in_posedge                                ; Jump back to start

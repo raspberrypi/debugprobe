@@ -43,7 +43,7 @@ volatile uint32_t cached_delay = 0;
 //   data:   pointer to sequence bit data
 //   return: none
 #if ((DAP_SWD != 0) || (DAP_JTAG != 0))
-void SWJ_Sequence(uint32_t count, const uint8_t *data)
+void __no_inline_not_in_flash_func(SWJ_Sequence)(uint32_t count, const uint8_t *data)
 {
     uint32_t bits;
     uint32_t n;
@@ -73,7 +73,7 @@ void SWJ_Sequence(uint32_t count, const uint8_t *data)
 //   swdi:   pointer to SWDIO captured data
 //   return: none
 #if (DAP_SWD != 0)
-void SWD_Sequence (uint32_t info, const uint8_t *swdo, uint8_t *swdi)
+void __no_inline_not_in_flash_func(SWD_Sequence)(uint32_t info, const uint8_t *swdo, uint8_t *swdi)
 {
     uint32_t bits;
     uint32_t n;
@@ -122,7 +122,7 @@ void SWD_Sequence (uint32_t info, const uint8_t *swdo, uint8_t *swdi)
 //   request: A[3:2] RnW APnDP
 //   data:    DATA[31:0]
 //   return:  ACK[2:0]
-uint8_t SWD_Transfer (uint32_t request, uint32_t *data)
+uint8_t __no_inline_not_in_flash_func(SWD_Transfer)(uint32_t request, uint32_t *data)
 {
 	uint8_t prq = 0;
 	uint8_t ack;
@@ -136,6 +136,8 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data)
 		cached_delay = DAP_Data.clock_delay;
 	}
 	//  picoprobe_debug("SWD_transfer(0x%02lx)\n", request);
+
+#if 0
 	/* Generate the request packet */
 	prq |= (1 << 0); /* Start Bit */
 	for (n = 1; n < 5; n++) {
@@ -146,6 +148,15 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data)
 	prq |= (parity & 0x1) << 5; /* Parity Bit */
 	prq |= (0 << 6); /* Stop Bit */
 	prq |= (1 << 7); /* Park bit */
+#else
+	// optimization, but saves almost nothing :-/
+	static const uint8_t prqs[16] = { 0x81, 0xa3, 0xa5, 0x87,
+	                                  0xa9, 0x8b, 0x8d, 0xaf,
+	                                  0xb1, 0x93, 0x95, 0xb7,
+	                                  0x99, 0xbb, 0xbd, 0x9f
+	                                };
+	prq = prqs[request & 0x0f];
+#endif
 	probe_write_bits(8, prq);
 	//  picoprobe_debug("SWD_transfer(0x%02lx)\n", prq);
 
@@ -172,7 +183,8 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data)
 			/* Turnaround for line idle */
 			probe_read_bits(DAP_Data.swd_conf.turnaround);
 			probe_write_mode();
-		} else {
+		}
+		else {
 			/* Turnaround for write */
 			probe_read_bits(DAP_Data.swd_conf.turnaround);
 			probe_write_mode();

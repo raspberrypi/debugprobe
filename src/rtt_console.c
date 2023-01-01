@@ -152,6 +152,7 @@ static void do_rtt_console(uint32_t rtt_cb)
             ok = ok  &&  swd_read_memory((uint32_t)aUp.pBuffer + aUp.RdOff, buf, cnt);
             ok = ok  &&  swd_write_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[0].RdOff), (aUp.RdOff + cnt) % aUp.SizeOfBuffer);
 
+            // put received data into CDC UART
             cdc_uart_write(buf, cnt);
 
             led_state(LS_RTT_DATA);

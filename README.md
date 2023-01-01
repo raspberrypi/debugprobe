@@ -48,6 +48,21 @@ I recommend to use a simple Raspberry Pi Pico board as the probe.  The Pico W bo
 | cp / copy | yes | yes | `cp firmware.uf2 /media/picoprobe` |
 
 
+## Adapter Speed
+The tools above allow specification of the adapter speed.  This is the clock frequency between probe and target device.
+Unfortunately DAP converts internally the frequency into delays which are always even multiples of clock cycles.
+That means that actual clock speeds are `125MHz / (2*n)`, `n>=3` -> 20833kHz, 12500kHz, 10417kHz, ...
+
+Normally the requested frequency is rounded down according to the possible values from above.  But if the specified frequency 
+is completely out of range, the allowed maximum SWD frequency of the RP2040 is used, which is 24MHz.
+
+Actually usable frequency depends on cabling and the DAP speed.  If the DAP cannot access memory with speed determined by the host, it responds
+with WAIT and the host needs to retry.
+
+Effects of cabling should be clear: the longer the cables plus some more effects, the worse the signals.  Which effectively means
+slowing down clock frequency is required to get the data transported.
+
+
 ## MSC - Mass Storage Device Class
 Via MSC the so called "drag-n-drop" supported is implemented.  Actually this also helps in copying a UF2 image directly into the target via command line.
 
@@ -55,6 +70,7 @@ Note, that flash erase takes place on a 64KByte base:  on the first write to a 6
 
 Because writing/erasing of the flash is target depending, the current implementation is limited to the RP2040 and its "win w25q16jv".
 CMSIS-DAP should be generic, which means that its tools dependant (openocd/pyocd).
+
 
 ## RTT - Real Time Transfer
 [RTT](https://www.segger.com/products/debug-probes/j-link/technology/about-real-time-transfer/) allows transfer from the target to the host in "realtime".  YAPicoprobe currently reads channel 0 of the targets RTT and sends it into the CDC of the target.  Effectively this allows RTT debug output into a terminal.

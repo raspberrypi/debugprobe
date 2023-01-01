@@ -166,7 +166,7 @@ char const* string_desc_arr [] =
   usb_serial,                          // 3: Serial, uses flash unique ID
   "YAPicoprobe CMSIS-DAP v1",          // 4: Interface descriptor for HID transport
   "YAPicoprobe CMSIS-DAP v2",          // 5: Interface descriptor for Bulk transport
-  "YAPicoprobe CDC-ACM UART",          // 6: Interface descriptor for CDC UART (from target)
+  "YAPicoprobe CDC-UART",              // 6: Interface descriptor for CDC UART (from target)
   "YAPicoprobe CDC-DEBUG",             // 7: Interface descriptor for CDC DEBUG
   "YAPicoprobe Flash Drive",           // 8: Interface descriptor for MSC interface
 };
