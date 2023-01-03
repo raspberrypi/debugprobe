@@ -28,6 +28,7 @@
 
 public out_negedge:
     set pindirs, 1 side 0x0 ; Init OE clock 0
+public out_idle:
     pull           ; Pull number of bits to shift -1 from tx fifo and put into output shift register
     mov x, osr     ; mov bits to shift -1 from output shift register into x
     pull           ; Pull data to shift out
@@ -40,6 +41,7 @@ out_negedge_bitloop:
 
 public in_posedge:
     set pindirs, 0 side 0x0 ; INIT IE clock 0
+public in_idle:
     pull                   ; Pull number of bits to shift -1 from tx fifo and put into output shift register
     mov x, osr             ; mov bits to shift -1 from output shift register into x into x
 in_posedge_bitloop:

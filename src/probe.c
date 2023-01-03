@@ -129,12 +129,12 @@ uint32_t probe_read_bits(uint bit_count) {
 
 void probe_read_mode(void) {
     pio_sm_exec(pio0, PROBE_SM, pio_encode_jmp(probe.offset + probe_offset_in_posedge));
-    while(pio0->dbg_padoe & (1 << PROBE_PIN_SWDIO));
+    while(pio_sm_get_pc(pio0, PROBE_SM) != probe.offset + probe_offset_in_idle);
 }
 
 void probe_write_mode(void) {
     pio_sm_exec(pio0, PROBE_SM, pio_encode_jmp(probe.offset + probe_offset_out_negedge));
-    while(!(pio0->dbg_padoe & (1 << PROBE_PIN_SWDIO)));
+    while(pio_sm_get_pc(pio0, PROBE_SM) != probe.offset + probe_offset_out_idle);
 }
 
 void probe_gpio_init()
