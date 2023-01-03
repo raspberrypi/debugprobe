@@ -42,7 +42,6 @@ out_negedge_2:
 out_negedge_bitloop:
     out pins, 1                  side 0x0  [1]       ; clock data out on falling edge
     jmp  x-- out_negedge_bitloop side 0x1  [1]       ; data is present for posedge
-    push                                          ; Push to rx fifo just so processor knows when done
     set pins, 1                  side 0x0         ; Drive data high (idle bus state)
     jmp out_negedge_2                               ; Wait for next transaction
 
