@@ -52,40 +52,12 @@ CU_REGISTER_DEBUG_PINS(probe_timing)
 
 #define PROBE_BUF_SIZE 8192
 struct _probe {
-    // Total length
-    uint tx_len;
-    // Data back to host
-    uint8_t tx_buf[PROBE_BUF_SIZE];
-
-    // CMD / Data RX'd from
-    uint rx_len;
-    uint8_t rx_buf[PROBE_BUF_SIZE];
-
     // PIO offset
     uint offset;
     uint initted;
 };
 
 static struct _probe probe;
-
-enum PROBE_CMDS {
-    PROBE_INVALID      = 0, // Invalid command
-    PROBE_WRITE_BITS   = 1, // Host wants us to write bits
-    PROBE_READ_BITS    = 2, // Host wants us to read bits
-    PROBE_SET_FREQ     = 3, // Set TCK
-    PROBE_RESET        = 4, // Reset all state
-    PROBE_TARGET_RESET = 5, // Reset target
-};
-
-struct __attribute__((__packed__)) probe_cmd_hdr {
-	uint8_t id;
-    uint8_t cmd;
-    uint32_t bits;
-};
-
-struct __attribute__((__packed__)) probe_pkt_hdr {
-    uint32_t total_packet_length;
-};
 
 void probe_set_swclk_freq(uint freq_khz) {
         uint clk_sys_freq_khz = clock_get_hz(clk_sys) / 1000;
@@ -97,8 +69,10 @@ void probe_set_swclk_freq(uint freq_khz) {
 
 void probe_assert_reset(bool state)
 {
+#if defined(PROBE_PIN_RESET)
     /* Change the direction to out to drive pin to 0 or to in to emulate open drain */
     gpio_set_dir(PROBE_PIN_RESET, state);
+#endif
 }
 
 void probe_write_bits(uint bit_count, uint32_t data_byte) {
@@ -139,6 +113,12 @@ void probe_write_mode(void) {
 
 void probe_gpio_init()
 {
+#if defined(PROBE_PIN_RESET)
+    // Target reset pin: pull up, input to emulate open drain pin
+    gpio_pull_up(PROBE_PIN_RESET);
+    // gpio_init will leave the pin cleared and set as input
+    gpio_init(PROBE_PIN_RESET);
+#endif
     // Funcsel pins
     pio_gpio_init(pio0, PROBE_PIN_SWCLK);
     pio_gpio_init(pio0, PROBE_PIN_SWDIO);
@@ -147,10 +127,6 @@ void probe_gpio_init()
 }
 
 void probe_init() {
-    // Target reset pin: pull up, input to emulate open drain pin
-    gpio_pull_up(PROBE_PIN_RESET);
-    // gpio_init will leave the pin cleared and set as input
-    gpio_init(PROBE_PIN_RESET);
     if (!probe.initted) {
         uint offset = pio_add_program(pio0, &probe_program);
         probe.offset = offset;
@@ -200,120 +176,4 @@ void probe_deinit(void)
     pio_remove_program(pio0, &probe_program, probe.offset);
     probe.initted = 0;
   }
-}
-
-void probe_handle_read(uint total_bits) {
-    picoprobe_debug("Read %d bits\n", total_bits);
-    probe_read_mode();
-
-    uint chunk;
-    uint bits = total_bits;
-    while (bits > 0) {
-        if (bits > 8) {
-            chunk = 8;
-        } else {
-            chunk = bits;
-        }
-        probe.tx_buf[probe.tx_len] = (uint8_t)probe_read_bits(chunk);
-        probe.tx_len++;
-        // Decrement remaining bits
-        bits -= chunk;
-    }
-}
-
-void probe_handle_write(uint8_t *data, uint total_bits) {
-    picoprobe_debug("Write %d bits\n", total_bits);
-
-    led_signal_activity(total_bits);
-
-    probe_write_mode();
-
-    uint chunk;
-    uint bits = total_bits;
-    while (bits > 0) {
-        if (bits > 8) {
-            chunk = 8;
-        } else {
-            chunk = bits;
-        }
-
-        probe_write_bits(chunk, (uint32_t)*data++);
-        bits -= chunk;
-    }
-}
-
-void probe_prepare_read_header(struct probe_cmd_hdr *hdr) {
-    // We have a read so need to prefix the data with the cmd header
-    if (probe.tx_len == 0) {
-        // Reserve some space for probe_pkt_hdr
-        probe.tx_len += sizeof(struct probe_pkt_hdr);
-    }
-
-    memcpy((void*)&probe.tx_buf[probe.tx_len], hdr, sizeof(struct probe_cmd_hdr));
-    probe.tx_len += sizeof(struct probe_cmd_hdr);
-}
-
-void probe_handle_pkt(void) {
-    uint8_t *pkt = &probe.rx_buf[0] + sizeof(struct probe_pkt_hdr);
-    uint remaining = probe.rx_len - sizeof(struct probe_pkt_hdr);
-
-    DEBUG_PINS_SET(probe_timing, DBG_PIN_PKT);
-
-    picoprobe_debug("Processing packet of length %d\n", probe.rx_len);
-
-    probe.tx_len = 0;
-    while (remaining) {
-        struct probe_cmd_hdr *hdr = (struct probe_cmd_hdr*)pkt;
-        uint data_bytes = DIV_ROUND_UP(hdr->bits, 8);
-        pkt += sizeof(struct probe_cmd_hdr);
-        remaining -= sizeof(struct probe_cmd_hdr);
-
-        if (hdr->cmd == PROBE_WRITE_BITS) {
-            uint8_t *data = pkt;
-            probe_handle_write(data, hdr->bits);
-            pkt += data_bytes;
-            remaining -= data_bytes;
-        } else if (hdr->cmd == PROBE_READ_BITS) {
-            probe_prepare_read_header(hdr);
-            probe_handle_read(hdr->bits);
-        } else if (hdr->cmd == PROBE_SET_FREQ) {
-            probe_set_swclk_freq(hdr->bits);
-        } else if (hdr->cmd == PROBE_RESET) {
-            // TODO: Is there anything to do after a reset?
-            // tx len and rx len should already be 0
-            ;
-        } else if (hdr->cmd == PROBE_TARGET_RESET) {
-            probe_assert_reset(hdr->bits);
-        }
-    }
-    probe.rx_len = 0;
-
-    if (probe.tx_len) {
-        // Fill in total packet length before sending
-        struct probe_pkt_hdr *tx_hdr = (struct probe_pkt_hdr*)&probe.tx_buf[0];
-        tx_hdr->total_packet_length = probe.tx_len;
-        tud_vendor_write(&probe.tx_buf[0], probe.tx_len);
-        picoprobe_debug("Picoprobe wrote %d response bytes\n", probe.tx_len);
-    }
-    probe.tx_len = 0;
-
-    DEBUG_PINS_CLR(probe_timing, DBG_PIN_PKT);
-}
-
-// USB bits
-void probe_task(void) {
-    if ( tud_vendor_available() ) {
-        uint count = tud_vendor_read(&probe.rx_buf[probe.rx_len], 64);
-        if (count == 0) {
-            return;
-        }
-        probe.rx_len += count;
-    }
-
-    if (probe.rx_len >= sizeof(struct probe_pkt_hdr)) {
-        struct probe_pkt_hdr *pkt_hdr = (struct probe_pkt_hdr*)&probe.rx_buf[0];
-        if (pkt_hdr->total_packet_length == probe.rx_len) {
-            probe_handle_pkt();
-        }
-    }
 }

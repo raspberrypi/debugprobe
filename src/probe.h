@@ -33,10 +33,6 @@ uint32_t probe_read_bits(uint bit_count);
 void probe_read_mode(void);
 void probe_write_mode(void);
 
-void probe_handle_read(uint total_bits);
-void probe_handle_write(uint8_t *data, uint total_bits);
-
-void probe_task(void);
 void probe_gpio_init(void);
 void probe_init(void);
 void probe_deinit(void);

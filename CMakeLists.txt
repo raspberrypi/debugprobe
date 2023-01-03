@@ -35,13 +35,6 @@ target_include_directories(picoprobe PRIVATE
 
 target_compile_options(picoprobe PRIVATE -Wall)
 
-if (DEFINED ENV{PICOPROBE_LED})
-        message("PICOPROBE_LED is defined as " $ENV{PICOPROBE_LED})
-        target_compile_definitions(picoprobe PRIVATE PICOPROBE_LED=$ENV{PICOPROBE_LED})
-endif()
-
-set(DBG_PIN_COUNT=4)
-
 pico_generate_pio_header(picoprobe ${CMAKE_CURRENT_LIST_DIR}/src/probe.pio)
 
 target_include_directories(picoprobe PRIVATE src)
