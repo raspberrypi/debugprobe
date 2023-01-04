@@ -1,0 +1,73 @@
+; Output-enable active-low variant of the SWD probe
+
+.program probe
+.side_set 2 opt
+
+; SWDIO_OEN is pin 0, SWCLK pin 1, SWDIO (out) pin 2, SWDI (in) pin 3.
+; Pin 0 and 1 are sideset pins
+public out_negedge:
+  set pindirs, 0x1 side 0x0    ; OE_N 0, data high, clock 0
+public out_idle:
+  pull                         ; pull nbits - 1
+  mov x, osr
+  pull                         ; pull data
+public out_negedge_bitloop:
+  out pins, 1                  side 0x0
+  jmp x-- out_negedge_bitloop  side 0x2  ; OE_N 0, clock high
+  set pins, 1                  side 0x0  ; drive data high (idle bus state)
+  push                         ; Push to rx fifo just so processor knows when done
+  jmp out_negedge              ; Wait for next transaction
+
+public in_posedge:
+  set pindirs, 0x0            side 0x1 ; OE_N 1, data high, clock 0
+public in_idle:
+  pull
+  mov x, osr
+in_posedge_bitloop:
+  in pins, 1                  side 0x1 ; OE_N 1, clock 0
+  jmp x-- in_posedge_bitloop  side 0x3 ; OE_N 1, clock 1
+  push
+  jmp in_posedge
+
+
+; Implement probe_gpio_init() and probe_sm_init() methods here - set pins, offsets, sidesets etc
+% c-sdk {
+
+void probe_gpio_init()
+{
+#if defined(PROBE_PIN_RESET)
+    // Target reset pin: pull up, input to emulate open drain pin
+    gpio_pull_up(PROBE_PIN_RESET);
+    // gpio_init will leave the pin cleared and set as input
+    gpio_init(PROBE_PIN_RESET);
+#endif
+    // Funcsel pins
+    pio_gpio_init(pio0, PROBE_PIN_SWDIOEN);
+    pio_gpio_init(pio0, PROBE_PIN_SWCLK);
+    pio_gpio_init(pio0, PROBE_PIN_SWDIO);
+
+    // Make sure SWDIO has a pullup on it. Idle state is high
+    gpio_pull_up(PROBE_PIN_SWDIO);
+    gpio_pull_up(PROBE_PIN_SWDIOEN);
+}
+
+void probe_sm_init(pio_sm_config* sm_config) {
+
+    // Set SWDIOEN and SWCLK as sideset pins
+    sm_config_set_sideset_pins(&sm_config, PROBE_PIN_SWDIOEN);
+
+    // Set SWDIO offset
+    sm_config_set_out_pins(sm_config, PROBE_PIN_SWDIO, 1);
+    sm_config_set_set_pins(sm_config, PROBE_PIN_SWDIO, 1);
+    sm_config_set_in_pins(sm_config, PROBE_PIN_SWDI);
+
+    // Set SWDIOEN, SWD and SWDIO pins as output to start. This will be set in the sm
+    pio_sm_set_consecutive_pindirs(pio0, PROBE_SM, PROBE_PIN_OFFSET, 3, true);
+
+    // shift output right, autopull off, autopull threshold
+    sm_config_set_out_shift(sm_config, true, false, 0);
+    // shift input right as swd data is lsb first, autopush off
+    sm_config_set_in_shift(sm_config, true, false, 0);
+}
+
+%}

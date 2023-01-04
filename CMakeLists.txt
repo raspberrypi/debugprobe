@@ -36,6 +36,7 @@ target_include_directories(picoprobe PRIVATE
 target_compile_options(picoprobe PRIVATE -Wall)
 
 pico_generate_pio_header(picoprobe ${CMAKE_CURRENT_LIST_DIR}/src/probe.pio)
+pico_generate_pio_header(picoprobe ${CMAKE_CURRENT_LIST_DIR}/src/probe_oen.pio)
 
 target_include_directories(picoprobe PRIVATE src)
 

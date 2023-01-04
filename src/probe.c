@@ -111,49 +111,13 @@ void probe_write_mode(void) {
     while(pio_sm_get_pc(pio0, PROBE_SM) != probe.offset + probe_offset_out_idle);
 }
 
-void probe_gpio_init()
-{
-#if defined(PROBE_PIN_RESET)
-    // Target reset pin: pull up, input to emulate open drain pin
-    gpio_pull_up(PROBE_PIN_RESET);
-    // gpio_init will leave the pin cleared and set as input
-    gpio_init(PROBE_PIN_RESET);
-#endif
-    // Funcsel pins
-    pio_gpio_init(pio0, PROBE_PIN_SWCLK);
-    pio_gpio_init(pio0, PROBE_PIN_SWDIO);
-    // Make sure SWDIO has a pullup on it. Idle state is high
-    gpio_pull_up(PROBE_PIN_SWDIO);
-}
-
 void probe_init() {
     if (!probe.initted) {
         uint offset = pio_add_program(pio0, &probe_program);
         probe.offset = offset;
 
         pio_sm_config sm_config = probe_program_get_default_config(offset);
-
-        // Set SWCLK as a sideset pin
-        sm_config_set_sideset_pins(&sm_config, PROBE_PIN_SWCLK);
-
-        // Set SWDIO offset
-        sm_config_set_out_pins(&sm_config, PROBE_PIN_SWDIO, 1);
-        sm_config_set_set_pins(&sm_config, PROBE_PIN_SWDIO, 1);
-#ifdef PROBE_PIN_SWDI
-        sm_config_set_in_pins(&sm_config, PROBE_PIN_SWDI);
-#else
-        sm_config_set_in_pins(&sm_config, PROBE_PIN_SWDIO);
-#endif
-
-        // Set SWD and SWDIO pins as output to start. This will be set in the sm
-        pio_sm_set_consecutive_pindirs(pio0, PROBE_SM, PROBE_PIN_OFFSET, 2, true);
-
-        // shift output right, autopull off, autopull threshold
-        sm_config_set_out_shift(&sm_config, true, false, 0);
-        // shift input right as swd data is lsb first, autopush off
-        sm_config_set_in_shift(&sm_config, true, false, 0);
-
-        // Init SM with config
+        probe_sm_init(&sm_config);
         pio_sm_init(pio0, PROBE_SM, offset, &sm_config);
 
         // Set up divisor
