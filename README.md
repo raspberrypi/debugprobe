@@ -103,8 +103,8 @@ Another note: don't be too overwhelmed about Seggers numbers in the above mentio
 SUBSYSTEM=="usb", ATTR{idVendor}=="2e8a", ATTR{idProduct}=="000c", MODE:="0666"
 
 # create COM port for target CDC
-ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-ACM UART", MODE="0666", SYMLINK+="ttyPicoTarget"
-ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-DEBUG",    MODE="0666", SYMLINK+="ttyPicoProbe"
+ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-UART",  MODE="0666", SYMLINK+="ttyPicoTarget"
+ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-DEBUG", MODE="0666", SYMLINK+="ttyPicoProbe"
 
 # mount Picoprobe to /media/picoprobe
 ACTION=="add", SUBSYSTEMS=="usb", SUBSYSTEM=="block", ENV{ID_FS_USAGE}=="filesystem", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000c", RUN+="/usr/bin/logger --tag picoprobe-mount Mounting what seems to be a Raspberry Pi Picoprobe", RUN+="/usr/bin/systemd-mount --no-block --collect --fsck=0 -o uid=hardy,gid=hardy,flush $devnode /media/picoprobe"
@@ -139,6 +139,8 @@ DAPv2 is always used, because DAPv1 does not run under Linux(?).
 | git-bd8c41f        |  5.7s |     28.6s  |      7.7s  | 19.9s | there was a python update :-/ |
 | git-0d6c6a8        |  5.7s |     28.5s  |      6.8s  | 20.2s |         |
 | - same but optimized for openocd | 5.7s | 28.5s | 6.1s | - | pyocd crashes |
+| git-0eba8bf        |  4.9s |     28.6s  |      6.5s  | 13.8s | cp show sometimes 5.4s |
+| - same but optimized for openocd | 4.9s | 28.6s | 5.8s | - | pyocd crashes |
 
 
 # TODO / Known Bugs

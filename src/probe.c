@@ -41,9 +41,9 @@
 
 // Only want to set / clear one gpio per event so go up in powers of 2
 enum _dbg_pins {
-    DBG_PIN_WRITE = 1,
-    DBG_PIN_WRITE_WAIT = 2,
-    DBG_PIN_READ = 4,
+    DBG_PIN_WRITE_REQ = 1,
+    DBG_PIN_WRITE = 2,
+    DBG_PIN_WAIT = 4,
 };
 
 
@@ -78,7 +78,12 @@ void probe_set_swclk_freq(uint32_t freq_khz)
     div_int  = div_256 >> 8;
     div_frac = div_256 & 0xff;
 
-    picoprobe_debug("Set sysclk %lukHz swclk freq %lukHz, divider %lu + %lu/256\n", clk_sys_freq_khz, freq_khz, div_int, div_frac);
+//    picoprobe_debug("Set sysclk %lukHz swclk freq %lukHz, divider %lu + %lu/256\n", clk_sys_freq_khz, freq_khz, div_int, div_frac);
+    if (div_int == 0) {
+        picoprobe_error("probe_set_swclk_freq: underflow of clock setup, setting clock to maximum.\n");
+        div_int  = 1;
+        div_frac = 0;
+    }
 
     // Worked out with pulseview
     pio_sm_set_clkdiv_int_frac(pio0, PROBE_SM, div_int, div_frac);
@@ -96,22 +101,15 @@ void probe_assert_reset(bool state)
 
 void __no_inline_not_in_flash_func(probe_write_bits)(uint bit_count, uint32_t data_byte)
 {
-    DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE);
     pio_sm_put_blocking(pio0, PROBE_SM, bit_count - 1);
     pio_sm_put_blocking(pio0, PROBE_SM, data_byte);
-    DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE_WAIT);
     picoprobe_dump("Write %u bits 0x%lx\n", bit_count, data_byte);
-    // Wait for pio to push garbage to rx fifo so we know it has finished sending
-    pio_sm_get_blocking(pio0, PROBE_SM);
-    DEBUG_PINS_CLR(probe_timing, DBG_PIN_WRITE_WAIT);
-    DEBUG_PINS_CLR(probe_timing, DBG_PIN_WRITE);
 }   // probe_write_bits
 
 
 
 uint32_t __no_inline_not_in_flash_func(probe_read_bits)(uint bit_count)
 {
-    DEBUG_PINS_SET(probe_timing, DBG_PIN_READ);
     pio_sm_put_blocking(pio0, PROBE_SM, bit_count - 1);
     uint32_t data = pio_sm_get_blocking(pio0, PROBE_SM);
     uint32_t data_shifted = data;
@@ -119,26 +117,50 @@ uint32_t __no_inline_not_in_flash_func(probe_read_bits)(uint bit_count)
         data_shifted = data >> (32 - bit_count);
     }
     picoprobe_dump("Read %u bits 0x%lx (shifted 0x%lx)\n", bit_count, data, data_shifted);
-    DEBUG_PINS_CLR(probe_timing, DBG_PIN_READ);
     return data_shifted;
 }   // probe_read_bits
 
 
+bool write_mode = false;
 
-void probe_read_mode(void)
+
+/**
+ * Set the state machine to "in_posedge" and wait until output enable of SWDIO is "0"
+ */
+void __no_inline_not_in_flash_func(probe_read_mode)(void)
 {
-    pio_sm_exec(pio0, PROBE_SM, pio_encode_jmp(probe.offset + probe_offset_in_posedge));
-    while(pio0->dbg_padoe & (1 << PROBE_PIN_SWDIO))
-        ;
+    DEBUG_PINS_CLR(probe_timing, DBG_PIN_WRITE_REQ);
+    DEBUG_PINS_SET(probe_timing, DBG_PIN_WAIT);
+    if (write_mode)
+    {
+        if ((pio0->ctrl & (1u << PROBE_SM)) != 0) {
+            pio0->fdebug |= 1u << (PIO_FDEBUG_TXSTALL_LSB + PROBE_SM);
+            while ((pio0->fdebug & (1u << (PIO_FDEBUG_TXSTALL_LSB + PROBE_SM))) == 0) {
+                tight_loop_contents(); // TODO timeout
+            }
+        }
+    }
+    DEBUG_PINS_CLR(probe_timing, DBG_PIN_WAIT);
+    if (write_mode) {
+        pio_sm_exec(pio0, PROBE_SM, pio_encode_jmp(probe.offset + probe_offset_in_posedge));
+    }
+    DEBUG_PINS_CLR(probe_timing, DBG_PIN_WRITE);
+    write_mode = false;
 }   // probe_read_mode
 
 
 
-void probe_write_mode(void)
+/**
+ * Set the state machine to "out_negedge" and wait until output enable of SWDIO is "1"
+ */
+void __no_inline_not_in_flash_func(probe_write_mode)(void)
 {
-    pio_sm_exec(pio0, PROBE_SM, pio_encode_jmp(probe.offset + probe_offset_out_negedge));
-    while( !(pio0->dbg_padoe & (1 << PROBE_PIN_SWDIO)))
-        ;
+    DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE_REQ);
+    if ( !write_mode) {
+        pio_sm_exec(pio0, PROBE_SM, pio_encode_jmp(probe.offset + probe_offset_out_negedge));
+    }
+    DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE);
+    write_mode = true;
 }   // probe_write_mode
 
 
