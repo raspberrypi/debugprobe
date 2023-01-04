@@ -39,8 +39,14 @@ static uint8_t rx_buf[CFG_TUD_CDC_RX_BUFSIZE];
 // Actually s^-1 so 25ms
 #define DEBOUNCE_MS 40
 static uint debounce_ticks = 5;
+
+#ifdef PICOPROBE_UART_TX_LED
 static uint tx_led_debounce;
+#endif
+
+#ifdef PICOPROBE_UART_RX_LED
 static uint rx_led_debounce;
+#endif
 
 void cdc_uart_init(void) {
     gpio_set_function(PICOPROBE_UART_TX, GPIO_FUNC_UART);
