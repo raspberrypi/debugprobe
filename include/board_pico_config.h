@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2021 Raspberry Pi (Trading) Ltd.
+ * Copyright (c) 2023 Raspberry Pi (Trading) Ltd.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,41 +23,26 @@
  *
  */
 
-#ifndef PICOPROBE_H_
-#define PICOPROBE_H_
+#ifndef BOARD_PICO_H_
+#define BOARD_PICO_H_
 
-#if false
-#define picoprobe_info(format,args...) printf(format, ## args)
-#else
-#define picoprobe_info(format,...) ((void)0)
-#endif
+#define PROBE_IO_RAW
+#define PROBE_CDC_UART
 
+// PIO config
+#define PROBE_SM 0
+#define PROBE_PIN_OFFSET 2
+#define PROBE_PIN_SWCLK (PROBE_PIN_OFFSET + 0) // 2
+#define PROBE_PIN_SWDIO (PROBE_PIN_OFFSET + 1) // 3
+// Target reset config
+#define PROBE_PIN_RESET 0
 
-#if false
-#define picoprobe_debug(format,args...) printf(format, ## args)
-#else
-#define picoprobe_debug(format,...) ((void)0)
-#endif
+// UART config
+#define PICOPROBE_UART_TX 4
+#define PICOPROBE_UART_RX 5
+#define PICOPROBE_UART_INTERFACE uart1
+#define PICOPROBE_UART_BAUDRATE 115200
 
-#if false
-#define picoprobe_dump(format,args...) printf(format, ## args)
-#else
-#define picoprobe_dump(format,...) ((void)0)
-#endif
-
-// TODO tie this up with PICO_BOARD defines in the main SDK
-
-//#include "board_pico_config.h"
-#include "board_debugprobe_config.h"
-//#include "board_example_config.h"
-
-
-#define PROTO_DAP_V1 1
-#define PROTO_DAP_V2 2
-
-// Interface config
-#ifndef PICOPROBE_DEBUG_PROTOCOL
-#define PICOPROBE_DEBUG_PROTOCOL PROTO_DAP_V2
-#endif
+#define PICOPROBE_USB_CONNECTED_LED 25
 
 #endif
