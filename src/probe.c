@@ -50,7 +50,7 @@ enum _dbg_pins {
 CU_REGISTER_DEBUG_PINS(probe_timing)
 
 // Uncomment to enable debug
-CU_SELECT_DEBUG_PINS(probe_timing)
+//CU_SELECT_DEBUG_PINS(probe_timing)
 
 
 struct _probe {
