@@ -121,6 +121,9 @@ void __no_inline_not_in_flash_func(SWD_Sequence)(uint32_t info, const uint8_t *s
  * Sequences are described in "ARM Debug Interface v5 Architecture Specification", "5.3 Serial Wire
  * Debug protocol operation".
  *
+ * \pre  SWD in write mode
+ * \post SWD in write mode
+ *
  * \note
  *    - \a turnaround:  see also Wire Control Register (WCR), legal values 1..4
  *    - \a data_phase:  do a data phase on \a DAP_TRANSFER_WAIT and \a DAP_TRANSFER_FAULT
@@ -148,15 +151,7 @@ uint8_t __no_inline_not_in_flash_func(SWD_Transfer)(uint32_t request, uint32_t *
 	    //
 	    // read data
 	    //
-	    probe_write_bits(8, prq);
-	    //  picoprobe_debug("SWD_transfer(0x%02lx)\n", prq);
-
-	    /* Turnaround (ignore read bits) */
-	    probe_read_mode();
-
-	    ack = probe_read_bits(DAP_Data.swd_conf.turnaround + 3);
-	    ack >>= DAP_Data.swd_conf.turnaround;
-
+	    ack = probe_send_cmd_ack(prq);
 	    if (ack == DAP_TRANSFER_OK) {
 	        uint32_t bit;
 	        uint32_t parity;
@@ -187,15 +182,7 @@ uint8_t __no_inline_not_in_flash_func(SWD_Transfer)(uint32_t request, uint32_t *
 	    //
 	    // write data
 	    //
-	    probe_write_bits(8, prq);
-	    //  picoprobe_debug("SWD_transfer(0x%02lx)\n", prq);
-
-	    /* Turnaround (ignore read bits) */
-	    probe_read_mode();
-
-	    ack = probe_read_bits(DAP_Data.swd_conf.turnaround + 3);
-	    ack >>= DAP_Data.swd_conf.turnaround;
-
+        ack = probe_send_cmd_ack(prq);
 	    if (ack == DAP_TRANSFER_OK) {
 	        uint32_t parity;
 

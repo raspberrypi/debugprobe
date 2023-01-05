@@ -37,6 +37,7 @@
 #include "tusb.h"
 
 #include "DAP_config.h"
+#include "DAP.h"
 
 
 // Only want to set / clear one gpio per event so go up in powers of 2
@@ -123,21 +124,28 @@ uint32_t __no_inline_not_in_flash_func(probe_read_bits)(uint bit_count)
 
 
 
+static inline probe_wait_until_sm_stalled(void)
+{
+    if ((pio0->ctrl & (1u << PROBE_SM)) != 0) {
+        // if SM is enabled then wait until it does a PULL
+        pio0->fdebug |= 1u << (PIO_FDEBUG_TXSTALL_LSB + PROBE_SM);
+        while ((pio0->fdebug & (1u << (PIO_FDEBUG_TXSTALL_LSB + PROBE_SM))) == 0) {
+            tight_loop_contents(); // TODO timeout
+        }
+    }
+}   // probe_wait_until_sm_stalled
+
+
+
 /**
- * Set the state machine to "in_posedge" and wait until output enable of SWDIO is "0"
+ * Set the state machine to "in_posedge"
  */
 void __no_inline_not_in_flash_func(probe_read_mode)(void)
 {
     DEBUG_PINS_CLR(probe_timing, DBG_PIN_WRITE_REQ);
     DEBUG_PINS_SET(probe_timing, DBG_PIN_WAIT);
-    if (probe.in_write_mode)
-    {
-        if ((pio0->ctrl & (1u << PROBE_SM)) != 0) {
-            pio0->fdebug |= 1u << (PIO_FDEBUG_TXSTALL_LSB + PROBE_SM);
-            while ((pio0->fdebug & (1u << (PIO_FDEBUG_TXSTALL_LSB + PROBE_SM))) == 0) {
-                tight_loop_contents(); // TODO timeout
-            }
-        }
+    if (probe.in_write_mode) {
+        probe_wait_until_sm_stalled();
     }
     DEBUG_PINS_CLR(probe_timing, DBG_PIN_WAIT);
     if (probe.in_write_mode) {
@@ -150,7 +158,7 @@ void __no_inline_not_in_flash_func(probe_read_mode)(void)
 
 
 /**
- * Set the state machine to "out_negedge" and wait until output enable of SWDIO is "1"
+ * Set the state machine to "out_negedge"
  */
 void __no_inline_not_in_flash_func(probe_write_mode)(void)
 {
@@ -160,6 +168,31 @@ void __no_inline_not_in_flash_func(probe_write_mode)(void)
     }
     DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE);
     probe.in_write_mode = true;
+}   // probe_write_mode
+
+
+
+uint32_t __no_inline_not_in_flash_func(probe_send_cmd_ack)(uint8_t cmd)
+{
+    const uint32_t bits_read = DAP_Data.swd_conf.turnaround + 3;  // 4..7
+    uint32_t ack;
+
+    if (probe.in_write_mode) {
+        probe_wait_until_sm_stalled();
+    }
+    DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE_REQ);
+    pio_sm_exec(pio0, PROBE_SM, pio_encode_jmp(probe.offset + probe_offset_send_cmd_ack));
+    pio_sm_put_blocking(pio0, PROBE_SM, cmd);
+    pio_sm_put_blocking(pio0, PROBE_SM, bits_read - 1);
+    DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE);
+
+    ack = pio_sm_get_blocking(pio0, PROBE_SM);
+    ack = ack >> (32 - bits_read);
+    ack = ack >> DAP_Data.swd_conf.turnaround;
+
+    probe.in_write_mode = false;
+
+    return ack;
 }   // probe_write_mode
 
 

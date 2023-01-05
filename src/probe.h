@@ -29,6 +29,7 @@
 void probe_set_swclk_freq(uint32_t freq_khz);
 void probe_write_bits(uint bit_count, uint32_t data_byte);
 uint32_t probe_read_bits(uint bit_count);
+uint32_t probe_send_cmd_ack(uint8_t cmd);
 
 void probe_read_mode(void);
 void probe_write_mode(void);

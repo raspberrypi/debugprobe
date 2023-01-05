@@ -33,25 +33,43 @@
     .program probe
     .side_set 1 opt
 
+
+; parameter: <number of bits to write>, <data>
+
 public out_negedge:
-    set pindirs, 1               side 0x0         ; Init OE clock 0
+    set pindirs, 1                side 0x0         ; Init OE clock 0
 out_negedge_2:
-    pull                                          ; Pull number of bits to shift -1 from tx fifo and put into output shift register
-    mov x, osr                                    ; mov bits to shift -1 from output shift register into x
-    pull                                          ; Pull data to shift out
+    pull                                           ; Pull number of bits to shift -1 from tx fifo and put into output shift register
+    mov x, osr                                     ; mov bits to shift -1 from output shift register into x
+    pull                                           ; Pull data to shift out
 out_negedge_bitloop:
-    out pins, 1                  side 0x0  [2]    ; clock data out on falling edge
-    jmp  x-- out_negedge_bitloop side 0x1  [2]    ; data is present for posedge
-    set pins, 1                  side 0x0         ; Drive data high (idle bus state)
-    jmp out_negedge_2                             ; Wait for next transaction
+    out pins, 1                   side 0x0  [2]    ; clock data out on falling edge
+    jmp x--, out_negedge_bitloop  side 0x1  [2]    ; data is present for posedge
+    set pins, 1                   side 0x0         ; Drive data high (idle bus state)
+    jmp out_negedge_2                              ; Wait for next transaction
+
+
+; parameter: <number of bits to read>
 
 public in_posedge:
-    set pindirs, 0               side 0x0         ; INIT IE clock 0
+    set pindirs, 0                side 0x0         ; INIT IE clock 0
 in_posedge_2:
-    pull                                          ; Pull number of bits to shift -1 from tx fifo and put into output shift register
-    mov x, osr                                    ; mov bits to shift -1 from output shift register into x into x
+    pull                                           ; Pull number of bits to shift -1 from tx fifo and put into output shift register
+    mov x, osr                                     ; mov bits to shift -1 from output shift register into x into x
 in_posedge_bitloop:
-    in pins, 1                   side 0x1  [2]    ; Generate posedge and read data
-    jmp x-- in_posedge_bitloop   side 0x0  [2]    ;
-    push                                          ; Push to rx fifo when done
-    jmp in_posedge_2                              ; Jump back to start
+    in pins, 1                    side 0x1  [2]    ; Generate posedge and read data
+    jmp x--, in_posedge_bitloop   side 0x0  [2]    ;
+    push                                           ; Push to rx fifo when done
+    jmp in_posedge_2                               ; Jump back to start
+
+
+; parameter: <cmd8>, <number of bits to read>
+
+public send_cmd_ack:
+    set pindirs, 1                side 0x0
+    set x, 7
+    pull
+send_cmd_bitloop:
+    out pins, 1                   side 0x0 [2]
+    jmp x--, send_cmd_bitloop     side 0x1 [2]
+    jmp in_posedge                side 0x0
