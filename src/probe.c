@@ -50,13 +50,14 @@ enum _dbg_pins {
 CU_REGISTER_DEBUG_PINS(probe_timing)
 
 // Uncomment to enable debug
-//CU_SELECT_DEBUG_PINS(probe_timing)
+CU_SELECT_DEBUG_PINS(probe_timing)
 
 
 struct _probe {
     // PIO offset
     uint offset;
-    uint initted;
+    bool initted;
+    bool in_write_mode;
 };
 
 static struct _probe probe;
@@ -121,8 +122,6 @@ uint32_t __no_inline_not_in_flash_func(probe_read_bits)(uint bit_count)
 }   // probe_read_bits
 
 
-bool write_mode = false;
-
 
 /**
  * Set the state machine to "in_posedge" and wait until output enable of SWDIO is "0"
@@ -131,7 +130,7 @@ void __no_inline_not_in_flash_func(probe_read_mode)(void)
 {
     DEBUG_PINS_CLR(probe_timing, DBG_PIN_WRITE_REQ);
     DEBUG_PINS_SET(probe_timing, DBG_PIN_WAIT);
-    if (write_mode)
+    if (probe.in_write_mode)
     {
         if ((pio0->ctrl & (1u << PROBE_SM)) != 0) {
             pio0->fdebug |= 1u << (PIO_FDEBUG_TXSTALL_LSB + PROBE_SM);
@@ -141,11 +140,11 @@ void __no_inline_not_in_flash_func(probe_read_mode)(void)
         }
     }
     DEBUG_PINS_CLR(probe_timing, DBG_PIN_WAIT);
-    if (write_mode) {
+    if (probe.in_write_mode) {
         pio_sm_exec(pio0, PROBE_SM, pio_encode_jmp(probe.offset + probe_offset_in_posedge));
     }
     DEBUG_PINS_CLR(probe_timing, DBG_PIN_WRITE);
-    write_mode = false;
+    probe.in_write_mode = false;
 }   // probe_read_mode
 
 
@@ -156,11 +155,11 @@ void __no_inline_not_in_flash_func(probe_read_mode)(void)
 void __no_inline_not_in_flash_func(probe_write_mode)(void)
 {
     DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE_REQ);
-    if ( !write_mode) {
+    if ( !probe.in_write_mode) {
         pio_sm_exec(pio0, PROBE_SM, pio_encode_jmp(probe.offset + probe_offset_out_negedge));
     }
     DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE);
-    write_mode = true;
+    probe.in_write_mode = true;
 }   // probe_write_mode
 
 
@@ -224,7 +223,7 @@ void probe_init()
 
         // Enable SM
         pio_sm_set_enabled(pio0, PROBE_SM, 1);
-        probe.initted = 1;
+        probe.initted = true;
     }
 
     // Jump to write program
@@ -239,6 +238,6 @@ void probe_deinit(void)
     if (probe.initted) {
         pio_sm_set_enabled(pio0, PROBE_SM, 0);
         pio_remove_program(pio0, &probe_program, probe.offset);
-        probe.initted = 0;
+        probe.initted = false;
     }
 }   // prebe_deinit
