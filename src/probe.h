@@ -28,7 +28,7 @@
 
 void probe_set_swclk_freq(uint32_t freq_khz);
 void probe_write_bits(uint bit_count, uint32_t data);
-uint32_t probe_read_bits(uint bit_count);
+uint32_t probe_read_bits(uint bit_count, bool push, bool pull);
 
 void probe_gpio_init(void);
 void probe_init(void);
