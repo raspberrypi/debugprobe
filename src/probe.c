@@ -118,7 +118,7 @@ void probe_assert_reset(bool state)
  * Actually only 32bit can be set, more data is sent as "zero".  Especially useful for
  * idle cycles (although never seen),
  */
-void __no_inline_not_in_flash_func(probe_write_bits)(uint bit_count, uint32_t data)
+void __not_in_flash_func(probe_write_bits)(uint bit_count, uint32_t data)
 {
     DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE);
     for (;;) {
@@ -137,7 +137,7 @@ void __no_inline_not_in_flash_func(probe_write_bits)(uint bit_count, uint32_t da
 
 
 
-uint32_t __no_inline_not_in_flash_func(probe_read_bits)(uint bit_count)
+uint32_t __not_in_flash_func(probe_read_bits)(uint bit_count)
 {
     uint32_t data;
     uint32_t data_shifted;

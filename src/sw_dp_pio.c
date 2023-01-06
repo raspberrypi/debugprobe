@@ -40,7 +40,7 @@ volatile uint32_t cached_delay = 0;
 //   count:  sequence bit count
 //   data:   pointer to sequence bit data
 //   return: none
-void __no_inline_not_in_flash_func(SWJ_Sequence)(uint32_t count, const uint8_t *data)
+void __not_in_flash_func(SWJ_Sequence)(uint32_t count, const uint8_t *data)
 {
     uint32_t bits;
     uint32_t n;
@@ -68,7 +68,7 @@ void __no_inline_not_in_flash_func(SWJ_Sequence)(uint32_t count, const uint8_t *
 //   swdo:   pointer to SWDIO generated data
 //   swdi:   pointer to SWDIO captured data
 //   return: none
-void __no_inline_not_in_flash_func(SWD_Sequence)(uint32_t info, const uint8_t *swdo, uint8_t *swdi)
+void __not_in_flash_func(SWD_Sequence)(uint32_t info, const uint8_t *swdo, uint8_t *swdi)
 {
     uint32_t bits;
     uint32_t n;
@@ -126,7 +126,7 @@ void __no_inline_not_in_flash_func(SWD_Sequence)(uint32_t info, const uint8_t *s
  *    - \a data_phase:  do a data phase on \a DAP_TRANSFER_WAIT and \a DAP_TRANSFER_FAULT
  *    - \a idle_cycles: number of extra idle cycles after each transfer
  */
-uint8_t __no_inline_not_in_flash_func(SWD_Transfer)(uint32_t request, uint32_t *data)
+uint8_t __not_in_flash_func(SWD_Transfer)(uint32_t request, uint32_t *data)
 {
     static const uint8_t prqs[16] = { 0x81, 0xa3, 0xa5, 0x87,
                                       0xa9, 0x8b, 0x8d, 0xaf,
