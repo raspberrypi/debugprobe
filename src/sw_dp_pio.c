@@ -89,7 +89,7 @@ void __not_in_flash_func(SWD_Sequence)(uint32_t info, const uint8_t *swdo, uint8
                 bits = 8;
             else
                 bits = n;
-            *swdi++ = probe_read_bits(bits);
+            *swdi++ = probe_read_bits(bits, true, true);
             n -= bits;
         }
     }
@@ -149,18 +149,21 @@ uint8_t __not_in_flash_func(SWD_Transfer)(uint32_t request, uint32_t *data)
 	    // read data
 	    //
 	    probe_write_bits(8, prq);
-	    ack = probe_read_bits(3 + DAP_Data.swd_conf.turnaround) >> DAP_Data.swd_conf.turnaround;
+	    ack = probe_read_bits(3 + DAP_Data.swd_conf.turnaround, true, true) >> DAP_Data.swd_conf.turnaround;
 	    if (ack == DAP_TRANSFER_OK) {
 	        uint32_t bit;
 	        uint32_t parity;
 	        uint32_t val;
 
-            val = probe_read_bits(32);
+	        probe_read_bits(32, true, false);
+	        probe_read_bits(DAP_Data.swd_conf.turnaround + 1, true, false);
+
+            val = probe_read_bits(32, false, true);
             if (data) {
                 *data = val;
             }
             // read parity and turn around
-            bit = probe_read_bits(DAP_Data.swd_conf.turnaround + 1);
+            bit = probe_read_bits(DAP_Data.swd_conf.turnaround + 1, false, true);
 
             parity = __builtin_popcount(val);
             if ((parity ^ bit) & 1U) {
@@ -180,11 +183,11 @@ uint8_t __not_in_flash_func(SWD_Transfer)(uint32_t request, uint32_t *data)
 	    // write data
 	    //
         probe_write_bits(8, prq);
-        ack = probe_read_bits(3 + DAP_Data.swd_conf.turnaround) >> DAP_Data.swd_conf.turnaround;
+        ack = probe_read_bits(3 + DAP_Data.swd_conf.turnaround, true, true) >> DAP_Data.swd_conf.turnaround;
 	    if (ack == DAP_TRANSFER_OK) {
 	        uint32_t parity;
 
-	        probe_read_bits(DAP_Data.swd_conf.turnaround);
+	        probe_read_bits(DAP_Data.swd_conf.turnaround, true, true);
 
             /* Write WDATA[0:31] */
             probe_write_bits(32, *data);
@@ -213,19 +216,19 @@ uint8_t __not_in_flash_func(SWD_Transfer)(uint32_t request, uint32_t *data)
 		    // -> there is always a data phase
 		    if ((request & DAP_TRANSFER_RnW) != 0U) {
                 /* Dummy Read RDATA[0:31] + Parity */
-                probe_read_bits(33);
-                probe_read_bits(DAP_Data.swd_conf.turnaround);
+                probe_read_bits(33, true, true);
+                probe_read_bits(DAP_Data.swd_conf.turnaround, true, true);
             }
 		    else {
                 /* Dummy Write WDATA[0:31] + Parity */
-	            probe_read_bits(DAP_Data.swd_conf.turnaround);
+	            probe_read_bits(DAP_Data.swd_conf.turnaround, true, true);
 
                 probe_write_bits(32, 0);
                 probe_write_bits(1, 0);
 		    }
 		}
 		else {
-            probe_read_bits(DAP_Data.swd_conf.turnaround);
+            probe_read_bits(DAP_Data.swd_conf.turnaround, true, true);
 		}
 		// post: cleaned up and "SWD in write mode"
 	}
@@ -235,7 +238,7 @@ uint8_t __not_in_flash_func(SWD_Transfer)(uint32_t request, uint32_t *data)
 
         n = DAP_Data.swd_conf.turnaround + 32U + 1U;
         /* Back off data phase */
-        probe_read_bits(n);
+        probe_read_bits(n, true, true);
         // post: cleaned up and "SWD in write mode"
 	}
 

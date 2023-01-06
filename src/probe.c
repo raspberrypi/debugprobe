@@ -137,14 +137,18 @@ void __not_in_flash_func(probe_write_bits)(uint bit_count, uint32_t data)
 
 
 
-uint32_t __not_in_flash_func(probe_read_bits)(uint bit_count)
+uint32_t __not_in_flash_func(probe_read_bits)(uint bit_count, bool push, bool pull)
 {
-    uint32_t data;
+    uint32_t data = 0xffffffff;
     uint32_t data_shifted;
 
     DEBUG_PINS_SET(probe_timing, DBG_PIN_READ);
-    pio_sm_put_blocking(pio0, PROBE_SM, CTRL_WORD_READ(bit_count - 1));
-    data = pio_sm_get_blocking(pio0, PROBE_SM);
+    if (push) {
+        pio_sm_put_blocking(pio0, PROBE_SM, CTRL_WORD_READ(bit_count - 1));
+    }
+    if (pull) {
+        data = pio_sm_get_blocking(pio0, PROBE_SM);
+    }
     DEBUG_PINS_CLR(probe_timing, DBG_PIN_READ);
     data_shifted = data;
     if (bit_count < 32) {
