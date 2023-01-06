@@ -37,13 +37,18 @@
 #include "tusb.h"
 
 #include "DAP_config.h"
+#include "DAP.h"
+
+
+#define CTRL_WORD_WRITE(CNT, DATA)    (((DATA) << 13) + ((CNT) << 8) + (probe.offset + probe_offset_short_output))
+#define CTRL_WORD_READ(CNT)           (                 ((CNT) << 8) + (probe.offset + probe_offset_input))
 
 
 // Only want to set / clear one gpio per event so go up in powers of 2
 enum _dbg_pins {
-    DBG_PIN_WRITE_REQ = 1,
+    DBG_PIN_READ  = 1,
     DBG_PIN_WRITE = 2,
-    DBG_PIN_WAIT = 4,
+    DBG_PIN_WAIT  = 4,
 };
 
 
@@ -53,16 +58,24 @@ CU_REGISTER_DEBUG_PINS(probe_timing)
 //CU_SELECT_DEBUG_PINS(probe_timing)
 
 
+uint32_t probe_freq_khz = PROBE_DEFAULT_KHZ;
+
+
 struct _probe {
-    // PIO offset
-    uint offset;
-    uint initted;
+    uint      offset;
+    bool      initted;
 };
 
 static struct _probe probe;
 
 
 
+/**
+ * Set SWD frequency.
+ * Frequency is checked against maximum values and stored as a future default.
+ *
+ * \param freq_khz  new frequency setting
+ */
 void probe_set_swclk_freq(uint32_t freq_khz)
 {
     uint32_t clk_sys_freq_khz = clock_get_hz(clk_sys) / 1000;
@@ -73,8 +86,9 @@ void probe_set_swclk_freq(uint32_t freq_khz)
     if (freq_khz > PROBE_MAX_KHZ) {
         freq_khz = PROBE_MAX_KHZ;
     }
+    probe_freq_khz = freq_khz;
 
-    div_256 = (256 * clk_sys_freq_khz + freq_khz) / (4 * freq_khz);      // SWDCLK goes with PIOCLK / 4
+    div_256 = (256 * clk_sys_freq_khz + freq_khz) / (6 * freq_khz);      // SWDCLK goes with PIOCLK / 6
     div_int  = div_256 >> 8;
     div_frac = div_256 & 0xff;
 
@@ -99,69 +113,46 @@ void probe_assert_reset(bool state)
 
 
 
-void __no_inline_not_in_flash_func(probe_write_bits)(uint bit_count, uint32_t data_byte)
+/**
+ * Write data stream via SWD.
+ * Actually only 32bit can be set, more data is sent as "zero".  Especially useful for
+ * idle cycles (although never seen),
+ */
+void __not_in_flash_func(probe_write_bits)(uint bit_count, uint32_t data)
 {
-    pio_sm_put_blocking(pio0, PROBE_SM, bit_count - 1);
-    pio_sm_put_blocking(pio0, PROBE_SM, data_byte);
-    picoprobe_dump("Write %u bits 0x%lx\n", bit_count, data_byte);
+    DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE);
+    for (;;) {
+        if (bit_count <= 16) {
+            pio_sm_put_blocking(pio0, PROBE_SM, CTRL_WORD_WRITE(bit_count - 1, data));
+            break;
+        }
+
+        pio_sm_put_blocking(pio0, PROBE_SM, CTRL_WORD_WRITE(16 - 1, data & 0xffff));
+        data >>= 16;
+        bit_count -= 16;
+    }
+    DEBUG_PINS_CLR(probe_timing, DBG_PIN_WRITE);
+    picoprobe_dump("Write %u bits 0x%lx\n", bit_count, data);
 }   // probe_write_bits
 
 
 
-uint32_t __no_inline_not_in_flash_func(probe_read_bits)(uint bit_count)
+uint32_t __not_in_flash_func(probe_read_bits)(uint bit_count)
 {
-    pio_sm_put_blocking(pio0, PROBE_SM, bit_count - 1);
-    uint32_t data = pio_sm_get_blocking(pio0, PROBE_SM);
-    uint32_t data_shifted = data;
+    uint32_t data;
+    uint32_t data_shifted;
+
+    DEBUG_PINS_SET(probe_timing, DBG_PIN_READ);
+    pio_sm_put_blocking(pio0, PROBE_SM, CTRL_WORD_READ(bit_count - 1));
+    data = pio_sm_get_blocking(pio0, PROBE_SM);
+    DEBUG_PINS_CLR(probe_timing, DBG_PIN_READ);
+    data_shifted = data;
     if (bit_count < 32) {
         data_shifted = data >> (32 - bit_count);
     }
     picoprobe_dump("Read %u bits 0x%lx (shifted 0x%lx)\n", bit_count, data, data_shifted);
     return data_shifted;
 }   // probe_read_bits
-
-
-bool write_mode = false;
-
-
-/**
- * Set the state machine to "in_posedge" and wait until output enable of SWDIO is "0"
- */
-void __no_inline_not_in_flash_func(probe_read_mode)(void)
-{
-    DEBUG_PINS_CLR(probe_timing, DBG_PIN_WRITE_REQ);
-    DEBUG_PINS_SET(probe_timing, DBG_PIN_WAIT);
-    if (write_mode)
-    {
-        if ((pio0->ctrl & (1u << PROBE_SM)) != 0) {
-            pio0->fdebug |= 1u << (PIO_FDEBUG_TXSTALL_LSB + PROBE_SM);
-            while ((pio0->fdebug & (1u << (PIO_FDEBUG_TXSTALL_LSB + PROBE_SM))) == 0) {
-                tight_loop_contents(); // TODO timeout
-            }
-        }
-    }
-    DEBUG_PINS_CLR(probe_timing, DBG_PIN_WAIT);
-    if (write_mode) {
-        pio_sm_exec(pio0, PROBE_SM, pio_encode_jmp(probe.offset + probe_offset_in_posedge));
-    }
-    DEBUG_PINS_CLR(probe_timing, DBG_PIN_WRITE);
-    write_mode = false;
-}   // probe_read_mode
-
-
-
-/**
- * Set the state machine to "out_negedge" and wait until output enable of SWDIO is "1"
- */
-void __no_inline_not_in_flash_func(probe_write_mode)(void)
-{
-    DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE_REQ);
-    if ( !write_mode) {
-        pio_sm_exec(pio0, PROBE_SM, pio_encode_jmp(probe.offset + probe_offset_out_negedge));
-    }
-    DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE);
-    write_mode = true;
-}   // probe_write_mode
 
 
 
@@ -187,14 +178,14 @@ void probe_gpio_init()
 
 void probe_init()
 {
-    //    picoprobe_info("probe_init()\n");
+//    picoprobe_info("probe_init()\n");
 
     // Target reset pin: pull up, input to emulate open drain pin
     gpio_pull_up(PROBE_PIN_RESET);
     // gpio_init will leave the pin cleared and set as input
     gpio_init(PROBE_PIN_RESET);
     if ( !probe.initted) {
-        // picoprobe_info("     2. probe_init()\n");
+//        picoprobe_info("     2. probe_init()\n");
         uint offset = pio_add_program(pio0, &probe_program);
         probe.offset = offset;
 
@@ -211,8 +202,8 @@ void probe_init()
         // Set SWD and SWDIO pins as output to start. This will be set in the sm
         pio_sm_set_consecutive_pindirs(pio0, PROBE_SM, PROBE_PIN_OFFSET, 2, true);
 
-        // shift output right, autopull off, autopull threshold
-        sm_config_set_out_shift(&sm_config, true, false, 0);
+        // shift output right, autopull on, autopull threshold
+        sm_config_set_out_shift(&sm_config, true, true, 32);
         // shift input right as swd data is lsb first, autopush off
         sm_config_set_in_shift(&sm_config, true, false, 0);
 
@@ -220,25 +211,21 @@ void probe_init()
         pio_sm_init(pio0, PROBE_SM, offset, &sm_config);
 
         // Set up divisor
-        probe_set_swclk_freq(DAP_DEFAULT_SWJ_CLOCK / 1000);
+        probe_set_swclk_freq(probe_freq_khz);
 
         // Enable SM
-        pio_sm_set_enabled(pio0, PROBE_SM, 1);
-        probe.initted = 1;
+        pio_sm_set_enabled(pio0, PROBE_SM, true);
+        probe.initted = true;
     }
-
-    // Jump to write program
-    probe_write_mode();
 }   // probe_init
 
 
 
 void probe_deinit(void)
 {
-    probe_read_mode();
     if (probe.initted) {
         pio_sm_set_enabled(pio0, PROBE_SM, 0);
         pio_remove_program(pio0, &probe_program, probe.offset);
-        probe.initted = 0;
+        probe.initted = false;
     }
 }   // prebe_deinit

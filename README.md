@@ -62,6 +62,9 @@ with WAIT and the host needs to retry.
 Effects of cabling should be clear: the longer the cables plus some more effects, the worse the signals.  Which effectively means
 slowing down clock frequency is required to get the data transported.
 
+**Note:** SWCLK speed for MSC and RTT (below) is set according to the latest used tool setup.  E.g. `pyocd gdb -f 5000000` sets
+SWCLK to 5MHz.
+
 
 ## MSC - Mass Storage Device Class
 Via MSC the so called "drag-n-drop" supported is implemented.  Actually this also helps in copying a UF2 image directly into the target via command line.
@@ -119,7 +122,9 @@ ACTION=="remove", SUBSYSTEMS=="usb", SUBSYSTEM=="block", ENV{ID_FS_USAGE}=="file
 
 
 
-# Benchmarking
+# Optimizations
+
+## Benchmarking
 Benchmarking is done with an image with a size around 400KByte.  Command lines are as follows:
 
 * **cp**: `time cp firmware.uf2 /media/picoprobe/`
@@ -139,8 +144,32 @@ DAPv2 is always used, because DAPv1 does not run under Linux(?).
 | git-bd8c41f        |  5.7s |     28.6s  |      7.7s  | 19.9s | there was a python update :-/ |
 | git-0d6c6a8        |  5.7s |     28.5s  |      6.8s  | 20.2s |         |
 | - same but optimized for openocd | 5.7s | 28.5s | 6.1s | - | pyocd crashes |
-| git-0eba8bf        |  4.9s |     28.6s  |      6.5s  | 13.8s | cp show sometimes 5.4s |
+| git-0eba8bf        |  4.9s |     28.6s  |      6.5s  | 13.8s | cp shows sometimes 5.4s |
 | - same but optimized for openocd | 4.9s | 28.6s | 5.8s | - | pyocd crashes |
+| git-e38fa52        |  4.8s |     28.6s  |      6.6s  | 14.0s | cp shows sometimes 5.4s |
+| - same but optimized for openocd | 4.8s | 28.6s | 5.9s | - | pyocd crashes |
+| git-28fd8db        |  4.1s |     28.6s  |      6.2s  | 13.9s | cp shows sometimes 4.6s, SWCLK tuned to 25MHz |
+| - same but optimized for openocd | 4.1s | 28.6s | 5.7s | - | pyocd crashes |
+
+
+## PIO
+Several PIO optimizations has been implemented.  Main idea of PIO control has been taken from [pico_debug](https://github.com/essele/pico_debug/blob/main/swd.pio).
+
+To monitor the progress between the several versions, [PulseView](https://sigrok.org/wiki/PulseView) has been used. LA probe was [sigrok-pico](https://github.com/pico-coder/sigrok-pico).
+
+### First Version (03.01.2023 - e2b4a67)
+![First Version](doc/png/Screenshot_20230103_074404.png "First Version (03.01.2023)")
+
+### (Currently) Final Version (06.01.2023 - 28fd8db)
+![Final Version (06.01.2023)](doc/png/Screenshot_20230106_153629.png "Final Version (06.01.2023)")
+
+### Explanation / Conclusion
+The plots above are taken with SWCLK = 15MHz.  Absolute time of the four commands shrunk from ~25us to 18us.  Not bad.
+
+But there are still gaps which may give more optimization opportunities.  Switching times between read / write and the
+gap between two commands are candidates.  Note that moving code into RAM did not really help (and optimization is still
+a non/slow-working mystery).
+
 
 
 # TODO / Known Bugs
@@ -148,7 +177,6 @@ DAPv2 is always used, because DAPv1 does not run under Linux(?).
   * check the benchmark "miracle" with the NDEBUG version 
   * if `configTICK_RATE_HZ` is around 100, the SWD IF no longer works
 * TODO
-  * TX host->target via RTT
   * pyocd auto-detect?
   * support of Nordic nRF52xxx (my other target)
   * DAP_PACKET_SIZE: how to increase?

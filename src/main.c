@@ -181,7 +181,7 @@ void usb_thread(void *ptr)
 int main(void)
 {
     board_init();
-    set_sys_clock_khz(CPU_CLOCK / 1000, true);
+    set_sys_clock_khz(PROBE_CPU_CLOCK_KHZ, true);
 
     usb_serial_init();
     tusb_init();
