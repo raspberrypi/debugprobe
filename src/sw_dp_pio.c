@@ -84,7 +84,6 @@ void __no_inline_not_in_flash_func(SWD_Sequence)(uint32_t info, const uint8_t *s
     bits = n;
     if (info & SWD_SEQUENCE_DIN) {
         //    picoprobe_debug("SWD sequence in, %lu\n", bits);
-        probe_read_mode();
         while (n > 0) {
             if (n > 8)
                 bits = 8;
@@ -93,11 +92,9 @@ void __no_inline_not_in_flash_func(SWD_Sequence)(uint32_t info, const uint8_t *s
             *swdi++ = probe_read_bits(bits);
             n -= bits;
         }
-        probe_write_mode();
     }
     else {
         //    picoprobe_debug("SWD sequence out, %lu\n", bits);
-        probe_write_mode();
         while (n > 0) {
             if (n > 8)
                 bits = 8;
@@ -170,7 +167,6 @@ uint8_t __no_inline_not_in_flash_func(SWD_Transfer)(uint32_t request, uint32_t *
             //      picoprobe_debug("Read %02x ack %02x 0x%08lx parity %01x\n", prq, ack, val, bit);
             /* Turnaround for line idle */
             probe_read_bits(DAP_Data.swd_conf.turnaround);
-            probe_write_mode();
 
             /* Idle cycles - drive 0 for N clocks */
             if (DAP_Data.transfer.idle_cycles != 0) {
@@ -187,7 +183,6 @@ uint8_t __no_inline_not_in_flash_func(SWD_Transfer)(uint32_t request, uint32_t *
 	        uint32_t parity;
 
 	        probe_read_bits(DAP_Data.swd_conf.turnaround);
-	        probe_write_mode();
 
             /* Write WDATA[0:31] */
             probe_write_bits(32, *data);
@@ -218,12 +213,10 @@ uint8_t __no_inline_not_in_flash_func(SWD_Transfer)(uint32_t request, uint32_t *
                 /* Dummy Read RDATA[0:31] + Parity */
                 probe_read_bits(33);
                 probe_read_bits(DAP_Data.swd_conf.turnaround);
-                probe_write_mode();
             }
 		    else {
                 /* Dummy Write WDATA[0:31] + Parity */
 	            probe_read_bits(DAP_Data.swd_conf.turnaround);
-	            probe_write_mode();
 
                 probe_write_bits(32, 0);
                 probe_write_bits(1, 0);
@@ -231,7 +224,6 @@ uint8_t __no_inline_not_in_flash_func(SWD_Transfer)(uint32_t request, uint32_t *
 		}
 		else {
             probe_read_bits(DAP_Data.swd_conf.turnaround);
-            probe_write_mode();
 		}
 		// post: cleaned up and "SWD in write mode"
 	}
@@ -242,7 +234,6 @@ uint8_t __no_inline_not_in_flash_func(SWD_Transfer)(uint32_t request, uint32_t *
         n = DAP_Data.swd_conf.turnaround + 32U + 1U;
         /* Back off data phase */
         probe_read_bits(n);
-        probe_write_mode();
         // post: cleaned up and "SWD in write mode"
 	}
 

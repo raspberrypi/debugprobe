@@ -24,52 +24,58 @@
  */
 
 // Output frequency is PIO clock / 6 (therefor the delay [2])
-// PIO clock is set to a high frequency to keep the timing effects of the instructions outside the shift loop small
-// BUT for clock /8 and /16 there must be another timing constraint I'm not aware of.
-//     I guess it is the jitter on the clock which kills the target, because for /16 the divider 0 + 83/256.
-//     Haha, much simpler: datasheet to SMx_CLKDIV... 
-//           Effective frequency is sysclk/(int + frac/256). Value of 0 is interpreted as 65536. If INT is 0, FRAC must also be 0.
+// PIO clock is set to a high frequency to keep the timing effects of the instructions outside the shift loops small
+// BUT take care of maximum frequency / minimum divisor:
+//      Effective frequency is sysclk/(int + frac/256). Value of 0 is interpreted as 65536. If INT is 0, FRAC must also be 0.
+
+// The following code has been mainly taken from https://github.com/essele/pico_debug/blob/main/swd.pio
 
     .program probe
-    .side_set 1 opt
+    
+    .side_set 1 opt                                ; side set SWCLK
 
 
-; parameter: <number of bits to write>, <data>
-
-public out_negedge:
-    set pindirs, 1                side 0x0         ; Init OE clock 0
-out_negedge_2:
-    pull                                           ; Pull number of bits to shift -1 from tx fifo and put into output shift register
-    mov x, osr                                     ; mov bits to shift -1 from output shift register into x
-    pull                                           ; Pull data to shift out
-out_negedge_bitloop:
-    out pins, 1                   side 0x0  [2]    ; clock data out on falling edge
-    jmp x--, out_negedge_bitloop  side 0x1  [2]    ; data is present for posedge
-    set pins, 1                   side 0x0         ; Drive data high (idle bus state)
-    jmp out_negedge_2                              ; Wait for next transaction
+; The default approach is to just accept jump targets in the fifo so they effectively
+; become a series of function calls, each function can then process arguments as needed
+; The jump target is 8 bits (the least significant 8)
+public start:
+    out pc, 8
 
 
-; parameter: <number of bits to read>
+; // BULK OUTPUT //
+;
+; Simple sends up to 2^24 bits worth of data over the link. The remaining 24 bits of the
+; first control word dictate how many bits will be sent, then the bits follow in 32bit words
+; until no more are needed. If we end of a exact 32 bit boundary then we must send another
+; word (this saves on an instruction in here.)
+public output:
+    out x, 24
+public out_jmp:
+    set pindirs, 1              side 0 [2]
+bulk_out_loop:
+    out pins, 1                 side 0 [2]
+    jmp x--, bulk_out_loop      side 1 [2]
+    set pins, 0                 side 0
+    out NULL, 32                                ; clear anything not sent
+    jmp start
 
-public in_posedge:
-    set pindirs, 0                side 0x0         ; INIT IE clock 0
-in_posedge_2:
-    pull                                           ; Pull number of bits to shift -1 from tx fifo and put into output shift register
-    mov x, osr                                     ; mov bits to shift -1 from output shift register into x into x
-in_posedge_bitloop:
-    in pins, 1                    side 0x1  [2]    ; Generate posedge and read data
-    jmp x--, in_posedge_bitloop   side 0x0  [2]    ;
-    push                                           ; Push to rx fifo when done
-    jmp in_posedge_2                               ; Jump back to start
+; // INPUT // -- reads in a certain number of bits and pushes them into the fifo, this
+;                will push at the end
+public input:
+    out x, 24
+public in_jmp:
+    set pindirs, 0              side 0 [2]
+bulk_in_loop:
+    in pins, 1                  side 1 [2]
+    jmp x--, bulk_in_loop       side 0 [2]
+    push
+    jmp start
 
 
-; parameter: <cmd8>, <number of bits to read>
-
-public send_cmd_ack:
-    set pindirs, 1                side 0x0
-    set x, 7
-    pull
-send_cmd_bitloop:
-    out pins, 1                   side 0x0 [2]
-    jmp x--, send_cmd_bitloop     side 0x1 [2]
-    jmp in_posedge                side 0x0
+; // SHORT OUTPUT //
+;
+; Using a single control word sends up to 16 bits of data. The first 8 will be the jump
+; target (i.e. to here), then 5 to say how many bits, then up to 16 bits of data to send
+public short_output:
+    out x, 5
+    jmp out_jmp

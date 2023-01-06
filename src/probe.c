@@ -58,7 +58,6 @@ struct _probe {
     // PIO offset
     uint offset;
     bool initted;
-    bool in_write_mode;
 };
 
 static struct _probe probe;
@@ -101,20 +100,34 @@ void probe_assert_reset(bool state)
 
 
 
-void __no_inline_not_in_flash_func(probe_write_bits)(uint bit_count, uint32_t data_byte)
+#define CTRL_WORD_WRITE(CNT)                (                 ((CNT) << 8) + (probe.offset + probe_offset_output))
+#define CTRL_WORD_WRITE_SHORT(CNT, DATA)    (((DATA) << 13) + ((CNT) << 8) + (probe.offset + probe_offset_short_output))
+#define CTRL_WORD_READ(CNT)                 (                 ((CNT) << 8) + (probe.offset + probe_offset_input))
+
+
+
+void __no_inline_not_in_flash_func(probe_write_bits)(uint bit_count, uint32_t data)
 {
-    pio_sm_put_blocking(pio0, PROBE_SM, bit_count - 1);
-    pio_sm_put_blocking(pio0, PROBE_SM, data_byte);
-    picoprobe_dump("Write %u bits 0x%lx\n", bit_count, data_byte);
+    if (bit_count <= 16) {
+        pio_sm_put_blocking(pio0, PROBE_SM, CTRL_WORD_WRITE_SHORT(bit_count - 1, data));
+    }
+    else {
+        pio_sm_put_blocking(pio0, PROBE_SM, CTRL_WORD_WRITE_SHORT(16 - 1, data & 0xffff));
+        pio_sm_put_blocking(pio0, PROBE_SM, CTRL_WORD_WRITE_SHORT(bit_count - 17, data >> 16));
+    }
+    picoprobe_dump("Write %u bits 0x%lx\n", bit_count, data);
 }   // probe_write_bits
 
 
 
 uint32_t __no_inline_not_in_flash_func(probe_read_bits)(uint bit_count)
 {
-    pio_sm_put_blocking(pio0, PROBE_SM, bit_count - 1);
-    uint32_t data = pio_sm_get_blocking(pio0, PROBE_SM);
-    uint32_t data_shifted = data;
+    uint32_t data;
+    uint32_t data_shifted;
+
+    pio_sm_put_blocking(pio0, PROBE_SM, CTRL_WORD_READ(bit_count - 1));
+    data = pio_sm_get_blocking(pio0, PROBE_SM);
+    data_shifted = data;
     if (bit_count < 32) {
         data_shifted = data >> (32 - bit_count);
     }
@@ -124,76 +137,20 @@ uint32_t __no_inline_not_in_flash_func(probe_read_bits)(uint bit_count)
 
 
 
-static inline probe_wait_until_sm_stalled(void)
-{
-    if ((pio0->ctrl & (1u << PROBE_SM)) != 0) {
-        // if SM is enabled then wait until it does a PULL
-        pio0->fdebug |= 1u << (PIO_FDEBUG_TXSTALL_LSB + PROBE_SM);
-        while ((pio0->fdebug & (1u << (PIO_FDEBUG_TXSTALL_LSB + PROBE_SM))) == 0) {
-            tight_loop_contents(); // TODO timeout
-        }
-    }
-}   // probe_wait_until_sm_stalled
-
-
-
-/**
- * Set the state machine to "in_posedge"
- */
-void __no_inline_not_in_flash_func(probe_read_mode)(void)
-{
-    DEBUG_PINS_CLR(probe_timing, DBG_PIN_WRITE_REQ);
-    DEBUG_PINS_SET(probe_timing, DBG_PIN_WAIT);
-    if (probe.in_write_mode) {
-        probe_wait_until_sm_stalled();
-    }
-    DEBUG_PINS_CLR(probe_timing, DBG_PIN_WAIT);
-    if (probe.in_write_mode) {
-        pio_sm_exec(pio0, PROBE_SM, pio_encode_jmp(probe.offset + probe_offset_in_posedge));
-    }
-    DEBUG_PINS_CLR(probe_timing, DBG_PIN_WRITE);
-    probe.in_write_mode = false;
-}   // probe_read_mode
-
-
-
-/**
- * Set the state machine to "out_negedge"
- */
-void __no_inline_not_in_flash_func(probe_write_mode)(void)
-{
-    DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE_REQ);
-    if ( !probe.in_write_mode) {
-        pio_sm_exec(pio0, PROBE_SM, pio_encode_jmp(probe.offset + probe_offset_out_negedge));
-    }
-    DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE);
-    probe.in_write_mode = true;
-}   // probe_write_mode
-
-
-
 uint32_t __no_inline_not_in_flash_func(probe_send_cmd_ack)(uint8_t cmd)
 {
     const uint32_t bits_read = DAP_Data.swd_conf.turnaround + 3;  // 4..7
     uint32_t ack;
 
-    if (probe.in_write_mode) {
-        probe_wait_until_sm_stalled();
-    }
+    picoprobe_dump("probe_send_cmd_ack %02x\n", cmd);
     DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE_REQ);
-    pio_sm_exec(pio0, PROBE_SM, pio_encode_jmp(probe.offset + probe_offset_send_cmd_ack));
-    pio_sm_put_blocking(pio0, PROBE_SM, cmd);
-    pio_sm_put_blocking(pio0, PROBE_SM, bits_read - 1);
+    probe_write_bits(8, cmd);
+
+    ack = probe_read_bits(bits_read);
     DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE);
 
-    ack = pio_sm_get_blocking(pio0, PROBE_SM);
-    ack = ack >> (32 - bits_read);
-    ack = ack >> DAP_Data.swd_conf.turnaround;
-
-    probe.in_write_mode = false;
-
-    return ack;
-}   // probe_write_mode
+    return ack >> DAP_Data.swd_conf.turnaround;
+}   // probe_send_cmd_ack
 
 
 
@@ -243,8 +200,8 @@ void probe_init()
         // Set SWD and SWDIO pins as output to start. This will be set in the sm
         pio_sm_set_consecutive_pindirs(pio0, PROBE_SM, PROBE_PIN_OFFSET, 2, true);
 
-        // shift output right, autopull off, autopull threshold
-        sm_config_set_out_shift(&sm_config, true, false, 0);
+        // shift output right, autopull on, autopull threshold
+        sm_config_set_out_shift(&sm_config, true, true, 32);
         // shift input right as swd data is lsb first, autopush off
         sm_config_set_in_shift(&sm_config, true, false, 0);
 
@@ -255,19 +212,15 @@ void probe_init()
         probe_set_swclk_freq(DAP_DEFAULT_SWJ_CLOCK / 1000);
 
         // Enable SM
-        pio_sm_set_enabled(pio0, PROBE_SM, 1);
+        pio_sm_set_enabled(pio0, PROBE_SM, true);
         probe.initted = true;
     }
-
-    // Jump to write program
-    probe_write_mode();
 }   // probe_init
 
 
 
 void probe_deinit(void)
 {
-    probe_read_mode();
     if (probe.initted) {
         pio_sm_set_enabled(pio0, PROBE_SM, 0);
         pio_remove_program(pio0, &probe_program, probe.offset);
