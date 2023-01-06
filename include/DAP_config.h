@@ -54,7 +54,7 @@ This information includes:
 /// Processor Clock of the Cortex-M MCU used in the Debug Unit.
 /// This value is used to calculate the SWD/JTAG clock speed.
 /* Picoprobe actually uses kHz rather than Hz, so just lie about it here */
-#define CPU_CLOCK               125000000U      ///< Specifies the CPU Clock in Hz.
+#define CPU_CLOCK               (PROBE_CPU_CLOCK_KHZ * 1000)   ///< Specifies the CPU Clock in Hz.
 
 /// Number of processor cycles for I/O Port write operations.
 /// This value is used to calculate the SWD/JTAG clock speed that is generated with I/O
@@ -84,7 +84,7 @@ This information includes:
 /// Default communication speed on the Debug Access Port for SWD and JTAG mode.
 /// Used to initialize the default SWD/JTAG clock frequency.
 /// The command \ref DAP_SWJ_Clock can be used to overwrite this default setting.
-#define DAP_DEFAULT_SWJ_CLOCK   (PROBE_DEFAULT_KHZ*1000U)  ///< Default SWD/JTAG clock frequency in Hz. (10MHz)
+#define DAP_DEFAULT_SWJ_CLOCK   (probe_freq_khz * 1000U)  ///< Default SWD/JTAG clock frequency in Hz. (10MHz)
 
 /// Maximum Package Size for Command and Response data.
 /// This configuration settings is used to optimize the communication performance with the
@@ -403,16 +403,16 @@ __STATIC_FORCEINLINE void     PIN_SWDIO_OUT     (uint32_t bit) {
 Configure the SWDIO DAP hardware I/O pin to output mode. This function is
 called prior \ref PIN_SWDIO_OUT function calls.
 */
-__STATIC_FORCEINLINE void     PIN_SWDIO_OUT_ENABLE  (void) {
-  probe_write_mode();
+__STATIC_FORCEINLINE void     PIN_SWDIO_OUT_ENABLE  (void)
+{
 }
 
 /** SWDIO I/O pin: Switch to Input mode (used in SWD mode only).
 Configure the SWDIO DAP hardware I/O pin to input mode. This function is
 called prior \ref PIN_SWDIO_IN function calls.
 */
-__STATIC_FORCEINLINE void     PIN_SWDIO_OUT_DISABLE (void) {
-  probe_read_mode();
+__STATIC_FORCEINLINE void     PIN_SWDIO_OUT_DISABLE (void)
+{
 }
 
 

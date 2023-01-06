@@ -139,8 +139,10 @@ DAPv2 is always used, because DAPv1 does not run under Linux(?).
 | git-bd8c41f        |  5.7s |     28.6s  |      7.7s  | 19.9s | there was a python update :-/ |
 | git-0d6c6a8        |  5.7s |     28.5s  |      6.8s  | 20.2s |         |
 | - same but optimized for openocd | 5.7s | 28.5s | 6.1s | - | pyocd crashes |
-| git-0eba8bf        |  4.9s |     28.6s  |      6.5s  | 13.8s | cp show sometimes 5.4s |
+| git-0eba8bf        |  4.9s |     28.6s  |      6.5s  | 13.8s | cp shows sometimes 5.4s |
 | - same but optimized for openocd | 4.9s | 28.6s | 5.8s | - | pyocd crashes |
+| git-e38fa52        |  4.8s |     28.6s  |      6.6s  | 14.0s | cp shows sometimes 5.4s |
+| - same but optimized for openocd | 4.8s | 28.6s | 5.9s | - | pyocd crashes |
 
 
 # TODO / Known Bugs

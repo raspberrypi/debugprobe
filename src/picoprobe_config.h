@@ -74,15 +74,16 @@
     #define picoprobe_error(format,...) ((void)0)
 #endif
 
+#define PROBE_CPU_CLOCK_KHZ      (150*1000)             // overclocked to 150MHz, even 200MHz seems to be no problem
 
 // PIO config
-#define PROBE_SM            0
-#define PROBE_PIN_OFFSET    2
-#define PROBE_PIN_SWCLK     (PROBE_PIN_OFFSET + 0) // 2
-#define PROBE_PIN_SWDIO     (PROBE_PIN_OFFSET + 1) // 3
-#define PROBE_PIN_RESET     6                      // Target reset config
-#define PROBE_MAX_KHZ       24000U                 // according to RP2040 datasheet 24MHz
-#define PROBE_DEFAULT_KHZ   12000
+#define PROBE_SM                 0
+#define PROBE_PIN_OFFSET         2
+#define PROBE_PIN_SWCLK          (PROBE_PIN_OFFSET + 0) // 2
+#define PROBE_PIN_SWDIO          (PROBE_PIN_OFFSET + 1) // 3
+#define PROBE_PIN_RESET          6                      // Target reset config
+#define PROBE_MAX_KHZ            25000U                 // overclocked: according to RP2040 datasheet 24MHz
+#define PROBE_DEFAULT_KHZ        15000
 
 // UART config (UART target -> probe)
 #define PICOPROBE_UART_TX        4
@@ -100,5 +101,8 @@
         #define PICOPROBE_LED PICO_DEFAULT_LED_PIN
     #endif
 #endif
+
+extern uint32_t probe_freq_khz;
+
 
 #endif

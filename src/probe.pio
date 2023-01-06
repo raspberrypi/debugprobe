@@ -54,7 +54,7 @@ public short_output:
 bulk_out_loop:
     out pins, 1                 side 0 [2]
     jmp x--, bulk_out_loop      side 1 [2]
-    set pins, 0                 side 0
+    set pins, 1                 side 0
     out NULL, 32                                  ; clear anything not sent
     jmp start
 

@@ -55,19 +55,27 @@ enum _dbg_pins {
 CU_REGISTER_DEBUG_PINS(probe_timing)
 
 // Uncomment to enable debug
-CU_SELECT_DEBUG_PINS(probe_timing)
+//CU_SELECT_DEBUG_PINS(probe_timing)
+
+
+uint32_t probe_freq_khz = PROBE_DEFAULT_KHZ;
 
 
 struct _probe {
-    // PIO offset
-    uint offset;
-    bool initted;
+    uint      offset;
+    bool      initted;
 };
 
 static struct _probe probe;
 
 
 
+/**
+ * Set SWD frequency.
+ * Frequency is checked against maximum values and stored as a future default.
+ *
+ * \param freq_khz  new frequency setting
+ */
 void probe_set_swclk_freq(uint32_t freq_khz)
 {
     uint32_t clk_sys_freq_khz = clock_get_hz(clk_sys) / 1000;
@@ -78,6 +86,7 @@ void probe_set_swclk_freq(uint32_t freq_khz)
     if (freq_khz > PROBE_MAX_KHZ) {
         freq_khz = PROBE_MAX_KHZ;
     }
+    probe_freq_khz = freq_khz;
 
     div_256 = (256 * clk_sys_freq_khz + freq_khz) / (6 * freq_khz);      // SWDCLK goes with PIOCLK / 6
     div_int  = div_256 >> 8;
@@ -169,14 +178,14 @@ void probe_gpio_init()
 
 void probe_init()
 {
-    //    picoprobe_info("probe_init()\n");
+//    picoprobe_info("probe_init()\n");
 
     // Target reset pin: pull up, input to emulate open drain pin
     gpio_pull_up(PROBE_PIN_RESET);
     // gpio_init will leave the pin cleared and set as input
     gpio_init(PROBE_PIN_RESET);
     if ( !probe.initted) {
-        // picoprobe_info("     2. probe_init()\n");
+//        picoprobe_info("     2. probe_init()\n");
         uint offset = pio_add_program(pio0, &probe_program);
         probe.offset = offset;
 
@@ -202,7 +211,7 @@ void probe_init()
         pio_sm_init(pio0, PROBE_SM, offset, &sm_config);
 
         // Set up divisor
-        probe_set_swclk_freq(DAP_DEFAULT_SWJ_CLOCK / 1000);
+        probe_set_swclk_freq(probe_freq_khz);
 
         // Enable SM
         pio_sm_set_enabled(pio0, PROBE_SM, true);
