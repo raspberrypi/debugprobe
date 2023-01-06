@@ -143,6 +143,8 @@ DAPv2 is always used, because DAPv1 does not run under Linux(?).
 | - same but optimized for openocd | 4.9s | 28.6s | 5.8s | - | pyocd crashes |
 | git-e38fa52        |  4.8s |     28.6s  |      6.6s  | 14.0s | cp shows sometimes 5.4s |
 | - same but optimized for openocd | 4.8s | 28.6s | 5.9s | - | pyocd crashes |
+| git-28fd8db        |  4.1s |     28.6s  |      6.2s  | 13.9s | cp shows sometimes 4.6s, SWCLK tuned to 25MHz |
+| - same but optimized for openocd | 4.1s | 28.6s | 5.7s | - | pyocd crashes |
 
 
 # TODO / Known Bugs

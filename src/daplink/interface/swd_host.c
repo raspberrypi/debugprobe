@@ -90,7 +90,7 @@ void int2array(uint8_t *res, uint32_t data, uint8_t len)
     }
 }
 
-uint8_t swd_transfer_retry(uint32_t req, uint32_t *data)
+uint8_t __no_inline_not_in_flash_func(swd_transfer_retry)(uint32_t req, uint32_t *data)
 {
     uint8_t i, ack;
 
@@ -136,7 +136,7 @@ uint8_t swd_clear_errors(void)
 }
 
 // Read debug port register.
-uint8_t swd_read_dp(uint8_t adr, uint32_t *val)
+uint8_t __no_inline_not_in_flash_func(swd_read_dp)(uint8_t adr, uint32_t *val)
 {
     uint32_t tmp_in;
     uint8_t tmp_out[4];
@@ -157,7 +157,7 @@ uint8_t swd_read_dp(uint8_t adr, uint32_t *val)
 }
 
 // Write debug port register
-uint8_t swd_write_dp(uint8_t adr, uint32_t val)
+uint8_t __no_inline_not_in_flash_func(swd_write_dp)(uint8_t adr, uint32_t val)
 {
     uint32_t req;
     uint8_t data[4];
@@ -178,7 +178,7 @@ uint8_t swd_write_dp(uint8_t adr, uint32_t val)
 }
 
 // Read access port register.
-uint8_t swd_read_ap(uint32_t adr, uint32_t *val)
+uint8_t __no_inline_not_in_flash_func(swd_read_ap)(uint32_t adr, uint32_t *val)
 {
     uint8_t tmp_in, ack;
     uint8_t tmp_out[4];
@@ -207,7 +207,7 @@ uint8_t swd_read_ap(uint32_t adr, uint32_t *val)
 }
 
 // Write access port register
-uint8_t swd_write_ap(uint32_t adr, uint32_t val)
+uint8_t __no_inline_not_in_flash_func(swd_write_ap)(uint32_t adr, uint32_t val)
 {
     uint8_t data[4];
     uint8_t req, ack;
@@ -246,7 +246,7 @@ uint8_t swd_write_ap(uint32_t adr, uint32_t val)
 
 // Write 32-bit word aligned values to target memory using address auto-increment.
 // size is in bytes.
-static uint8_t swd_write_block(uint32_t address, uint8_t *data, uint32_t size)
+static uint8_t __no_inline_not_in_flash_func(swd_write_block)(uint32_t address, uint8_t *data, uint32_t size)
 {
     uint8_t tmp_in[4], req;
     uint32_t size_in_words;
@@ -302,7 +302,7 @@ static uint8_t swd_write_block(uint32_t address, uint8_t *data, uint32_t size)
 
 // Read 32-bit word aligned values from target memory using address auto-increment.
 // size is in bytes.
-static uint8_t swd_read_block(uint32_t address, uint8_t *data, uint32_t size)
+static uint8_t __no_inline_not_in_flash_func(swd_read_block)(uint32_t address, uint8_t *data, uint32_t size)
 {
     uint8_t tmp_in[4], req, ack;
     uint32_t size_in_words;
@@ -366,7 +366,7 @@ static uint8_t swd_read_block(uint32_t address, uint8_t *data, uint32_t size)
 }
 
 // Read target memory.
-static uint8_t swd_read_data(uint32_t addr, uint32_t *val)
+static uint8_t __no_inline_not_in_flash_func(swd_read_data)(uint32_t addr, uint32_t *val)
 {
     uint8_t tmp_in[4];
     uint8_t tmp_out[4];
@@ -403,7 +403,7 @@ static uint8_t swd_read_data(uint32_t addr, uint32_t *val)
 }
 
 // Write target memory.
-static uint8_t swd_write_data(uint32_t address, uint32_t data)
+static uint8_t __no_inline_not_in_flash_func(swd_write_data)(uint32_t address, uint32_t data)
 {
     uint8_t tmp_in[4];
     uint8_t req, ack;
@@ -430,7 +430,7 @@ static uint8_t swd_write_data(uint32_t address, uint32_t data)
 }
 
 // Read 32-bit word from target memory.
-uint8_t swd_read_word(uint32_t addr, uint32_t *val)
+uint8_t __no_inline_not_in_flash_func(swd_read_word)(uint32_t addr, uint32_t *val)
 {
     if (!swd_write_ap(AP_CSW, CSW_VALUE | CSW_SIZE32)) {
         return 0;
@@ -444,7 +444,7 @@ uint8_t swd_read_word(uint32_t addr, uint32_t *val)
 }
 
 // Write 32-bit word to target memory.
-uint8_t swd_write_word(uint32_t addr, uint32_t val)
+uint8_t __no_inline_not_in_flash_func(swd_write_word)(uint32_t addr, uint32_t val)
 {
     if (!swd_write_ap(AP_CSW, CSW_VALUE | CSW_SIZE32)) {
         return 0;
@@ -458,7 +458,7 @@ uint8_t swd_write_word(uint32_t addr, uint32_t val)
 }
 
 // Read 8-bit byte from target memory.
-uint8_t swd_read_byte(uint32_t addr, uint8_t *val)
+uint8_t __no_inline_not_in_flash_func(swd_read_byte)(uint32_t addr, uint8_t *val)
 {
     uint32_t tmp;
 
@@ -475,7 +475,7 @@ uint8_t swd_read_byte(uint32_t addr, uint8_t *val)
 }
 
 // Write 8-bit byte to target memory.
-uint8_t swd_write_byte(uint32_t addr, uint8_t val)
+uint8_t __no_inline_not_in_flash_func(swd_write_byte)(uint32_t addr, uint8_t val)
 {
     uint32_t tmp;
 
@@ -494,7 +494,7 @@ uint8_t swd_write_byte(uint32_t addr, uint8_t val)
 
 // Read unaligned data from target memory.
 // size is in bytes.
-uint8_t swd_read_memory(uint32_t address, uint8_t *data, uint32_t size)
+uint8_t __no_inline_not_in_flash_func(swd_read_memory)(uint32_t address, uint8_t *data, uint32_t size)
 {
     uint32_t n;
 
@@ -543,7 +543,7 @@ uint8_t swd_read_memory(uint32_t address, uint8_t *data, uint32_t size)
 
 // Write unaligned data to target memory.
 // size is in bytes.
-uint8_t swd_write_memory(uint32_t address, uint8_t *data, uint32_t size)
+uint8_t __no_inline_not_in_flash_func(swd_write_memory)(uint32_t address, uint8_t *data, uint32_t size)
 {
     uint32_t n = 0;
 
