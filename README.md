@@ -62,7 +62,7 @@ with WAIT and the host needs to retry.
 Effects of cabling should be clear: the longer the cables plus some more effects, the worse the signals.  Which effectively means
 slowing down clock frequency is required to get the data transported.
 
-**Note:** SWCLK speed for MSC and RTT (below) is set according to the latest used tool setup.  E.g. `pyocd gdb -f 5000000` sets
+**Note:** SWCLK speed for MSC and RTT (below) is set according to the latest used tool setup.  E.g. `pyocd reset -f 5000000` sets
 SWCLK to 5MHz.
 
 
@@ -78,9 +78,11 @@ CMSIS-DAP should be generic, which means that its tools dependant (openocd/pyocd
 ## RTT - Real Time Transfer
 [RTT](https://www.segger.com/products/debug-probes/j-link/technology/about-real-time-transfer/) allows transfer from the target to the host in "realtime".  YAPicoprobe currently reads channel 0 of the targets RTT and sends it into the CDC of the target.  Effectively this allows RTT debug output into a terminal.
 
-Note that only the RP2040 RAM is scanned for an RTT control block which means 0x20000000-0x2003ffff.
-
-Another note: don't be too overwhelmed about Seggers numbers in the above mentioned document.  The data must still be transferred which to my opinion is not taken into account (of course the target processor has finished after writing the data).
+Notes:
+* only the RP2040 RAM is scanned for an RTT control block which means 0x20000000-0x2003ffff
+* don't be too overwhelmed about Seggers numbers in the above mentioned document.  The data must still be transferred which to my opinion is not taken into account (of course the target processor has finished after writing the data)
+* only one of CMSIS-DAP / MSC / RTT can access the target at the same time.  RTT is disconnected in case CMSIS-DAP
+  or MSC are claiming access
 
 
 ## LED Indication
@@ -119,6 +121,35 @@ ACTION=="remove", SUBSYSTEMS=="usb", SUBSYSTEM=="block", ENV{ID_FS_USAGE}=="file
 ```
 
 ### PlatformIO
+[PlatformIO](https://platformio.org/) configuration in `platformio.ini` is pretty straight forward:
+
+```
+[env:pico]
+framework = arduino
+platform = https://github.com/maxgerhardt/platform-raspberrypi
+board = rpipicow
+board_build.core = earlephilhower
+upload_protocol = cmsis-dap
+debug_tool = cmsis-dap
+monitor_speed = 115200
+monitor_port  = /dev/ttyPicoTarget
+```
+
+The firmware image can alternativly copied directly (and faster) via MSC with custom upload:
+
+```
+[env:pico_cp]
+...
+upload_protocol = custom
+upload_command = cp .pio/build/pico_cp/firmware.uf2 /media/picoprobe
+...
+```
+
+I'm sure there are smarter ways to specify the image path directly.
+
+There is also a special PlatformIO handling in the probe: it ignores the defensive 1MHz clock setting which is used by
+the above contained openocd.  Standard clock is thus 15MHz.  If this is too fast, set the frequency with
+`pyocd reset -f 1100000` or similar.  If this is too slow, use `pyocd reset -f 50000000`.
 
 
 
@@ -183,6 +214,5 @@ a non/slow-working mystery).
 * tests
   * Reset line between probe and target have to be reviewed
   * Win10 (tools) compatibility
-  * compatibility with [PlatformIO](https://platformio.org/)
 * Misc:
   * tool compatibility list
