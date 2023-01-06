@@ -11,9 +11,11 @@ So there is unfortunately one more Picoprobe around, the YAPicoprobe.
 
 # Features
 ## Plus
-* CMSIS-DAPv2 WinUSB (driver-less vendor-specific bulk) - CMSIS compliant debug channel
-* CMSIS-DAPv1 HID - CMSIS compliant debug channel as a fallback
-* MSC - drag-n-drop support a la [DAPLink](https://github.com/ARMmbed/DAPLink) for the RP2040 Pico / PicoW
+* **FAST**, at least faster than most other picoprobes
+* standard debug tool connectivity
+  * CMSIS-DAPv2 WinUSB (driver-less vendor-specific bulk) - CMSIS compliant debug channel
+  * CMSIS-DAPv1 HID - CMSIS compliant debug channel as a fallback
+* MSC - drag-n-drop support of UF2 firmware image à la [DAPLink](https://github.com/ARMmbed/DAPLink) for the RP2040 Pico / PicoW
 * CDC - virtual com port for logging of the target
   * UART connection between target and probe is redirected
   * RTT terminal channel is automatically redirected into this CDC (if there is no CMSIS-DAPv2/MSC connection)
