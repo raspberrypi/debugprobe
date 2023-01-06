@@ -64,6 +64,11 @@ void usb_thread(void *ptr)
     } while (1);
 }
 
+// Workaround API change in 0.13
+#if (TUSB_VERSION_MAJOR == 0) && (TUSB_VERSION_MINOR <= 12)
+#define tud_vendor_flush(x) ((void)0)
+#endif
+
 void dap_thread(void *ptr)
 {
     uint32_t resp_len;
@@ -72,6 +77,7 @@ void dap_thread(void *ptr)
             tud_vendor_read(RxDataBuffer, sizeof(RxDataBuffer));
             resp_len = DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
             tud_vendor_write(TxDataBuffer, resp_len);
+            tud_vendor_flush();
         } else {
             // Trivial delay to save power
             vTaskDelay(2);
