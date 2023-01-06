@@ -46,9 +46,9 @@
 
 // Only want to set / clear one gpio per event so go up in powers of 2
 enum _dbg_pins {
-    DBG_PIN_WRITE_REQ = 1,
+    DBG_PIN_READ  = 1,
     DBG_PIN_WRITE = 2,
-    DBG_PIN_WAIT = 4,
+    DBG_PIN_WAIT  = 4,
 };
 
 
@@ -111,6 +111,7 @@ void probe_assert_reset(bool state)
  */
 void __no_inline_not_in_flash_func(probe_write_bits)(uint bit_count, uint32_t data)
 {
+    DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE);
     for (;;) {
         if (bit_count <= 16) {
             pio_sm_put_blocking(pio0, PROBE_SM, CTRL_WORD_WRITE(bit_count - 1, data));
@@ -121,6 +122,7 @@ void __no_inline_not_in_flash_func(probe_write_bits)(uint bit_count, uint32_t da
         data >>= 16;
         bit_count -= 16;
     }
+    DEBUG_PINS_CLR(probe_timing, DBG_PIN_WRITE);
     picoprobe_dump("Write %u bits 0x%lx\n", bit_count, data);
 }   // probe_write_bits
 
@@ -131,8 +133,10 @@ uint32_t __no_inline_not_in_flash_func(probe_read_bits)(uint bit_count)
     uint32_t data;
     uint32_t data_shifted;
 
+    DEBUG_PINS_SET(probe_timing, DBG_PIN_READ);
     pio_sm_put_blocking(pio0, PROBE_SM, CTRL_WORD_READ(bit_count - 1));
     data = pio_sm_get_blocking(pio0, PROBE_SM);
+    DEBUG_PINS_CLR(probe_timing, DBG_PIN_READ);
     data_shifted = data;
     if (bit_count < 32) {
         data_shifted = data >> (32 - bit_count);
