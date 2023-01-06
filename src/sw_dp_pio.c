@@ -148,7 +148,8 @@ uint8_t __no_inline_not_in_flash_func(SWD_Transfer)(uint32_t request, uint32_t *
 	    //
 	    // read data
 	    //
-	    ack = probe_send_cmd_ack(prq);
+	    probe_write_bits(8, prq);
+	    ack = probe_read_bits(3 + DAP_Data.swd_conf.turnaround) >> DAP_Data.swd_conf.turnaround;
 	    if (ack == DAP_TRANSFER_OK) {
 	        uint32_t bit;
 	        uint32_t parity;
@@ -178,7 +179,8 @@ uint8_t __no_inline_not_in_flash_func(SWD_Transfer)(uint32_t request, uint32_t *
 	    //
 	    // write data
 	    //
-        ack = probe_send_cmd_ack(prq);
+        probe_write_bits(8, prq);
+        ack = probe_read_bits(3 + DAP_Data.swd_conf.turnaround) >> DAP_Data.swd_conf.turnaround;
 	    if (ack == DAP_TRANSFER_OK) {
 	        uint32_t parity;
 

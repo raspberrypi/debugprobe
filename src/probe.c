@@ -135,23 +135,6 @@ uint32_t __no_inline_not_in_flash_func(probe_read_bits)(uint bit_count)
 
 
 
-uint32_t __no_inline_not_in_flash_func(probe_send_cmd_ack)(uint8_t cmd)
-{
-    const uint32_t bits_read = DAP_Data.swd_conf.turnaround + 3;  // 4..7
-    uint32_t ack;
-
-    picoprobe_dump("probe_send_cmd_ack %02x\n", cmd);
-    DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE_REQ);
-    probe_write_bits(8, cmd);
-
-    ack = probe_read_bits(bits_read);
-    DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE);
-
-    return ack >> DAP_Data.swd_conf.turnaround;
-}   // probe_send_cmd_ack
-
-
-
 void probe_gpio_init()
 {
 	static bool initialized;
