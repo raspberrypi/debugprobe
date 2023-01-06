@@ -156,18 +156,18 @@ uint8_t __no_inline_not_in_flash_func(SWD_Transfer)(uint32_t request, uint32_t *
 	        uint32_t val;
 
             val = probe_read_bits(32);
-            bit = probe_read_bits(1);
+            if (data) {
+                *data = val;
+            }
+            // read parity and turn around
+            bit = probe_read_bits(DAP_Data.swd_conf.turnaround + 1);
+
             parity = __builtin_popcount(val);
             if ((parity ^ bit) & 1U) {
                 /* Parity error */
                 ack = DAP_TRANSFER_ERROR;
             }
-            if (data) {
-                *data = val;
-            }
-            //      picoprobe_debug("Read %02x ack %02x 0x%08lx parity %01x\n", prq, ack, val, bit);
-            /* Turnaround for line idle */
-            probe_read_bits(DAP_Data.swd_conf.turnaround);
+//            picoprobe_debug("Read %02x ack %02x 0x%08lx parity %01lx\n", prq, ack, val, bit);
 
             /* Idle cycles - drive 0 for N clocks */
             if (DAP_Data.transfer.idle_cycles != 0) {

@@ -104,14 +104,22 @@ void probe_assert_reset(bool state)
 
 
 
+/**
+ * Write data stream via SWD.
+ * Actually only 32bit can be set, more data is sent as "zero".  Especially useful for
+ * idle cycles (although never seen),
+ */
 void __no_inline_not_in_flash_func(probe_write_bits)(uint bit_count, uint32_t data)
 {
-    if (bit_count <= 16) {
-        pio_sm_put_blocking(pio0, PROBE_SM, CTRL_WORD_WRITE(bit_count - 1, data));
-    }
-    else {
+    for (;;) {
+        if (bit_count <= 16) {
+            pio_sm_put_blocking(pio0, PROBE_SM, CTRL_WORD_WRITE(bit_count - 1, data));
+            break;
+        }
+
         pio_sm_put_blocking(pio0, PROBE_SM, CTRL_WORD_WRITE(16 - 1, data & 0xffff));
-        pio_sm_put_blocking(pio0, PROBE_SM, CTRL_WORD_WRITE(bit_count - 17, data >> 16));
+        data >>= 16;
+        bit_count -= 16;
     }
     picoprobe_dump("Write %u bits 0x%lx\n", bit_count, data);
 }   // probe_write_bits
