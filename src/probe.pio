@@ -35,23 +35,22 @@
     .side_set 1 opt                                ; side set SWCLK
 
 
-; The default approach is to just accept jump targets in the fifo so they effectively
+; The default approach is to just accept jump targets in the FIFO so they effectively
 ; become a series of function calls, each function can then process arguments as needed
 ; The jump target is 8 bits (the least significant 8)
+
 public start:
-    out pc, 8
+    out pc, 8                   side 0
 
 
-; // BULK OUTPUT //
-;
-; Simple sends up to 2^24 bits worth of data over the link. The remaining 24 bits of the
-; first control word dictate how many bits will be sent, then the bits follow in 32bit words
-; until no more are needed. If we end of a exact 32 bit boundary then we must send another
-; word (this saves on an instruction in here.)
-public output:
-    out x, 24
-public out_jmp:
-    set pindirs, 1              side 0 [2]
+; // OUTPUT //
+
+; Using a single control word sends up to 16 bits (ok, 18) of data. The first 8 will be the jump
+; target (i.e. to here), then 5 to say how many bits, then up to 16 bits of data to send
+
+public short_output:
+    out x, 5
+    set pindirs, 1              side 0
 bulk_out_loop:
     out pins, 1                 side 0 [2]
     jmp x--, bulk_out_loop      side 1 [2]
@@ -59,23 +58,17 @@ bulk_out_loop:
     out NULL, 32                                ; clear anything not sent
     jmp start
 
-; // INPUT // -- reads in a certain number of bits and pushes them into the fifo, this
-;                will push at the end
+
+; // INPUT //
+
+; Reads in a certain number of bits and pushes the last 32bit into the FIFO
+
 public input:
     out x, 24
 public in_jmp:
-    set pindirs, 0              side 0 [2]
+    set pindirs, 0              side 0
 bulk_in_loop:
     in pins, 1                  side 1 [2]
     jmp x--, bulk_in_loop       side 0 [2]
     push
     jmp start
-
-
-; // SHORT OUTPUT //
-;
-; Using a single control word sends up to 16 bits of data. The first 8 will be the jump
-; target (i.e. to here), then 5 to say how many bits, then up to 16 bits of data to send
-public short_output:
-    out x, 5
-    jmp out_jmp

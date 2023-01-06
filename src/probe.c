@@ -40,6 +40,10 @@
 #include "DAP.h"
 
 
+#define CTRL_WORD_WRITE(CNT, DATA)    (((DATA) << 13) + ((CNT) << 8) + (probe.offset + probe_offset_short_output))
+#define CTRL_WORD_READ(CNT)           (                 ((CNT) << 8) + (probe.offset + probe_offset_input))
+
+
 // Only want to set / clear one gpio per event so go up in powers of 2
 enum _dbg_pins {
     DBG_PIN_WRITE_REQ = 1,
@@ -100,20 +104,14 @@ void probe_assert_reset(bool state)
 
 
 
-#define CTRL_WORD_WRITE(CNT)                (                 ((CNT) << 8) + (probe.offset + probe_offset_output))
-#define CTRL_WORD_WRITE_SHORT(CNT, DATA)    (((DATA) << 13) + ((CNT) << 8) + (probe.offset + probe_offset_short_output))
-#define CTRL_WORD_READ(CNT)                 (                 ((CNT) << 8) + (probe.offset + probe_offset_input))
-
-
-
 void __no_inline_not_in_flash_func(probe_write_bits)(uint bit_count, uint32_t data)
 {
     if (bit_count <= 16) {
-        pio_sm_put_blocking(pio0, PROBE_SM, CTRL_WORD_WRITE_SHORT(bit_count - 1, data));
+        pio_sm_put_blocking(pio0, PROBE_SM, CTRL_WORD_WRITE(bit_count - 1, data));
     }
     else {
-        pio_sm_put_blocking(pio0, PROBE_SM, CTRL_WORD_WRITE_SHORT(16 - 1, data & 0xffff));
-        pio_sm_put_blocking(pio0, PROBE_SM, CTRL_WORD_WRITE_SHORT(bit_count - 17, data >> 16));
+        pio_sm_put_blocking(pio0, PROBE_SM, CTRL_WORD_WRITE(16 - 1, data & 0xffff));
+        pio_sm_put_blocking(pio0, PROBE_SM, CTRL_WORD_WRITE(bit_count - 17, data >> 16));
     }
     picoprobe_dump("Write %u bits 0x%lx\n", bit_count, data);
 }   // probe_write_bits
