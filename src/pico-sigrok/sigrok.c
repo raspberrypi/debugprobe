@@ -7,22 +7,17 @@
  */
 
 #include <stdio.h>
-#include "pico/stdlib.h" //uart definitions
-#include <stdlib.h> //atoi,atol
-#include "hardware/gpio.h"
-//Note: Hardware libraries must be added to CMakelists.txt
+#include "pico/stdlib.h"
+#include <stdlib.h>
+#include "stdarg.h"
+#include <string.h>
 #include "hardware/pio.h"
 #include "hardware/adc.h"
 #include "hardware/dma.h"
 #include "hardware/structs/bus_ctrl.h"
-#include "hardware/structs/pwm.h"
-#include "hardware/sync.h" //wev
-#include "pico/binary_info.h"
-#include "stdarg.h"
-#include "pico/multicore.h"
-#include <string.h>
 #include "hardware/clocks.h"
-#include "tusb.h"//.tud_cdc_write...
+#include "pico/multicore.h"
+#include "tusb.h"
 
 #include "sigrok.h"
 #include "sigrok-inc.h"
@@ -80,7 +75,7 @@ volatile bool mask_xfer_err;
 void my_stdio_usb_out_chars(const char *buf, int length)
 {
     static uint64_t last_avail_time;
-    uint32_t owner;
+
     if (tud_cdc_connected()) {
         for (int i = 0; i < length;) {
             int n = length - i;
@@ -121,7 +116,7 @@ void my_stdio_usb_out_chars(const char *buf, int length)
 //For longer runs, an RLE only encoding uses decimal values 48 to 127 (0x30 to 0x7F)
 //as x8 run length values of 8..640.
 //All other ascii values (except from the abort and the end of run byte_cnt) are reserved.
-uint32_t send_slices_D4(sr_device_t *d,uint8_t *dbuf){
+void send_slices_D4(sr_device_t *d,uint8_t *dbuf){
    uint8_t nibcurr,niblast;
    uint32_t cword,lword; //current and last word
    uint32_t *cptr;
@@ -146,9 +141,9 @@ uint32_t send_slices_D4(sr_device_t *d,uint8_t *dbuf){
    rlecnt=0;
 
    if(d->samples_per_half<=8){
-     my_stdio_usb_out_chars(txbuf,txbufidx);
+     my_stdio_usb_out_chars((char *)txbuf,txbufidx);
      d->scnt+=d->samples_per_half;
-     return txbufidx;
+     return;
    }
    //chngcnt=8;
    //The total number of 4 bit samples remaining to process from this half.
@@ -178,7 +173,7 @@ uint32_t send_slices_D4(sr_device_t *d,uint8_t *dbuf){
          txbuf[txbufidx++]=127;
          rlecnt-=640;
          if(txbufidx>3){
-            my_stdio_usb_out_chars(txbuf,txbufidx);
+            my_stdio_usb_out_chars((char *)txbuf,txbufidx);
             ccnt+=txbufidx;
             txbufidx=0;
          }
@@ -227,7 +222,7 @@ uint32_t send_slices_D4(sr_device_t *d,uint8_t *dbuf){
        #endif
        //Emperically found that transmitting groups of around 32B gives optimum bandwidth
        if(txbufidx>=64){
-         my_stdio_usb_out_chars(txbuf,txbufidx);
+         my_stdio_usb_out_chars((char *)txbuf,txbufidx);
          ccnt+=txbufidx;
          txbufidx=0;
        }
@@ -254,7 +249,7 @@ uint32_t send_slices_D4(sr_device_t *d,uint8_t *dbuf){
       rlecnt=0;
     }
     if(txbufidx){
-       my_stdio_usb_out_chars(txbuf,txbufidx);
+       my_stdio_usb_out_chars((char *)txbuf,txbufidx);
        ccnt+=txbufidx;
        txbufidx=0;
     }
@@ -262,7 +257,7 @@ uint32_t send_slices_D4(sr_device_t *d,uint8_t *dbuf){
 }//send_slices_D4
 
 //Send a digital sample of multiple bytes with the 7 bit encoding
-inline void tx_d_samp(sr_device_t *d,uint32_t cval){
+void tx_d_samp(sr_device_t *d,uint32_t cval){
     for(char b=0;b < d->d_tx_bps;b++){
       txbuf[txbufidx++]=(cval|0x80);
       cval>>=7;
@@ -298,7 +293,7 @@ forward txbuf bytes to USB to prevent txbufidx from overflowing the size
 of txbuf. We do not always push to USB to reduce its impact
 on performance.
  */
-inline void check_rle(void){
+void check_rle(void){
   while(rlecnt>=1568){
     txbuf[txbufidx++]=127;
     rlecnt-=1568;
@@ -317,7 +312,7 @@ inline void check_rle(void){
 //Send txbuf to usb based on an input threshold
 void check_tx_buf(uint16_t cnt){
   if(txbufidx>=cnt){
-     my_stdio_usb_out_chars(txbuf,txbufidx);
+     my_stdio_usb_out_chars((char *)txbuf,txbufidx);
      ccnt+=txbufidx;
      txbufidx=0;
   }
@@ -429,7 +424,6 @@ void send_slices_analog(sr_device_t *d,uint8_t *dbuf,uint8_t *abuf){
         d->scnt+=d->samples_per_half;
    }
    txbufidx=0;
-   uint32_t lval=0;
    for(int s=0;s<samp_remain;s++){
          if(d->d_mask){
             cval=get_cval(dbuf);
@@ -458,10 +452,8 @@ int check_half(sr_device_t *d,volatile uint32_t *tstsa0,volatile uint32_t *tstsa
                  volatile uint32_t *tstsd1,volatile uint32_t *t_addra0,volatile uint32_t *t_addrd0,
                  uint8_t *d_start_addr,uint8_t *a_start_addr, bool mask_xfer_err){
   int a0busy,d0busy;
-  uint64_t stime,etime,dtime;
   volatile uint32_t *piodbg1,*piodbg2;
   volatile uint8_t piorxstall1,piorxstall2;
-  stime=time_us_64();
   a0busy=((*tstsa0)>>24)&1;
   d0busy=((*tstsd0)>>24)&1;
 
@@ -489,9 +481,7 @@ int check_half(sr_device_t *d,volatile uint32_t *tstsa0,volatile uint32_t *tstsa
        //Note that we must use the "alias" versions of the DMA CSRs to prevent writes from triggering them.
        //Since we swap the csr pointers we determine the other half from the address offsets.
        uint8_t myachan=(((uint32_t) tstsa0)>>6)&0xF;
-       uint8_t otherachan=(((uint32_t) tstsa1)>>6)&0xF;
        uint8_t mydchan=(((uint32_t)tstsd0)>>6)&0xF;
-       uint8_t otherdchan=(((uint32_t)tstsd1)>>6)&0xF;
        //  Dprintf("my stts pre a 0x%X d 0x%X\n\r",*tstsa0,*tstsd0);
        //Set my chain to myself so that I can't chain to the other.
        volatile uint32_t ttmp;
@@ -583,12 +573,15 @@ int check_half(sr_device_t *d,volatile uint32_t *tstsa0,volatile uint32_t *tstsa
   }//if not busy
   return 0;
 }//check_half
+
+
+
 //Check if dma activity is complete.  This was split out to allow core1 to do the monitoring
 //and slice processing and leave usb interrupt handling to core 0, but doing so did not improve
 //streaming performance, so it's left in core0.
-void dma_check(sr_device_t *d){
+void dma_check(sr_device_t *d)
+{
         if(d->sending&& d->started && ((d->scnt<d->num_samples)||d->cont)){
-          uint32_t a,b;
           int ret;
           c0cnt++;
           if(lowerhalf){
@@ -613,15 +606,10 @@ void dma_check(sr_device_t *d){
 //This is a simple maintenance loop to monitor serial activity so that core0 can be dedicated
 //to monitoring DMA activity and sending trace data.
 //Most of the time this loop is stalled with wfes (wait for events).
-void core1_code(){
-   uint32_t testinc=0x0;
+void core1_code()
+{
    int intin;
-   uint8_t uartch;
-   uint32_t ctime;
-   uint32_t cval;
-   volatile uint32_t *usbctrl;
-   usbctrl=(volatile uint32_t *)(USBCTRL_BASE);
-   uint32_t usb_last=1,usb_curr;
+
    while(true){
      //The wait for event (wfe) puts core1 in an idle state
      //Each core instruction takes a memory cycle, as does each core memory or IO register read.
@@ -652,7 +640,7 @@ void core1_code(){
        //these are generally rare events caused by noise/reset events
        //and thus not checked when dev.started
        while (uart_is_readable_within_us(uart0, 0)) {
-            uartch = uart_getc(uart0);
+            (void)uart_getc(uart0);
        }
      }
      //look for commands on usb cdc
@@ -678,24 +666,14 @@ void core1_code(){
 
 void sigrok_task(void *ptr)
 {
-    char cmdstr[20];
-    int cmdstrptr=0;
-    char charin,tmpchar;
-    long int i,j;
-    uint16_t len;
-    uint32_t tmpint,tmpint2;
-
-
     dma_channel_config acfg0,acfg1,pcfg0,pcfg1;
     uint admachan0,admachan1,pdmachan0,pdmachan1;
     PIO pio = pio0;
     uint piosm=0;
-    float ddiv;
-    int res;
     bool init_done=false;
-    uint64_t starttime,endtime;
+
     set_sys_clock_khz(SYS_CLK_BASE,true);
-    stdio_usb_init();
+//    stdio_usb_init();                       // TODO is stdio for sigrok or debugging?
     uart_set_format(uart0,8,1,1);
     uart_init(uart0,921600);
     gpio_set_function(0, GPIO_FUNC_UART);
@@ -758,11 +736,9 @@ void sigrok_task(void *ptr)
 
     //Use the debug version of the count registers because the count of the DMA_TRANS_COUNT is not
     //visible if it is not active
-    volatile uint32_t *tcountdbga0,*tcountdbga1,*tcountdbgd0,*tcountdbgd1;
+    volatile uint32_t *tcountdbga0,*tcountdbgd0;
     tcountdbga0=(volatile uint32_t *)(DMA_BASE+0x40*admachan0+0x804); //DMA_TRANS_COUNT DBGoffset
-    tcountdbga1=(volatile uint32_t *)(DMA_BASE+0x40*admachan1+0x804); //DMA_TRANS_COUNT DBGoffset
     tcountdbgd0=(volatile uint32_t *)(DMA_BASE+0x40*pdmachan0+0x804); //DMA_TRANS_COUNT DBGoffset
-    tcountdbgd1=(volatile uint32_t *)(DMA_BASE+0x40*pdmachan1+0x804); //DMA_TRANS_COUNT DBGoffset
 
     taddra0=(volatile uint32_t *)(DMA_BASE+0x40*admachan0+0x4); //DMA_WRITE_addr offset
     taddra1=(volatile uint32_t *)(DMA_BASE+0x40*admachan1+0x4); //DMA_WRITE_addr offset
@@ -773,15 +749,7 @@ void sigrok_task(void *ptr)
     tstsa1=(volatile uint32_t *)(DMA_BASE+0x40*admachan1+0xc); //DMA_WRITE_sts offset
     tstsd0=(volatile uint32_t *)(DMA_BASE+0x40*pdmachan0+0xc); //DMA_WRITE_sts offset
     tstsd1=(volatile uint32_t *)(DMA_BASE+0x40*pdmachan1+0xc); //DMA_WRITE_sts offset
-    //PIO status
-    volatile uint32_t *pioctrl,*piofstts,*piodbg,*pioflvl;
-    pioctrl=(volatile uint32_t *)(PIO0_BASE); //PIO CTRL
-    piofstts=(volatile uint32_t *)(PIO0_BASE+0x4); //PIO FSTAT
-    piodbg=(volatile uint32_t *)(PIO0_BASE+0x8); //PIO DBG
-    pioflvl=(volatile uint32_t *)(PIO0_BASE+0x10); //PIO FLVL
 
-    volatile uint32_t *pio0sm0clkdiv;
-    pio0sm0clkdiv=(volatile uint32_t *)(PIO0_BASE+0xc8);
     //Give High priority to DMA to ensure we don't overflow the PIO or DMA fifos
     //The DMA controller must read across the common bus to read the PIO fifo so enabled both reads and write
     bus_ctrl_hw->priority = BUSCTRL_BUS_PRIORITY_DMA_W_BITS | BUSCTRL_BUS_PRIORITY_DMA_R_BITS;
@@ -1079,9 +1047,7 @@ for faster parsing.
           //Dprintf("capture_buf base %p \n\r",capture_buf);
           //Dprintf("capture_buf dig %p %p \n\r",&(capture_buf[dev.dbuf0_start]),&(capture_buf[dev.dbuf1_start]));
           //Dprintf("capture_buf analog %p %p\n\r",&(capture_buf[dev.abuf0_start]),&(capture_buf[dev.abuf1_start]));
-          //Dprintf("PIOSMCLKDIV 0x%X\n\r",*pio0sm0clkdiv);
 
-          //Dprintf("PIO ctrl 0x%X fstts 0x%X dbg 0x%X lvl 0x%X\n\r",*pioctrl,*piofstts,*piodbg,*pioflvl);
           //Dprintf("DMA channel assignments a %d %d d %d %d\n\r",admachan0,admachan1,pdmachan0,pdmachan1);
           //Dprintf("DMA ctr reg addrs a %p %p d %p %p\n\r",(void *) tstsa0,(void *)tstsa1,(void *)tstsd0,(void *)tstsd1);
           //Dprintf("DMA ctrl reg a 0x%X 0x%X d 0x%X 0x%X\n\r",*tstsa0,*tstsa1,*tstsd0,*tstsd1);
@@ -1105,7 +1071,6 @@ for faster parsing.
         }
        //if we abort or normally finish a run sending gets dropped
        if((dev.sending==false)&&(init_done==true)){
-     //Dprintf("Ending PIO ctrl 0x%X fstts 0x%X dbg 0x%X lvl 0x%X\n\r",*pioctrl,*piofstts,*piodbg,*pioflvl);
              //The end of sequence byte_cnt uses a "$<byte_cnt>+" format.
              //Send the byte_cnt to ensure no bytes were lost
              if(dev.aborted==false){
@@ -1114,7 +1079,7 @@ for faster parsing.
                //isn't dropped on the wire
                sleep_us(100000);
                Dprintf("Cleanup bytecnt %d\n\r",ccnt);
-           sprintf(brsp,"$%d%c",ccnt,'+');
+           sprintf(brsp,"$%lu%c",ccnt,'+');
                puts_raw(brsp);
              }
 
@@ -1182,7 +1147,7 @@ for faster parsing.
    }//while(1)
 
 
-}//main
+}
 //Depracated trigger logic
 //This HW based trigger which should be part of send slices was tested enough to confirm the
 //trigger value worked, however it
@@ -1233,3 +1198,10 @@ for faster parsing.
 //      tlval=lval;
 End of depracated trigger logic
 */
+
+
+
+void sigrok_init(uint32_t task_prio)
+{
+    sigrok_task(NULL);    // very experimental for clean up, does really not run
+}   // sigrok_init

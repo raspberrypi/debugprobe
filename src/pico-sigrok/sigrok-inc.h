@@ -79,7 +79,7 @@ typedef struct sr_device {
   uint8_t pin_count;
   uint8_t d_nps; //digital nibbles per slice from a PIO/DMA perspective.
   uint32_t scnt; //number of samples sent
-  char cmdstrptr;
+  uint32_t cmdstrptr;
   char cmdstr[20];//used for parsing input
   uint32_t d_size,a_size; //size of each of the two data buffers for each of a& d
   uint32_t dbuf0_start,dbuf1_start,abuf0_start,abuf1_start; //starting memory pointers of adc buffers

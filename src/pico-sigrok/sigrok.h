@@ -27,12 +27,17 @@
 #define _SIGROK_H
 
 
+#include <stdint.h>
+#include <stdbool.h>
+
+
 #ifdef __cplusplus
     extern "C" {
 #endif
 
 
 void sigrok_task(void *ptr);
+void sigrok_init(uint32_t task_prio);
 
 
 #ifdef __cplusplus
