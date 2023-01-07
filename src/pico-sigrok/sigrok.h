@@ -36,7 +36,6 @@
 #endif
 
 
-void sigrok_task(void *ptr);
 void sigrok_init(uint32_t task_prio);
 
 
