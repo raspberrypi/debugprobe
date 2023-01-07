@@ -21,9 +21,11 @@
 #include "stdarg.h"
 #include "pico/multicore.h"
 #include <string.h>
-#include "sigrok-inc.h"
 #include "hardware/clocks.h"
 #include "tusb.h"//.tud_cdc_write...
+
+#include "sigrok.h"
+#include "sigrok-inc.h"
 
 //NODMA is a debug mode that disables the DMA engine and prints raw PIO FIFO outputs
 //it is limited to testing a small number of samples equal to the PIO FIFO depths
@@ -69,7 +71,14 @@ volatile bool mask_xfer_err;
 //to directly write to it, rather than writing txbuf.  That might allow faster rle processing
 //but is a bit too complicated.
 
-void my_stdio_usb_out_chars(const char *buf, int length) {
+// PICO_CONFIG: PICO_STDIO_USB_STDOUT_TIMEOUT_US, Number of microseconds to be blocked trying to write USB
+// output before assuming the host has disappeared and discarding data, default=500000, group=pico_stdio_usb
+#ifndef PICO_STDIO_USB_STDOUT_TIMEOUT_US
+    #define PICO_STDIO_USB_STDOUT_TIMEOUT_US 500000
+#endif
+
+void my_stdio_usb_out_chars(const char *buf, int length)
+{
     static uint64_t last_avail_time;
     uint32_t owner;
     if (tud_cdc_connected()) {
@@ -80,14 +89,14 @@ void my_stdio_usb_out_chars(const char *buf, int length) {
             if (n) {
                 int n2 = (int) tud_cdc_write(buf + i, (uint32_t)n);
                 tud_task();
-        tud_cdc_write_flush();
+                tud_cdc_write_flush();
                 i += n2;
                 last_avail_time = time_us_64();
             } else {
                 tud_task();
-        tud_cdc_write_flush();
+                tud_cdc_write_flush();
                 if (!tud_cdc_connected() ||
-                    (!tud_cdc_write_available() && time_us_64() > last_avail_time + PICO_STDIO_USB_STDOUT_TIMEOUT_US)) {
+                        (!tud_cdc_write_available() && time_us_64() > last_avail_time + PICO_STDIO_USB_STDOUT_TIMEOUT_US)) {
                     break;
                 }
             }
@@ -665,7 +674,10 @@ void core1_code(){
 
 }
 
-int main(){
+
+
+void sigrok_task(void *ptr)
+{
     char cmdstr[20];
     int cmdstrptr=0;
     char charin,tmpchar;

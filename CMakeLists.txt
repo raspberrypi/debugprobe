@@ -45,7 +45,6 @@ target_sources(picoprobe PRIVATE
         CMSIS_5/CMSIS/DAP/Firmware/Source/JTAG_DP.c
         CMSIS_5/CMSIS/DAP/Firmware/Source/DAP_vendor.c
         CMSIS_5/CMSIS/DAP/Firmware/Source/SWO.c
-        # CMSIS_5/CMSIS/DAP/Firmware/Source/SW_DP.c
         )
 
 target_include_directories(picoprobe PRIVATE
@@ -56,7 +55,7 @@ target_include_directories(picoprobe PRIVATE
 
 #--------------------------------------------------------------------------------------------------
 #
-# this is all for MSC operation
+# this is for MSC operation
 #
 target_sources(picoprobe PRIVATE
         src/msc/msc_drive.c
@@ -79,6 +78,19 @@ target_include_directories(picoprobe PRIVATE
 
 add_compile_definitions(INTERFACE_RP2040=1
                         DAPLINK_IF=1)
+
+#--------------------------------------------------------------------------------------------------
+#
+# this is for SIGROK operation (taken from https://github.com/pico-coder/sigrok-pico)
+#
+target_sources(picoprobe PRIVATE
+        src/pico-sigrok/sigrok.c
+        )
+
+target_link_libraries(picoprobe PRIVATE
+        hardware_adc
+        hardware_dma
+    )
 
 #--------------------------------------------------------------------------------------------------
 
