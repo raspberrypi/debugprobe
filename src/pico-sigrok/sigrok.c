@@ -24,7 +24,6 @@
 
 
 // TODO nur GP12-GP19 verwenden?
-// TODO PIO welches PIO wird verwendet?
 // TODO wie geht das heier mit dem Debug-Output?
 // TODO TinyUSB-Setup und Handling
 // TODO Taskpriorisierung
@@ -851,7 +850,6 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
                       uint8_t *d_start_addr, uint8_t *a_start_addr, bool mask_xfer_err)
 {
     int a0busy, d0busy;
-    volatile uint32_t *piodbg1, *piodbg2;
     volatile uint8_t piorxstall1, piorxstall2;
 
     a0busy = ((*tstsa0) >> 24) & 1;
@@ -892,8 +890,7 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
         (*t_addra0) = (uint32_t) a_start_addr;
         (*t_addrd0) = (uint32_t) d_start_addr;
 
-        piodbg1=(volatile uint32_t *)(PIO0_BASE+0x8); //PIO DBG
-        piorxstall1 = (((*piodbg1) & 0x1)  &&  (d->d_mask != 0));
+        piorxstall1 = ((SIGROK_PIO->fdebug & 0x1)  &&  (d->d_mask != 0));
 
         if (d->a_mask) {
             send_slices_analog(d, d_start_addr, a_start_addr);
@@ -922,8 +919,7 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
         ttmp = ((tstsa1[1]) & 0xFFFF87FF) | (myachan << 11);
         tstsa1[1] = ttmp;
         num_halves++;
-        piodbg2 = (volatile uint32_t *)(PIO0_BASE + 0x8); //PIO DBG
-        piorxstall2 = ((*piodbg2) & 0x1)  &&  (d->d_mask != 0);
+        piorxstall2 = (SIGROK_PIO->fdebug & 0x1)  &&  (d->d_mask != 0);
         volatile uint32_t *adcfcs;
         uint8_t adcfail;
         adcfcs = (volatile uint32_t *)(ADC_BASE + 0x8);//ADC FCS
@@ -1075,8 +1071,6 @@ static void sigrok_task(void *ptr)
 {
     dma_channel_config acfg0,acfg1,pcfg0,pcfg1;
     uint admachan0,admachan1,pdmachan0,pdmachan1;
-    PIO pio = pio0;
-    uint piosm=0;
     bool init_done=false;
 
     set_sys_clock_khz(SYS_CLK_BASE,true);
@@ -1393,7 +1387,7 @@ static void sigrok_task(void *ptr)
                         .length = 1,
                         .origin = -1
                 };
-                uint offset = pio_add_program(pio, &capture_prog);
+                uint offset = pio_add_program(SIGROK_PIO, &capture_prog);
                 // Configure state machine to loop over this `in` instruction forever,
                 // with autopush enabled.
                 pio_sm_config c = pio_get_default_sm_config();
@@ -1415,26 +1409,26 @@ static void sigrok_task(void *ptr)
                 //Since we enable digital channels in groups of 4, we always get 32 bit words
                 sm_config_set_in_shift(&c, true, true, 32);
                 sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
-                pio_sm_init(pio, piosm, offset, &c);
+                pio_sm_init(SIGROK_PIO, SIGROK_SM, offset, &c);
                 //Analyzer arm from pico examples
-                pio_sm_set_enabled(pio, piosm, false); //clear the enabled bit
+                pio_sm_set_enabled(SIGROK_PIO, SIGROK_SM, false); //clear the enabled bit
                 //XOR the shiftctrl field with PIO_SM0_SHIFTCTRL_FJOIN_RX_BITS
                 //Do it twice to restore the value
-                pio_sm_clear_fifos(pio, piosm);
+                pio_sm_clear_fifos(SIGROK_PIO, SIGROK_SM);
                 //write the restart bit of PIO_CTRL
-                pio_sm_restart(pio, piosm);
+                pio_sm_restart(SIGROK_PIO, SIGROK_SM);
 
 #ifndef NODMA
-                channel_config_set_dreq(&pcfg0, pio_get_dreq(pio,piosm,false));
-                channel_config_set_dreq(&pcfg1, pio_get_dreq(pio,piosm,false));
+                channel_config_set_dreq(&pcfg0, pio_get_dreq(SIGROK_PIO,SIGROK_SM,false));
+                channel_config_set_dreq(&pcfg1, pio_get_dreq(SIGROK_PIO,SIGROK_SM,false));
 
                 //                       number    config   buffer target                  piosm          xfer size  trigger
-                dma_channel_configure(pdmachan0,&pcfg0,&(capture_buf[dev.dbuf0_start]),&pio->rxf[piosm],dev.d_size>>2,true);
-                dma_channel_configure(pdmachan1,&pcfg1,&(capture_buf[dev.dbuf1_start]),&pio->rxf[piosm],dev.d_size>>2,false);
+                dma_channel_configure(pdmachan0,&pcfg0,&(capture_buf[dev.dbuf0_start]),&SIGROK_PIO->rxf[SIGROK_SM],dev.d_size>>2,true);
+                dma_channel_configure(pdmachan1,&pcfg1,&(capture_buf[dev.dbuf1_start]),&SIGROK_PIO->rxf[SIGROK_SM],dev.d_size>>2,false);
 #endif
 
                 //This is done later so that we start everything as close in time as possible
-                //             pio_sm_set_enabled(pio, piosm, true);
+                //             pio_sm_set_enabled(SIGROK_PIO, SIGROK_SM, true);
             } //dev.d_mask
             //These must be at their initial value,(or zero for the 2ndhalf) otherwise it indicates they have started to countdown
             //Dprintf("Tcount start d %u %u a %u %u\n",*tcountd0,*tcountd1,*tcounta0,*tcounta1);
@@ -1473,7 +1467,7 @@ static void sigrok_task(void *ptr)
             //warning - do not put printfs or similar things here...
             tstart = time_us_32();
             adc_run(true); //enable free run sample mode
-            pio_sm_set_enabled(pio, piosm, true);
+            pio_sm_set_enabled(SIGROK_PIO, SIGROK_SM, true);
             dev.started = true;
             init_done = true;
 
@@ -1504,20 +1498,20 @@ static void sigrok_task(void *ptr)
             // if dma is disabled and sample sizes are small this can be used
             // to pull the raw sample data from the pio fifos.
             uint lvl;
-            lvl=pio_sm_get_rx_fifo_level(pio,piosm);
+            lvl=pio_sm_get_rx_fifo_level(pio,SIGROK_SM);
             Dprintf("FIFOlvl 0x%X\n",lvl);
             uint32_t fval;
             for (int x = 0;  x < lvl;  x++) {
-                Dprintf("RX FIFO x %d:0x%X\n",x,pio_sm_get_blocking(pio,piosm));
+                Dprintf("RX FIFO x %d:0x%X\n",x,pio_sm_get_blocking(pio,SIGROK_SM));
             }
 
 #endif
             adc_run(false);
             adc_fifo_drain();
-            pio_sm_restart(pio, piosm);
-            pio_sm_set_enabled(pio, piosm, false);
-            pio_sm_clear_fifos(pio, piosm);
-            pio_clear_instruction_memory(pio);
+            pio_sm_restart(SIGROK_PIO, SIGROK_SM);
+            pio_sm_set_enabled(SIGROK_PIO, SIGROK_SM, false);
+            pio_sm_clear_fifos(SIGROK_PIO, SIGROK_SM);
+            pio_clear_instruction_memory(SIGROK_PIO);
 
             dma_channel_abort(admachan0);
             dma_channel_abort(admachan1);
