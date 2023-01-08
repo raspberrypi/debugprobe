@@ -183,7 +183,7 @@ static void reset(sr_device_t *d)
     //d->risemask=0;
     //d->fallmask=0;
     //d->chgmask=0;
-}   //reset
+}   // reset
 
 
 
@@ -459,7 +459,7 @@ static void my_stdio_usb_out_chars(const char *buf, int length)
         // reset our timeout
         last_avail_time = 0;
     }
-}
+}   // my_stdio_usb_out_chars
 
 
 
@@ -516,7 +516,8 @@ static void send_slices_D4(sr_device_t *d,uint8_t *dbuf)
     if ((d->cont==false)  &&  ((d->scnt+samp_remain) > (d->num_samples))) {
         samp_remain = d->num_samples-d->scnt;
         d->scnt += samp_remain;
-    }else{
+    }
+    else {
         d->scnt += d->samples_per_half;
     }
     //Process one  word (8 samples) at a time.
@@ -637,24 +638,24 @@ static void tx_d_samp(sr_device_t *d,uint32_t cval)
 //limited to 500khz, and in the starting send_slice_init.
 static uint32_t  get_cval(uint8_t *dbuf)
 {
-       uint32_t cval;
+    uint32_t cval;
 
-       if (d_dma_bps == 1) {
-           cval = dbuf[rxbufdidx];
-       }
-       else if (d_dma_bps == 2) {
-           cval = (*((uint16_t *) (dbuf+rxbufdidx)));
-       }
-       else {
-           cval =(*((uint32_t *) (dbuf+rxbufdidx)));
-           //To make a 32bit value written from PIO we pull in IOs that aren't actuall
-           //digital channels so mask them off
-           cval <<= 11;    // TODO this set the upper 11bits to zero, could be done differently
-           cval >>= 11;
-       }
-       rxbufdidx += d_dma_bps;
-       return cval;
-}
+    if (d_dma_bps == 1) {
+        cval = dbuf[rxbufdidx];
+    }
+    else if (d_dma_bps == 2) {
+        cval = (*((uint16_t *) (dbuf+rxbufdidx)));
+    }
+    else {
+        cval =(*((uint32_t *) (dbuf+rxbufdidx)));
+        //To make a 32bit value written from PIO we pull in IOs that aren't actuall
+        //digital channels so mask them off
+        cval <<= 11;    // TODO this set the upper 11bits to zero, could be done differently
+        cval >>= 11;
+    }
+    rxbufdidx += d_dma_bps;
+    return cval;
+}   // get_cval
 
 
 
@@ -668,7 +669,7 @@ on performance.
  */
 static void check_rle(void)
 {
-    while (rlecnt>=1568) {
+    while (rlecnt >= 1568) {
         txbuf[txbufidx++] = 127;
         rlecnt -= 1568;
     }
@@ -681,7 +682,7 @@ static void check_rle(void)
         txbuf[txbufidx++] = 47 + rlecnt;
         rlecnt = 0;
     }
-}
+}   // check_rle
 
 
 
@@ -693,7 +694,7 @@ static void check_tx_buf(uint16_t cnt)
         ccnt += txbufidx;
         txbufidx = 0;
     }
-}
+}   // check_tx_buf
 
 
 
@@ -721,7 +722,7 @@ static void send_slice_init(sr_device_t *d,uint8_t *dbuf)
     tx_d_samp(d, lval);
     samp_remain--;
     rlecnt = 0;
-}
+}   // send_slice_init
 
 
 
@@ -845,13 +846,14 @@ static void send_slices_analog(sr_device_t *d,uint8_t *dbuf,uint8_t *abuf)
 //See if a given half's dma engines are idle and if so process the data, update the write pointer and
 //ensure that when done the other dma is still busy indicating we didn't lose data .
 //int __not_in_flash_func(check_half)(sr_device_t *d,volatile uint32_t *tstsa0,volatile uint32_t *tstsa1,volatile uint32_t *tstsd0,
-static int check_half(sr_device_t *d,volatile uint32_t *tstsa0,volatile uint32_t *tstsa1,volatile uint32_t *tstsd0,
-                 volatile uint32_t *tstsd1,volatile uint32_t *t_addra0,volatile uint32_t *t_addrd0,
-                 uint8_t *d_start_addr,uint8_t *a_start_addr, bool mask_xfer_err)
+static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32_t *tstsa1, volatile uint32_t *tstsd0,
+                      volatile uint32_t *tstsd1, volatile uint32_t *t_addra0, volatile uint32_t *t_addrd0,
+                      uint8_t *d_start_addr, uint8_t *a_start_addr, bool mask_xfer_err)
 {
-    int a0busy,d0busy;
-    volatile uint32_t *piodbg1,*piodbg2;
-    volatile uint8_t piorxstall1,piorxstall2;
+    int a0busy, d0busy;
+    volatile uint32_t *piodbg1, *piodbg2;
+    volatile uint8_t piorxstall1, piorxstall2;
+
     a0busy = ((*tstsa0) >> 24) & 1;
     d0busy = ((*tstsd0) >> 24) & 1;
 
@@ -924,7 +926,7 @@ static int check_half(sr_device_t *d,volatile uint32_t *tstsa0,volatile uint32_t
         piorxstall2 = ((*piodbg2) & 0x1)  &&  (d->d_mask != 0);
         volatile uint32_t *adcfcs;
         uint8_t adcfail;
-        adcfcs=(volatile uint32_t *)(ADC_BASE+0x8);//ADC FCS
+        adcfcs = (volatile uint32_t *)(ADC_BASE + 0x8);//ADC FCS
         adcfail = (((*adcfcs) & 0xC00)  &&  (d->a_mask)) ? 1 : 0;
         //if(adcfail){Dprintf("adcfcs 0x%X %p\n",*adcfcs,(void *) adcfcs);}
         //Ensure other dma is still busy, if not that means we have samples from PIO/ADC that could be lost.
