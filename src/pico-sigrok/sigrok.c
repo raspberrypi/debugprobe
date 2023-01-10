@@ -43,7 +43,6 @@
 //The size of the buffer sent to the CDC serial
 //The TUD CDC buffer is only 256B so it doesn't help to have more than this.
 #define TX_BUF_SIZE 260
-#define UART_BAUD 921600
 //This sets the point which we will send data from the txbuf to the usb cdc.
 //For the 5-21 channel RLE it must leave a spare ~83 entries to cover the case where
 //a new long steady input comes after deciding to not send a sample.
@@ -54,22 +53,9 @@
 //20 is arbitrarly picked to ensure that if we have even a little we send it so that
 //at least something goes across the link.
 #define TX_BUF_THRESH 20
-//Base value of sys_clk in khz.  Must be <=125Mhz per RP2040 spec and a multiple of 24Mhz
-//to support integer divisors of the PIO clock and ADC clock
-#define SYS_CLK_BASE 120000
-//Boosted sys_clk in khz.  Runs the part above its specifed frequency limit to support faster
-//processing of digital run length encoding which in some cases may allow for faster
-//streaming of digital only data.
-//****************************
-//Use this at your own risk
-//***************************
-//Frequency must be a 24Mhz multiple and less than 300Mhz to avoid known issues
-//The authors PICO failed at 288Mhz, but testing with 240Mhz seemed reliable
-//#define SYS_CLK_BOOST_EN 1
-//#define SYS_CLK_BOOST_FREQ 240000
 
 //
-// shared between modules
+// shared between modules, definitions are here
 //
 sr_device_t dev;
 volatile bool send_resp = false;
@@ -150,7 +136,7 @@ static void send_slices_D4(sr_device_t *d,uint8_t *dbuf)
     samp_remain = d->samples_per_half-8;
 
     //If in fixed sample (non-continous mode) only send the amount of samples requested
-    if ((d->cont==false)  &&  ((d->scnt+samp_remain) > (d->num_samples))) {
+    if ( !d->cont  &&  d->scnt + samp_remain > d->num_samples) {
         samp_remain = d->num_samples-d->scnt;
         d->scnt += samp_remain;
     }
@@ -159,9 +145,9 @@ static void send_slices_D4(sr_device_t *d,uint8_t *dbuf)
     }
     //Process one  word (8 samples) at a time.
     for (int i = 0;  i < (samp_remain>>3);  i++) {
-        cptr=(uint32_t *) &(dbuf[rxbufdidx]);
-        cword=*cptr;
-        rxbufdidx+=4;
+        cptr = (uint32_t *) &(dbuf[rxbufdidx]);
+        cword = *cptr;
+        rxbufdidx += 4;
 #ifdef D4_DBG2
         Dprintf("dbuf0 %p dbufr %p cptr %p\n",dbuf,&(dbuf[rxbufdidx]),cptr);
 #endif
@@ -169,18 +155,18 @@ static void send_slices_D4(sr_device_t *d,uint8_t *dbuf)
         //push to the device so that we don't accumulate large numbers
         //of unsent RLEs.  That allows the host to process them gradually rather than in a flood
         //when we get a value change.
-        while (rlecnt>=640) {
-            txbuf[txbufidx++]=127;
-            rlecnt-=640;
-            if(txbufidx>3){
+        while (rlecnt >= 640) {
+            txbuf[txbufidx++] = 127;
+            rlecnt -= 640;
+            if (txbufidx > 3){
                 cdc_sigrok_write((char *)txbuf, txbufidx);
-                ccnt+=txbufidx;
-                txbufidx=0;
+                ccnt += txbufidx;
+                txbufidx = 0;
             }
         }
         //Coarse rle looks across the full word and allows a faster compare in cases with low activity factors
         //We must make sure cword==lword and that all nibbles of cword are the same
-        if ((cword==lword)  &&  ((cword>>4)==(cword&0x0FFFFFFF))) {
+        if (cword == lword  &&  (cword >> 4) == (cword & 0x0FFFFFFF)) {
             rlecnt += 8;
 #ifdef D4_DBG2
             Dprintf("coarse word 0x%X\n",cword);
@@ -338,21 +324,21 @@ static void check_tx_buf(uint16_t cnt)
 //Common init for send_slices_1B/2B/4B, but not D4 or analog
 static void send_slice_init(sr_device_t *d,uint8_t *dbuf)
 {
-    rxbufdidx=0;
+    rxbufdidx = 0;
     //Adjust the number of samples to send if there are more in the dma buffer
     //then we need.
-    samp_remain=d->samples_per_half;
-    if ((d->cont==false)  &&  ((d->scnt+samp_remain)>(d->num_samples))) {
+    samp_remain = d->samples_per_half;
+    if ( !d->cont  &&  d->scnt + samp_remain > d->num_samples) {
         samp_remain=d->num_samples-d->scnt;
-        d->scnt+=samp_remain;
+        d->scnt += samp_remain;
     }
     else {
-        d->scnt+=d->samples_per_half;
+        d->scnt += d->samples_per_half;
     }
-    txbufidx=0;
+    txbufidx = 0;
     //Always send the first sample to establish a previous value for RLE
     //the use of get_cval is inefficient, but only done once per half buffer
-    lval=get_cval(dbuf);
+    lval = get_cval(dbuf);
     //If we are in 4B mode shift off invalid bits
     lval <<= 11;     // TODO
     lval >>= 11;
@@ -450,7 +436,7 @@ static void send_slices_analog(sr_device_t *d,uint8_t *dbuf,uint8_t *abuf)
 
     rxbufdidx = 0;
     samp_remain = d->samples_per_half;
-    if ((d->cont == false)  &&  ((d->scnt+samp_remain)>(d->num_samples))) {
+    if ( !d->cont  &&  d->scnt + samp_remain > d->num_samples) {
         samp_remain = d->num_samples - d->scnt;
         d->scnt += samp_remain;
     }
@@ -546,7 +532,7 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
             send_slices_4B(d, d_start_addr);
         }
 
-        if ((d->cont==false)  &&  (d->scnt>=d->num_samples)) {
+        if ( !d->cont  &&  d->scnt >= d->num_samples) {
             d->sending = false;
         }
 
@@ -644,13 +630,10 @@ static void dma_check(sr_device_t *d)
  */
 static void sigrok_task(void *ptr)
 {
-    dma_channel_config acfg0,acfg1,pcfg0,pcfg1;
-    uint admachan0,admachan1,pdmachan0,pdmachan1;
-    bool init_done=false;
+    dma_channel_config acfg0, acfg1, pcfg0, pcfg1;
+    uint admachan0, admachan1, pdmachan0, pdmachan1;
+    bool init_done = false;
 
-    set_sys_clock_khz(SYS_CLK_BASE,true);
-    uart_set_format(uart0,8,1,1);
-    uart_init(uart0,921600);
     gpio_set_function(0, GPIO_FUNC_UART);
     gpio_set_function(1, GPIO_FUNC_UART);
     sleep_us(100000);
@@ -760,40 +743,35 @@ static void sigrok_task(void *ptr)
      */
 
     gpio_init_mask(GPIO_D_MASK); //set as GPIO_FUNC_SIO and clear output enable
-    gpio_set_dir_masked(GPIO_D_MASK,0);  //Set all to input
+    gpio_set_dir_masked(GPIO_D_MASK, 0);  //Set all to input
     for (;;) {
         __sev();//send event to wake core1
         if (send_resp) {
-            int mylen=strlen(dev.rspstr);
+            int mylen = strlen(dev.rspstr);
             //Don't mix printf with direct to usb commands
             //printf("%s",dev.rspstr);
             cdc_sigrok_write(dev.rspstr, mylen);
-            send_resp=false;
+            send_resp = false;
         }
-        //Dprintf("ss %d %d",dev.sending,dev.started);
-        if (dev.sending  &&  (dev.started==false)) {
+
+        //Dprintf("ss %d %d", dev.sending, dev.started);
+        if (dev.sending  &&  !dev.started) {
             //Only boost frequency during a sample so that average device power is less.
             //It's not clear that this is needed because rp2040 is pretty low power, but it can't hurt...
-#ifdef SYS_CLK_BOOST_EN
-            //This is not enabled if any analog channels are enabled because due to
-            //ADC frequency limits the processing rate is never the limiter to performance.
-            //And maybe it might help avoid an overfrequency issue with ADC...or not...
-            if (dev.a_chan_cnt == 0) {
-                Dprintf("Boost up\n");
-                set_sys_clock_khz(SYS_CLK_BOOST_FREQ,true);
-                //UART is based on sys_clk so must be reprogrammed
-                uart_init(uart0,UART_BAUD);
-            }
-#endif
-            lowerhalf=1;
+            lowerhalf = 1;
+
             //Sample rate must always be even.  Pulseview code enforces this
             //because a frequency step of 2 is required to get a pulldown to specify
             //the sample rate, but sigrok cli can still pass it.
             dev.sample_rate >>= 1;    // TODO clear bit 0
             dev.sample_rate <<= 1;
+
             //Adjust up and align to 4 to avoid rounding errors etc
-            if(dev.num_samples<16){dev.num_samples=16;}
-            dev.num_samples=(dev.num_samples+3)&0xFFFFFFFC;
+            if (dev.num_samples < 16) {
+                dev.num_samples = 16;
+            }
+            dev.num_samples = (dev.num_samples + 3) & 0xFFFFFFFC;
+
             //Divide capture buf evenly based on channel enables
             //d_size is aligned to 4 bytes because pio operates on words
             //These are the sizes for each half buffer in bytes
@@ -809,9 +787,11 @@ static void sigrok_task(void *ptr)
             //in whole samples
             //Also set a multiple of 32  because the dma buffer is split in half, and
             //the PIO does writes on 4B boundaries, and then a 4x factor for any other size/alignment issues
-            uint32_t chunk_size=t_nibbles*32;
-            if(a_nibbles) chunk_size*=a_nibbles;
-            if(d_nibbles) chunk_size*=d_nibbles;
+            uint32_t chunk_size = t_nibbles * 32;
+            if(a_nibbles)
+                chunk_size *= a_nibbles;
+            if(d_nibbles)
+                chunk_size *= d_nibbles;
             uint32_t dig_bytes_per_chunk=chunk_size*d_nibbles/t_nibbles;
             uint32_t dig_samples_per_chunk=(d_nibbles) ? dig_bytes_per_chunk*2/d_nibbles : 0;
             uint32_t chunk_samples=d_nibbles ? dig_samples_per_chunk  : (chunk_size*2)/(a_nibbles);
@@ -830,7 +810,7 @@ static void sigrok_task(void *ptr)
             //transfer completes sooner.
             //Also, mask the sending of aborts if the requested number of samples fit into RAM
             //Don't do this in continuous mode as the final size is unknown
-            if (dev.cont == false) {
+            if ( !dev.cont) {
                 if (buff_chunks > chunks_needed) {
                     mask_xfer_err=true;
                     buff_chunks=chunks_needed;
@@ -1010,16 +990,16 @@ static void sigrok_task(void *ptr)
             //Dprintf("Tcount dbg start d 0x%X 0x%X a 0x%X 0x%X\n",*tcountdbgd0,*tcountdbgd1,*tcountdbga0,*tcountdbga1);
             //These catch cases in DMA coding where DMA engines have started too soon..
 
-            if ((*tcountd0) != (*tcountdbgd0)  &&  (dev.d_mask)) {
+            if (*tcountd0 != *tcountdbgd0  &&  dev.d_mask != 0) {
                 Dprintf("\n\nERROR: DMAD0 changing\n\n");
             }
-            if ((*tcounta0) != (*tcountdbga0)  &&  (dev.a_mask)) {
+            if (*tcounta0 != *tcountdbga0  &&  dev.a_mask != 0) {
                 Dprintf("\n\nERROR: DMAA0 changing\n\n");
             }
-            if ((*tcountd1) != 0) {
+            if (*tcountd1 != 0) {
                 Dprintf("\n\nERROR: DMAD1 should start with 0 tcount\n\n");
             }
-            if ((*tcounta1) != 0) {
+            if (*tcounta1 != 0) {
                 Dprintf("\n\nERROR: DMAA1 should start with 0 tcount\n\n");
             }
 
@@ -1049,16 +1029,16 @@ static void sigrok_task(void *ptr)
         dma_check(&dev);
 
         //In high verbosity modes the host can miss the "!" so send these until it sends a "+"
-        if (dev.aborted == true) {
+        if (dev.aborted) {
             Dprintf("sending abort !\n");
             cdc_sigrok_write("!!!", 3);
             sleep_us(200000);
         }
         //if we abort or normally finish a run sending gets dropped
-        if ((dev.sending==false)  &&  (init_done==true)) {
+        if ( !dev.sending  &&  init_done) {
             //The end of sequence byte_cnt uses a "$<byte_cnt>+" format.
             //Send the byte_cnt to ensure no bytes were lost
-            if (dev.aborted == false) {
+            if ( !dev.aborted) {
                 char brsp[16];
                 //Give the host time to finish processing samples so that the bytecnt
                 //isn't dropped on the wire
@@ -1091,7 +1071,7 @@ static void sigrok_task(void *ptr)
             dma_channel_abort(admachan1);
             dma_channel_abort(pdmachan0);
             dma_channel_abort(pdmachan1);
-            init_done=false;
+            init_done = false;
 
             //Print USB Endpoint controls in the DPSRAM, which is at the base of USBCTRL
             //0x0 is setup packet,
@@ -1117,14 +1097,8 @@ static void sigrok_task(void *ptr)
             //Report the number of main loops for each core to ensure
             //C0 runs more loops
             Dprintf("loop counts C0 %lu C1 %lu\n", c0cnt, c1cnt);
-            c0cnt=0;
-            c1cnt=0;
-#ifdef SYS_CLK_BOOST_EN
-            //Drop down to base to reduce power when not sampling
-            set_sys_clock_khz(SYS_CLK_BASE,true);
-            uart_init(uart0,UART_BAUD);
-            Dprintf("Boost down\n");
-#endif
+            c0cnt = 0;
+            c1cnt = 0;
         }
     }
 }   // sigrok_task

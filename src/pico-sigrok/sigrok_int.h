@@ -43,26 +43,28 @@
 //GP24-25 are not on the board and not used
 //GP26-28 are ADC.
 #if 1
-    //number of analog channels
+    // number of analog channels
     #define NUM_A_CHAN   3
-    //number of digital channels
+    // first digital channel port
+    #define FIRST_D_CHAN 12
+    // number of digital channels
     #define NUM_D_CHAN   8
-    //Mask of bits 19:12 to use as inputs -
-    #define GPIO_D_MASK  0x0FF000
-    //Storage size of the DMA buffer.  The buffer is split into two halves so that when the first
-    //buffer fills we can send the trace data serially while the other buffer is DMA'd into
+    // Storage size of the DMA buffer.  The buffer is split into two halves so that when the first
+    // buffer fills we can send the trace data serially while the other buffer is DMA'd into
     #define DMA_BUF_SIZE 100000
 #else
     #define NUM_A_CHAN   3
-    //number of digital channels
+    // first digital channel port
+    #define FIRST_D_CHAN 2
+    // number of digital channels
     #define NUM_D_CHAN   21
-    //Mask of bits 22:2 to use as inputs -
-    #define GPIO_D_MASK  0x7FFFFC
-    //Storage size of the DMA buffer.  The buffer is split into two halves so that when the first
-    //buffer fills we can send the trace data serially while the other buffer is DMA'd into
+    // Storage size of the DMA buffer.  The buffer is split into two halves so that when the first
+    // buffer fills we can send the trace data serially while the other buffer is DMA'd into
     #define DMA_BUF_SIZE 220000
 #endif
 
+// Mask for the digital channels
+#define GPIO_D_MASK      (((1 << (NUM_D_CHAN)) - 1) << (FIRST_D_CHAN))
 
 #define Dprintf(...)     picoprobe_debug(__VA_ARGS__)
 

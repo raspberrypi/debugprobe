@@ -97,7 +97,7 @@ void cdc_sigrok_write(const char *buf, int length)
 //Be sure that rspstr does not have \n  or \r.
 static int process_char(sr_device_t *d, char charin)
 {
-    int tmpint,tmpint2,ret;
+    int tmpint, tmpint2, ret;
 
     //set default rspstr for all commands that have a dataless ack
     d->rspstr[0] = '*';
@@ -108,25 +108,25 @@ static int process_char(sr_device_t *d, char charin)
         Dprintf("RST* %d\n", d->sending);
         return 0;
     }
-    else if ((charin == '\r')  ||  (charin == '\n')) {
+    else if (charin == '\r'  ||  charin == '\n') {
         d->cmdstr[d->cmdstrptr] = 0;
-        switch(d->cmdstr[0]) {
+        switch (d->cmdstr[0]) {
             case 'i':
                 //SREGEN,AxxyDzz,00 - num analog, analog size, num digital,version
                 sprintf(d->rspstr, "SRPICO,A%02d1D%02d,02", NUM_A_CHAN, NUM_D_CHAN);
                 Dprintf("ID rsp %s\n", d->rspstr);
-                ret=1;
+                ret = 1;
                 break;
 
             case 'R':
-                tmpint=atol(&(d->cmdstr[1]));
-                if ((tmpint>=5000)&&(tmpint<=120000016)) { //Add 16 to support cfg_bits
+                tmpint = atol(&(d->cmdstr[1]));
+                if (tmpint >= 5000  &&  tmpint <= 120000016) { //Add 16 to support cfg_bits
                     d->sample_rate = tmpint;
                     //Dprintf("SMPRATE= %u\n",d->sample_rate);
                     ret = 1;
                 }
                 else {
-                    Dprintf("unsupported smp rate %s\n",d->cmdstr);
+                    Dprintf("unsupported smp rate %s\n", d->cmdstr);
                     ret = 0;
                 }
                 break;
@@ -150,12 +150,12 @@ static int process_char(sr_device_t *d, char charin)
                 if (tmpint >= 0) {
                     //scale and offset are both in integer uVolts
                     //separated by x
-                    sprintf(d->rspstr,"25700x0");  //3.3/(2^7) and 0V offset
+                    sprintf(d->rspstr, "25700x0");  //3.3/(2^7) and 0V offset
                     //Dprintf("ASCL%d\n",tmpint);
                     ret = 1;
                 }
                 else {
-                    Dprintf("bad ascale %s\n",d->cmdstr);
+                    Dprintf("bad ascale %s\n", d->cmdstr);
                     ret = 1; //this will return a '*' causing the host to fail
                 }
                 break;
@@ -204,7 +204,7 @@ static int process_char(sr_device_t *d, char charin)
 
             case 'p': //pretrigger count
                 tmpint = atoi(&(d->cmdstr[1]));
-                Dprintf("Pre-trigger samples %d cmd %s\n",tmpint,d->cmdstr);
+                Dprintf("Pre-trigger samples %d cmd %s\n", tmpint, d->cmdstr);
                 ret = 1;
                 break;
 
@@ -212,9 +212,9 @@ static int process_char(sr_device_t *d, char charin)
             case 'A':  ///enable analog channel always a set
                 tmpint = d->cmdstr[1] - '0'; //extract enable value
                 tmpint2 = atoi(&(d->cmdstr[2])); //extract channel number
-                if ((tmpint >= 0)  &&  (tmpint <= 1)  &&  (tmpint2 >= 0)  &&  (tmpint2 <= 31)) {
-                    d->a_mask=d->a_mask & ~(1<<tmpint2);
-                    d->a_mask=d->a_mask | (tmpint<<tmpint2);
+                if (tmpint >= 0  &&  tmpint <= 1  &&  tmpint2 >= 0  &&  tmpint2 <= 31) {  // TODO 31 is max bits
+                    d->a_mask = d->a_mask & ~(1 << tmpint2);
+                    d->a_mask = d->a_mask | (tmpint << tmpint2);
                     //Dprintf("A%d EN %d Msk 0x%X\n",tmpint2,tmpint,d->a_mask);
                     ret = 1;
                 }
@@ -227,7 +227,7 @@ static int process_char(sr_device_t *d, char charin)
             case 'D':  ///enable digital channel always a set
                 tmpint = d->cmdstr[1] - '0'; //extract enable value
                 tmpint2 = atoi(&(d->cmdstr[2])); //extract channel number
-                if ((tmpint >= 0)  &&  (tmpint <= 1)  &&  (tmpint2 >= 0)  &&  (tmpint2 <= 31)) {
+                if (tmpint >= 0  &&  tmpint <= 1  &&  tmpint2 >= 0  &&  tmpint2 <= 31) {    // TODO 31 is max bits
                     d->d_mask = d->d_mask & ~(1 << tmpint2);
                     d->d_mask = d->d_mask | (tmpint << tmpint2);
                     //Dprintf("D%d EN %d Msk 0x%X\n",tmpint2,tmpint,d->d_mask);
@@ -239,7 +239,7 @@ static int process_char(sr_device_t *d, char charin)
                 break;
 
             default:
-                Dprintf("bad command %s\n",d->cmdstr);
+                Dprintf("bad command %s\n", d->cmdstr);
                 ret = 0;
                 break;
         }
@@ -251,7 +251,7 @@ static int process_char(sr_device_t *d, char charin)
         //no CR/LF
         if (d->cmdstrptr >= sizeof(d->cmdstr) - 1) {
             d->cmdstr[sizeof(d->cmdstr) - 2] = 0;
-            Dprintf("Command overflow %s\n",d->cmdstr);
+            Dprintf("Command overflow %s\n", d->cmdstr);
             d->cmdstrptr = 0;
         }
         d->cmdstr[d->cmdstrptr++] = charin;
