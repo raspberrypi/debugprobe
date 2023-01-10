@@ -63,7 +63,7 @@ void cdc_debug_thread(void *ptr)
         if ( !was_connected) {
             // wait here some time (until my terminal program is ready)
             was_connected = true;
-            vTaskDelay(pdMS_TO_TICKS(2000));
+            vTaskDelay(pdMS_TO_TICKS(100));
         }
 
         max_cnt = tud_cdc_n_write_available(CDC_DEBUG_N);
