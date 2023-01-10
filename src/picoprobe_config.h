@@ -28,7 +28,7 @@
 
 
 #if !defined(PICOPROBE_VERSION)
-    #define PICOPROBE_VERSION   0x0103
+    #define PICOPROBE_VERSION   0x0105
 #endif
 
 /// which means: pyocd will not work.
@@ -75,6 +75,8 @@
     #define picoprobe_error(format,...) ((void)0)
 #endif
 
+
+
 #define PROBE_CPU_CLOCK_KHZ      (150*1000)             // overclocked to 150MHz, even 200MHz seems to be no problem
 
 // PIO config
@@ -104,12 +106,11 @@
     #endif
 #endif
 
+
+
 // sigrok config
 #define SIGROK_PIO               pio1
 #define SIGROK_SM                0                      // often hard coded
-
-
-extern uint32_t probe_freq_khz;
 
 
 #endif
