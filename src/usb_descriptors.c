@@ -72,6 +72,8 @@ enum
     ITF_NUM_CDC_DEBUG_COM,
     ITF_NUM_CDC_DEBUG_DATA,
 #endif
+    ITF_NUM_CDC_SIGROK_COM,
+    ITF_NUM_CDC_SIGROK_DATA,
 #if CFG_TUD_MSC
     ITF_NUM_MSC,
 #endif
@@ -90,9 +92,12 @@ enum
     #define CDC_DEBUG_DATA_OUT_EP_NUM       0x09
     #define CDC_DEBUG_DATA_IN_EP_NUM        0x8a
 #endif
+#define CDC_SIGROK_NOTIFICATION_EP_NUM      0x8b
+#define CDC_SIGROK_DATA_OUT_EP_NUM          0x0c
+#define CDC_SIGROK_DATA_IN_EP_NUM           0x8d
 #if CFG_TUD_MSC
-    #define MSC_OUT_EP_NUM                  0x0b
-    #define MSC_IN_EP_NUM                   0x8c
+    #define MSC_OUT_EP_NUM                  0x0e
+    #define MSC_IN_EP_NUM                   0x8f
 #endif
 
 #define _CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + TUD_VENDOR_DESC_LEN + TUD_HID_INOUT_DESC_LEN)
@@ -122,26 +127,27 @@ uint8_t const desc_configuration[] =
 {
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
 
-    // Interface 0
-
-    // Bulk (named interface)
+    // Interface 0: Bulk (named interface)
     TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE_VENDOR, 5, PROBE_VENDOR_OUT_EP_NUM, PROBE_VENDOR_IN_EP_NUM, 64),
 
-    // HID (named interface)
+    // Interface 1: HID (named interface)
     TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_PROBE_HID, 4, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), PROBE_HID_OUT_EP_NUM, PROBE_HID_IN_EP_NUM, CFG_TUD_HID_EP_BUFSIZE, 1),
 
-    // Interface 1 + 2
-    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_COM, 6, CDC_NOTIFICATION_EP_NUM, 64, CDC_DATA_OUT_EP_NUM, CDC_DATA_IN_EP_NUM, 64),
+    // Interface 2: MSC
+#if CFG_TUD_MSC
+    TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 6, MSC_OUT_EP_NUM, MSC_IN_EP_NUM, 64),
+#endif
+
+    // Interface 3 + 4: CDC UART (target)
+    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_COM, 7, CDC_NOTIFICATION_EP_NUM, 64, CDC_DATA_OUT_EP_NUM, CDC_DATA_IN_EP_NUM, 64),
 
 #if !defined(NDEBUG)
-    // Interface 3 + 4
-    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_DEBUG_COM, 7, CDC_DEBUG_NOTIFICATION_EP_NUM, 64, CDC_DEBUG_DATA_OUT_EP_NUM, CDC_DEBUG_DATA_IN_EP_NUM, 64),
+    // Interface 5 + 6: CDC DEBUG (internal)
+    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_DEBUG_COM, 8, CDC_DEBUG_NOTIFICATION_EP_NUM, 64, CDC_DEBUG_DATA_OUT_EP_NUM, CDC_DEBUG_DATA_IN_EP_NUM, 64),
 #endif
 
-    // Interface 3 (if MSC is enabled)
-#if CFG_TUD_MSC
-    TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 8, MSC_OUT_EP_NUM, MSC_IN_EP_NUM, 64),
-#endif
+    // Interface 7 + 8: CDC SIGROK
+    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_SIGROK_COM, 9, CDC_SIGROK_NOTIFICATION_EP_NUM, 64, CDC_SIGROK_DATA_OUT_EP_NUM, CDC_SIGROK_DATA_IN_EP_NUM, 64),
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
@@ -166,9 +172,10 @@ char const* string_desc_arr [] =
   usb_serial,                          // 3: Serial, uses flash unique ID
   "YAPicoprobe CMSIS-DAP v1",          // 4: Interface descriptor for HID transport
   "YAPicoprobe CMSIS-DAP v2",          // 5: Interface descriptor for Bulk transport
-  "YAPicoprobe CDC-UART",              // 6: Interface descriptor for CDC UART (from target)
-  "YAPicoprobe CDC-DEBUG",             // 7: Interface descriptor for CDC DEBUG
-  "YAPicoprobe Flash Drive",           // 8: Interface descriptor for MSC interface
+  "YAPicoprobe Flash Drive",           // 6: Interface descriptor for MSC interface
+  "YAPicoprobe CDC-UART",              // 7: Interface descriptor for CDC UART (from target)
+  "YAPicoprobe CDC-DEBUG",             // 8: Interface descriptor for CDC DEBUG
+  "YAPicoprobe CDC-SIGROK",            // 9: Interface descriptor for CDC SIGROK
 };
 
 static uint16_t _desc_str[32];
@@ -184,7 +191,8 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
     if (index == 0) {
         memcpy(&_desc_str[1], string_desc_arr[0], 2);
         chr_count = 1;
-    } else {
+    }
+    else {
         // Convert ASCII string into UTF-16
 
         if (!(index < sizeof(string_desc_arr) / sizeof(string_desc_arr[0])))
@@ -202,10 +210,10 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
         }
     }
 
-  // first byte is length (including header), second byte is string type
-  _desc_str[0] = (TUSB_DESC_STRING << 8 ) | (2*chr_count + 2);
+    // first byte is length (including header), second byte is string type
+    _desc_str[0] = (TUSB_DESC_STRING << 8 ) | (2*chr_count + 2);
 
-  return _desc_str;
+    return _desc_str;
 }
 
 /* [incoherent gibbering to make Windows happy] */

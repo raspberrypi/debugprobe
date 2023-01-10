@@ -52,7 +52,9 @@
 #if defined(INCLUDE_RTT_CONSOLE)
     #include "rtt_console.h"
 #endif
-
+#if defined(INCLUDE_SIGROK)
+    #include "pico-sigrok/sigrok.h"
+#endif
 
 /*
  * The following is part of a hack to make DAP_PACKET_COUNT a variable.
@@ -84,6 +86,7 @@ static uint8_t RxDataBuffer[_DAP_PACKET_COUNT * _DAP_PACKET_SIZE];
 #define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 5)        // target -> host via RTT
 #define CDC_DEBUG_TASK_PRIO         (tskIDLE_PRIORITY + 4)        // probe debugging output
 #define DAP_TASK_PRIO               (tskIDLE_PRIORITY + 1)        // DAP execution, during connection this takes the other core
+#define SIGROK_TASK_PRIO            (tskIDLE_PRIORITY + 1)        // Sigrok digital/analog signals (does nothing at the moment)
 
 static TaskHandle_t tud_taskhandle;
 static TaskHandle_t dap_taskhandle;
@@ -178,6 +181,18 @@ void usb_thread(void *ptr)
 
 
 
+void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
+{
+    if (itf == CDC_UART_N) {
+        cdc_uart_line_state_cb(dtr, rts);
+    }
+    else if (itf == CDC_DEBUG_N) {
+        cdc_debug_line_state_cb(dtr, rts);
+    }
+}   // tud_cdc_line_state_cb
+
+
+
 int main(void)
 {
     board_init();
@@ -193,6 +208,10 @@ int main(void)
 
 #if defined(INCLUDE_RTT_CONSOLE)
     rtt_console_init(RTT_CONSOLE_TASK_PRIO);
+#endif
+
+#if defined(INCLUDE_SIGROK)
+    sigrok_init(SIGROK_TASK_PRIO);
 #endif
 
     // now we can "print"

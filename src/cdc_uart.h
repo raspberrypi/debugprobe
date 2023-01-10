@@ -27,8 +27,10 @@
 #define CDC_UART_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 void cdc_uart_init(uint32_t task_prio);
 void cdc_uart_write(const uint8_t *buf, uint32_t cnt);
+void cdc_uart_line_state_cb(bool dtr, bool rts);
 
 #endif
