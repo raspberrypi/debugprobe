@@ -17,9 +17,10 @@
 #include "hardware/structs/bus_ctrl.h"
 #include "hardware/clocks.h"
 #include "pico/multicore.h"
-#include "tusb.h"
 
 #include "picoprobe_config.h"
+#include "sigrok_int.h"
+#include "cdc_sigrok.h"
 #include "sigrok.h"
 
 
@@ -37,35 +38,8 @@
 //These two enable debug print outs of D4 generation, D4_DBG2 are consider higher verbosity
 //#define D4_DBG 1
 //#define D4_DBG2 2
-#define Dprintf(...)     picoprobe_debug(__VA_ARGS__)
 
 
-//Pin usage
-//GP0 and 1 are reserved for debug uart
-//GP2-GP22 are digital inputs
-//GP23 controls power supply modes and is not a board input
-//GP24-25 are not on the board and not used
-//GP26-28 are ADC.
-#if 1
-    //number of analog channels
-    #define NUM_A_CHAN 3
-    //number of digital channels
-    #define NUM_D_CHAN 8
-    //Mask of bits 19:12 to use as inputs -
-    #define GPIO_D_MASK 0x0FF000
-    //Storage size of the DMA buffer.  The buffer is split into two halves so that when the first
-    //buffer fills we can send the trace data serially while the other buffer is DMA'd into
-    #define DMA_BUF_SIZE 100000
-#else
-    #define NUM_A_CHAN 3
-    //number of digital channels
-    #define NUM_D_CHAN 21
-    //Mask of bits 22:2 to use as inputs -
-    #define GPIO_D_MASK 0x7FFFFC
-    //Storage size of the DMA buffer.  The buffer is split into two halves so that when the first
-    //buffer fills we can send the trace data serially while the other buffer is DMA'd into
-    #define DMA_BUF_SIZE 220000
-#endif
 //The size of the buffer sent to the CDC serial
 //The TUD CDC buffer is only 256B so it doesn't help to have more than this.
 #define TX_BUF_SIZE 260
@@ -94,46 +68,19 @@
 //#define SYS_CLK_BOOST_EN 1
 //#define SYS_CLK_BOOST_FREQ 240000
 
-
-typedef struct sr_device {
-    uint32_t sample_rate;
-    uint32_t num_samples;
-    uint32_t a_mask,d_mask;
-    uint32_t samples_per_half; //number of samples for one of the 4 dma target arrays
-    uint8_t a_chan_cnt; //count of enabled analog channels
-    uint8_t d_chan_cnt; //count of enabled digital channels
-    uint8_t d_tx_bps;   //Digital Transmit bytes per slice
-    //Pins sampled by the PIO - 4,8,16 or 32
-    uint8_t pin_count;
-    uint8_t d_nps; //digital nibbles per slice from a PIO/DMA perspective.
-    uint32_t scnt; //number of samples sent
-    uint32_t cmdstrptr;
-    char cmdstr[20];//used for parsing input
-    uint32_t d_size,a_size; //size of each of the two data buffers for each of a& d
-    uint32_t dbuf0_start,dbuf1_start,abuf0_start,abuf1_start; //starting memory pointers of adc buffers
-    char rspstr[20];
-    //mark key control variables voltatile since multiple cores might access them
-    volatile bool started;
-    volatile bool sending;
-    volatile bool cont;
-    volatile bool aborted;
-    /*Depracated trigger logic
-//If HW trigger enabled, uncomment all usages
-  //volatile bool notfirst;  //Have we processed at least a first sample (so that lval is correct
-  //  volatile bool triggered;
-  //  uint32_t tlval; //last digital sample value - must keep it across multiple calls to send_slices for trigger
-  //  uint32_t lvl0mask,lvl1mask,risemask,fallmask,chgmask;
-  End depracated trigger logic*/
-
-} sr_device_t;
-
-
-uint8_t *capture_buf;
-volatile uint32_t c1cnt=0;
-volatile uint32_t c0cnt=0;
+//
+// shared between modules
+//
 sr_device_t dev;
+volatile bool send_resp = false;
+volatile uint32_t c1cnt = 0;
+
+//
+// module private
+//
+uint8_t *capture_buf;
+volatile uint32_t c0cnt=0;
 volatile uint32_t tstart;
-volatile bool send_resp=false;
 uint8_t txbuf[TX_BUF_SIZE];
 uint16_t txbufidx;
 uint32_t rxbufdidx;
@@ -150,315 +97,6 @@ volatile uint32_t *tstsa0,*tstsa1,*tstsd0,*tstsd1;
 volatile uint32_t *taddra0,*taddra1,*taddrd0,*taddrd1;
 volatile int lowerhalf; //are we processing the upper or lower half of the data buffers
 volatile bool mask_xfer_err;
-
-// PICO_CONFIG: PICO_STDIO_USB_STDOUT_TIMEOUT_US, Number of microseconds to be blocked trying to write USB
-// output before assuming the host has disappeared and discarding data, default=500000, group=pico_stdio_usb
-#ifndef PICO_STDIO_USB_STDOUT_TIMEOUT_US
-    #define PICO_STDIO_USB_STDOUT_TIMEOUT_US 500000
-#endif
-
-
-
-//----------------------------------------------------------------------------------------------------------------------
-// former include file
-
-
-
-// reset as part of init, or on a completed send
-static void reset(sr_device_t *d)
-{
-    d->sending = 0;
-    d->cont    = 0;
-    d->aborted = false;
-    d->started = false;
-    d->scnt    = 0;
-    //d->notfirst=false;
-    //Set triggered by default so that we don't check for HW triggers
-    //unless the driver sends a trigger command
-    //d->triggered=true;
-    //d->tlval=0;
-    //d->lvl0mask=0;
-    //d->lvl1mask=0;
-    //d->risemask=0;
-    //d->fallmask=0;
-    //d->chgmask=0;
-}   // reset
-
-
-
-//initial post reset state
-static void init(sr_device_t *d)
-{
-    reset(d);
-    d->a_mask      = 0;
-    d->d_mask      = 0;
-    d->sample_rate = 5000;
-    d->num_samples = 10;
-    d->a_chan_cnt  = 0;
-    d->d_nps       = 0;
-    d->cmdstrptr   = 0;
-}   // init
-
-
-
-static void tx_init(sr_device_t *d)
-{
-    //A reset should have already been called to restart the device.
-    //An additional one here would clear trigger and other state that had been updated
-    //    reset(d);
-    d->a_chan_cnt=0;
-    for (int i = 0;  i < NUM_A_CHAN;  i++) {
-        if (((d->a_mask) >> i) & 1) {
-            d->a_chan_cnt++;
-        }
-    }
-    //Nibbles per slice controls how PIO digital data is stored
-    //Only support 0,1,2,4 or 8, which use 0,4,8,16 or 32 bits of PIO fifo data
-    //per sample clock.
-    d->d_nps=(d->d_mask&       0xF) ? 1 : 0;
-    d->d_nps=(d->d_mask&      0xF0) ? (d->d_nps)+1 : d->d_nps;
-    d->d_nps=(d->d_mask&    0xFF00) ? (d->d_nps)+2 : d->d_nps;
-    d->d_nps=(d->d_mask&0xFFFF0000) ? (d->d_nps)+4 : d->d_nps;
-    //Dealing with samples on a per nibble, rather than per byte basis in non D4 mode
-    //creates a bunch of annoying special cases, so forcing non D4 mode to always store a minimum
-    //of 8 bits.
-    if ((d->d_nps == 1)  &&  (d->a_chan_cnt > 0)) {
-        d->d_nps=2;
-    }
-
-    //Digital channels must enable from D0 and go up, but that is checked by the host
-    d->d_chan_cnt = 0;
-    for (int i = 0;  i < NUM_D_CHAN;  i++) {
-        if (((d->d_mask) >> i) & 1) {
-            //    Dprintf("i %d inv %d mask %X\n",i,invld,d->d_mask);
-            d->d_chan_cnt++;
-        }
-    }
-    d->d_tx_bps = (d->d_chan_cnt + 6) / 7;
-    d->sending = true;
-}   // tx_init
-
-
-
-//Process incoming character stream
-//Return 1 if the device rspstr has a response to send to host
-//Be sure that rspstr does not have \n  or \r.
-static int process_char(sr_device_t *d, char charin)
-{
-    int tmpint,tmpint2,ret;
-
-    //set default rspstr for all commands that have a dataless ack
-    d->rspstr[0] = '*';
-    d->rspstr[1] = 0;
-    //the reset character works by itself
-    if (charin == '*') {
-        reset(d);
-        Dprintf("RST* %d\n", d->sending);
-        return 0;
-    }
-    else if ((charin == '\r')  ||  (charin == '\n')) {
-        d->cmdstr[d->cmdstrptr] = 0;
-        switch(d->cmdstr[0]) {
-            case 'i':
-                //SREGEN,AxxyDzz,00 - num analog, analog size, num digital,version
-                sprintf(d->rspstr, "SRPICO,A%02d1D%02d,02", NUM_A_CHAN, NUM_D_CHAN);
-                Dprintf("ID rsp %s\n", d->rspstr);
-                ret=1;
-                break;
-
-            case 'R':
-                tmpint=atol(&(d->cmdstr[1]));
-                if ((tmpint>=5000)&&(tmpint<=120000016)) { //Add 16 to support cfg_bits
-                    d->sample_rate = tmpint;
-                    //Dprintf("SMPRATE= %u\n",d->sample_rate);
-                    ret = 1;
-                }
-                else {
-                    Dprintf("unsupported smp rate %s\n",d->cmdstr);
-                    ret = 0;
-                }
-                break;
-
-            //sample limit
-            case 'L':
-                tmpint = atol(&(d->cmdstr[1]));
-                if (tmpint > 0) {
-                    d->num_samples = tmpint;
-                    //Dprintf("NUMSMP=%u\n",d->num_samples);
-                    ret = 1;
-                }
-                else {
-                    Dprintf("bad num samples %s\n",d->cmdstr);
-                    ret = 0;
-                }
-                break;
-
-            case 'a':
-                tmpint = atoi(&(d->cmdstr[1])); //extract channel number
-                if (tmpint >= 0) {
-                    //scale and offset are both in integer uVolts
-                    //separated by x
-                    sprintf(d->rspstr,"25700x0");  //3.3/(2^7) and 0V offset
-                    //Dprintf("ASCL%d\n",tmpint);
-                    ret = 1;
-                }
-                else {
-                    Dprintf("bad ascale %s\n",d->cmdstr);
-                    ret = 1; //this will return a '*' causing the host to fail
-                }
-                break;
-
-            case 'F': //fixed set of samples
-                Dprintf("STRT_FIX\n");
-                tx_init(d);
-                d->cont = 0;
-                ret = 0;
-                break;
-
-            case 'C':  //continous mode
-                tx_init(d);
-                d->cont = 1;
-                Dprintf("STRT_CONT\n");
-                ret = 0;
-                break;
-
-            case 't': //trigger -format tvxx where v is value and xx is two digit channel
-                /*HW trigger depracated
-                tmpint=d->cmdstr[1]-'0';
-                    tmpint2=atoi(&(d->cmdstr[2])); //extract channel number which starts at D2
-                //Dprintf("Trigger input %d val %d\n",tmpint2,tmpint);
-                    if((tmpint2>=2)&&(tmpint>=0)&&(tmpint<=4)){
-                      d->triggered=false;
-                      switch(tmpint){
-                    case 0: d->lvl0mask|=1<<(tmpint2-2);break;
-                    case 1: d->lvl1mask|=1<<(tmpint2-2);break;
-                    case 2: d->risemask|=1<<(tmpint2-2);break;
-                    case 3: d->fallmask|=1<<(tmpint2-2);break;
-                    default: d->chgmask|=1<<(tmpint2-2);break;
-                  }
-                      //Dprintf("Trigger channel %d val %d 0x%X\n",tmpint2,tmpint,d->lvl0mask);
-                  //Dprintf("LVL0mask 0x%X\n",d->lvl0mask);
-                      //Dprintf("LVL1mask 0x%X\n",d->lvl1mask);
-                      //Dprintf("risemask 0x%X\n",d->risemask);
-                      //Dprintf("fallmask 0x%X\n",d->fallmask);
-                      //Dprintf("edgemask 0x%X\n",d->chgmask);
-                    }else{
-                  Dprintf("bad trigger channel %d val %d\n",tmpint2,tmpint);
-                      d->triggered=true;
-                    }
-                 */
-                ret = 1;
-                break;
-
-            case 'p': //pretrigger count
-                tmpint = atoi(&(d->cmdstr[1]));
-                Dprintf("Pre-trigger samples %d cmd %s\n",tmpint,d->cmdstr);
-                ret = 1;
-                break;
-
-            //format is Axyy where x is 0 for disabled, 1 for enabled and yy is channel #
-            case 'A':  ///enable analog channel always a set
-                tmpint = d->cmdstr[1] - '0'; //extract enable value
-                tmpint2 = atoi(&(d->cmdstr[2])); //extract channel number
-                if ((tmpint >= 0)  &&  (tmpint <= 1)  &&  (tmpint2 >= 0)  &&  (tmpint2 <= 31)) {
-                    d->a_mask=d->a_mask & ~(1<<tmpint2);
-                    d->a_mask=d->a_mask | (tmpint<<tmpint2);
-                    //Dprintf("A%d EN %d Msk 0x%X\n",tmpint2,tmpint,d->a_mask);
-                    ret = 1;
-                }
-                else {
-                    ret = 0;
-                }
-                break;
-
-            //format is Dxyy where x is 0 for disabled, 1 for enabled and yy is channel #
-            case 'D':  ///enable digital channel always a set
-                tmpint = d->cmdstr[1] - '0'; //extract enable value
-                tmpint2 = atoi(&(d->cmdstr[2])); //extract channel number
-                if ((tmpint >= 0)  &&  (tmpint <= 1)  &&  (tmpint2 >= 0)  &&  (tmpint2 <= 31)) {
-                    d->d_mask = d->d_mask & ~(1 << tmpint2);
-                    d->d_mask = d->d_mask | (tmpint << tmpint2);
-                    //Dprintf("D%d EN %d Msk 0x%X\n",tmpint2,tmpint,d->d_mask);
-                    ret = 1;
-                }
-                else {
-                    ret = 0;
-                }
-                break;
-
-            default:
-                Dprintf("bad command %s\n",d->cmdstr);
-                ret = 0;
-                break;
-        }
-
-        //        Dprintf("CmdDone %s\n",d->cmdstr);
-        d->cmdstrptr = 0;
-    }
-    else {
-        //no CR/LF
-        if (d->cmdstrptr >= sizeof(d->cmdstr) - 1) {
-            d->cmdstr[sizeof(d->cmdstr) - 2] = 0;
-            Dprintf("Command overflow %s\n",d->cmdstr);
-            d->cmdstrptr = 0;
-        }
-        d->cmdstr[d->cmdstrptr++] = charin;
-        ret = 0;
-    }//else
-    //default return 0 means to not send any kind of response
-    return ret;
-}   // process_char
-
-
-
-//----------------------------------------------------------------------------------------------------------------------
-
-
-
-//The function stdio_usb_out_chars is part of the PICO sdk usb library.
-//However the function is not externally visible from the library and rather than
-//figure out the build dependencies to do that it is just copied here.
-//This is much faster than a printf of the string, and even faster than the puts_raw
-//supported by the PICO SDK stdio library, which doesn't allow the known length of the buffer
-//to be specified. (The C standard write function doesn't seem to work at all).
-//This function also avoids the inserting of CR/LF in certain modes.
-//The tud_cdc_write_available function returns 256, and thus we have a 256B buffer to feed into
-//but the CDC serial issues in groups of 64B.
-//Since there is another memory fifo inside the TUD code this might possibly be optimized
-//to directly write to it, rather than writing txbuf.  That might allow faster rle processing
-//but is a bit too complicated.
-static void my_stdio_usb_out_chars(const char *buf, int length)
-{
-    static uint64_t last_avail_time;
-
-    if (tud_cdc_connected()) {
-        for (int i = 0; i < length;) {
-            int n = length - i;
-            int avail = (int) tud_cdc_write_available();
-            if (n > avail)
-                n = avail;
-            if (n) {
-                int n2 = (int) tud_cdc_write(buf + i, (uint32_t)n);
-                tud_task();
-                tud_cdc_write_flush();
-                i += n2;
-                last_avail_time = time_us_64();
-            }
-            else {
-                tud_task();
-                tud_cdc_write_flush();
-                if (!tud_cdc_connected() ||
-                        (!tud_cdc_write_available() && time_us_64() > last_avail_time + PICO_STDIO_USB_STDOUT_TIMEOUT_US)) {
-                    break;
-                }
-            }
-        }
-    }
-    else {
-        // reset our timeout
-        last_avail_time = 0;
-    }
-}   // my_stdio_usb_out_chars
 
 
 
@@ -493,7 +131,7 @@ static void send_slices_D4(sr_device_t *d,uint8_t *dbuf)
     for (int j = 0;  j < 8;  j++) {
         nibcurr=cword&0xF;
         txbuf[j]=(nibcurr)|0x80;
-        cword>>=4;
+        cword >>= 4;
     }
     niblast=nibcurr;
     cptr=(uint32_t *) &(txbuf[0]);
@@ -502,7 +140,7 @@ static void send_slices_D4(sr_device_t *d,uint8_t *dbuf)
     rlecnt=0;
 
     if (d->samples_per_half <= 8) {
-        my_stdio_usb_out_chars((char *)txbuf, txbufidx);
+        cdc_sigrok_write((char *)txbuf, txbufidx);
         d->scnt+=d->samples_per_half;
         return;
     }
@@ -535,7 +173,7 @@ static void send_slices_D4(sr_device_t *d,uint8_t *dbuf)
             txbuf[txbufidx++]=127;
             rlecnt-=640;
             if(txbufidx>3){
-                my_stdio_usb_out_chars((char *)txbuf,txbufidx);
+                cdc_sigrok_write((char *)txbuf, txbufidx);
                 ccnt+=txbufidx;
                 txbufidx=0;
             }
@@ -584,7 +222,7 @@ static void send_slices_D4(sr_device_t *d,uint8_t *dbuf)
 #endif
         //Emperically found that transmitting groups of around 32B gives optimum bandwidth
         if (txbufidx >= 64) {
-            my_stdio_usb_out_chars((char *)txbuf,txbufidx);
+            cdc_sigrok_write((char *)txbuf, txbufidx);
             ccnt+=txbufidx;
             txbufidx=0;
         }
@@ -611,7 +249,7 @@ static void send_slices_D4(sr_device_t *d,uint8_t *dbuf)
         rlecnt = 0;
     }
     if (txbufidx) {
-        my_stdio_usb_out_chars((char *)txbuf,txbufidx);
+        cdc_sigrok_write((char *)txbuf, txbufidx);
         ccnt += txbufidx;
         txbufidx = 0;
     }
@@ -689,7 +327,7 @@ static void check_rle(void)
 static void check_tx_buf(uint16_t cnt)
 {
     if (txbufidx >= cnt) {
-        my_stdio_usb_out_chars((char *)txbuf,txbufidx);
+        cdc_sigrok_write((char *)txbuf, txbufidx);
         ccnt += txbufidx;
         txbufidx = 0;
     }
@@ -955,7 +593,7 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
             d->aborted = true;
             //Issue end of trace markers to host
             //The main loop also sends these periodically until the host is done..
-            my_stdio_usb_out_chars("!!!", 3);
+            cdc_sigrok_write("!!!", 3);
             //Dprintf("scnt %u\n",d->scnt);
             //Dprintf("a st %u msk %u\n",(*tstsa1),d->a_mask);
             //Dprintf("d st %u msk %u\n",(*tstsd1),d->d_mask);
@@ -1001,69 +639,6 @@ static void dma_check(sr_device_t *d)
 
 
 
-//This is a simple maintenance loop to monitor serial activity so that core0 can be dedicated
-//to monitoring DMA activity and sending trace data.
-//Most of the time this loop is stalled with wfes (wait for events).
-// TODO this should become a task
-static void core1_code()
-{
-    int intin;
-
-    for (;;) {
-        //The wait for event (wfe) puts core1 in an idle state
-        //Each core instruction takes a memory cycle, as does each core memory or IO register read.
-        //The memory fabric supports up to 4 reads per cycle if there are no bank conflicts
-        //The DMA engine needs a read of the PIO and ADC and a write of memory
-        //and thus chances of conflicts are high.  Thus once we are in sampling mode slow down C1 to allow
-        //C0 to loop faster and process faster.
-        //Without wfes C1 typically completes 10x the number of outer loops as C0, but with the wfes
-        //C0 completes more loops and C1 activity drops to 1% .
-        //Much of the C0 code has built in sev (Send Event) but we also add an explicit one in the main while loop
-
-        if (dev.started) {
-            c1cnt++;
-            __wfe();
-            __wfe();
-            __wfe();
-            __wfe();
-            __wfe();
-            __wfe();
-            __wfe();
-            __wfe();
-            __wfe();
-            __wfe();
-        }
-
-        if ( !dev.started) {
-            //always drain all defined uarts as if that is not done it can
-            //effect the usb serial CDC stability
-            //these are generally rare events caused by noise/reset events
-            //and thus not checked when dev.started
-            while (uart_is_readable_within_us(uart0, 0)) {
-                (void)uart_getc(uart0);
-            }
-        }
-        //look for commands on usb cdc
-        intin = getchar_timeout_us(0);
-        //The '+' is the only character we track during normal sampling because it can end
-        //a continuous trace.  A reset '*' should only be seen after we have completed normally
-        //or hit an error condition.
-        if (intin == '+') {
-            dev.sending = false;
-            dev.aborted = false; //clear the abort so we stop sending !!
-        }
-        //send_resp is used to eliminate all prints from core1 to prevent collisions with
-        //prints in core0
-        else if (intin >= 0) {
-            if (process_char(&dev, (char)intin)) {
-                send_resp = true;
-            }
-        }
-    }
-}   // core1_code
-
-
-
 /**
  * Main task of sigrok.
  */
@@ -1074,7 +649,6 @@ static void sigrok_task(void *ptr)
     bool init_done=false;
 
     set_sys_clock_khz(SYS_CLK_BASE,true);
-    //    stdio_usb_init();                       // TODO is stdio for sigrok or debugging?
     uart_set_format(uart0,8,1,1);
     uart_init(uart0,921600);
     gpio_set_function(0, GPIO_FUNC_UART);
@@ -1153,7 +727,7 @@ static void sigrok_task(void *ptr)
     //The DMA controller must read across the common bus to read the PIO fifo so enabled both reads and write
     bus_ctrl_hw->priority = BUSCTRL_BUS_PRIORITY_DMA_W_BITS | BUSCTRL_BUS_PRIORITY_DMA_R_BITS;
 
-    init(&dev);
+    sigrok_full_reset(&dev);
     //Since RP2040 is 32 bit this should always be 4B aligned, and it must be because the PIO
     //does DMA on a per byte basis
     //If either malloc fails the code will just hang
@@ -1193,7 +767,7 @@ static void sigrok_task(void *ptr)
             int mylen=strlen(dev.rspstr);
             //Don't mix printf with direct to usb commands
             //printf("%s",dev.rspstr);
-            my_stdio_usb_out_chars(dev.rspstr,mylen);
+            cdc_sigrok_write(dev.rspstr, mylen);
             send_resp=false;
         }
         //Dprintf("ss %d %d",dev.sending,dev.started);
@@ -1215,8 +789,8 @@ static void sigrok_task(void *ptr)
             //Sample rate must always be even.  Pulseview code enforces this
             //because a frequency step of 2 is required to get a pulldown to specify
             //the sample rate, but sigrok cli can still pass it.
-            dev.sample_rate>>=1;
-            dev.sample_rate<<=1;
+            dev.sample_rate >>= 1;    // TODO clear bit 0
+            dev.sample_rate <<= 1;
             //Adjust up and align to 4 to avoid rounding errors etc
             if(dev.num_samples<16){dev.num_samples=16;}
             dev.num_samples=(dev.num_samples+3)&0xFFFFFFFC;
@@ -1477,7 +1051,7 @@ static void sigrok_task(void *ptr)
         //In high verbosity modes the host can miss the "!" so send these until it sends a "+"
         if (dev.aborted == true) {
             Dprintf("sending abort !\n");
-            my_stdio_usb_out_chars("!!!",3);
+            cdc_sigrok_write("!!!", 3);
             sleep_us(200000);
         }
         //if we abort or normally finish a run sending gets dropped

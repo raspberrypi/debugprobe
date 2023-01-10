@@ -84,7 +84,9 @@ add_compile_definitions(INTERFACE_RP2040=1
 # this is for SIGROK operation (taken from https://github.com/pico-coder/sigrok-pico)
 #
 target_sources(picoprobe PRIVATE
+        src/pico-sigrok/cdc_sigrok.c
         src/pico-sigrok/sigrok.c
+        src/pico-sigrok/sigrok_int.c
         )
 
 target_link_libraries(picoprobe PRIVATE
