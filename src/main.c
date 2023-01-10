@@ -30,6 +30,7 @@
 
 #include <pico/stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <string.h>
 
 #include "bsp/board.h"
@@ -85,7 +86,7 @@ static uint8_t RxDataBuffer[_DAP_PACKET_COUNT * _DAP_PACKET_SIZE];
 #define UART_TASK_PRIO              (tskIDLE_PRIORITY + 5)        // target -> host via UART
 #define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 5)        // target -> host via RTT
 #define CDC_DEBUG_TASK_PRIO         (tskIDLE_PRIORITY + 4)        // probe debugging output
-#define DAP_TASK_PRIO               (tskIDLE_PRIORITY + 1)        // DAP execution, during connection this takes the other core
+#define DAP_TASK_PRIO               (tskIDLE_PRIORITY + 2)        // DAP execution, during connection this takes the other core
 #define SIGROK_TASK_PRIO            (tskIDLE_PRIORITY + 1)        // Sigrok digital/analog signals (does nothing at the moment)
 
 static TaskHandle_t tud_taskhandle;
@@ -93,70 +94,86 @@ static TaskHandle_t dap_taskhandle;
 
 
 
+void tud_vendor_rx_cb(uint8_t itf)
+{
+    if (itf == 0) {
+        xTaskNotify(dap_taskhandle, 0, eNoAction);
+        taskYIELD();
+    }
+}   // tud_vendor_rx_cb
+
+
+
 void dap_task(void *ptr)
 {
     bool mounted = false;
-    uint32_t used_us;
+    uint32_t used_us = 0;
     uint32_t rx_len = 0;
 
     for (;;) {
-        if (tud_vendor_available()) {
-            used_us = time_us_32();
-            if ( !mounted) {
-                if (sw_lock("DAPv2", true)) {
-                    mounted = true;
-                    dap_packet_count = _DAP_PACKET_COUNT;
-                    dap_packet_size  = _DAP_PACKET_SIZE;
-                    picoprobe_info("=================================== DAPv2 connect target\n");
-                    led_state(LS_DAPV2_CONNECTED);
-                }
+        // disconnect after 1s without data
+        if (mounted  &&  time_us_32() - used_us > 1000000) {
+            mounted = false;
+            picoprobe_info("=================================== DAPv2 disconnect target\n");
+            led_state(LS_DAPV2_DISCONNECTED);
+            sw_unlock("DAPv2");
+        }
+
+#if 1
+        // surprisingly this version is ~5% faster, priority settings do not matter
+        taskYIELD();
+        if ( !tud_vendor_available()) {
+            continue;
+        }
+#else
+        xTaskNotifyWait(0, 0xffffffff, NULL, pdMS_TO_TICKS(100));
+#endif
+
+        if ( !mounted  &&  tud_vendor_available()) {
+            if (sw_lock("DAPv2", true)) {
+                mounted = true;
+                dap_packet_count = _DAP_PACKET_COUNT;
+                dap_packet_size  = _DAP_PACKET_SIZE;
+                picoprobe_info("=================================== DAPv2 connect target\n");
+                led_state(LS_DAPV2_CONNECTED);
             }
+        }
 
-            if (mounted) {
-                rx_len += tud_vendor_read(RxDataBuffer + rx_len, sizeof(RxDataBuffer));
+        if (mounted) {
+            rx_len += tud_vendor_read(RxDataBuffer + rx_len, sizeof(RxDataBuffer));
 
-                if (rx_len != 0)
+            if (rx_len != 0)
+            {
+                uint32_t request_len;
+
+                used_us = time_us_32();
+                request_len = DAP_GetCommandLength(RxDataBuffer, rx_len);
+                if (rx_len >= request_len)
                 {
-                    uint32_t request_len;
+                    uint32_t resp_len;
 
-                    request_len = DAP_GetCommandLength(RxDataBuffer, rx_len);
-                    if (rx_len >= request_len)
+                    resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
+                    tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
+                    tud_vendor_flush();
+
+                    if (request_len != (resp_len >> 16))
                     {
-                        uint32_t resp_len;
+                        // there is a bug in CMSIS-DAP, see https://github.com/ARM-software/CMSIS_5/pull/1503
+                        // but we trust our own length calculation
+                        picoprobe_error("   !!!!!!!! request (%lu) and executed length (%lu) differ\n", request_len, resp_len >> 16);
+                    }
 
-                        resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
-                        tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
-                        tud_vendor_flush();
-
-                        if (request_len != (resp_len >> 16))
-                        {
-                            // there is a bug in CMSIS-DAP, see https://github.com/ARM-software/CMSIS_5/pull/1503
-                            // but we trust our own length calculation
-                            picoprobe_error("   !!!!!!!! request (%lu) and executed length (%lu) differ\n", request_len, resp_len >> 16);
-                        }
-
-                        if (rx_len == request_len)
-                        {
-                            rx_len = 0;
-                        }
-                        else
-                        {
-                            memmove(RxDataBuffer, RxDataBuffer + request_len, rx_len - request_len);
-                            rx_len -= request_len;
-                        }
+                    if (rx_len == request_len)
+                    {
+                        rx_len = 0;
+                    }
+                    else
+                    {
+                        memmove(RxDataBuffer, RxDataBuffer + request_len, rx_len - request_len);
+                        rx_len -= request_len;
                     }
                 }
             }
-        }
-        else {
-            // disconnect after 1s without data
-            if (mounted  &&  time_us_32() - used_us > 1000000) {
-                mounted = false;
-                picoprobe_info("=================================== DAPv2 disconnect target\n");
-                led_state(LS_DAPV2_DISCONNECTED);
-                sw_unlock("DAPv2");
-            }
-            taskYIELD();
         }
     }
 }   // dap_task
