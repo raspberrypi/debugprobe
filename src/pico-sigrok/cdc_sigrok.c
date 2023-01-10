@@ -30,6 +30,9 @@
 #include <string.h>
 #include "hardware/sync.h"
 
+#include "FreeRTOS.h"
+#include "task.h"
+
 #include "tusb.h"
 
 #include "picoprobe_config.h"
@@ -42,6 +45,9 @@
 #ifndef PICO_STDIO_USB_STDOUT_TIMEOUT_US
     #define PICO_STDIO_USB_STDOUT_TIMEOUT_US 500000
 #endif
+
+
+static TaskHandle_t task_cdc_sigrok;
 
 
 
@@ -59,34 +65,30 @@
 //but is a bit too complicated.
 void cdc_sigrok_write(const char *buf, int length)
 {
-    static uint64_t last_avail_time;
+    uint64_t last_avail_time;
 
-    if (tud_cdc_connected()) {
-        for (int i = 0; i < length;) {
+    if (tud_cdc_n_connected(CDC_SIGROK_N)) {
+        last_avail_time = time_us_64();
+
+        for (int i = 0;  i < length;) {
             int n = length - i;
-            int avail = (int) tud_cdc_write_available();
+            int avail = (int)tud_cdc_n_write_available(CDC_SIGROK_N);
             if (n > avail)
                 n = avail;
-            if (n) {
-                int n2 = (int) tud_cdc_write(buf + i, (uint32_t)n);
-                tud_task();
-                tud_cdc_write_flush();
+            if (n != 0) {
+                int n2 = (int)tud_cdc_n_write(CDC_SIGROK_N, buf + i, (uint32_t)n);
+                tud_cdc_n_write_flush(CDC_SIGROK_N);
                 i += n2;
                 last_avail_time = time_us_64();
             }
             else {
-                tud_task();
-                tud_cdc_write_flush();
-                if (!tud_cdc_connected() ||
-                        (!tud_cdc_write_available() && time_us_64() > last_avail_time + PICO_STDIO_USB_STDOUT_TIMEOUT_US)) {
+                tud_cdc_n_write_flush(CDC_SIGROK_N);
+                if ( !tud_cdc_n_connected(CDC_SIGROK_N) ||
+                     ( !tud_cdc_n_write_available(CDC_SIGROK_N)  &&  time_us_64() > last_avail_time + PICO_STDIO_USB_STDOUT_TIMEOUT_US)) {
                     break;
                 }
             }
         }
-    }
-    else {
-        // reset our timeout
-        last_avail_time = 0;
     }
 }   // cdc_sigrok_write
 
@@ -122,7 +124,7 @@ static int process_char(sr_device_t *d, char charin)
                 tmpint = atol(&(d->cmdstr[1]));
                 if (tmpint >= 5000  &&  tmpint <= 120000016) { //Add 16 to support cfg_bits
                     d->sample_rate = tmpint;
-                    //Dprintf("SMPRATE= %u\n",d->sample_rate);
+                    Dprintf("SMPRATE= %lu\n", d->sample_rate);
                     ret = 1;
                 }
                 else {
@@ -136,11 +138,11 @@ static int process_char(sr_device_t *d, char charin)
                 tmpint = atol(&(d->cmdstr[1]));
                 if (tmpint > 0) {
                     d->num_samples = tmpint;
-                    //Dprintf("NUMSMP=%u\n",d->num_samples);
+                    Dprintf("NUMSMP=%lu\n", d->num_samples);
                     ret = 1;
                 }
                 else {
-                    Dprintf("bad num samples %s\n",d->cmdstr);
+                    Dprintf("bad num samples %s\n", d->cmdstr);
                     ret = 0;
                 }
                 break;
@@ -151,7 +153,7 @@ static int process_char(sr_device_t *d, char charin)
                     //scale and offset are both in integer uVolts
                     //separated by x
                     sprintf(d->rspstr, "25700x0");  //3.3/(2^7) and 0V offset
-                    //Dprintf("ASCL%d\n",tmpint);
+                    Dprintf("ASCL%d\n",tmpint);
                     ret = 1;
                 }
                 else {
@@ -215,7 +217,7 @@ static int process_char(sr_device_t *d, char charin)
                 if (tmpint >= 0  &&  tmpint <= 1  &&  tmpint2 >= 0  &&  tmpint2 <= 31) {  // TODO 31 is max bits
                     d->a_mask = d->a_mask & ~(1 << tmpint2);
                     d->a_mask = d->a_mask | (tmpint << tmpint2);
-                    //Dprintf("A%d EN %d Msk 0x%X\n",tmpint2,tmpint,d->a_mask);
+                    Dprintf("A%d EN %d Msk 0x%lX\n", tmpint2, tmpint, d->a_mask);
                     ret = 1;
                 }
                 else {
@@ -230,7 +232,7 @@ static int process_char(sr_device_t *d, char charin)
                 if (tmpint >= 0  &&  tmpint <= 1  &&  tmpint2 >= 0  &&  tmpint2 <= 31) {    // TODO 31 is max bits
                     d->d_mask = d->d_mask & ~(1 << tmpint2);
                     d->d_mask = d->d_mask | (tmpint << tmpint2);
-                    //Dprintf("D%d EN %d Msk 0x%X\n",tmpint2,tmpint,d->d_mask);
+                    Dprintf("D%d EN %d Msk 0x%lX\n", tmpint2, tmpint, d->d_mask);
                     ret = 1;
                 }
                 else {
@@ -244,7 +246,7 @@ static int process_char(sr_device_t *d, char charin)
                 break;
         }
 
-        //        Dprintf("CmdDone %s\n",d->cmdstr);
+        Dprintf("CmdDone %s\n",d->cmdstr);
         d->cmdstrptr = 0;
     }
     else {
@@ -263,63 +265,52 @@ static int process_char(sr_device_t *d, char charin)
 
 
 
-//This is a simple maintenance loop to monitor serial activity so that core0 can be dedicated
-//to monitoring DMA activity and sending trace data.
-//Most of the time this loop is stalled with wfes (wait for events).
-// TODO this should become a task
-void core1_code()
+void cdc_sigrok_rx_cb(void)
 {
-    int intin;
+    xTaskNotify(task_cdc_sigrok, 0, eNoAction);
+    taskYIELD();
+}   // cdc_sigrok_rx_cb
 
+
+
+void cdc_sigrok_thread()
+{
     for (;;) {
-        //The wait for event (wfe) puts core1 in an idle state
-        //Each core instruction takes a memory cycle, as does each core memory or IO register read.
-        //The memory fabric supports up to 4 reads per cycle if there are no bank conflicts
-        //The DMA engine needs a read of the PIO and ADC and a write of memory
-        //and thus chances of conflicts are high.  Thus once we are in sampling mode slow down C1 to allow
-        //C0 to loop faster and process faster.
-        //Without wfes C1 typically completes 10x the number of outer loops as C0, but with the wfes
-        //C0 completes more loops and C1 activity drops to 1% .
-        //Much of the C0 code has built in sev (Send Event) but we also add an explicit one in the main while loop
+        xTaskNotifyWait(0, 0xffffffff, NULL, portMAX_DELAY);
 
-        if (sr_dev.started) {
-            sr_c1cnt++;
-            __wfe();
-            __wfe();
-            __wfe();
-            __wfe();
-            __wfe();
-            __wfe();
-            __wfe();
-            __wfe();
-            __wfe();
-            __wfe();
-        }
+        for (;;) {
+            uint32_t n;
+            uint8_t  ch;
 
-        if ( !sr_dev.started) {
-            //always drain all defined uarts as if that is not done it can
-            //effect the usb serial CDC stability
-            //these are generally rare events caused by noise/reset events
-            //and thus not checked when dev.started
-            while (uart_is_readable_within_us(uart0, 0)) {
-                (void)uart_getc(uart0);
+            n = tud_cdc_n_available(CDC_SIGROK_N);
+            if (n == 0) {
+                break;
             }
-        }
-        //look for commands on usb cdc
-        intin = getchar_timeout_us(0);
-        //The '+' is the only character we track during normal sampling because it can end
-        //a continuous trace.  A reset '*' should only be seen after we have completed normally
-        //or hit an error condition.
-        if (intin == '+') {
-            sr_dev.sending = false;
-            sr_dev.aborted = false; //clear the abort so we stop sending !!
-        }
-        //send_resp is used to eliminate all prints from core1 to prevent collisions with
-        //prints in core0
-        else if (intin >= 0) {
-            if (process_char(&sr_dev, (char)intin)) {
-                sr_send_resp = true;
+
+            n = tud_cdc_n_read(CDC_SIGROK_N, &ch, sizeof(ch));
+            if (n == 0) {
+                break;
+            }
+
+            // The '+' is the only character we track during normal sampling because it can end
+            // a continuous trace.  A reset '*' should only be seen after we have completed normally
+            // or hit an error condition.
+            if (ch == '+') {
+                sr_dev.sending = false;
+                sr_dev.aborted = false; //clear the abort so we stop sending !!
+            }
+            else {
+                if (process_char(&sr_dev, (char)ch)) {
+                    sr_send_resp = true;
+                }
             }
         }
     }
-}   // core1_code
+}   // cdc_sigrok_thread
+
+
+
+void cdc_sigrok_init(uint32_t task_prio)
+{
+    xTaskCreate(cdc_sigrok_thread, "CDC_SIGROK", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_cdc_sigrok);
+}   // cdc_sigrok_init

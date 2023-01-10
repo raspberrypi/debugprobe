@@ -57,6 +57,8 @@
 
 #define configIDLE_SHOULD_YIELD                 1
 
+#define configUSE_TASK_NOTIFICATIONS            1
+
 /* Synchronization Related */
 #define configUSE_MUTEXES                       1
 #define configUSE_RECURSIVE_MUTEXES             0

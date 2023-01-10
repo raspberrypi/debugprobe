@@ -16,7 +16,9 @@
 #include "hardware/dma.h"
 #include "hardware/structs/bus_ctrl.h"
 #include "hardware/clocks.h"
-#include "pico/multicore.h"
+
+#include "FreeRTOS.h"
+#include "task.h"
 
 #include "picoprobe_config.h"
 #include "sigrok_int.h"
@@ -64,11 +66,12 @@ volatile uint32_t sr_c1cnt = 0;
 //
 // module private
 //
-uint8_t *capture_buf;
+__attribute__ ((aligned(4))) uint8_t capture_buf[SR_DMA_BUF_SIZE];    // 4byte aligned
+
 volatile uint32_t c0cnt=0;
 volatile uint32_t tstart;
 uint8_t txbuf[TX_BUF_SIZE];
-uint16_t txbufidx;
+uint16_t txbufidx;                // TODO correct?
 uint32_t rxbufdidx;
 uint32_t rlecnt;
 uint32_t ccnt=0; //count of characters sent serially
@@ -83,6 +86,8 @@ volatile uint32_t *tstsa0,*tstsa1,*tstsd0,*tstsd1;
 volatile uint32_t *taddra0,*taddra1,*taddrd0,*taddrd1;
 volatile int lowerhalf; //are we processing the upper or lower half of the data buffers
 volatile bool mask_xfer_err;
+
+static TaskHandle_t task_sigrok;
 
 
 
@@ -445,13 +450,13 @@ static void send_slices_analog(sr_device_t *d,uint8_t *dbuf,uint8_t *abuf)
         if (d->d_mask) {
             cval = get_cval(dbuf);
             tx_d_samp(d, cval);
-            //Dprintf("s %d cv %X bps %d idx t %d r %d\n",s,cval,d_dma_bps,txbufidx,rxbufdidx);
+            Dprintf("s %d cv %lX bps %d idx t %d r %ld\n", s, cval, d_dma_bps, txbufidx, rxbufdidx);
         }
         for (uint32_t i = 0;  i < d->a_chan_cnt;  i++) {
             txbuf[txbufidx] = (abuf[rxbufaidx] >> 1) | 0x80;
             txbufidx++;
             rxbufaidx++;
-            //Dprintf("av %X cnt %d idx t %d r %d\n",abuf[rxbufaidx-1],d->a_chan_cnt,txbufidx,rxbufaidx);
+            Dprintf("av %X cnt %d idx t %d r %ld\n", abuf[rxbufaidx-1], d->a_chan_cnt, txbufidx, rxbufaidx);
         }
         //Since this doesn't support RLEs we don't need to buffer
         //extra bytes to prevent txbuf overflow, but this value
@@ -501,7 +506,7 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
         //Since we swap the csr pointers we determine the other half from the address offsets.
         uint8_t myachan = (((uint32_t)tstsa0) >> 6) & 0xF;               // TODO several magic numbers
         uint8_t mydchan = (((uint32_t)tstsd0) >> 6) & 0xF;
-        //  Dprintf("my stts pre a 0x%X d 0x%X\n",*tstsa0,*tstsd0);
+        Dprintf("my stts pre a 0x%lX d 0x%lX\n", *tstsa0, *tstsd0);
         //Set my chain to myself so that I can't chain to the other.
         volatile uint32_t ttmp;
         ttmp = ((tstsd0[1]) & 0xFFFF87FF) | (mydchan << 11);               // TODO several magic numbers
@@ -545,7 +550,9 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
         uint8_t adcfail;
         adcfcs = (volatile uint32_t *)(ADC_BASE + 0x8);//ADC FCS
         adcfail = (((*adcfcs) & 0xC00)  &&  (d->a_mask)) ? 1 : 0;
-        //if(adcfail){Dprintf("adcfcs 0x%X %p\n",*adcfcs,(void *) adcfcs);}
+        if (adcfail) {
+            Dprintf("adcfcs 0x%lX %p\n", *adcfcs, (void *)adcfcs);
+        }
         //Ensure other dma is still busy, if not that means we have samples from PIO/ADC that could be lost.
         //It's only an error if we haven't already gotten the samples we need, or if we are processing the first
         //half and all the remaining samples we need are in the 2nd half.
@@ -553,14 +560,14 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
         uint8_t proc_fail;
         proc_fail =     (~(((((*tstsa1) >> 24) & 1)  ||  (d->a_mask == 0))              // TODO query bit 24
                     &&     ((((*tstsd1) >> 24) & 1)  ||  (d->d_mask == 0))) & 1);
-        //Dprintf("pf 0x%X 0x%X %d\n",*tstsa1,*tstsd1,proc_fail);
+        Dprintf("pf 0x%lX 0x%lX %d\n", *tstsa1, *tstsd1, proc_fail);
         //       if(mask_xfer_err
         //     || ((piorxstall1==0)
         //      &&((((*tstsa1)>>24)&1)||(d->a_mask==0))
         //         &&((((*tstsd1)>>24)&1)||(d->d_mask==0)))){
         if (   mask_xfer_err
             || (piorxstall1 == 0  &&  adcfail == 0  &&  piorxstall2 == 0  &&  proc_fail == 0)) {
-            //           Dprintf("h\n");
+            Dprintf("h\n");
             return 1;
         }
         else {
@@ -577,9 +584,9 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
             //Issue end of trace markers to host
             //The main loop also sends these periodically until the host is done..
             cdc_sigrok_write("!!!", 3);
-            //Dprintf("scnt %u\n",d->scnt);
-            //Dprintf("a st %u msk %u\n",(*tstsa1),d->a_mask);
-            //Dprintf("d st %u msk %u\n",(*tstsd1),d->d_mask);
+            Dprintf("scnt %lu\n", d->scnt);
+            Dprintf("a st %lu msk %lu\n", *tstsa1, d->a_mask);
+            Dprintf("d st %lu msk %lu\n", *tstsd1, d->d_mask);
             return -1;
         }
     }//if not busy
@@ -625,14 +632,12 @@ static void dma_check(sr_device_t *d)
 /**
  * Main task of sigrok.
  */
-static void sigrok_task(void *ptr)
+static void sigrok_thread(void *ptr)
 {
     dma_channel_config acfg0, acfg1, pcfg0, pcfg1;
     uint admachan0, admachan1, pdmachan0, pdmachan1;
     bool init_done = false;
 
-    gpio_set_function(0, GPIO_FUNC_UART);
-    gpio_set_function(1, GPIO_FUNC_UART);
     sleep_us(100000);
     Dprintf("\nHello from PICO sigrok device\n");
 
@@ -655,8 +660,6 @@ static void sigrok_task(void *ptr)
     adc_gpio_init(27);
     adc_gpio_init(28);
     adc_init();
-
-    multicore_launch_core1(core1_code);
 
     admachan0 = dma_claim_unused_channel(true);
     admachan1 = dma_claim_unused_channel(true);
@@ -710,18 +713,8 @@ static void sigrok_task(void *ptr)
     bus_ctrl_hw->priority = BUSCTRL_BUS_PRIORITY_DMA_W_BITS | BUSCTRL_BUS_PRIORITY_DMA_R_BITS;
 
     sigrok_full_reset(&sr_dev);
-    //Since RP2040 is 32 bit this should always be 4B aligned, and it must be because the PIO
-    //does DMA on a per byte basis
-    //If either malloc fails the code will just hang
-    Dprintf("Malloc\n");
-    capture_buf = malloc(SR_DMA_BUF_SIZE);
-    Dprintf("DMA start %p\n",(void *)capture_buf);
 
-    //Ensure we leave 10k or more left for any dynamic allocations that need it
-    uint8_t *tptr;
-    tptr=malloc(10000);
-    Dprintf("10K free start %p\n",(void *)tptr);
-    free(tptr);
+    Dprintf("DMA start %p\n",(void *)capture_buf);
 
     //This testmode forces the device into a capture state without needing
     //sigrok cli/pulseview to initiate it
@@ -741,9 +734,11 @@ static void sigrok_task(void *ptr)
 
      */
 
-    gpio_init_mask(SR_GPIO_D_MASK); //set as GPIO_FUNC_SIO and clear output enable
-    gpio_set_dir_masked(SR_GPIO_D_MASK, 0);  //Set all to input
+    gpio_init_mask(SR_GPIO_D_MASK);            // set as GPIO_FUNC_SIO and clear output enable
+    gpio_set_dir_masked(SR_GPIO_D_MASK, 0);    // set all to input
+
     for (;;) {
+        vTaskDelay(pdMS_TO_TICKS(10));      // TODO otherwise we will consume the whole CPU
         __sev();//send event to wake core1
         if (sr_send_resp) {
             int mylen = strlen(sr_dev.rspstr);
@@ -753,7 +748,7 @@ static void sigrok_task(void *ptr)
             sr_send_resp = false;
         }
 
-        //Dprintf("ss %d %d", dev.sending, dev.started);
+//        Dprintf("ss %d %d", sr_dev.sending, sr_dev.started);
         if (sr_dev.sending  &&  !sr_dev.started) {
             //Only boost frequency during a sample so that average device power is less.
             //It's not clear that this is needed because rp2040 is pretty low power, but it can't hurt...
@@ -812,7 +807,7 @@ static void sigrok_task(void *ptr)
                 if (buff_chunks > chunks_needed) {
                     mask_xfer_err = true;
                     buff_chunks = chunks_needed;
-                    //Dprintf("Reduce buf chunks to %d\n",buff_chunks);
+                    Dprintf("Reduce buf chunks to %ld\n", buff_chunks);
                 }
             }
             //Give dig and analog equal fractions
@@ -820,8 +815,8 @@ static void sigrok_task(void *ptr)
             sr_dev.d_size = (buff_chunks * chunk_size * d_nibbles) / (t_nibbles * 2);
             sr_dev.a_size = (buff_chunks * chunk_size * a_nibbles) / (t_nibbles * 2);
             sr_dev.samples_per_half = chunk_samples * buff_chunks / 2;
-            //Dprintf("Final sizes d %d a %d mask err %d samples per half %d\n"
-            //,dev.d_size,dev.a_size,mask_xfer_err,dev.samples_per_half);
+            Dprintf("Final sizes d %ld a %ld mask err %d samples per half %ld\n",
+                    sr_dev.d_size, sr_dev.a_size, mask_xfer_err, sr_dev.samples_per_half);
 
             //Clear any previous ADC over/underflow
             volatile uint32_t *adcfcs;
@@ -848,19 +843,19 @@ static void sigrok_task(void *ptr)
 
             volatile uint32_t *adcdiv;
             adcdiv = (volatile uint32_t *)(ADC_BASE + 0x10);//ADC DIV
-            //   Dprintf("adcdiv start %u\n",*adcdiv);
-            //      Dprintf("starting d_nps %u a_chan_cnt %u d_size %u a_size %u a_mask %X\n"
-            //         ,dev.d_nps,dev.a_chan_cnt,dev.d_size,dev.a_size,dev.a_mask);
-            //Dprintf("start offsets d0 0x%X d1 0x%X a0 0x%X a1 0x%X samperhalf %u\n"
-            //    ,dev.dbuf0_start,dev.dbuf1_start,dev.abuf0_start,dev.abuf1_start,dev.samples_per_half);
-            //Dprintf("starting data buf values 0x%X 0x%X\n",capture_buf[dev.dbuf0_start],capture_buf[dev.dbuf1_start]);
+            Dprintf("adcdiv start %lu\n", *adcdiv);
+            Dprintf("starting d_nps %u a_chan_cnt %u d_size %lu a_size %lu a_mask %lX\n",
+                    sr_dev.d_nps, sr_dev.a_chan_cnt, sr_dev.d_size, sr_dev.a_size, sr_dev.a_mask);
+            Dprintf("start offsets d0 0x%lX d1 0x%lX a0 0x%lX a1 0x%lX samperhalf %lu\n",
+                    sr_dev.dbuf0_start, sr_dev.dbuf1_start, sr_dev.abuf0_start, sr_dev.abuf1_start, sr_dev.samples_per_half);
+            Dprintf("starting data buf values 0x%X 0x%X\n", capture_buf[sr_dev.dbuf0_start], capture_buf[sr_dev.dbuf1_start]);
             uint32_t adcdivint = 48000000ULL / (sr_dev.sample_rate * sr_dev.a_chan_cnt);
             if (sr_dev.a_chan_cnt != 0) {
                 adc_run(false);
                 //             en, dreq_en,dreq_thresh,err_in_fifo,byte_shift to 8 bit
                 adc_fifo_setup(false, true,   1,           false,       true);
                 adc_fifo_drain();
-                //Dprintf("astart cnt %u div %f\n",dev.a_chan_cnt,(float)adcdivint);
+                Dprintf("astart cnt %u div %f\n", sr_dev.a_chan_cnt, (float)adcdivint);
 
                 //This sdk function doesn't support support the fractional divisor
                 // adc_set_clkdiv((float)(adcdivint-1));
@@ -882,7 +877,7 @@ static void sigrok_task(void *ptr)
                 }else{
                     *adcdiv = ((adcdivint-1) << 8) | adc_frac_int;
                 }
-                //Dprintf("adcdiv %u frac %d\n",*adcdiv,adc_frac_int);
+                Dprintf("adcdiv %lu frac %d\n", *adcdiv, adc_frac_int);
 
                 //This is needed to clear the AINSEL so that when the round robin arbiter starts we start sampling on channel 0
                 adc_select_input(0);
@@ -930,10 +925,10 @@ static void sigrok_task(void *ptr)
                     sr_dev.pin_count = 8;
                 }
                 d_dma_bps = sr_dev.pin_count >> 3;
-                //Dprintf("pin_count %d\n",dev.pin_count);
+                Dprintf("pin_count %d\n", sr_dev.pin_count);
                 uint16_t capture_prog_instr;
                 capture_prog_instr = pio_encode_in(pio_pins, sr_dev.pin_count);
-                //Dprintf("capture_prog_instr 0x%X\n",capture_prog_instr);
+                Dprintf("capture_prog_instr 0x%X\n",capture_prog_instr);
                 struct pio_program capture_prog = {
                         .instructions = &capture_prog_instr,
                         .length = 1,
@@ -943,7 +938,7 @@ static void sigrok_task(void *ptr)
                 // Configure state machine to loop over this `in` instruction forever,
                 // with autopush enabled.
                 pio_sm_config c = pio_get_default_sm_config();
-                //start at GPIO2 (keep 0 and 1 for uart)
+                //start at SR_BASE_D_CHAN
                 sm_config_set_in_pins(&c, SR_BASE_D_CHAN);
                 sm_config_set_wrap(&c, offset, offset);
 
@@ -953,7 +948,7 @@ static void sigrok_task(void *ptr)
                 if (div_int < 1)
                     div_int = 1;
                 frac_int = (uint8_t)((((frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS) * 1000) % sr_dev.sample_rate) * 256ULL) / sr_dev.sample_rate);
-                //             Dprintf("PIO sample clk %u divint %d divfrac %d\n",dev.sample_rate,div_int,frac_int);
+                Dprintf("PIO sample clk %lu divint %d divfrac %d\n", sr_dev.sample_rate, div_int, frac_int);
                 //Unlike the ADC, the PIO int divisor does not have to subtract 1.
                 //Frequency=sysclkfreq/(CLKDIV_INT+CLKDIV_FRAC/256)
                 sm_config_set_clkdiv_int_frac(&c, div_int, frac_int);
@@ -983,9 +978,9 @@ static void sigrok_task(void *ptr)
                 //             pio_sm_set_enabled(SIGROK_PIO, SIGROK_SM, true);
             } //dev.d_mask
             //These must be at their initial value,(or zero for the 2ndhalf) otherwise it indicates they have started to countdown
-            //Dprintf("Tcount start d %u %u a %u %u\n",*tcountd0,*tcountd1,*tcounta0,*tcounta1);
+            Dprintf("Tcount start d %lu %lu a %lu %lu\n", *tcountd0, *tcountd1, *tcounta0, *tcounta1);
             //These must be the initial value for both
-            //Dprintf("Tcount dbg start d 0x%X 0x%X a 0x%X 0x%X\n",*tcountdbgd0,*tcountdbgd1,*tcountdbga0,*tcountdbga1);
+//            Dprintf("Tcount dbg start d 0x%X 0x%X a 0x%X 0x%X\n", *tcountdbgd0, *tcountdbgd1, *tcountdbga0, *tcountdbga1);
             //These catch cases in DMA coding where DMA engines have started too soon..
 
             if (*tcountd0 != *tcountdbgd0  &&  sr_dev.d_mask != 0) {
@@ -1001,20 +996,20 @@ static void sigrok_task(void *ptr)
                 Dprintf("\n\nERROR: DMAA1 should start with 0 tcount\n\n");
             }
 
-            //Dprintf("LVL0mask 0x%X\n",dev.lvl0mask);
-            //Dprintf("LVL1mask 0x%X\n",dev.lvl1mask);
-            //Dprintf("risemask 0x%X\n",dev.risemask);
-            //Dprintf("fallmask 0x%X\n",dev.fallmask);
-            //Dprintf("edgemask 0x%X\n",dev.chgmask);
+//            Dprintf("LVL0mask 0x%X\n", sr_dev.lvl0mask);
+//            Dprintf("LVL1mask 0x%X\n", sr_dev.lvl1mask);
+//            Dprintf("risemask 0x%X\n", sr_dev.risemask);
+//            Dprintf("fallmask 0x%X\n", sr_dev.fallmask);
+//            Dprintf("edgemask 0x%X\n", sr_dev.chgmask);
 
-            // Dprintf("dma addr start d 0x%X 0x%X a 0x%X 0x%X\n",*taddrd0,*taddrd1,*taddra0,*taddra1);
-            //Dprintf("capture_buf base %p\n",capture_buf);
-            //Dprintf("capture_buf dig %p %p\n",&(capture_buf[dev.dbuf0_start]),&(capture_buf[dev.dbuf1_start]));
-            //Dprintf("capture_buf analog %p %p\n",&(capture_buf[dev.abuf0_start]),&(capture_buf[dev.abuf1_start]));
+            Dprintf("dma addr start d 0x%lX 0x%lX a 0x%lX 0x%lX\n", *taddrd0, *taddrd1, *taddra0, *taddra1);
+            Dprintf("capture_buf base %p\n",capture_buf);
+            Dprintf("capture_buf dig %p %p\n",&(capture_buf[sr_dev.dbuf0_start]),&(capture_buf[sr_dev.dbuf1_start]));
+            Dprintf("capture_buf analog %p %p\n",&(capture_buf[sr_dev.abuf0_start]),&(capture_buf[sr_dev.abuf1_start]));
 
-            //Dprintf("DMA channel assignments a %d %d d %d %d\n",admachan0,admachan1,pdmachan0,pdmachan1);
-            //Dprintf("DMA ctr reg addrs a %p %p d %p %p\n",(void *) tstsa0,(void *)tstsa1,(void *)tstsd0,(void *)tstsd1);
-            //Dprintf("DMA ctrl reg a 0x%X 0x%X d 0x%X 0x%X\n",*tstsa0,*tstsa1,*tstsd0,*tstsd1);
+            Dprintf("DMA channel assignments a %d %d d %d %d\n",admachan0,admachan1,pdmachan0,pdmachan1);
+            Dprintf("DMA ctr reg addrs a %p %p d %p %p\n",(void *) tstsa0,(void *)tstsa1,(void *)tstsd0,(void *)tstsd1);
+            Dprintf("DMA ctrl reg a 0x%lX 0x%lX d 0x%lX 0x%lX\n", *tstsa0, *tstsa1, *tstsd0, *tstsd1);
             //Enable logic and analog close together for best possible alignment
             //warning - do not put printfs or similar things here...
             tstart = time_us_32();
@@ -1022,8 +1017,7 @@ static void sigrok_task(void *ptr)
             pio_sm_set_enabled(SIGROK_PIO, SIGROK_SM, true);
             sr_dev.started = true;
             init_done = true;
-
-        }//if dev.sending and not started
+        }   //if dev.sending and not started
         dma_check(&sr_dev);
 
         //In high verbosity modes the host can miss the "!" so send these until it sends a "+"
@@ -1099,7 +1093,7 @@ static void sigrok_task(void *ptr)
             sr_c1cnt = 0;
         }
     }
-}   // sigrok_task
+}   // sigrok_thread
 
 
 
@@ -1158,5 +1152,7 @@ End of depracated trigger logic
 
 void sigrok_init(uint32_t task_prio)
 {
-    //sigrok_task(NULL);    // very experimental for clean up, does really not run
+    xTaskCreate(sigrok_thread, "CDC_SIGROK", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_sigrok);
+
+    cdc_sigrok_init(task_prio);
 }   // sigrok_init

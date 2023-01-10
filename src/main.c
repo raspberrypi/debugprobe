@@ -54,6 +54,7 @@
     #include "rtt_console.h"
 #endif
 #if defined(INCLUDE_SIGROK)
+    #include "pico-sigrok/cdc_sigrok.h"
     #include "pico-sigrok/sigrok.h"
 #endif
 
@@ -87,7 +88,7 @@ static uint8_t RxDataBuffer[_DAP_PACKET_COUNT * _DAP_PACKET_SIZE];
 #define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 5)        // target -> host via RTT
 #define CDC_DEBUG_TASK_PRIO         (tskIDLE_PRIORITY + 4)        // probe debugging output
 #define DAP_TASK_PRIO               (tskIDLE_PRIORITY + 2)        // DAP execution, during connection this takes the other core
-#define SIGROK_TASK_PRIO            (tskIDLE_PRIORITY + 1)        // Sigrok digital/analog signals (does nothing at the moment)
+#define SIGROK_TASK_PRIO            (tskIDLE_PRIORITY + 9)        // Sigrok digital/analog signals (does nothing at the moment)
 
 static TaskHandle_t tud_taskhandle;
 static TaskHandle_t dap_taskhandle;
@@ -207,6 +208,15 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
         cdc_debug_line_state_cb(dtr, rts);
     }
 }   // tud_cdc_line_state_cb
+
+
+
+void tud_cdc_rx_cb(uint8_t itf)
+{
+    if (itf == CDC_SIGROK_N) {
+        cdc_sigrok_rx_cb();
+    }
+}   // tud_cdc_rx_cb
 
 
 
