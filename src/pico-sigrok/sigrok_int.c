@@ -37,7 +37,7 @@ void sigrok_tx_init(sr_device_t *d)
     //An additional one here would clear trigger and other state that had been updated
     //    reset(d);
     d->a_chan_cnt = 0;
-    for (int i = 0;  i < NUM_A_CHAN;  i++) {
+    for (int i = 0;  i < SR_NUM_A_CHAN;  i++) {
         if (((d->a_mask) >> i) & 1) {
             d->a_chan_cnt++;
         }
@@ -58,7 +58,7 @@ void sigrok_tx_init(sr_device_t *d)
 
     //Digital channels must enable from D0 and go up, but that is checked by the host
     d->d_chan_cnt = 0;
-    for (int i = 0;  i < NUM_D_CHAN;  i++) {
+    for (int i = 0;  i < SR_NUM_D_CHAN;  i++) {
         if (((d->d_mask) >> i) & 1) {
             //    Dprintf("i %d inv %d mask %X\n",i,invld,d->d_mask);
             d->d_chan_cnt++;
@@ -101,7 +101,7 @@ void sigrok_full_reset(sr_device_t *d)
     d->sample_rate = 5000;
     d->num_samples = 10;
     d->a_chan_cnt  = 0;
-    // TODO what about d_chan_cnt?
+    d->d_chan_cnt  = 0;
     d->d_nps       = 0;
     d->cmdstrptr   = 0;
 }   // sigrok_full_reset

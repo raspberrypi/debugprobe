@@ -113,7 +113,7 @@ static int process_char(sr_device_t *d, char charin)
         switch (d->cmdstr[0]) {
             case 'i':
                 //SREGEN,AxxyDzz,00 - num analog, analog size, num digital,version
-                sprintf(d->rspstr, "SRPICO,A%02d1D%02d,02", NUM_A_CHAN, NUM_D_CHAN);
+                sprintf(d->rspstr, "SRPICO,A%02d1D%02d,02", SR_NUM_A_CHAN, SR_NUM_D_CHAN);
                 Dprintf("ID rsp %s\n", d->rspstr);
                 ret = 1;
                 break;
@@ -282,8 +282,8 @@ void core1_code()
         //C0 completes more loops and C1 activity drops to 1% .
         //Much of the C0 code has built in sev (Send Event) but we also add an explicit one in the main while loop
 
-        if (dev.started) {
-            c1cnt++;
+        if (sr_dev.started) {
+            sr_c1cnt++;
             __wfe();
             __wfe();
             __wfe();
@@ -296,7 +296,7 @@ void core1_code()
             __wfe();
         }
 
-        if ( !dev.started) {
+        if ( !sr_dev.started) {
             //always drain all defined uarts as if that is not done it can
             //effect the usb serial CDC stability
             //these are generally rare events caused by noise/reset events
@@ -311,14 +311,14 @@ void core1_code()
         //a continuous trace.  A reset '*' should only be seen after we have completed normally
         //or hit an error condition.
         if (intin == '+') {
-            dev.sending = false;
-            dev.aborted = false; //clear the abort so we stop sending !!
+            sr_dev.sending = false;
+            sr_dev.aborted = false; //clear the abort so we stop sending !!
         }
         //send_resp is used to eliminate all prints from core1 to prevent collisions with
         //prints in core0
         else if (intin >= 0) {
-            if (process_char(&dev, (char)intin)) {
-                send_resp = true;
+            if (process_char(&sr_dev, (char)intin)) {
+                sr_send_resp = true;
             }
         }
     }

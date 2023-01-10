@@ -44,29 +44,32 @@
 //GP26-28 are ADC.
 #if 1
     // number of analog channels
-    #define NUM_A_CHAN   3
+    #define SR_NUM_A_CHAN   3
     // first digital channel port
-    #define FIRST_D_CHAN 12
+    #define SR_BASE_D_CHAN  12
     // number of digital channels
-    #define NUM_D_CHAN   8
+    #define SR_NUM_D_CHAN   8
     // Storage size of the DMA buffer.  The buffer is split into two halves so that when the first
     // buffer fills we can send the trace data serially while the other buffer is DMA'd into
-    #define DMA_BUF_SIZE 100000
+    #define SR_DMA_BUF_SIZE 100000
 #else
-    #define NUM_A_CHAN   3
+    #define SR_NUM_A_CHAN   3
     // first digital channel port
-    #define FIRST_D_CHAN 2
+    #define SR_BASE_D_CHAN  2
     // number of digital channels
-    #define NUM_D_CHAN   21
+    #define SR_NUM_D_CHAN   21
     // Storage size of the DMA buffer.  The buffer is split into two halves so that when the first
     // buffer fills we can send the trace data serially while the other buffer is DMA'd into
-    #define DMA_BUF_SIZE 220000
+    #define SR_DMA_BUF_SIZE 220000
 #endif
 
-// Mask for the digital channels
-#define GPIO_D_MASK      (((1 << (NUM_D_CHAN)) - 1) << (FIRST_D_CHAN))
+// Mask for the digital channels fetched from PIO
+#define SR_PIO_D_MASK       ((1 << (SR_NUM_D_CHAN)) - 1)
 
-#define Dprintf(...)     picoprobe_debug(__VA_ARGS__)
+// Mask for the digital channels at GPIO level
+#define SR_GPIO_D_MASK      (((1 << (SR_NUM_D_CHAN)) - 1) << (SR_BASE_D_CHAN))
+
+#define Dprintf(...)        picoprobe_debug(__VA_ARGS__)
 
 
 typedef struct sr_device {
@@ -105,9 +108,9 @@ typedef struct sr_device {
 //
 // shared between modules
 //
-extern sr_device_t       dev;
-extern volatile bool     send_resp;
-extern volatile uint32_t c1cnt;
+extern sr_device_t       sr_dev;
+extern volatile bool     sr_send_resp;
+extern volatile uint32_t sr_c1cnt;
 
 void sigrok_tx_init(sr_device_t *d);
 void sigrok_reset(sr_device_t *d);
