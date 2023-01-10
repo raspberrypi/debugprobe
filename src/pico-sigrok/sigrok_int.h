@@ -85,23 +85,26 @@ typedef struct sr_device {
     uint32_t num_samples;
     uint32_t a_mask,d_mask;
     uint32_t samples_per_half; //number of samples for one of the 4 dma target arrays
-    uint8_t a_chan_cnt; //count of enabled analog channels
-    uint8_t d_chan_cnt; //count of enabled digital channels
+    uint8_t a_chan_cnt;                              //!< count of enabled analog channels
+    uint8_t d_chan_cnt;                              //!< count of enabled digital channels
     uint8_t d_tx_bps;   //Digital Transmit bytes per slice
     //Pins sampled by the PIO - 4,8,16 or 32
     uint8_t pin_count;
     uint8_t d_nps; //digital nibbles per slice from a PIO/DMA perspective.
     uint32_t scnt; //number of samples sent
-    uint32_t cmdstrptr;
-    char cmdstr[20];//used for parsing input
     uint32_t d_size,a_size; //size of each of the two data buffers for each of a& d
     uint32_t dbuf0_start,dbuf1_start,abuf0_start,abuf1_start; //starting memory pointers of adc buffers
-    char rspstr[20];
-    //mark key control variables voltatile since multiple cores might access them
+    uint32_t cmdstr_ndx;                             //!< index into \a cmdstr
+    char cmdstr[20];                                 //!< used for parsing input
+    char rspstr[20];                                 //!< response string of a \a cmdstr
+
+    // mark key control variables volatile since multiple cores might access them
     volatile bool started;
-    volatile bool sending;
-    volatile bool cont;
+    volatile bool sample_and_send;                   //!< sample and send data
+    volatile bool continuous;                        //!< continuous sample mode
     volatile bool aborted;
+    volatile bool send_resp;                         //!< send the response string contained in \a rspstr
+
     /*Depracated trigger logic
 //If HW trigger enabled, uncomment all usages
   //volatile bool notfirst;  //Have we processed at least a first sample (so that lval is correct
@@ -116,9 +119,7 @@ typedef struct sr_device {
 //
 // shared between modules
 //
-extern sr_device_t       sr_dev;
-extern volatile bool     sr_send_resp;
-extern volatile uint32_t sr_c1cnt;
+extern sr_device_t sr_dev;
 
 void sigrok_tx_init(sr_device_t *d);
 void sigrok_reset(sr_device_t *d);

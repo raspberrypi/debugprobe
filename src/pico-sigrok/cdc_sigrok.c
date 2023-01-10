@@ -95,11 +95,12 @@ void cdc_sigrok_write(const char *buf, int length)
 
 
 //Process incoming character stream
-//Return 1 if the device rspstr has a response to send to host
+//Return true if the device rspstr has a response to send to host
 //Be sure that rspstr does not have \n  or \r.
-static int process_char(sr_device_t *d, char charin)
+static bool process_char(sr_device_t *d, char charin)
 {
-    int tmpint, tmpint2, ret;
+    int tmpint, tmpint2;
+    bool ret = false;
 
     //set default rspstr for all commands that have a dataless ack
     d->rspstr[0] = '*';
@@ -107,17 +108,17 @@ static int process_char(sr_device_t *d, char charin)
     //the reset character works by itself
     if (charin == '*') {
         sigrok_reset(d);
-        Dprintf("RST* %d\n", d->sending);
-        return 0;
+        Dprintf("RST* %d\n", d->sample_and_send);
+        return false;
     }
     else if (charin == '\r'  ||  charin == '\n') {
-        d->cmdstr[d->cmdstrptr] = 0;
+        d->cmdstr[d->cmdstr_ndx] = 0;
         switch (d->cmdstr[0]) {
             case 'i':
                 //SREGEN,AxxyDzz,00 - num analog, analog size, num digital,version
                 sprintf(d->rspstr, "SRPICO,A%02d1D%02d,02", SR_NUM_A_CHAN, SR_NUM_D_CHAN);
                 Dprintf("ID rsp %s\n", d->rspstr);
-                ret = 1;
+                ret = true;
                 break;
 
             case 'R':
@@ -125,11 +126,11 @@ static int process_char(sr_device_t *d, char charin)
                 if (tmpint >= 5000  &&  tmpint <= 120000016) { //Add 16 to support cfg_bits
                     d->sample_rate = tmpint;
                     Dprintf("SMPRATE= %lu\n", d->sample_rate);
-                    ret = 1;
+                    ret = true;
                 }
                 else {
                     Dprintf("unsupported smp rate %s\n", d->cmdstr);
-                    ret = 0;
+                    ret = false;
                 }
                 break;
 
@@ -139,11 +140,11 @@ static int process_char(sr_device_t *d, char charin)
                 if (tmpint > 0) {
                     d->num_samples = tmpint;
                     Dprintf("NUMSMP=%lu\n", d->num_samples);
-                    ret = 1;
+                    ret = true;
                 }
                 else {
                     Dprintf("bad num samples %s\n", d->cmdstr);
-                    ret = 0;
+                    ret = false;
                 }
                 break;
 
@@ -154,26 +155,28 @@ static int process_char(sr_device_t *d, char charin)
                     //separated by x
                     sprintf(d->rspstr, "25700x0");  //3.3/(2^7) and 0V offset
                     Dprintf("ASCL%d\n",tmpint);
-                    ret = 1;
+                    ret = true;
                 }
                 else {
                     Dprintf("bad ascale %s\n", d->cmdstr);
-                    ret = 1; //this will return a '*' causing the host to fail
+                    ret = true; //this will return a '*' causing the host to fail
                 }
                 break;
 
-            case 'F': //fixed set of samples
+            case 'F':
+                // fixed set of samples
                 Dprintf("STRT_FIX\n");
+                d->continuous = false;
                 sigrok_tx_init(d);
-                d->cont = 0;
-                ret = 0;
+                ret = false;
                 break;
 
-            case 'C':  //continous mode
-                sigrok_tx_init(d);
-                d->cont = 1;
+            case 'C':
+                // continuous mode
                 Dprintf("STRT_CONT\n");
-                ret = 0;
+                d->continuous = true;
+                sigrok_tx_init(d);
+                ret = false;
                 break;
 
             case 't': //trigger -format tvxx where v is value and xx is two digit channel
@@ -201,13 +204,13 @@ static int process_char(sr_device_t *d, char charin)
                       d->triggered=true;
                     }
                  */
-                ret = 1;
+                ret = true;
                 break;
 
             case 'p': //pretrigger count
                 tmpint = atoi(&(d->cmdstr[1]));
                 Dprintf("Pre-trigger samples %d cmd %s\n", tmpint, d->cmdstr);
-                ret = 1;
+                ret = true;
                 break;
 
             //format is Axyy where x is 0 for disabled, 1 for enabled and yy is channel #
@@ -218,10 +221,10 @@ static int process_char(sr_device_t *d, char charin)
                     d->a_mask = d->a_mask & ~(1 << tmpint2);
                     d->a_mask = d->a_mask | (tmpint << tmpint2);
                     Dprintf("A%d EN %d Msk 0x%lX\n", tmpint2, tmpint, d->a_mask);
-                    ret = 1;
+                    ret = true;
                 }
                 else {
-                    ret = 0;
+                    ret = false;
                 }
                 break;
 
@@ -233,31 +236,31 @@ static int process_char(sr_device_t *d, char charin)
                     d->d_mask = d->d_mask & ~(1 << tmpint2);
                     d->d_mask = d->d_mask | (tmpint << tmpint2);
                     Dprintf("D%d EN %d Msk 0x%lX\n", tmpint2, tmpint, d->d_mask);
-                    ret = 1;
+                    ret = true;
                 }
                 else {
-                    ret = 0;
+                    ret = false;
                 }
                 break;
 
             default:
                 Dprintf("bad command %s\n", d->cmdstr);
-                ret = 0;
+                ret = false;
                 break;
         }
 
         Dprintf("CmdDone %s\n",d->cmdstr);
-        d->cmdstrptr = 0;
+        d->cmdstr_ndx = 0;
     }
     else {
         //no CR/LF
-        if (d->cmdstrptr >= sizeof(d->cmdstr) - 1) {
+        if (d->cmdstr_ndx >= sizeof(d->cmdstr) - 1) {
             d->cmdstr[sizeof(d->cmdstr) - 2] = 0;
             Dprintf("Command overflow %s\n", d->cmdstr);
-            d->cmdstrptr = 0;
+            d->cmdstr_ndx = 0;
         }
-        d->cmdstr[d->cmdstrptr++] = charin;
-        ret = 0;
+        d->cmdstr[d->cmdstr_ndx++] = charin;
+        ret = false;
     }//else
     //default return 0 means to not send any kind of response
     return ret;
@@ -296,12 +299,12 @@ void cdc_sigrok_thread()
             // a continuous trace.  A reset '*' should only be seen after we have completed normally
             // or hit an error condition.
             if (ch == '+') {
-                sr_dev.sending = false;
-                sr_dev.aborted = false; //clear the abort so we stop sending !!
+                sr_dev.sample_and_send = false;
+                sr_dev.aborted         = false;        // clear the abort so we stop sending !!
             }
             else {
                 if (process_char(&sr_dev, (char)ch)) {
-                    sr_send_resp = true;
+                    sr_dev.send_resp = true;
                 }
             }
         }

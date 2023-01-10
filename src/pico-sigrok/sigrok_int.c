@@ -52,7 +52,7 @@ void sigrok_tx_init(sr_device_t *d)
     //Dealing with samples on a per nibble, rather than per byte basis in non D4 mode
     //creates a bunch of annoying special cases, so forcing non D4 mode to always store a minimum
     //of 8 bits.
-    if ((d->d_nps == 1)  &&  (d->a_chan_cnt > 0)) {
+    if (d->d_nps == 1  &&  d->a_chan_cnt > 0) {
         d->d_nps = 2;
     }
 
@@ -65,7 +65,8 @@ void sigrok_tx_init(sr_device_t *d)
         }
     }
     d->d_tx_bps = (d->d_chan_cnt + 6) / 7;
-    d->sending = true;
+
+    d->sample_and_send = true;
 }   // sigrok_tx_init
 
 
@@ -73,11 +74,11 @@ void sigrok_tx_init(sr_device_t *d)
 // reset as part of init, or on a completed send
 void sigrok_reset(sr_device_t *d)
 {
-    d->sending = 0;
-    d->cont    = 0;
-    d->aborted = false;
-    d->started = false;
-    d->scnt    = 0;
+    d->sample_and_send = false;
+    d->continuous      = false;
+    d->aborted         = false;
+    d->started         = false;
+    d->scnt            = 0;
     //d->notfirst=false;
     //Set triggered by default so that we don't check for HW triggers
     //unless the driver sends a trigger command
@@ -103,5 +104,5 @@ void sigrok_full_reset(sr_device_t *d)
     d->a_chan_cnt  = 0;
     d->d_chan_cnt  = 0;
     d->d_nps       = 0;
-    d->cmdstrptr   = 0;
+    d->cmdstr_ndx  = 0;
 }   // sigrok_full_reset

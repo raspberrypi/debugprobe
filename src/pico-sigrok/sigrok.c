@@ -57,11 +57,9 @@
 #define TX_BUF_THRESH 20
 
 //
-// shared between modules, definitions are here
+// shared between modules, definition is here
 //
 sr_device_t       sr_dev;
-volatile bool     sr_send_resp = false;
-volatile uint32_t sr_c1cnt = 0;
 
 //
 // module private
@@ -141,7 +139,7 @@ static void send_slices_D4(sr_device_t *d,uint8_t *dbuf)
     samp_remain = d->samples_per_half-8;
 
     //If in fixed sample (non-continous mode) only send the amount of samples requested
-    if ( !d->cont  &&  d->scnt + samp_remain > d->num_samples) {
+    if ( !d->continuous  &&  d->scnt + samp_remain > d->num_samples) {
         samp_remain = d->num_samples-d->scnt;
         d->scnt += samp_remain;
     }
@@ -332,7 +330,7 @@ static void send_slice_init(sr_device_t *d,uint8_t *dbuf)
     //Adjust the number of samples to send if there are more in the dma buffer
     //then we need.
     samp_remain = d->samples_per_half;
-    if ( !d->cont  &&  d->scnt + samp_remain > d->num_samples) {
+    if ( !d->continuous  &&  d->scnt + samp_remain > d->num_samples) {
         samp_remain=d->num_samples-d->scnt;
         d->scnt += samp_remain;
     }
@@ -438,7 +436,7 @@ static void send_slices_analog(sr_device_t *d,uint8_t *dbuf,uint8_t *abuf)
 
     rxbufdidx = 0;
     samp_remain = d->samples_per_half;
-    if ( !d->cont  &&  d->scnt + samp_remain > d->num_samples) {
+    if ( !d->continuous  &&  d->scnt + samp_remain > d->num_samples) {
         samp_remain = d->num_samples - d->scnt;
         d->scnt += samp_remain;
     }
@@ -534,8 +532,8 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
             send_slices_4B(d, d_start_addr);
         }
 
-        if ( !d->cont  &&  d->scnt >= d->num_samples) {
-            d->sending = false;
+        if ( !d->continuous  &&  d->scnt >= d->num_samples) {
+            d->sample_and_send = false;
         }
 
         //Set my other chain to me
@@ -600,7 +598,7 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
 //streaming performance, so it's left in core0.
 static void dma_check(sr_device_t *d)
 {
-    if (d->sending  &&  d->started  &&  ((d->scnt < d->num_samples)  ||  d->cont)) {
+    if (d->sample_and_send  &&  d->started  &&  (d->scnt < d->num_samples  ||  d->continuous)) {
         int ret;
 
         c0cnt++;
@@ -611,7 +609,7 @@ static void dma_check(sr_device_t *d)
                 lowerhalf = 0;
             }
             else if (ret < 0) {
-                d->sending = false;
+                d->sample_and_send = false;
             }
         }
         if (lowerhalf == 0) {
@@ -621,7 +619,7 @@ static void dma_check(sr_device_t *d)
                 lowerhalf = 1;
             }
             else if (ret < 0) {
-                d->sending = false;
+                d->sample_and_send = false;
             }
         }
     }
@@ -638,8 +636,8 @@ static void sigrok_thread(void *ptr)
     uint admachan0, admachan1, pdmachan0, pdmachan1;
     bool init_done = false;
 
-    sleep_us(100000);
-    Dprintf("\nHello from PICO sigrok device\n");
+    vTaskDelay(pdMS_TO_TICKS(100));
+    Dprintf("-------------------- Hello from PICO sigrok\n");
 
     uint f_pll_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_SYS_CLKSRC_PRIMARY);
     Dprintf("pll_sys = %dkHz\n", f_pll_sys);
@@ -647,13 +645,15 @@ static void sigrok_thread(void *ptr)
     Dprintf("clk_sys = %dkHz\n", f_clk_sys);
 
     // TODO what is this?
+#if 0
     //Set GPIO23 (TP4) to control switched mode power supply noise
     gpio_init_mask(1 << 23);
     gpio_set_dir_masked(1 << 23, 1 << 23);
     gpio_put_masked(1 << 23, 1 << 23);
     //Early CDC IO code had lots of sleep statements, but the TUD code seems to have sufficient
     //checks that this isn't needed, but it doesn't hurt...
-    sleep_us(100000);
+    vTaskDelay(pdMS_TO_TICKS(100));
+#endif
 
     //GPIOs 26 through 28 (the ADC ports) are on the PICO, GPIO29 is not a pin on the PICO
     adc_gpio_init(26);
@@ -669,6 +669,7 @@ static void sigrok_thread(void *ptr)
     acfg1 = dma_channel_get_default_config(admachan1);
     pcfg0 = dma_channel_get_default_config(pdmachan0);
     pcfg1 = dma_channel_get_default_config(pdmachan1);
+
     //ADC transfer 8 bytes, PIO transfer the 4B default
     channel_config_set_transfer_data_size(&acfg0, DMA_SIZE_8);
     channel_config_set_transfer_data_size(&acfg1, DMA_SIZE_8);
@@ -739,17 +740,17 @@ static void sigrok_thread(void *ptr)
 
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(10));      // TODO otherwise we will consume the whole CPU
-        __sev();//send event to wake core1
-        if (sr_send_resp) {
+
+        if (sr_dev.send_resp) {
             int mylen = strlen(sr_dev.rspstr);
             //Don't mix printf with direct to usb commands
             //printf("%s",dev.rspstr);
             cdc_sigrok_write(sr_dev.rspstr, mylen);
-            sr_send_resp = false;
+            sr_dev.send_resp = false;
         }
 
 //        Dprintf("ss %d %d", sr_dev.sending, sr_dev.started);
-        if (sr_dev.sending  &&  !sr_dev.started) {
+        if (sr_dev.sample_and_send  &&  !sr_dev.started) {
             //Only boost frequency during a sample so that average device power is less.
             //It's not clear that this is needed because rp2040 is pretty low power, but it can't hurt...
             lowerhalf = 1;
@@ -803,7 +804,7 @@ static void sigrok_thread(void *ptr)
             //transfer completes sooner.
             //Also, mask the sending of aborts if the requested number of samples fit into RAM
             //Don't do this in continuous mode as the final size is unknown
-            if ( !sr_dev.cont) {
+            if ( !sr_dev.continuous) {
                 if (buff_chunks > chunks_needed) {
                     mask_xfer_err = true;
                     buff_chunks = chunks_needed;
@@ -1024,17 +1025,17 @@ static void sigrok_thread(void *ptr)
         if (sr_dev.aborted) {
             Dprintf("sending abort !\n");
             cdc_sigrok_write("!!!", 3);
-            sleep_us(200000);
+            vTaskDelay(pdMS_TO_TICKS(200));
         }
         //if we abort or normally finish a run sending gets dropped
-        if ( !sr_dev.sending  &&  init_done) {
+        if ( !sr_dev.sample_and_send  &&  init_done) {
             //The end of sequence byte_cnt uses a "$<byte_cnt>+" format.
             //Send the byte_cnt to ensure no bytes were lost
             if ( !sr_dev.aborted) {
                 char brsp[16];
                 //Give the host time to finish processing samples so that the bytecnt
                 //isn't dropped on the wire
-                sleep_us(100000);
+                vTaskDelay(pdMS_TO_TICKS(100));
                 Dprintf("Cleanup bytecnt %lu\n", ccnt);
                 sprintf(brsp, "$%lu%c", ccnt, '+');
                 puts_raw(brsp);
@@ -1082,15 +1083,14 @@ static void sigrok_thread(void *ptr)
             //Print out debug information after completing, rather than before so that it doesn't
             //delay the start of a capture
             Dprintf("Complete: SRate %lu NSmp %lu\n", sr_dev.sample_rate, sr_dev.num_samples);
-            Dprintf("Cont %d bcnt %lu\n", sr_dev.cont, ccnt);
+            Dprintf("Cont %d bcnt %lu\n", sr_dev.continuous, ccnt);
             Dprintf("DMsk 0x%lX AMsk 0x%lX\n", sr_dev.d_mask, sr_dev.a_mask);
             Dprintf("Half buffers %lu sampperhalf %lu\n", num_halves, sr_dev.samples_per_half);
 
             //Report the number of main loops for each core to ensure
             //C0 runs more loops
-            Dprintf("loop counts C0 %lu C1 %lu\n", c0cnt, sr_c1cnt);
+            Dprintf("loop count C0 %lu\n", c0cnt);
             c0cnt = 0;
-            sr_c1cnt = 0;
         }
     }
 }   // sigrok_thread
