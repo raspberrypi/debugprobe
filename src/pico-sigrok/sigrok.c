@@ -72,7 +72,7 @@ uint8_t txbuf[TX_BUF_SIZE];
 uint16_t txbufidx;                // TODO correct?
 uint32_t rxbufdidx;
 uint32_t rlecnt;
-uint32_t ccnt=0; //count of characters sent serially
+uint32_t sent_cnt;                            //!< count of characters sent serially
 //Number of bytes stored as DMA per slice, must be 1,2 or 4 to support aligned access
 //This will be be zero for 1-4 digital channels.
 uint8_t d_dma_bps;
@@ -163,7 +163,7 @@ static void send_slices_D4(sr_device_t *d,uint8_t *dbuf)
             rlecnt -= 640;
             if (txbufidx > 3){
                 cdc_sigrok_write((char *)txbuf, txbufidx);
-                ccnt += txbufidx;
+                sent_cnt += txbufidx;
                 txbufidx = 0;
             }
         }
@@ -212,7 +212,7 @@ static void send_slices_D4(sr_device_t *d,uint8_t *dbuf)
         //Emperically found that transmitting groups of around 32B gives optimum bandwidth
         if (txbufidx >= 64) {
             cdc_sigrok_write((char *)txbuf, txbufidx);
-            ccnt += txbufidx;
+            sent_cnt += txbufidx;
             txbufidx = 0;
         }
     }//for i in samp_send>>3
@@ -239,7 +239,7 @@ static void send_slices_D4(sr_device_t *d,uint8_t *dbuf)
     }
     if (txbufidx) {
         cdc_sigrok_write((char *)txbuf, txbufidx);
-        ccnt += txbufidx;
+        sent_cnt += txbufidx;
         txbufidx = 0;
     }
 }   // send_slices_D4
@@ -316,7 +316,7 @@ static void check_tx_buf(uint16_t cnt)
 {
     if (txbufidx >= cnt) {
         cdc_sigrok_write((char *)txbuf, txbufidx);
-        ccnt += txbufidx;
+        sent_cnt += txbufidx;
         txbufidx = 0;
     }
 }   // check_tx_buf
@@ -638,10 +638,12 @@ static void sigrok_thread(void *ptr)
     vTaskDelay(pdMS_TO_TICKS(100));
     Dprintf("-------------------- Hello from PICO sigrok\n");
 
-    uint f_pll_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_SYS_CLKSRC_PRIMARY);
-    Dprintf("pll_sys = %dkHz\n", f_pll_sys);
-    uint f_clk_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);
-    Dprintf("clk_sys = %dkHz\n", f_clk_sys);
+    uint32_t f_pll_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_SYS_CLKSRC_PRIMARY);
+    Dprintf("pll_sys = %lukHz\n", f_pll_sys);
+    uint32_t f_clk_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);
+    Dprintf("clk_sys = %lukHz\n", f_clk_sys);
+    uint32_t f_clk_adc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_ADC);
+    Dprintf("clk_adc = %lukHz\n", f_clk_adc);
 
     // TODO what is this?
 #if 0
@@ -730,7 +732,7 @@ static void sigrok_thread(void *ptr)
    dev.sample_rate=1000;
    dev.num_samples=5000;
    dev.scnt=0; //number of samples sent
-   ccnt=0;
+   sent_cnt=0;
 
      */
 
@@ -741,7 +743,7 @@ static void sigrok_thread(void *ptr)
 //        Dprintf("ss %d %d\n", sr_dev.sample_and_send, sr_dev.all_started);
         if (sr_dev.sample_and_send  ||  sr_dev.all_started) {
             // no delay
-            vTaskDelay(1);
+//            vTaskDelay(1);
         }
         else {
             vTaskDelay(pdMS_TO_TICKS(10));      // TODO otherwise we will consume the whole CPU
@@ -848,7 +850,7 @@ static void sigrok_thread(void *ptr)
 
             num_halves = 0;
             sr_dev.dbuf0_start = 0;
-            ccnt = 0;
+            sent_cnt = 0;
             sr_dev.dbuf1_start = sr_dev.d_size;
             sr_dev.abuf0_start = sr_dev.dbuf1_start + sr_dev.d_size;
             sr_dev.abuf1_start = sr_dev.abuf0_start + sr_dev.a_size;
@@ -874,7 +876,6 @@ static void sigrok_thread(void *ptr)
                 //skew with digital samples.
                 volatile uint32_t *adcdiv = (volatile uint32_t *)(ADC_BASE + ADC_DIV_OFFSET);
                 const uint32_t sample_rate_khz = (sr_dev.a_chan_cnt * sr_dev.sample_rate) / 1000;     // sample_rate is a multiple of 1000
-                const uint32_t base_freq_khz = 48000000UL / 1000;                                     // TODO why 48MHz?
 
                 Dprintf("starting d_nps %u a_chan_cnt %u d_size %lu a_size %lu a_mask %lX\n",
                         sr_dev.d_nps, sr_dev.a_chan_cnt, sr_dev.d_size, sr_dev.a_size, sr_dev.a_mask);
@@ -882,7 +883,7 @@ static void sigrok_thread(void *ptr)
                         sr_dev.dbuf0_start, sr_dev.dbuf1_start, sr_dev.abuf0_start, sr_dev.abuf1_start, sr_dev.samples_per_half);
                 Dprintf("starting data buf values 0x%X 0x%X\n", capture_buf[sr_dev.dbuf0_start], capture_buf[sr_dev.dbuf1_start]);
 
-                uint32_t div_256 = (256 * base_freq_khz + sample_rate_khz / 2) / sample_rate_khz;
+                uint32_t div_256 = (256 * f_clk_adc + sample_rate_khz / 2) / sample_rate_khz;
                 uint32_t div_int  = div_256 >> 8;
                 uint32_t div_frac = div_256 & 0xff;
                 if (div_int == 0) {
@@ -960,12 +961,7 @@ static void sigrok_thread(void *ptr)
                 sm_config_set_wrap(&c, offset, offset);
 
                 const uint32_t sample_rate_khz = sr_dev.sample_rate / 1000;                         // sample_rate is a multiple of 1000
-#if 0
-                const uint32_t base_freq_khz = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);   // TODO why not clock_get_hz(clk_sys)?
-#else
-                const uint32_t base_freq_khz = clock_get_hz(clk_sys) / 1000;
-#endif
-                uint32_t div_256 = (256 * base_freq_khz + sample_rate_khz / 2) / sample_rate_khz;
+                uint32_t div_256 = (256 * f_clk_sys + sample_rate_khz / 2) / sample_rate_khz;
                 uint32_t div_int  = div_256 >> 8;
                 uint32_t div_frac = div_256 & 0xff;
                 if (div_int == 0) {
@@ -976,7 +972,7 @@ static void sigrok_thread(void *ptr)
                     div_int = 0xffff;
                     div_frac = 0xff;
                 }
-                Dprintf("PIO sample clk %lukHz / %lu.%lu = %lukHz\n", base_freq_khz, div_int, div_frac, sample_rate_khz);
+                Dprintf("PIO sample clk %lukHz / %lu.%lu = %lukHz\n", f_clk_sys, div_int, div_frac, sample_rate_khz);
                 sm_config_set_clkdiv_int_frac(&c, div_int, div_frac);
 
                 //Since we enable digital channels in groups of 4, we always get 32 bit words
@@ -1065,8 +1061,8 @@ static void sigrok_thread(void *ptr)
                 //Give the host time to finish processing samples so that the bytecnt
                 //isn't dropped on the wire
                 vTaskDelay(pdMS_TO_TICKS(100));
-                Dprintf("Cleanup bytecnt %lu\n", ccnt);
-                n = snprintf(brsp, sizeof(brsp), "$%lu%c", ccnt, '+');
+                Dprintf("Cleanup bytecnt %lu\n", sent_cnt);
+                n = snprintf(brsp, sizeof(brsp), "$%lu+", sent_cnt);
                 cdc_sigrok_write(brsp, n);
             }
 
@@ -1112,7 +1108,7 @@ static void sigrok_thread(void *ptr)
             //Print out debug information after completing, rather than before so that it doesn't
             //delay the start of a capture
             Dprintf("Complete: SRate %lu NSmp %lu\n", sr_dev.sample_rate, sr_dev.num_samples);
-            Dprintf("Cont %d bcnt %lu\n", sr_dev.continuous, ccnt);
+            Dprintf("Cont %d bcnt %lu\n", sr_dev.continuous, sent_cnt);
             Dprintf("DMsk 0x%lX AMsk 0x%lX\n", sr_dev.d_mask, sr_dev.a_mask);
             Dprintf("Half buffers %lu sampperhalf %lu\n", num_halves, sr_dev.samples_per_half);
 
