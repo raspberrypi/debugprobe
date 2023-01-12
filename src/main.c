@@ -121,7 +121,7 @@ void dap_task(void *ptr)
             sw_unlock("DAPv2");
         }
 
-        xEventGroupWaitBits(events, 0x01, pdTRUE, pdFALSE, portMAX_DELAY);
+        xEventGroupWaitBits(events, 0x01, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));  // TODO "pyocd reset -f 500000" does otherwise not disconnect
 
         if ( !mounted  &&  tud_vendor_available()) {
             if (sw_lock("DAPv2", true)) {
