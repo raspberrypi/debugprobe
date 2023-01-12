@@ -546,7 +546,7 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
         piorxstall2 = (SIGROK_PIO->fdebug & 0x1)  &&  (d->d_mask != 0);
         volatile uint32_t *adcfcs;
         uint8_t adcfail;
-        adcfcs = (volatile uint32_t *)(ADC_BASE + 0x8);//ADC FCS
+        adcfcs = (volatile uint32_t *)(ADC_BASE + ADC_FCS_OFFSET);
         adcfail = (((*adcfcs) & 0xC00)  &&  (d->a_mask)) ? 1 : 0;
         if (adcfail) {
             Dprintf("adcfcs 0x%lX %p\n", *adcfcs, (void *)adcfcs);
@@ -751,6 +751,12 @@ static void sigrok_thread(void *ptr)
 
 //        Dprintf("ss %d %d", sr_dev.sending, sr_dev.started);
         if (sr_dev.sample_and_send  &&  !sr_dev.started) {
+            //
+            // initialize sampling and transmission
+            // - reset several counters
+            // - initialize hardware
+            //
+
             //Only boost frequency during a sample so that average device power is less.
             //It's not clear that this is needed because rp2040 is pretty low power, but it can't hurt...
             lowerhalf = 1;
@@ -821,7 +827,7 @@ static void sigrok_thread(void *ptr)
 
             //Clear any previous ADC over/underflow
             volatile uint32_t *adcfcs;
-            adcfcs = (volatile uint32_t *)(ADC_BASE + 0x8);//ADC FCS
+            adcfcs = (volatile uint32_t *)(ADC_BASE + ADC_FCS_OFFSET);
             *adcfcs |= 0xC00;
 
             //Ensure any previous dma is done
@@ -842,21 +848,11 @@ static void sigrok_thread(void *ptr)
             sr_dev.abuf0_start = sr_dev.dbuf1_start + sr_dev.d_size;
             sr_dev.abuf1_start = sr_dev.abuf0_start + sr_dev.a_size;
 
-            volatile uint32_t *adcdiv;
-            adcdiv = (volatile uint32_t *)(ADC_BASE + 0x10);//ADC DIV
-            Dprintf("adcdiv start %lu\n", *adcdiv);
-            Dprintf("starting d_nps %u a_chan_cnt %u d_size %lu a_size %lu a_mask %lX\n",
-                    sr_dev.d_nps, sr_dev.a_chan_cnt, sr_dev.d_size, sr_dev.a_size, sr_dev.a_mask);
-            Dprintf("start offsets d0 0x%lX d1 0x%lX a0 0x%lX a1 0x%lX samperhalf %lu\n",
-                    sr_dev.dbuf0_start, sr_dev.dbuf1_start, sr_dev.abuf0_start, sr_dev.abuf1_start, sr_dev.samples_per_half);
-            Dprintf("starting data buf values 0x%X 0x%X\n", capture_buf[sr_dev.dbuf0_start], capture_buf[sr_dev.dbuf1_start]);
-            uint32_t adcdivint = 48000000ULL / (sr_dev.sample_rate * sr_dev.a_chan_cnt);
             if (sr_dev.a_chan_cnt != 0) {
                 adc_run(false);
                 //             en, dreq_en,dreq_thresh,err_in_fifo,byte_shift to 8 bit
                 adc_fifo_setup(false, true,   1,           false,       true);
                 adc_fifo_drain();
-                Dprintf("astart cnt %u div %f\n", sr_dev.a_chan_cnt, (float)adcdivint);
 
                 //This sdk function doesn't support support the fractional divisor
                 // adc_set_clkdiv((float)(adcdivint-1));
@@ -871,14 +867,29 @@ static void sigrok_thread(void *ptr)
                 //the 0 value instead.
                 //Fractional divisors should generally be avoided because it creates
                 //skew with digital samples.
-                uint8_t adc_frac_int;
-                adc_frac_int = (uint8_t)(((48000000ULL % sr_dev.sample_rate) * 256ULL) / sr_dev.sample_rate);
-                if (adcdivint <= 96) {
-                    *adcdiv = 0;
-                }else{
-                    *adcdiv = ((adcdivint-1) << 8) | adc_frac_int;
+                volatile uint32_t *adcdiv = (volatile uint32_t *)(ADC_BASE + ADC_DIV_OFFSET);
+                const uint32_t sample_rate_khz = (sr_dev.a_chan_cnt * sr_dev.sample_rate) / 1000;     // sample_rate is a multiple of 1000
+                const uint32_t base_freq_khz = 48000000UL / 1000;                                     // TODO why 48MHz?
+
+                Dprintf("starting d_nps %u a_chan_cnt %u d_size %lu a_size %lu a_mask %lX\n",
+                        sr_dev.d_nps, sr_dev.a_chan_cnt, sr_dev.d_size, sr_dev.a_size, sr_dev.a_mask);
+                Dprintf("start offsets d0 0x%lX d1 0x%lX a0 0x%lX a1 0x%lX samperhalf %lu\n",
+                        sr_dev.dbuf0_start, sr_dev.dbuf1_start, sr_dev.abuf0_start, sr_dev.abuf1_start, sr_dev.samples_per_half);
+                Dprintf("starting data buf values 0x%X 0x%X\n", capture_buf[sr_dev.dbuf0_start], capture_buf[sr_dev.dbuf1_start]);
+
+                uint32_t div_256 = (256 * base_freq_khz + sample_rate_khz / 2) / sample_rate_khz;
+                uint32_t div_int  = div_256 >> 8;
+                uint32_t div_frac = div_256 & 0xff;
+                if (div_int == 0) {
+                    div_int  = 1;
+                    div_frac = 0;
                 }
-                Dprintf("adcdiv %lu frac %d\n", *adcdiv, adc_frac_int);
+                else if (div_int > 0xffff) {
+                    div_int = 0xffff;
+                    div_frac = 0xff;
+                }
+                *adcdiv = ((div_int - 1) << 8) | div_frac;
+                Dprintf("adcdiv %lu = %lu.%lu\n", *adcdiv, div_int, div_frac);
 
                 //This is needed to clear the AINSEL so that when the round robin arbiter starts we start sampling on channel 0
                 adc_select_input(0);
@@ -888,10 +899,10 @@ static void sigrok_thread(void *ptr)
 
                 //set chan0 to immediate trigger (but without adc_run it shouldn't start), chan1 is chained to it.
                 // channel, config, write_addr,read_addr,transfer_count,trigger)
-                dma_channel_configure(admachan0,&acfg0,&(capture_buf[sr_dev.abuf0_start]),&adc_hw->fifo,sr_dev.a_size,true);
-                dma_channel_configure(admachan1,&acfg1,&(capture_buf[sr_dev.abuf1_start]),&adc_hw->fifo,sr_dev.a_size,false);
+                dma_channel_configure(admachan0, &acfg0, &(capture_buf[sr_dev.abuf0_start]), &adc_hw->fifo, sr_dev.a_size, true);
+                dma_channel_configure(admachan1, &acfg1, &(capture_buf[sr_dev.abuf1_start]), &adc_hw->fifo, sr_dev.a_size, false);
                 adc_fifo_drain();
-            } //any analog enabled
+            }
 
             if (sr_dev.d_mask != 0) {
                 //analyzer_init from pico-examples
@@ -943,16 +954,25 @@ static void sigrok_thread(void *ptr)
                 sm_config_set_in_pins(&c, SR_BASE_D_CHAN);
                 sm_config_set_wrap(&c, offset, offset);
 
-                uint16_t div_int;
-                uint8_t frac_int;
-                div_int = (frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS) * 1000) / sr_dev.sample_rate;
-                if (div_int < 1)
-                    div_int = 1;
-                frac_int = (uint8_t)((((frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS) * 1000) % sr_dev.sample_rate) * 256ULL) / sr_dev.sample_rate);
-                Dprintf("PIO sample clk %lu divint %d divfrac %d\n", sr_dev.sample_rate, div_int, frac_int);
-                //Unlike the ADC, the PIO int divisor does not have to subtract 1.
-                //Frequency=sysclkfreq/(CLKDIV_INT+CLKDIV_FRAC/256)
-                sm_config_set_clkdiv_int_frac(&c, div_int, frac_int);
+                const uint32_t sample_rate_khz = sr_dev.sample_rate / 1000;                         // sample_rate is a multiple of 1000
+#if 0
+                const uint32_t base_freq_khz = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);   // TODO why not clock_get_hz(clk_sys)?
+#else
+                const uint32_t base_freq_khz = clock_get_hz(clk_sys) / 1000;
+#endif
+                uint32_t div_256 = (256 * base_freq_khz + sample_rate_khz / 2) / sample_rate_khz;
+                uint32_t div_int  = div_256 >> 8;
+                uint32_t div_frac = div_256 & 0xff;
+                if (div_int == 0) {
+                    div_int  = 1;
+                    div_frac = 0;
+                }
+                else if (div_int > 0xffff) {
+                    div_int = 0xffff;
+                    div_frac = 0xff;
+                }
+                Dprintf("PIO sample clk %lukHz / %lu.%lu = %lukHz\n", base_freq_khz, div_int, div_frac, sample_rate_khz);
+                sm_config_set_clkdiv_int_frac(&c, div_int, div_frac);
 
                 //Since we enable digital channels in groups of 4, we always get 32 bit words
                 sm_config_set_in_shift(&c, true, true, 32);
@@ -977,7 +997,8 @@ static void sigrok_thread(void *ptr)
 
                 //This is done later so that we start everything as close in time as possible
                 //             pio_sm_set_enabled(SIGROK_PIO, SIGROK_SM, true);
-            } //dev.d_mask
+            }
+
             //These must be at their initial value,(or zero for the 2ndhalf) otherwise it indicates they have started to countdown
             Dprintf("Tcount start d %lu %lu a %lu %lu\n", *tcountd0, *tcountd1, *tcounta0, *tcounta1);
             //These must be the initial value for both
@@ -1018,7 +1039,8 @@ static void sigrok_thread(void *ptr)
             pio_sm_set_enabled(SIGROK_PIO, SIGROK_SM, true);
             sr_dev.started = true;
             init_done = true;
-        }   //if dev.sending and not started
+        }
+
         dma_check(&sr_dev);
 
         //In high verbosity modes the host can miss the "!" so send these until it sends a "+"
@@ -1027,6 +1049,7 @@ static void sigrok_thread(void *ptr)
             cdc_sigrok_write("!!!", 3);
             vTaskDelay(pdMS_TO_TICKS(200));
         }
+
         //if we abort or normally finish a run sending gets dropped
         if ( !sr_dev.sample_and_send  &&  init_done) {
             //The end of sequence byte_cnt uses a "$<byte_cnt>+" format.

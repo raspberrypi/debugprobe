@@ -99,10 +99,10 @@ typedef struct sr_device {
     char rspstr[20];                                 //!< response string of a \a cmdstr
 
     // mark key control variables volatile since multiple cores might access them
-    volatile bool started;
+    volatile bool started;                           //!< sampling and transmission has been started (incl initialization)
     volatile bool sample_and_send;                   //!< sample and send data
     volatile bool continuous;                        //!< continuous sample mode
-    volatile bool aborted;
+    volatile bool aborted;                           //!< abort sampling and transmission (due to host command or overflow)
     volatile bool send_resp;                         //!< send the response string contained in \a rspstr
 
     /*Depracated trigger logic

@@ -99,7 +99,7 @@ void probe_set_swclk_freq(uint32_t freq_khz)
     }
     probe_freq_khz = freq_khz;
 
-    div_256 = (256 * clk_sys_freq_khz + freq_khz) / (6 * freq_khz);      // SWDCLK goes with PIOCLK / 6
+    div_256 = (256 * clk_sys_freq_khz + freq_khz / 2) / (6 * freq_khz);      // SWDCLK goes with PIOCLK / 6
     div_int  = div_256 >> 8;
     div_frac = div_256 & 0xff;
 
@@ -108,6 +108,10 @@ void probe_set_swclk_freq(uint32_t freq_khz)
         picoprobe_error("probe_set_swclk_freq: underflow of clock setup, setting clock to maximum.\n");
         div_int  = 1;
         div_frac = 0;
+    }
+    else if (div_int > 0xffff) {
+        div_int = 0xffff;
+        div_frac = 0xff;
     }
 
     // Worked out with pulseview
