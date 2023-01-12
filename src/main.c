@@ -27,6 +27,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "timers.h"
+#include "event_groups.h"
 
 #include <pico/stdlib.h>
 #include <stdio.h>
@@ -92,14 +93,14 @@ static uint8_t RxDataBuffer[_DAP_PACKET_COUNT * _DAP_PACKET_SIZE];
 
 static TaskHandle_t tud_taskhandle;
 static TaskHandle_t dap_taskhandle;
+static EventGroupHandle_t events;
 
 
 
 void tud_vendor_rx_cb(uint8_t itf)
 {
     if (itf == 0) {
-        xTaskNotify(dap_taskhandle, 0, eNoAction);
-        taskYIELD();
+        xEventGroupSetBits(events, 0x01);
     }
 }   // tud_vendor_rx_cb
 
@@ -120,15 +121,7 @@ void dap_task(void *ptr)
             sw_unlock("DAPv2");
         }
 
-#if 1
-        // surprisingly this version is ~5% faster, priority settings do not matter
-        taskYIELD();
-        if ( !tud_vendor_available()) {
-            continue;
-        }
-#else
-        xTaskNotifyWait(0, 0xffffffff, NULL, pdMS_TO_TICKS(100));
-#endif
+        xEventGroupWaitBits(events, 0x01, pdTRUE, pdFALSE, portMAX_DELAY);
 
         if ( !mounted  &&  tud_vendor_available()) {
             if (sw_lock("DAPv2", true)) {
@@ -220,6 +213,18 @@ void tud_cdc_rx_cb(uint8_t itf)
 
 
 
+void tud_cdc_tx_complete_cb(uint8_t itf)
+{
+    if (itf != CDC_DEBUG_N) {
+//        picoprobe_info("tud_cdc_tx_complete_cb(%d)\n", itf);
+    }
+    if (itf == CDC_SIGROK_N) {
+        cdc_sigrok_tx_complete_cb();
+    }
+}   // tud_cdc_tx_complete_cb
+
+
+
 int main(void)
 {
     board_init();
@@ -253,6 +258,8 @@ int main(void)
     led_init(LED_TASK_PRIO);
 
     DAP_Setup();
+
+    events = xEventGroupCreate();
 
     xTaskCreate(usb_thread, "TUD", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, &tud_taskhandle);
     xTaskCreate(dap_task, "DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);

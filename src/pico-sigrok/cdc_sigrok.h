@@ -38,6 +38,7 @@
 void cdc_sigrok_init(uint32_t task_prio);
 void cdc_sigrok_write(const char *buf, int length);
 void cdc_sigrok_rx_cb(void);
+void cdc_sigrok_tx_complete_cb(void);
 
 void core1_code();
 

@@ -125,6 +125,7 @@ void sigrok_tx_init(sr_device_t *d);
 void sigrok_reset(sr_device_t *d);
 void sigrok_full_reset(sr_device_t *d);
 
+void sigrok_notify(void);
 
 #ifdef __cplusplus
     }

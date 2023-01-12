@@ -19,6 +19,7 @@
 
 #include "FreeRTOS.h"
 #include "task.h"
+#include "event_groups.h"
 
 #include "picoprobe_config.h"
 #include "sigrok_int.h"
@@ -86,6 +87,7 @@ volatile int lowerhalf; //are we processing the upper or lower half of the data 
 volatile bool mask_xfer_err;
 
 static TaskHandle_t task_sigrok;
+static EventGroupHandle_t events;
 
 
 
@@ -501,14 +503,14 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
         //Note that in all cases we should never actually send any corrupted data we just send less than what was requested.
         //Note that we must use the "alias" versions of the DMA CSRs to prevent writes from triggering them.
         //Since we swap the csr pointers we determine the other half from the address offsets.
-        uint8_t myachan = ((tstsa0[0] & DMA_CH0_CTRL_TRIG_RING_SIZE_BITS) >> DMA_CH0_CTRL_TRIG_RING_SIZE_LSB);
-        uint8_t mydchan = ((tstsd0[0] & DMA_CH0_CTRL_TRIG_RING_SIZE_BITS) >> DMA_CH0_CTRL_TRIG_RING_SIZE_LSB);
+        uint8_t achan_no = (((uint32_t)tstsa0) >> 6) & 0xF;       // the DMA channel number is derived from its address
+        uint8_t dchan_no = (((uint32_t)tstsd0) >> 6) & 0xF;
         Dprintf("my stts pre a 0x%lX d 0x%lX\n", *tstsa0, *tstsd0);
         //Set my chain to myself so that I can't chain to the other.
         uint32_t ttmp;
-        ttmp = ((tstsd0[1]) & ~DMA_CH0_CTRL_TRIG_CHAIN_TO_BITS) | (mydchan << DMA_CH0_CTRL_TRIG_CHAIN_TO_LSB);
+        ttmp = ((tstsd0[1]) & ~DMA_CH0_CTRL_TRIG_CHAIN_TO_BITS) | (dchan_no << DMA_CH0_CTRL_TRIG_CHAIN_TO_LSB);
         tstsd0[1] = ttmp;
-        ttmp = ((tstsa0[1]) & ~DMA_CH0_CTRL_TRIG_CHAIN_TO_BITS) | (myachan << DMA_CH0_CTRL_TRIG_CHAIN_TO_LSB);
+        ttmp = ((tstsa0[1]) & ~DMA_CH0_CTRL_TRIG_CHAIN_TO_BITS) | (achan_no << DMA_CH0_CTRL_TRIG_CHAIN_TO_LSB);
         tstsa0[1] = ttmp;
         *t_addra0 = (uint32_t)a_start_addr;
         *t_addrd0 = (uint32_t)d_start_addr;
@@ -537,9 +539,9 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
 
         //Set my other chain to me
         //use aliases here as well to prevent triggers
-        ttmp = (tstsd1[1] & ~DMA_CH0_CTRL_TRIG_CHAIN_TO_BITS) | (mydchan << DMA_CH0_CTRL_TRIG_CHAIN_TO_LSB);
+        ttmp = (tstsd1[1] & ~DMA_CH0_CTRL_TRIG_CHAIN_TO_BITS) | (dchan_no << DMA_CH0_CTRL_TRIG_CHAIN_TO_LSB);
         tstsd1[1] = ttmp;
-        ttmp = (tstsa1[1] & ~DMA_CH0_CTRL_TRIG_CHAIN_TO_BITS) | (myachan << DMA_CH0_CTRL_TRIG_CHAIN_TO_LSB);
+        ttmp = (tstsa1[1] & ~DMA_CH0_CTRL_TRIG_CHAIN_TO_BITS) | (achan_no << DMA_CH0_CTRL_TRIG_CHAIN_TO_LSB);
         tstsa1[1] = ttmp;
         num_halves++;
 
@@ -742,11 +744,10 @@ static void sigrok_thread(void *ptr)
     for (;;) {
 //        Dprintf("ss %d %d\n", sr_dev.sample_and_send, sr_dev.all_started);
         if (sr_dev.sample_and_send  ||  sr_dev.all_started) {
-            // no delay
-//            vTaskDelay(1);
+            // no delay, thread is waiting in data transmission
         }
         else {
-            vTaskDelay(pdMS_TO_TICKS(10));      // TODO otherwise we will consume the whole CPU
+            xEventGroupWaitBits(events, 0x01, pdTRUE, pdFALSE, portMAX_DELAY);
         }
 
         if (sr_dev.send_resp) {
@@ -1177,7 +1178,15 @@ End of depracated trigger logic
 
 void sigrok_init(uint32_t task_prio)
 {
+    events = xEventGroupCreate();
     xTaskCreate(sigrok_thread, "CDC_SIGROK", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_sigrok);
 
     cdc_sigrok_init(task_prio);
 }   // sigrok_init
+
+
+
+void sigrok_notify(void)
+{
+    xEventGroupSetBits(events, 0x01);
+}   // sigrok_notify

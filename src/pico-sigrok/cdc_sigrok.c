@@ -26,12 +26,13 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include <stdlib.h>
-#include "stdarg.h"
+#include <stdarg.h>
 #include <string.h>
 #include "hardware/sync.h"
 
 #include "FreeRTOS.h"
 #include "task.h"
+#include "event_groups.h"
 
 #include "tusb.h"
 
@@ -40,54 +41,39 @@
 #include "cdc_sigrok.h"
 
 
-// PICO_CONFIG: PICO_STDIO_USB_STDOUT_TIMEOUT_US, Number of microseconds to be blocked trying to write USB
-// output before assuming the host has disappeared and discarding data, default=500000, group=pico_stdio_usb
-#ifndef PICO_STDIO_USB_STDOUT_TIMEOUT_US
-    #define PICO_STDIO_USB_STDOUT_TIMEOUT_US 500000
-#endif
 
+#define EV_RX   0x01
+#define EV_TX   0x02
 
-static TaskHandle_t task_cdc_sigrok;
+static TaskHandle_t       task_cdc_sigrok;
+static EventGroupHandle_t events;
 
 
 
-//The function stdio_usb_out_chars is part of the PICO sdk usb library.
-//However the function is not externally visible from the library and rather than
-//figure out the build dependencies to do that it is just copied here.
-//This is much faster than a printf of the string, and even faster than the puts_raw
-//supported by the PICO SDK stdio library, which doesn't allow the known length of the buffer
-//to be specified. (The C standard write function doesn't seem to work at all).
-//This function also avoids the inserting of CR/LF in certain modes.
-//The tud_cdc_write_available function returns 256, and thus we have a 256B buffer to feed into
-//but the CDC serial issues in groups of 64B.
-//Since there is another memory fifo inside the TUD code this might possibly be optimized
-//to directly write to it, rather than writing txbuf.  That might allow faster rle processing
-//but is a bit too complicated.
+void cdc_sigrok_tx_complete_cb(void)
+{
+    xEventGroupSetBits(events, EV_TX);
+}   // cdc_sigrok_tx_complete_cb
+
+
+
 void cdc_sigrok_write(const char *buf, int length)
 {
-    uint64_t last_avail_time;
+    int i = 0;
 
-    if (tud_cdc_n_connected(CDC_SIGROK_N)) {
-        last_avail_time = time_us_64();
-
-        for (int i = 0;  i < length;) {
-            int n = length - i;
-            int avail = (int)tud_cdc_n_write_available(CDC_SIGROK_N);
-            if (n > avail)
-                n = avail;
-            if (n != 0) {
-                int n2 = (int)tud_cdc_n_write(CDC_SIGROK_N, buf + i, (uint32_t)n);
-                tud_cdc_n_write_flush(CDC_SIGROK_N);
-                i += n2;
-                last_avail_time = time_us_64();
-            }
-            else {
-                tud_cdc_n_write_flush(CDC_SIGROK_N);
-                if ( !tud_cdc_n_connected(CDC_SIGROK_N) ||
-                     ( !tud_cdc_n_write_available(CDC_SIGROK_N)  &&  time_us_64() > last_avail_time + PICO_STDIO_USB_STDOUT_TIMEOUT_US)) {
-                    break;
-                }
-            }
+    while (i < length  &&  tud_cdc_n_connected(CDC_SIGROK_N)) {
+        int n = length - i;
+        int avail = (int)tud_cdc_n_write_available(CDC_SIGROK_N);
+        if (n > avail)
+            n = avail;
+        if (n != 0) {
+            int n2 = (int)tud_cdc_n_write(CDC_SIGROK_N, buf + i, (uint32_t)n);
+            tud_cdc_n_write_flush(CDC_SIGROK_N);
+            i += n2;
+        }
+        else {
+            tud_cdc_n_write_flush(CDC_SIGROK_N);
+            xEventGroupWaitBits(events, EV_TX, pdTRUE, pdFALSE, portMAX_DELAY);
         }
     }
 }   // cdc_sigrok_write
@@ -249,7 +235,7 @@ static bool process_char(sr_device_t *d, char charin)
                 break;
         }
 
-        Dprintf("CmdDone %s\n",d->cmdstr);
+        Dprintf("CmdDone %s\n", d->cmdstr);
         d->cmdstr_ndx = 0;
     }
     else {
@@ -261,7 +247,7 @@ static bool process_char(sr_device_t *d, char charin)
         }
         d->cmdstr[d->cmdstr_ndx++] = charin;
         ret = false;
-    }//else
+    }
     //default return 0 means to not send any kind of response
     return ret;
 }   // process_char
@@ -270,8 +256,7 @@ static bool process_char(sr_device_t *d, char charin)
 
 void cdc_sigrok_rx_cb(void)
 {
-    xTaskNotify(task_cdc_sigrok, 0, eNoAction);
-    taskYIELD();
+    xEventGroupSetBits(events, EV_RX);
 }   // cdc_sigrok_rx_cb
 
 
@@ -279,7 +264,7 @@ void cdc_sigrok_rx_cb(void)
 void cdc_sigrok_thread()
 {
     for (;;) {
-        xTaskNotifyWait(0, 0xffffffff, NULL, portMAX_DELAY);
+        xEventGroupWaitBits(events, EV_RX, pdTRUE, pdFALSE, portMAX_DELAY);
 
         for (;;) {
             uint32_t n;
@@ -307,6 +292,7 @@ void cdc_sigrok_thread()
                     sr_dev.send_resp = true;
                 }
             }
+            sigrok_notify();
         }
     }
 }   // cdc_sigrok_thread
@@ -315,5 +301,6 @@ void cdc_sigrok_thread()
 
 void cdc_sigrok_init(uint32_t task_prio)
 {
+    events = xEventGroupCreate();
     xTaskCreate(cdc_sigrok_thread, "CDC_SIGROK", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_cdc_sigrok);
 }   // cdc_sigrok_init
