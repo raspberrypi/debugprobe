@@ -77,7 +77,7 @@ void sigrok_reset(sr_device_t *d)
     d->sample_and_send = false;
     d->continuous      = false;
     d->aborted         = false;
-    d->started         = false;
+    d->all_started     = false;
     d->scnt            = 0;
     //d->notfirst=false;
     //Set triggered by default so that we don't check for HW triggers

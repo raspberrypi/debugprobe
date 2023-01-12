@@ -557,7 +557,7 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
         //half and all the remaining samples we need are in the 2nd half.
         //Note that in continuous mode num_samples isn't defined.
         bool proc_fail =    (d->a_mask != 0  &&  (*tstsa1 & DMA_CH0_CTRL_TRIG_BUSY_BITS) == 0)
-                         || (d->d_mask != 0  &&  (*tstsd1 & DMA_CH0_CTRL_TRIG_BUSY_BITS) != 0);
+                         || (d->d_mask != 0  &&  (*tstsd1 & DMA_CH0_CTRL_TRIG_BUSY_BITS) == 0);
         Dprintf("pf 0x%lX 0x%lX %d\n", *tstsa1, *tstsd1, proc_fail);
         //       if(mask_xfer_err
         //     || ((piorxstall1==0)
@@ -597,7 +597,8 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
 //streaming performance, so it's left in core0.
 static void dma_check(sr_device_t *d)
 {
-    if (d->sample_and_send  &&  d->started  &&  (d->scnt < d->num_samples  ||  d->continuous)) {
+//    Dprintf("dma_check: %d %d %lu %lu %d\n", d->sample_and_send, d->all_started, d->scnt, d->num_samples, d->continuous);
+    if (d->sample_and_send  &&  d->all_started  &&  (d->scnt < d->num_samples  ||  d->continuous)) {
         int ret;
 
         c0cnt++;
@@ -633,7 +634,6 @@ static void sigrok_thread(void *ptr)
 {
     dma_channel_config acfg0, acfg1, pcfg0, pcfg1;
     uint admachan0, admachan1, pdmachan0, pdmachan1;
-    bool init_done = false;
 
     vTaskDelay(pdMS_TO_TICKS(100));
     Dprintf("-------------------- Hello from PICO sigrok\n");
@@ -738,7 +738,14 @@ static void sigrok_thread(void *ptr)
     gpio_set_dir_masked(SR_GPIO_D_MASK, 0);    // set all to input
 
     for (;;) {
-        vTaskDelay(pdMS_TO_TICKS(10));      // TODO otherwise we will consume the whole CPU
+//        Dprintf("ss %d %d\n", sr_dev.sample_and_send, sr_dev.all_started);
+        if (sr_dev.sample_and_send  ||  sr_dev.all_started) {
+            // no delay
+            vTaskDelay(1);
+        }
+        else {
+            vTaskDelay(pdMS_TO_TICKS(10));      // TODO otherwise we will consume the whole CPU
+        }
 
         if (sr_dev.send_resp) {
             //
@@ -748,8 +755,7 @@ static void sigrok_thread(void *ptr)
             sr_dev.send_resp = false;
         }
 
-//        Dprintf("ss %d %d", sr_dev.sending, sr_dev.started);
-        if (sr_dev.sample_and_send  &&  !sr_dev.started) {
+        if (sr_dev.sample_and_send  &&  !sr_dev.all_started) {
             //
             // initialize sampling and transmission
             // - reset several counters
@@ -1036,8 +1042,7 @@ static void sigrok_thread(void *ptr)
             tstart = time_us_32();
             adc_run(true); //enable free run sample mode
             pio_sm_set_enabled(SIGROK_PIO, SIGROK_SM, true);
-            sr_dev.started = true;
-            init_done = true;
+            sr_dev.all_started = true;
         }
 
         dma_check(&sr_dev);
@@ -1050,17 +1055,19 @@ static void sigrok_thread(void *ptr)
         }
 
         //if we abort or normally finish a run sending gets dropped
-        if ( !sr_dev.sample_and_send  &&  init_done) {
+        if ( !sr_dev.sample_and_send  &&  sr_dev.all_started) {
             //The end of sequence byte_cnt uses a "$<byte_cnt>+" format.
             //Send the byte_cnt to ensure no bytes were lost
             if ( !sr_dev.aborted) {
                 char brsp[16];
+                int n;
+
                 //Give the host time to finish processing samples so that the bytecnt
                 //isn't dropped on the wire
                 vTaskDelay(pdMS_TO_TICKS(100));
                 Dprintf("Cleanup bytecnt %lu\n", ccnt);
-                sprintf(brsp, "$%lu%c", ccnt, '+');
-                puts_raw(brsp);
+                n = snprintf(brsp, sizeof(brsp), "$%lu%c", ccnt, '+');
+                cdc_sigrok_write(brsp, n);
             }
 
 #ifdef NODMA
@@ -1086,7 +1093,7 @@ static void sigrok_thread(void *ptr)
             dma_channel_abort(admachan1);
             dma_channel_abort(pdmachan0);
             dma_channel_abort(pdmachan1);
-            init_done = false;
+            sr_dev.all_started = false;
 
             //Print USB Endpoint controls in the DPSRAM, which is at the base of USBCTRL
             //0x0 is setup packet,
