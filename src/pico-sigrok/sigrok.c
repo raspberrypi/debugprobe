@@ -80,8 +80,8 @@ uint32_t samp_remain;
 uint32_t lval,cval; //last and current digital sample values
 uint32_t num_halves; //track the number of halves we have processed
 
-volatile uint32_t *tstsa0,*tstsa1,*tstsd0,*tstsd1;
-volatile uint32_t *taddra0,*taddra1,*taddrd0,*taddrd1;
+volatile uint32_t *tstsa0, *tstsa1, *tstsd0, *tstsd1;
+volatile uint32_t *taddra0, *taddra1, *taddrd0, *taddrd1;
 volatile int lowerhalf; //are we processing the upper or lower half of the data buffers
 volatile bool mask_xfer_err;
 
@@ -473,14 +473,13 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
                       volatile uint32_t *tstsd1, volatile uint32_t *t_addra0, volatile uint32_t *t_addrd0,
                       uint8_t *d_start_addr, uint8_t *a_start_addr, bool mask_xfer_err)
 {
-    int a0busy, d0busy;    // TODO actually bool
-    volatile uint8_t piorxstall1, piorxstall2;
+    bool a0busy, d0busy;
 
-    a0busy = (*tstsa0 >> 24) & 1;    // TODO check if bit 24 is set
-    d0busy = (*tstsd0 >> 24) & 1;
+    a0busy = (*tstsa0 & DMA_CH0_CTRL_TRIG_BUSY_BITS) != 0;
+    d0busy = (*tstsd0 & DMA_CH0_CTRL_TRIG_BUSY_BITS) != 0;
 
-    if(     (a0busy == 0  ||  d->a_mask == 0)
-        &&  (d0busy == 0  ||  d->d_mask == 0)) {
+    if(     ( !a0busy  ||  d->a_mask == 0)
+        &&  ( !d0busy  ||  d->d_mask == 0)) {
         //Use two dma controllers where each writes half of the trace space.
         //When one half finishes we send it's data while the other dma controller writes to the other half.
         //We rely on DMA chaining where one completing dma engine triggers the next.
@@ -502,21 +501,21 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
         //Note that in all cases we should never actually send any corrupted data we just send less than what was requested.
         //Note that we must use the "alias" versions of the DMA CSRs to prevent writes from triggering them.
         //Since we swap the csr pointers we determine the other half from the address offsets.
-        uint8_t myachan = (((uint32_t)tstsa0) >> 6) & 0xF;               // TODO several magic numbers
-        uint8_t mydchan = (((uint32_t)tstsd0) >> 6) & 0xF;
+        uint8_t myachan = ((tstsa0[0] & DMA_CH0_CTRL_TRIG_RING_SIZE_BITS) >> DMA_CH0_CTRL_TRIG_RING_SIZE_LSB);
+        uint8_t mydchan = ((tstsd0[0] & DMA_CH0_CTRL_TRIG_RING_SIZE_BITS) >> DMA_CH0_CTRL_TRIG_RING_SIZE_LSB);
         Dprintf("my stts pre a 0x%lX d 0x%lX\n", *tstsa0, *tstsd0);
         //Set my chain to myself so that I can't chain to the other.
-        volatile uint32_t ttmp;
-        ttmp = ((tstsd0[1]) & 0xFFFF87FF) | (mydchan << 11);               // TODO several magic numbers
+        uint32_t ttmp;
+        ttmp = ((tstsd0[1]) & ~DMA_CH0_CTRL_TRIG_CHAIN_TO_BITS) | (mydchan << DMA_CH0_CTRL_TRIG_CHAIN_TO_LSB);
         tstsd0[1] = ttmp;
-        ttmp = ((tstsa0[1]) & 0xFFFF87FF) | (myachan << 11);
+        ttmp = ((tstsa0[1]) & ~DMA_CH0_CTRL_TRIG_CHAIN_TO_BITS) | (myachan << DMA_CH0_CTRL_TRIG_CHAIN_TO_LSB);
         tstsa0[1] = ttmp;
-        (*t_addra0) = (uint32_t) a_start_addr;
-        (*t_addrd0) = (uint32_t) d_start_addr;
+        *t_addra0 = (uint32_t)a_start_addr;
+        *t_addrd0 = (uint32_t)d_start_addr;
 
-        piorxstall1 = ((SIGROK_PIO->fdebug & 0x1)  &&  (d->d_mask != 0));
+        bool piorxstall1 = (d->d_mask != 0  &&  (SIGROK_PIO->fdebug & 0x1) != 0);    // TODO fixed to SM0
 
-        if (d->a_mask) {
+        if (d->a_mask != 0) {
             send_slices_analog(d, d_start_addr, a_start_addr);
         }
         else if (d_dma_bps == 0) {
@@ -538,33 +537,33 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
 
         //Set my other chain to me
         //use aliases here as well to prevent triggers
-        ttmp = ((tstsd1[1]) & 0xFFFF87FF) | (mydchan << 11);               // TODO several magic numbers
+        ttmp = (tstsd1[1] & ~DMA_CH0_CTRL_TRIG_CHAIN_TO_BITS) | (mydchan << DMA_CH0_CTRL_TRIG_CHAIN_TO_LSB);
         tstsd1[1] = ttmp;
-        ttmp = ((tstsa1[1]) & 0xFFFF87FF) | (myachan << 11);
+        ttmp = (tstsa1[1] & ~DMA_CH0_CTRL_TRIG_CHAIN_TO_BITS) | (myachan << DMA_CH0_CTRL_TRIG_CHAIN_TO_LSB);
         tstsa1[1] = ttmp;
         num_halves++;
-        piorxstall2 = (SIGROK_PIO->fdebug & 0x1)  &&  (d->d_mask != 0);
+
+        bool piorxstall2 = (d->d_mask != 0  &&  (SIGROK_PIO->fdebug & 0x1) != 0);    // TODO fixed to SM0
+
         volatile uint32_t *adcfcs;
-        uint8_t adcfail;
         adcfcs = (volatile uint32_t *)(ADC_BASE + ADC_FCS_OFFSET);
-        adcfail = (((*adcfcs) & 0xC00)  &&  (d->a_mask)) ? 1 : 0;
+        bool adcfail = (d->a_mask != 0  &&  (*adcfcs & (ADC_FCS_OVER_BITS | ADC_FCS_UNDER_BITS)) != 0);
         if (adcfail) {
             Dprintf("adcfcs 0x%lX %p\n", *adcfcs, (void *)adcfcs);
         }
+
         //Ensure other dma is still busy, if not that means we have samples from PIO/ADC that could be lost.
         //It's only an error if we haven't already gotten the samples we need, or if we are processing the first
         //half and all the remaining samples we need are in the 2nd half.
         //Note that in continuous mode num_samples isn't defined.
-        uint8_t proc_fail;
-        proc_fail =     (~(((((*tstsa1) >> 24) & 1)  ||  (d->a_mask == 0))              // TODO query bit 24
-                    &&     ((((*tstsd1) >> 24) & 1)  ||  (d->d_mask == 0))) & 1);
+        bool proc_fail =    (d->a_mask != 0  &&  (*tstsa1 & DMA_CH0_CTRL_TRIG_BUSY_BITS) == 0)
+                         || (d->d_mask != 0  &&  (*tstsd1 & DMA_CH0_CTRL_TRIG_BUSY_BITS) != 0);
         Dprintf("pf 0x%lX 0x%lX %d\n", *tstsa1, *tstsd1, proc_fail);
         //       if(mask_xfer_err
         //     || ((piorxstall1==0)
         //      &&((((*tstsa1)>>24)&1)||(d->a_mask==0))
         //         &&((((*tstsd1)>>24)&1)||(d->d_mask==0)))){
-        if (   mask_xfer_err
-            || (piorxstall1 == 0  &&  adcfail == 0  &&  piorxstall2 == 0  &&  proc_fail == 0)) {
+        if (mask_xfer_err  ||  (!piorxstall1  &&  !adcfail  &&  !piorxstall2  &&  !proc_fail)) {
             Dprintf("h\n");
             return 1;
         }
@@ -587,7 +586,7 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
             Dprintf("d st %lu msk %lu\n", *tstsd1, d->d_mask);
             return -1;
         }
-    }//if not busy
+    }
     return 0;
 }   // check_half
 
@@ -688,26 +687,26 @@ static void sigrok_thread(void *ptr)
     channel_config_set_dreq(&acfg0, DREQ_ADC);
     channel_config_set_dreq(&acfg1, DREQ_ADC);
     volatile uint32_t *tcounta0, *tcounta1, *tcountd0, *tcountd1;
-    tcounta0 = (volatile uint32_t *)(DMA_BASE + 0x40 * admachan0 + 0x8); //DMA_TRANS_COUNT offset
-    tcounta1 = (volatile uint32_t *)(DMA_BASE + 0x40 * admachan1 + 0x8); //DMA_TRANS_COUNT offset
-    tcountd0 = (volatile uint32_t *)(DMA_BASE + 0x40 * pdmachan0 + 0x8); //DMA_TRANS_COUNT offset
-    tcountd1 = (volatile uint32_t *)(DMA_BASE + 0x40 * pdmachan1 + 0x8); //DMA_TRANS_COUNT offset
+    tcounta0 = (volatile uint32_t *)(DMA_BASE + 0x40 * admachan0 + DMA_CH0_TRANS_COUNT_OFFSET);
+    tcounta1 = (volatile uint32_t *)(DMA_BASE + 0x40 * admachan1 + DMA_CH0_TRANS_COUNT_OFFSET);
+    tcountd0 = (volatile uint32_t *)(DMA_BASE + 0x40 * pdmachan0 + DMA_CH0_TRANS_COUNT_OFFSET);
+    tcountd1 = (volatile uint32_t *)(DMA_BASE + 0x40 * pdmachan1 + DMA_CH0_TRANS_COUNT_OFFSET);
 
     //Use the debug version of the count registers because the count of the DMA_TRANS_COUNT is not
     //visible if it is not active
     volatile uint32_t *tcountdbga0, *tcountdbgd0;
-    tcountdbga0 = (volatile uint32_t *)(DMA_BASE + 0x40 * admachan0 + 0x804); //DMA_TRANS_COUNT DBGoffset
-    tcountdbgd0 = (volatile uint32_t *)(DMA_BASE + 0x40 * pdmachan0 + 0x804); //DMA_TRANS_COUNT DBGoffset
+    tcountdbga0 = (volatile uint32_t *)(DMA_BASE + 0x40 * admachan0 + DMA_CH0_DBG_TCR_OFFSET); //DMA_TRANS_COUNT DBGoffset
+    tcountdbgd0 = (volatile uint32_t *)(DMA_BASE + 0x40 * pdmachan0 + DMA_CH0_DBG_TCR_OFFSET); //DMA_TRANS_COUNT DBGoffset
 
-    taddra0 = (volatile uint32_t *)(DMA_BASE + 0x40 * admachan0 + 0x4); //DMA_WRITE_addr offset
-    taddra1 = (volatile uint32_t *)(DMA_BASE + 0x40 * admachan1 + 0x4); //DMA_WRITE_addr offset
-    taddrd0 = (volatile uint32_t *)(DMA_BASE + 0x40 * pdmachan0 + 0x4); //DMA_WRITE_addr offset
-    taddrd1 = (volatile uint32_t *)(DMA_BASE + 0x40 * pdmachan1 + 0x4); //DMA_WRITE_addr offset
+    taddra0 = (volatile uint32_t *)(DMA_BASE + 0x40 * admachan0 + DMA_CH0_WRITE_ADDR_OFFSET);
+    taddra1 = (volatile uint32_t *)(DMA_BASE + 0x40 * admachan1 + DMA_CH0_WRITE_ADDR_OFFSET);
+    taddrd0 = (volatile uint32_t *)(DMA_BASE + 0x40 * pdmachan0 + DMA_CH0_WRITE_ADDR_OFFSET);
+    taddrd1 = (volatile uint32_t *)(DMA_BASE + 0x40 * pdmachan1 + DMA_CH0_WRITE_ADDR_OFFSET);
 
-    tstsa0 = (volatile uint32_t *)(DMA_BASE + 0x40 * admachan0 + 0xc); //DMA_WRITE_sts offset
-    tstsa1 = (volatile uint32_t *)(DMA_BASE + 0x40 * admachan1 + 0xc); //DMA_WRITE_sts offset
-    tstsd0 = (volatile uint32_t *)(DMA_BASE + 0x40 * pdmachan0 + 0xc); //DMA_WRITE_sts offset
-    tstsd1 = (volatile uint32_t *)(DMA_BASE + 0x40 * pdmachan1 + 0xc); //DMA_WRITE_sts offset
+    tstsa0 = (volatile uint32_t *)(DMA_BASE + 0x40 * admachan0 + DMA_CH0_CTRL_TRIG_OFFSET);
+    tstsa1 = (volatile uint32_t *)(DMA_BASE + 0x40 * admachan1 + DMA_CH0_CTRL_TRIG_OFFSET);
+    tstsd0 = (volatile uint32_t *)(DMA_BASE + 0x40 * pdmachan0 + DMA_CH0_CTRL_TRIG_OFFSET);
+    tstsd1 = (volatile uint32_t *)(DMA_BASE + 0x40 * pdmachan1 + DMA_CH0_CTRL_TRIG_OFFSET);
 
     //Give High priority to DMA to ensure we don't overflow the PIO or DMA fifos
     //The DMA controller must read across the common bus to read the PIO fifo so enabled both reads and write
@@ -742,10 +741,10 @@ static void sigrok_thread(void *ptr)
         vTaskDelay(pdMS_TO_TICKS(10));      // TODO otherwise we will consume the whole CPU
 
         if (sr_dev.send_resp) {
-            int mylen = strlen(sr_dev.rspstr);
-            //Don't mix printf with direct to usb commands
-            //printf("%s",dev.rspstr);
-            cdc_sigrok_write(sr_dev.rspstr, mylen);
+            //
+            // send command response to host
+            //
+            cdc_sigrok_write(sr_dev.rspstr, strnlen(sr_dev.rspstr, sizeof(sr_dev.rspstr)));
             sr_dev.send_resp = false;
         }
 
@@ -788,9 +787,9 @@ static void sigrok_thread(void *ptr)
             //Also set a multiple of 32  because the dma buffer is split in half, and
             //the PIO does writes on 4B boundaries, and then a 4x factor for any other size/alignment issues
             uint32_t chunk_size = t_nibbles * 32;
-            if(a_nibbles)
+            if (a_nibbles != 0)
                 chunk_size *= a_nibbles;
-            if(d_nibbles)
+            if (d_nibbles != 0)
                 chunk_size *= d_nibbles;
             uint32_t dig_bytes_per_chunk = chunk_size*d_nibbles / t_nibbles;
             uint32_t dig_samples_per_chunk=(d_nibbles) ? dig_bytes_per_chunk*2/d_nibbles : 0;
@@ -828,7 +827,7 @@ static void sigrok_thread(void *ptr)
             //Clear any previous ADC over/underflow
             volatile uint32_t *adcfcs;
             adcfcs = (volatile uint32_t *)(ADC_BASE + ADC_FCS_OFFSET);
-            *adcfcs |= 0xC00;
+            *adcfcs |= (ADC_FCS_OVER_BITS | ADC_FCS_UNDER_BITS);
 
             //Ensure any previous dma is done
             //The cleanup loop also does this but it doesn't hurt to do it twice
