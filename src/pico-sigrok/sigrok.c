@@ -39,6 +39,7 @@
 //The size of the buffer sent to the CDC serial
 //The TUD CDC buffer is only 256B so it doesn't help to have more than this.
 #define TX_BUF_SIZE 260
+
 //This sets the point which we will send data from the txbuf to the usb cdc.
 //For the 5-21 channel RLE it must leave a spare ~83 entries to cover the case where
 //a new long steady input comes after deciding to not send a sample.
@@ -50,36 +51,62 @@
 //at least something goes across the link.
 #define TX_BUF_THRESH 20
 
-//
-// shared between modules, definition is here
-//
-sr_device_t       sr_dev;
+/// calculate DMA channel number from address
+#define DMA_ADDR_TO_CHANNEL_NO(ADDR)      (((uint32_t)(ADDR)) >> 6) & 0xf
 
-//
-// module private
-//
+/// check if DMA is busy, parameter is the control register
+#define DMA_IS_BUSY(ADDR_CTRL)            ((*(ADDR_CTRL) & DMA_CH0_CTRL_TRIG_BUSY_BITS) != 0)
+
+/// sigrok state (shared between sigrok modules)
+sr_device_t sr_dev;
+
+/// capture buffer, DMA writes into it
 __attribute__ ((aligned(4))) uint8_t capture_buf[SR_DMA_BUF_SIZE];    // 4byte aligned
 
-volatile uint32_t c0cnt=0;
-volatile uint32_t tstart;
-uint8_t txbuf[TX_BUF_SIZE];
-uint16_t txbufidx;                // TODO correct?
+/// transmit buffer to USB
+uint8_t  txbuf[TX_BUF_SIZE];
+
+/// index into \a txbuf
+uint16_t txbufidx;
+
+/// read index into \a capture_buf
 uint32_t rxbufdidx;
+
+/// counter for RLE encoding
 uint32_t rlecnt;
-uint32_t sent_cnt;                            //!< count of characters sent serially
-//Number of bytes stored as DMA per slice, must be 1,2 or 4 to support aligned access
-//This will be be zero for 1-4 digital channels.
+
+/// count of characters sent serially
+uint32_t sent_cnt;
+
+/// Number of bytes stored as DMA per slice, must be 1,2 or 4 to support aligned access
+/// This will be be zero for 1-4 digital channels.
 uint8_t d_dma_bps;
+
+/// remaining samples in this half, conunts down from sr_dev::samples_per_half
 uint32_t samp_remain;
-uint32_t lval,cval; //last and current digital sample values
-uint32_t num_halves; //track the number of halves we have processed
 
+// last and current digital sample values - required for RLE encoding
+uint32_t lval, cval;
+
+/// track the number of halves we have processed
+uint32_t num_halves;
+
+/// pointer to DMA status register for A0/A1, D0/D1
 volatile uint32_t *tstsa0, *tstsa1, *tstsd0, *tstsd1;
-volatile uint32_t *taddra0, *taddra1, *taddrd0, *taddrd1;
-volatile int lowerhalf; //are we processing the upper or lower half of the data buffers
-volatile bool mask_xfer_err;
 
+/// pointer to DMA write register for A0/A1, D0/D1
+volatile uint32_t *taddra0, *taddra1, *taddrd0, *taddrd1;
+
+/// are we processing the upper or lower half of the data buffers
+bool lowerhalf;
+
+/// disable detection of overflow condition if the number of samples fit into the capture buffer
+bool mask_xfer_err;
+
+/// handle for sigrok_thread()
 static TaskHandle_t task_sigrok;
+
+/// event flags
 static EventGroupHandle_t events;
 
 
@@ -97,28 +124,28 @@ static EventGroupHandle_t events;
 //For longer runs, an RLE only encoding uses decimal values 48 to 127 (0x30 to 0x7F)
 //as x8 run length values of 8..640.
 //All other ascii values (except from the abort and the end of run byte_cnt) are reserved.
-static void send_slices_D4(sr_device_t *d,uint8_t *dbuf)
+static void __no_inline_not_in_flash_func(send_slices_D4)(sr_device_t *d, uint8_t *dbuf)
 {
     uint8_t nibcurr,niblast;
     uint32_t cword,lword; //current and last word
     uint32_t *cptr;
 
-    txbufidx=0;
+    txbufidx = 0;
     //Don't optimize the first word (eight samples) perfectly, just send them to make the for loop easier,
     //and setup the initial conditions for rle tracking
-    cptr=(uint32_t *) &(dbuf[0]);
-    cword=*cptr;
+    cptr = (uint32_t *)&(dbuf[0]);
+    cword = *cptr;
 #ifdef D4_DBG
     Dprintf("Dbuf %p cptr %p data 0x%X\n",(void *)&(dbuf[0]),(void *) cptr,cword);
 #endif
     lword = cword;
     for (int j = 0;  j < 8;  j++) {
-        nibcurr = cword&0xF;
+        nibcurr = cword & d->d_mask;
         txbuf[j] = nibcurr | 0x80;
         cword >>= 4;
     }
-    niblast=nibcurr;
-    cptr=(uint32_t *) &(txbuf[0]);
+    niblast = nibcurr;
+    cptr = (uint32_t *)&(txbuf[0]);
     txbufidx = 8;
     rxbufdidx = 4;
     rlecnt = 0;
@@ -131,11 +158,11 @@ static void send_slices_D4(sr_device_t *d,uint8_t *dbuf)
     //chngcnt=8;
     //The total number of 4 bit samples remaining to process from this half.
     //Subtract 8 because we procesed the word above.
-    samp_remain = d->samples_per_half-8;
+    samp_remain = d->samples_per_half - 8;
 
     //If in fixed sample (non-continous mode) only send the amount of samples requested
     if ( !d->continuous  &&  d->scnt + samp_remain > d->num_samples) {
-        samp_remain = d->num_samples-d->scnt;
+        samp_remain = d->num_samples - d->scnt;
         d->scnt += samp_remain;
     }
     else {
@@ -143,8 +170,8 @@ static void send_slices_D4(sr_device_t *d,uint8_t *dbuf)
     }
     //Process one  word (8 samples) at a time.
     for (int i = 0;  i < (samp_remain >> 3);  i++) {
-        cptr = (uint32_t *) &(dbuf[rxbufdidx]);
-        cword = *cptr;
+        cptr = (uint32_t *)&(dbuf[rxbufdidx]);
+        cword = *cptr;               // TODO mask according to setup?
         rxbufdidx += 4;
 #ifdef D4_DBG2
         Dprintf("dbuf0 %p dbufr %p cptr %p\n",dbuf,&(dbuf[rxbufdidx]),cptr);
@@ -176,7 +203,7 @@ static void send_slices_D4(sr_device_t *d,uint8_t *dbuf)
 #endif
             lword = cword;
             for (int j = 0;  j < 8;  j++) { //process all 8 nibbles
-                nibcurr = cword & 0xF;
+                nibcurr = cword & d->d_mask;
                 if (nibcurr == niblast) {
                     rlecnt++;
                 }
@@ -242,7 +269,7 @@ static void send_slices_D4(sr_device_t *d,uint8_t *dbuf)
 
 
 //Send a digital sample of multiple bytes with the 7 bit encoding
-static void tx_d_samp(sr_device_t *d,uint32_t cval)
+static void inline tx_d_samp(sr_device_t *d, uint32_t cval)
 {
     for (uint32_t b = 0;  b < d->d_tx_bps;  b++) {
         txbuf[txbufidx++] = cval | 0x80;
@@ -257,21 +284,21 @@ static void tx_d_samp(sr_device_t *d,uint32_t cval)
 //the compiled code is substantially slower to the point that digital only transfers
 //can't keep up with USB rate.  Thus it is only used by the send_slices_analog which is already
 //limited to 500khz, and in the starting send_slice_init.
-static uint32_t  get_cval(uint8_t *dbuf)
+static uint32_t inline get_cval(uint8_t *dbuf)
 {
     uint32_t cval;
 
     if (d_dma_bps == 1) {
         cval = dbuf[rxbufdidx];
+        cval &= sr_dev.d_mask;
     }
     else if (d_dma_bps == 2) {
-        cval = (*((uint16_t *) (dbuf+rxbufdidx)));
+        cval = (*((uint16_t *)(dbuf + rxbufdidx)));
+        cval &= sr_dev.d_mask;
     }
     else {
-        cval =(*((uint32_t *) (dbuf+rxbufdidx)));
-        //To make a 32bit value written from PIO we pull in IOs that aren't actual
-        //digital channels so mask them off
-        cval &= SR_PIO_D_MASK;
+        cval = (*((uint32_t *)(dbuf + rxbufdidx)));
+        cval &= sr_dev.d_mask;
     }
     rxbufdidx += d_dma_bps;
     return cval;
@@ -287,7 +314,7 @@ forward txbuf bytes to USB to prevent txbufidx from overflowing the size
 of txbuf. We do not always push to USB to reduce its impact
 on performance.
  */
-static void check_rle(void)
+static void inline check_rle(void)
 {
     while (rlecnt >= 1568) {
         txbuf[txbufidx++] = 127;
@@ -307,7 +334,7 @@ static void check_rle(void)
 
 
 //Send txbuf to usb based on an input threshold
-static void check_tx_buf(uint16_t cnt)
+static void inline check_tx_buf(uint16_t cnt)
 {
     if (txbufidx >= cnt) {
         cdc_sigrok_write((char *)txbuf, txbufidx);
@@ -319,14 +346,14 @@ static void check_tx_buf(uint16_t cnt)
 
 
 //Common init for send_slices_1B/2B/4B, but not D4 or analog
-static void send_slice_init(sr_device_t *d,uint8_t *dbuf)
+static void __no_inline_not_in_flash_func(send_slice_init)(sr_device_t *d,uint8_t *dbuf)
 {
     rxbufdidx = 0;
     //Adjust the number of samples to send if there are more in the dma buffer
     //then we need.
     samp_remain = d->samples_per_half;
     if ( !d->continuous  &&  d->scnt + samp_remain > d->num_samples) {
-        samp_remain=d->num_samples-d->scnt;
+        samp_remain = d->num_samples - d->scnt;
         d->scnt += samp_remain;
     }
     else {
@@ -336,8 +363,6 @@ static void send_slice_init(sr_device_t *d,uint8_t *dbuf)
     //Always send the first sample to establish a previous value for RLE
     //the use of get_cval is inefficient, but only done once per half buffer
     lval = get_cval(dbuf);
-    //If we are in 4B mode shift off invalid bits
-    lval &= SR_PIO_D_MASK;
     tx_d_samp(d, lval);
     samp_remain--;
     rlecnt = 0;
@@ -352,17 +377,18 @@ static void send_slice_init(sr_device_t *d,uint8_t *dbuf)
 //We can just always read a 4B value because the core doesn't support non-aligned accesses.
 //These must be marked noinline to ensure they remain separate functions for good performance
 //1B is 5-8 channels
-static void __attribute__ ((noinline)) send_slices_1B(sr_device_t *d,uint8_t *dbuf)
+static void __no_inline_not_in_flash_func(send_slices_1B)(sr_device_t *d,uint8_t *dbuf)
 {
     send_slice_init(d, dbuf);
     for (int s = 0;  s < samp_remain;  s++) {
         cval = dbuf[rxbufdidx++];
+        cval &= sr_dev.d_mask;
         if (cval == lval) {
             rlecnt++;
         }
         else {
             check_rle();
-            tx_d_samp(d,cval);
+            tx_d_samp(d, cval);
             check_tx_buf(TX_BUF_THRESH);
         }
         lval = cval;
@@ -374,11 +400,12 @@ static void __attribute__ ((noinline)) send_slices_1B(sr_device_t *d,uint8_t *db
 
 
 //2B is 9-16 channels
-static void __attribute__ ((noinline)) send_slices_2B(sr_device_t *d,uint8_t *dbuf)
+static void __no_inline_not_in_flash_func(send_slices_2B)(sr_device_t *d,uint8_t *dbuf)
 {
     send_slice_init(d,dbuf);
     for (int s = 0;  s < samp_remain;  s++) {
-        cval=(*((uint16_t *) (dbuf+rxbufdidx)));
+        cval = (*((uint16_t *)(dbuf + rxbufdidx)));
+        cval &= sr_dev.d_mask;
         rxbufdidx += 2;
         if (cval == lval) {
             rlecnt++;
@@ -397,14 +424,13 @@ static void __attribute__ ((noinline)) send_slices_2B(sr_device_t *d,uint8_t *db
 
 
 //4B is 17-21 channels and is the only one that must mask invalid bits which are captured by DMA
-static void __attribute__ ((noinline)) send_slices_4B(sr_device_t *d,uint8_t *dbuf)
+static void __no_inline_not_in_flash_func(send_slices_4B)(sr_device_t *d,uint8_t *dbuf)
 {
     send_slice_init(d, dbuf);
     for (int s = 0;  s < samp_remain;  s++) {
-        cval = (*((uint32_t *) (dbuf+rxbufdidx)));
+        cval = (*((uint32_t *)(dbuf + rxbufdidx)));
+        cval &= sr_dev.d_mask;
         rxbufdidx += 4;
-        //Mask invalid bits
-        cval &= SR_PIO_D_MASK;
         if (cval == lval) {
             rlecnt++;
         }
@@ -425,7 +451,7 @@ static void __attribute__ ((noinline)) send_slices_4B(sr_device_t *d,uint8_t *db
 //All digital channels for one slice are sent first in 7 bit bytes using values 0x80 to 0xFF
 //Analog channels are sent next, with each channel taking one 7 bit byte using values 0x80 to 0xFF.
 //This does not support run length encoding because it's not clear how to define RLE on analog signals
-static void send_slices_analog(sr_device_t *d,uint8_t *dbuf,uint8_t *abuf)
+static void __no_inline_not_in_flash_func(send_slices_analog)(sr_device_t *d, uint8_t *dbuf, uint8_t *abuf)
 {
     uint32_t rxbufaidx=0;
 
@@ -440,16 +466,16 @@ static void send_slices_analog(sr_device_t *d,uint8_t *dbuf,uint8_t *abuf)
     }
     txbufidx = 0;
     for (int s = 0;  s < samp_remain;  s++) {
-        if (d->d_mask) {
+        if (d->d_mask != 0) {
             cval = get_cval(dbuf);
             tx_d_samp(d, cval);
-            Dprintf("s %d cv %lX bps %d idx t %d r %ld\n", s, cval, d_dma_bps, txbufidx, rxbufdidx);
+//            Dprintf("s %d cv %lX bps %d idx t %d r %ld\n", s, cval, d_dma_bps, txbufidx, rxbufdidx);
         }
         for (uint32_t i = 0;  i < d->a_chan_cnt;  i++) {
             txbuf[txbufidx] = (abuf[rxbufaidx] >> 1) | 0x80;
             txbufidx++;
             rxbufaidx++;
-            Dprintf("av %X cnt %d idx t %d r %ld\n", abuf[rxbufaidx-1], d->a_chan_cnt, txbufidx, rxbufaidx);
+//            Dprintf("av %X cnt %d idx t %d r %ld\n", abuf[rxbufaidx-1], d->a_chan_cnt, txbufidx, rxbufaidx);
         }
         //Since this doesn't support RLEs we don't need to buffer
         //extra bytes to prevent txbuf overflow, but this value
@@ -463,15 +489,15 @@ static void send_slices_analog(sr_device_t *d,uint8_t *dbuf,uint8_t *abuf)
 
 //See if a given half's dma engines are idle and if so process the data, update the write pointer and
 //ensure that when done the other dma is still busy indicating we didn't lose data .
-//int __not_in_flash_func(check_half)(sr_device_t *d,volatile uint32_t *tstsa0,volatile uint32_t *tstsa1,volatile uint32_t *tstsd0,
-static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32_t *tstsa1, volatile uint32_t *tstsd0,
-                      volatile uint32_t *tstsd1, volatile uint32_t *t_addra0, volatile uint32_t *t_addrd0,
-                      uint8_t *d_start_addr, uint8_t *a_start_addr, bool mask_xfer_err)
+static int __no_inline_not_in_flash_func(check_half)(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32_t *tstsa1, volatile uint32_t *tstsd0,
+                                                     volatile uint32_t *tstsd1, volatile uint32_t *t_addra0, volatile uint32_t *t_addrd0,
+                                                     uint8_t *d_start_addr, uint8_t *a_start_addr, bool mask_xfer_err)
 {
+    // TODO review
     bool a0busy, d0busy;
 
-    a0busy = (*tstsa0 & DMA_CH0_CTRL_TRIG_BUSY_BITS) != 0;
-    d0busy = (*tstsd0 & DMA_CH0_CTRL_TRIG_BUSY_BITS) != 0;
+    a0busy = DMA_IS_BUSY(tstsa0);
+    d0busy = DMA_IS_BUSY(tstsd0);
 
     if(     ( !a0busy  ||  d->a_mask == 0)
         &&  ( !d0busy  ||  d->d_mask == 0)) {
@@ -496,8 +522,8 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
         //Note that in all cases we should never actually send any corrupted data we just send less than what was requested.
         //Note that we must use the "alias" versions of the DMA CSRs to prevent writes from triggering them.
         //Since we swap the csr pointers we determine the other half from the address offsets.
-        uint8_t achan_no = (((uint32_t)tstsa0) >> 6) & 0xF;       // the DMA channel number is derived from its address
-        uint8_t dchan_no = (((uint32_t)tstsd0) >> 6) & 0xF;
+        uint32_t achan_no = DMA_ADDR_TO_CHANNEL_NO(tstsa0);
+        uint32_t dchan_no = DMA_ADDR_TO_CHANNEL_NO(tstsd0);
         // Dprintf("my stts pre a 0x%lX d 0x%lX\n", *tstsa0, *tstsd0);
         //Set my chain to myself so that I can't chain to the other.
         uint32_t ttmp;
@@ -552,13 +578,12 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
         //half and all the remaining samples we need are in the 2nd half.
         //Note that in continuous mode num_samples isn't defined.
 #if 1
-        bool proc_fail =    (d->a_mask != 0  &&  (*tstsa1 & DMA_CH0_CTRL_TRIG_BUSY_BITS) == 0)
-                         || (d->d_mask != 0  &&  (*tstsd1 & DMA_CH0_CTRL_TRIG_BUSY_BITS) == 0);
+        bool proc_fail =    (d->a_mask != 0  &&  !DMA_IS_BUSY(tstsa1))               // TODO not sure about this condition
+                         || (d->d_mask != 0  &&  !DMA_IS_BUSY(tstsd1));
 #else
         bool proc_fail = (!(((((*tstsa1) >> 24) & 1)  ||  (d->a_mask == 0))              // TODO query bit 24
                             &&     ((((*tstsd1) >> 24) & 1)  ||  (d->d_mask == 0))) & 1);
 #endif
-        // TODO if the printf() statement is omitted, there is no output in pulseview!?  Does this trigger the DMA?
 //        Dprintf("pf 0x%lX 0x%lX %d\n", *tstsa1, *tstsd1, proc_fail);
         //       if(mask_xfer_err
         //     || ((piorxstall1==0)
@@ -596,28 +621,27 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
 //Check if dma activity is complete.  This was split out to allow core1 to do the monitoring
 //and slice processing and leave usb interrupt handling to core 0, but doing so did not improve
 //streaming performance, so it's left in core0.
-static void dma_check(sr_device_t *d)
+static void __no_inline_not_in_flash_func(dma_check)(sr_device_t *d)
 {
 //    Dprintf("dma_check: %d %d %lu %lu %d\n", d->sample_and_send, d->all_started, d->scnt, d->num_samples, d->continuous);
     if (d->sample_and_send  &&  d->all_started  &&  (d->scnt < d->num_samples  ||  d->continuous)) {
         int ret;
 
-        c0cnt++;
         if (lowerhalf) {
             ret = check_half(&sr_dev, tstsa0, tstsa1, tstsd0, tstsd1, taddra0, taddrd0,
                              &(capture_buf[d->dbuf0_start]), &(capture_buf[d->abuf0_start]), mask_xfer_err);
             if (ret == 1) {
-                lowerhalf = 0;
+                lowerhalf = false;
             }
             else if (ret < 0) {
                 d->sample_and_send = false;
             }
         }
-        if (lowerhalf == 0) {
+        if ( !lowerhalf) {
             ret = check_half(&sr_dev, tstsa1, tstsa0, tstsd1, tstsd0, taddra1, taddrd1,
                              &(capture_buf[d->dbuf1_start]), &(capture_buf[d->abuf1_start]), mask_xfer_err);
             if (ret == 1) {
-                lowerhalf = 1;
+                lowerhalf = true;
             }
             else if (ret < 0) {
                 d->sample_and_send = false;
@@ -744,6 +768,8 @@ static void sigrok_thread(void *ptr)
 //        Dprintf("ss %d %d\n", sr_dev.sample_and_send, sr_dev.all_started);
         if (sr_dev.sample_and_send  ||  sr_dev.all_started) {
             // no delay, thread is waiting in data transmission
+            // TODO need a condition to go to sleep / or to wake up
+            vTaskDelay(pdMS_TO_TICKS(5));
         }
         else {
             xEventGroupWaitBits(events, 0x01, pdTRUE, pdFALSE, portMAX_DELAY);
@@ -766,7 +792,7 @@ static void sigrok_thread(void *ptr)
 
             //Only boost frequency during a sample so that average device power is less.
             //It's not clear that this is needed because rp2040 is pretty low power, but it can't hurt...
-            lowerhalf = 1;
+            lowerhalf = true;
 
             //Sample rate must always be even.  Pulseview code enforces this
             //because a frequency step of 2 is required to get a pulldown to specify
@@ -899,7 +925,7 @@ static void sigrok_thread(void *ptr)
 
                 //This is needed to clear the AINSEL so that when the round robin arbiter starts we start sampling on channel 0
                 adc_select_input(0);
-                adc_set_round_robin(sr_dev.a_mask & 0x7);
+                adc_set_round_robin(sr_dev.a_mask & SR_ADC_A_MASK);
                 //             en, dreq_en,dreq_thresh,err_in_fifo,byte_shift to 8 bit
                 adc_fifo_setup(true, true,   1,           false,       true);
 
@@ -1035,7 +1061,6 @@ static void sigrok_thread(void *ptr)
             Dprintf("DMA ctrl reg a 0x%lX 0x%lX d 0x%lX 0x%lX\n", *tstsa0, *tstsa1, *tstsd0, *tstsd1);
             //Enable logic and analog close together for best possible alignment
             //warning - do not put printfs or similar things here...
-            tstart = time_us_32();
             adc_run(true); //enable free run sample mode
             pio_sm_set_enabled(SIGROK_PIO, SIGROK_SM, true);
             sr_dev.all_started = true;
@@ -1113,11 +1138,6 @@ static void sigrok_thread(void *ptr)
             Dprintf("Cont %d bcnt %lu\n", sr_dev.continuous, sent_cnt);
             Dprintf("DMsk 0x%lX AMsk 0x%lX\n", sr_dev.d_mask, sr_dev.a_mask);
             Dprintf("Half buffers %lu sampperhalf %lu\n", num_halves, sr_dev.samples_per_half);
-
-            //Report the number of main loops for each core to ensure
-            //C0 runs more loops
-            Dprintf("loop count C0 %lu\n", c0cnt);
-            c0cnt = 0;
         }
     }
 }   // sigrok_thread

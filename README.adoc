@@ -32,11 +32,11 @@ So there is unfortunately one more Picoprobe around, the YAPicoprobe.
 ** RTT terminal channel is automatically redirected into this CDC (if there is no
    CMSIS-DAPv2/MSC connection)
 * CDC - virtual com port for logging of the probe
-* sigrok probe - eight digital and three analog channels data collection
+* sigrok probe - data collection on eight digital and three analog channels
 * LED for state indication
 
 ### Other Benefits
-* no more Zadig fiddling because the underlying protocols of CMSIS-DAPv1 and v2 are driver-less
+* on Windows no more Zadig fiddling because the underlying protocols of CMSIS-DAPv1 and v2 are driver-less
 * easy drag-n-drop (or copy) upload of a firmware image to the target via the probe
 * no more reset push button (or disconnect/connect cycle)  to put the target into BOOTSEL mode
 
@@ -45,7 +45,7 @@ So there is unfortunately one more Picoprobe around, the YAPicoprobe.
 
 
 
-## Documentation
+## Details
 ### Overview and Wiring
 Picoprobe documentation can be found in the https://datasheets.raspberrypi.com/pico/getting-started-with-pico.pdf[Pico Getting Started Guide].
 See "Appendix A: Using Picoprobe".
@@ -131,7 +131,7 @@ Notes:
 
 
 ### sigrok - Data Collection
-The probe also allows data collection for a https://sigrok.org/[sigrok] compatible
+The probe allows data collection for a https://sigrok.org/[sigrok] compatible
 environment.  The module is based on work taken from https://github.com/pico-coder/sigrok-pico[sigrok-pico].
 This also means, that https://sigrok.org/wiki/Libsigrok[libsigrok] has to be
 adopted accordingly, see https://github.com/pico-coder/sigrok-pico/blob/main/SigrokBuildNotes.md[here].
@@ -143,15 +143,17 @@ Specification of the module is:
 * 8 digital channels at GP10..GP17
 * 3 analog channels at GP26..GP28 with 8bit resolution
 * internal buffer of 100KByte which allows depending on 
-  sample rate between 25000 and few hundred thousand samples
+  setup between 25000 and one hundred thousand samples
 * digital sampling rate can be up to 100MHz for a short period of
   time, see https://github.com/pico-coder/sigrok-pico/blob/main/AnalyzerDetails.md[here]
 * analog sampling rate can be up to 500kHz with one channel
-* continuous digital sampling can be up to 10MHz depending on
-  data stream
+* continuous digital sampling can be up to 8MHz depending on
+  data stream and USB connection/load
 
-Drawback:
+Drawbacks:
 
+* digital channel numbering in sigrok is confusing, because D2 corresponds to GP10...
+* for best performance digital channels must be assigned from GP10 consecutively
 * currently no hardware triggering supported
 
 
@@ -342,10 +344,10 @@ image::Screenshot_20230103_074404.png[First Version]
 image::Screenshot_20230106_153629.png[06.01.2023]
 
 #### Explanation / Conclusion
-The plots above are taken with SWCLK = 15MHz.  Absolute time of the four commands
+The plots above were taken at SWCLK=15MHz.  Absolute time of the four command sequences
 shrunk from ~25us to 18us.  Not bad.
 
-But there are still gaps which may give more optimization opportunities.
+Nevertheless there are still gaps which may give more optimization opportunities.
 Switching times between read / write and the gap between two commands are
 candidates.  Note that moving code into RAM did not really help (and
 optimization is still a non/slow-working mystery).

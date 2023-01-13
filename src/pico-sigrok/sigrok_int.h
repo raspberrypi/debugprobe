@@ -69,6 +69,9 @@
 // Mask for the digital channels at GPIO level
 #define SR_GPIO_D_MASK      (((1 << (SR_NUM_D_CHAN)) - 1) << (SR_BASE_D_CHAN))
 
+// Mask for analog channels
+#define SR_ADC_A_MASK       (((1 << (SR_NUM_A_CHAN)) - 1))
+
 
 #if !defined(NDEBUG)
     int cdc_debug_printf(const char* format, ...) __attribute__ ((format (printf, 1, 2)));
@@ -83,8 +86,9 @@
 typedef struct sr_device {
     uint32_t sample_rate;
     uint32_t num_samples;
-    uint32_t a_mask,d_mask;
-    uint32_t samples_per_half; //number of samples for one of the 4 dma target arrays
+    uint32_t a_mask;                                 //!< enable mask for analog channels (bit 0..(SR_NUM_A_CHAN-1))
+    uint32_t d_mask;                                 //!< enable mask for digital channels (bit 0..(SR_NUM_D_CHAN-1))
+    uint32_t samples_per_half;                       //!< number of samples for one of the 4 dma target arrays
     uint8_t a_chan_cnt;                              //!< count of enabled analog channels
     uint8_t d_chan_cnt;                              //!< count of enabled digital channels
     uint8_t d_tx_bps;   //Digital Transmit bytes per slice
@@ -94,6 +98,7 @@ typedef struct sr_device {
     uint32_t scnt; //number of samples sent
     uint32_t d_size,a_size; //size of each of the two data buffers for each of a& d
     uint32_t dbuf0_start,dbuf1_start,abuf0_start,abuf1_start; //starting memory pointers of adc buffers
+
     uint32_t cmdstr_ndx;                             //!< index into \a cmdstr
     char cmdstr[20];                                 //!< used for parsing input
     char rspstr[20];                                 //!< response string of a \a cmdstr
@@ -104,15 +109,6 @@ typedef struct sr_device {
     volatile bool continuous;                        //!< continuous sample mode
     volatile bool aborted;                           //!< abort sampling and transmission (due to host command or overflow)
     volatile bool send_resp;                         //!< send the response string contained in \a rspstr
-
-    /*Depracated trigger logic
-//If HW trigger enabled, uncomment all usages
-  //volatile bool notfirst;  //Have we processed at least a first sample (so that lval is correct
-  //  volatile bool triggered;
-  //  uint32_t tlval; //last digital sample value - must keep it across multiple calls to send_slices for trigger
-  //  uint32_t lvl0mask,lvl1mask,risemask,fallmask,chgmask;
-  End depracated trigger logic*/
-
 } sr_device_t;
 
 
