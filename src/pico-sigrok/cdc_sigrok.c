@@ -102,8 +102,8 @@ static bool process_char(sr_device_t *d, char charin)
         d->cmdstr[d->cmdstr_ndx] = 0;
         switch (d->cmdstr[0]) {
             case 'i':
-                //SREGEN,AxxyDzz,00 - num analog, analog size, num digital,version
-                sprintf(d->rspstr, "SRPICO,A%02d1D%02d,02", SR_NUM_A_CHAN, SR_NUM_D_CHAN);
+                //SRPICO,AxxyDzz,02,oo - num analog, analog size, num digital,version,channel offset
+                sprintf(d->rspstr, "SRPICO,A%02d1D%02d,03,10", SR_NUM_A_CHAN, SR_NUM_D_CHAN);
                 Dprintf("ID rsp %s\n", d->rspstr);
                 ret = true;
                 break;

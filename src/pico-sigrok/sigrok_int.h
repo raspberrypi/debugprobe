@@ -101,8 +101,8 @@ typedef struct sr_device {
     uint32_t dbuf0_start,dbuf1_start,abuf0_start,abuf1_start; //starting memory pointers of adc buffers
 
     uint32_t cmdstr_ndx;                             //!< index into \a cmdstr
-    char cmdstr[20];                                 //!< used for parsing input
-    char rspstr[20];                                 //!< response string of a \a cmdstr
+    char cmdstr[30];                                 //!< used for parsing input
+    char rspstr[30];                                 //!< response string of a \a cmdstr
 
     // mark key control variables volatile since multiple cores might access them
     volatile bool all_started;                       //!< sampling and transmission has been started (incl initialization)

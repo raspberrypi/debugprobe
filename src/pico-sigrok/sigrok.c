@@ -769,7 +769,7 @@ static void sigrok_thread(void *ptr)
         if (sr_dev.sample_and_send  ||  sr_dev.all_started) {
             // no delay, thread is waiting in data transmission
             // TODO need a condition to go to sleep / or to wake up
-            vTaskDelay(pdMS_TO_TICKS(5));
+            vTaskDelay(pdMS_TO_TICKS(1));
         }
         else {
             xEventGroupWaitBits(events, 0x01, pdTRUE, pdFALSE, portMAX_DELAY);
