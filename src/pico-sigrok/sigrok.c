@@ -550,7 +550,7 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
         //It's only an error if we haven't already gotten the samples we need, or if we are processing the first
         //half and all the remaining samples we need are in the 2nd half.
         //Note that in continuous mode num_samples isn't defined.
-#if 0
+#if 1
         bool proc_fail =    (d->a_mask != 0  &&  (*tstsa1 & DMA_CH0_CTRL_TRIG_BUSY_BITS) == 0)
                          || (d->d_mask != 0  &&  (*tstsd1 & DMA_CH0_CTRL_TRIG_BUSY_BITS) == 0);
 #else
@@ -558,7 +558,7 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
                             &&     ((((*tstsd1) >> 24) & 1)  ||  (d->d_mask == 0))) & 1);
 #endif
         // TODO if the printf() statement is omitted, there is no output in pulseview!?  Does this trigger the DMA?
-        Dprintf("pf 0x%lX 0x%lX %d\n", *tstsa1, *tstsd1, proc_fail);
+//        Dprintf("pf 0x%lX 0x%lX %d\n", *tstsa1, *tstsd1, proc_fail);
         //       if(mask_xfer_err
         //     || ((piorxstall1==0)
         //      &&((((*tstsa1)>>24)&1)||(d->a_mask==0))

@@ -46,7 +46,7 @@
     // number of analog channels
     #define SR_NUM_A_CHAN   3
     // first digital channel port
-    #define SR_BASE_D_CHAN  12
+    #define SR_BASE_D_CHAN  10
     // number of digital channels
     #define SR_NUM_D_CHAN   8
     // Storage size of the DMA buffer.  The buffer is split into two halves so that when the first

@@ -82,7 +82,7 @@
 
 
 // PIO config
-#define PROBE_PIO                pio0
+#define PROBE_PIO                pio1
 #define PROBE_SM                 0
 #define PROBE_PIN_OFFSET         2
 #define PROBE_PIN_SWCLK          (PROBE_PIN_OFFSET + 0) // 2
@@ -111,7 +111,7 @@
 
 
 // sigrok config
-#define SIGROK_PIO               pio1
+#define SIGROK_PIO               pio0
 #define SIGROK_SM                0                      // often hard coded
 
 
