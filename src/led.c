@@ -39,6 +39,7 @@ static TaskHandle_t task_led;
 static bool         msc_connected;
 static bool         dapv1_connected;
 static bool         dapv2_connected;
+static bool         sigrok_running;
 static bool         target_found;
 static unsigned     rtt_flash_cnt;
 static uint64_t     uart_data_trigger;
@@ -49,7 +50,14 @@ static uint64_t     rtt_data_trigger;
 void led_thread(void *ptr)
 {
     for (;;) {
-        if ( !target_found) {
+        if (sigrok_running) {
+            // -> 10Hz flashing
+            gpio_put(PICOPROBE_LED, 1);
+            vTaskDelay(pdMS_TO_TICKS(20));
+            gpio_put(PICOPROBE_LED, 0);
+            vTaskDelay(pdMS_TO_TICKS(80));
+        }
+        else if ( !target_found) {
             // -> 5Hz blinking
             gpio_put(PICOPROBE_LED, 0);
             vTaskDelay(pdMS_TO_TICKS(100));
@@ -173,6 +181,14 @@ void led_state(led_state_t state)
 
         case LS_UART_DATA:
             uart_data_trigger = time_us_64();
+            break;
+
+        case LS_SIGROK_RUNNING:
+            sigrok_running = true;
+            break;
+
+        case LS_SIGROK_STOPPED:
+            sigrok_running = false;
             break;
 
         default:

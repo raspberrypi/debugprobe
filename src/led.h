@@ -42,6 +42,8 @@ typedef enum _led_state {
     LS_DAPV1_DISCONNECTED,    // DAPV1 disconnected
     LS_DAPV2_CONNECTED,       // DAPV2 connected
     LS_DAPV2_DISCONNECTED,    // DAPV2 disconnected
+    LS_SIGROK_RUNNING,        // sigrok is running
+    LS_SIGROK_STOPPED,        // sigrok stopped
 } led_state_t;
 
 void led_init(uint32_t task_prio);

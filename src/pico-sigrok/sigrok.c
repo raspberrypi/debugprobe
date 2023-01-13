@@ -22,6 +22,7 @@
 #include "event_groups.h"
 
 #include "picoprobe_config.h"
+#include "led.h"
 #include "sigrok_int.h"
 #include "cdc_sigrok.h"
 #include "sigrok.h"
@@ -1038,6 +1039,7 @@ static void sigrok_thread(void *ptr)
             adc_run(true); //enable free run sample mode
             pio_sm_set_enabled(SIGROK_PIO, SIGROK_SM, true);
             sr_dev.all_started = true;
+            led_state(LS_SIGROK_RUNNING);
         }
 
         dma_check(&sr_dev);
@@ -1089,6 +1091,7 @@ static void sigrok_thread(void *ptr)
             dma_channel_abort(pdmachan0);
             dma_channel_abort(pdmachan1);
             sr_dev.all_started = false;
+            led_state(LS_SIGROK_STOPPED);
 
             //Print USB Endpoint controls in the DPSRAM, which is at the base of USBCTRL
             //0x0 is setup packet,

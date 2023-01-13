@@ -32,6 +32,7 @@ So there is unfortunately one more Picoprobe around, the YAPicoprobe.
 ** RTT terminal channel is automatically redirected into this CDC (if there is no
    CMSIS-DAPv2/MSC connection)
 * CDC - virtual com port for logging of the probe
+* sigrok probe - eight digital and three analog channels data collection
 * LED for state indication
 
 ### Other Benefits
@@ -79,7 +80,7 @@ does not add any features, instead the LED indicator does not work there.
 |===
 
 
-### Adapter Speed
+### SWD Adapter Speed
 The tools above allow specification of the adapter speed.  This is the clock frequency between probe and target device.
 Unfortunately DAP converts internally the frequency into delays which are always even multiples of clock cycles.
 That means that actual clock speeds are `125MHz / (2*n)`, `n>=3` -> 20833kHz, 12500kHz, 10417kHz, ...
@@ -129,6 +130,31 @@ Notes:
   case CMSIS-DAP or MSC are claiming access
 
 
+### sigrok - Data Collection
+The probe also allows data collection for a https://sigrok.org/[sigrok] compatible
+environment.  The module is based on work taken from https://github.com/pico-coder/sigrok-pico[sigrok-pico].
+This also means, that https://sigrok.org/wiki/Libsigrok[libsigrok] has to be
+adopted accordingly, see https://github.com/pico-coder/sigrok-pico/blob/main/SigrokBuildNotes.md[here].
+Benefit is, that this allows the Pico as a mixed-signal device and 
+RLE compression of the collected data.
+
+Specification of the module is:
+
+* 8 digital channels at GP10..GP17
+* 3 analog channels at GP26..GP28 with 8bit resolution
+* internal buffer of 100KByte which allows depending on 
+  sample rate between 25000 and few hundred thousand samples
+* digital sampling rate can be up to 100MHz for a short period of
+  time, see https://github.com/pico-coder/sigrok-pico/blob/main/AnalyzerDetails.md[here]
+* analog sampling rate can be up to 500kHz with one channel
+* continuous digital sampling can be up to 10MHz depending on
+  data stream
+
+Drawback:
+
+* currently no hardware triggering supported
+
+
 ### LED Indication
 
 [%header]
@@ -158,6 +184,9 @@ Notes:
 
 | RTT data received
 | LED off, flashes thrice per second for 20ms
+
+| sigrok running
+| 10Hz flashing
 |===
 
 
@@ -171,8 +200,9 @@ Notes:
 SUBSYSTEM=="usb", ATTR{idVendor}=="2e8a", ATTR{idProduct}=="000c", MODE:="0666"
 
 # create COM port for target CDC
-ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-UART",  MODE="0666", SYMLINK+="ttyPicoTarget"
-ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-DEBUG", MODE="0666", SYMLINK+="ttyPicoProbe"
+ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-UART",    MODE:="0666", SYMLINK+="ttyPicoTarget"
+ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-DEBUG",   MODE:="0666", SYMLINK+="ttyPicoProbe"
+ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-SIGROK",  MODE:="0666", SYMLINK+="ttyPicoSigRok
 
 # mount Picoprobe to /media/picoprobe
 ACTION=="add", SUBSYSTEMS=="usb", SUBSYSTEM=="block", ENV{ID_FS_USAGE}=="filesystem", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000c", RUN+="/usr/bin/logger --tag picoprobe-mount Mounting what seems to be a Raspberry Pi Picoprobe", RUN+="/usr/bin/systemd-mount --no-block --collect --fsck=0 -o uid=hardy,gid=hardy,flush $devnode /media/picoprobe"
@@ -334,5 +364,4 @@ optimization is still a non/slow-working mystery).
 * tests
 ** Reset line between probe and target have to be reviewed
 ** Win10 (tools) compatibility
-* Misc:
-** tool compatibility list
+
