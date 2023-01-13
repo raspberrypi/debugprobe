@@ -284,6 +284,9 @@ static void inline tx_d_samp(sr_device_t *d, uint32_t cval)
 //the compiled code is substantially slower to the point that digital only transfers
 //can't keep up with USB rate.  Thus it is only used by the send_slices_analog which is already
 //limited to 500khz, and in the starting send_slice_init.
+//
+// not used for D4 mode!
+//
 static uint32_t inline get_cval(uint8_t *dbuf)
 {
     uint32_t cval;
@@ -812,7 +815,7 @@ static void sigrok_thread(void *ptr)
             //Nibble size storage is only allow for D4 mode with no analog channels enabled
             //For instance a D0..D5 with A0 would give 1/2 the storage to digital and 1/2 to analog
             uint32_t d_nibbles, a_nibbles, t_nibbles; //digital, analog and total nibbles
-            d_nibbles = sr_dev.d_nps;  //digital is in grous of 4 bits
+            d_nibbles = sr_dev.d_nps;  //digital is in groups of 4 bits
             a_nibbles = sr_dev.a_chan_cnt * 2; //1 byte per sample
             t_nibbles = d_nibbles + a_nibbles;
 
@@ -825,9 +828,9 @@ static void sigrok_thread(void *ptr)
                 chunk_size *= a_nibbles;
             if (d_nibbles != 0)
                 chunk_size *= d_nibbles;
-            uint32_t dig_bytes_per_chunk = chunk_size*d_nibbles / t_nibbles;
-            uint32_t dig_samples_per_chunk=(d_nibbles) ? dig_bytes_per_chunk*2/d_nibbles : 0;
-            uint32_t chunk_samples=d_nibbles ? dig_samples_per_chunk  : (chunk_size*2)/(a_nibbles);
+            uint32_t dig_bytes_per_chunk = chunk_size * d_nibbles / t_nibbles;
+            uint32_t dig_samples_per_chunk = d_nibbles ? (dig_bytes_per_chunk * 2) / d_nibbles : 0;
+            uint32_t chunk_samples = d_nibbles ? dig_samples_per_chunk  : (chunk_size * 2) / a_nibbles;
             //total chunks in entire buffer-round to 2 since we split it in half
             uint32_t buff_chunks = (SR_DMA_BUF_SIZE / chunk_size) & 0xFFFFFFFE;
             //round up and force power of two since we cut it in half
@@ -854,7 +857,7 @@ static void sigrok_thread(void *ptr)
             //This is the size of each half buffer in bytes
             sr_dev.d_size = (buff_chunks * chunk_size * d_nibbles) / (t_nibbles * 2);
             sr_dev.a_size = (buff_chunks * chunk_size * a_nibbles) / (t_nibbles * 2);
-            sr_dev.samples_per_half = chunk_samples * buff_chunks / 2;
+            sr_dev.samples_per_half = (chunk_samples * buff_chunks) / 2;
             Dprintf("Final sizes d %ld a %ld mask err %d samples per half %ld\n",
                     sr_dev.d_size, sr_dev.a_size, mask_xfer_err, sr_dev.samples_per_half);
 
@@ -940,12 +943,12 @@ static void sigrok_thread(void *ptr)
                 //analyzer_init from pico-examples
                 //Due to how PIO shifts in bits, if any digital channel within a group of 8 is set,
                 //then all groups below it must also be set. We further restrict it in the tx_init function
-                //by saying digital channel usage must be continous.
+                //by saying digital channel usage must be continuous.
                 /* pin count is restricted to 4,8,16 or 32, and pin count of 4 is only used
                 Pin count is kept to a powers of 2 so that we always read a sample with a single byte/word/dword read
                 for faster parsing.
                    if analog is disabled and we are in D4 mode
-                    bits d_dma_bps   d_tx_bps
+                    bits d_dma_bps   d_tx_bps (7 bits)
                     0-4    0          1        No analog channels
                     0-4    1          1        1 or more analog channels
                     5-7    1          1
@@ -954,25 +957,30 @@ static void sigrok_thread(void *ptr)
                     13-14  2          2
                     15-16  2          3
                     17-21  4          3
+                    22-28  4          4
+                    29-32  4          5
                  */
-                sr_dev.pin_count = 0;
-                if (sr_dev.d_mask & 0x0000000F)
-                    sr_dev.pin_count += 4;
-                if (sr_dev.d_mask & 0x000000F0)
-                    sr_dev.pin_count += 4;
-                if (sr_dev.d_mask & 0x0000FF00)
-                    sr_dev.pin_count += 8;
-                if (sr_dev.d_mask & 0x0FFF0000)
-                    sr_dev.pin_count += 16;
-                //If 4 or less channels are enabled but ADC is also enabled, set a minimum size of 1B of PIO storage
-                if (sr_dev.pin_count == 4  &&  sr_dev.a_chan_cnt) {
+                //
+                if ((sr_dev.d_mask & 0x0000000f) == sr_dev.d_mask)
+                    sr_dev.pin_count = 4;
+                else if ((sr_dev.d_mask & 0x000000ff) == sr_dev.d_mask)
+                    sr_dev.pin_count = 8;
+                else if ((sr_dev.d_mask & 0x0000ffff) == sr_dev.d_mask)
+                    sr_dev.pin_count = 16;
+                else
+                    sr_dev.pin_count = 32;
+
+                // If 4 or less channels are enabled but ADC is also enabled, set a minimum size of 1B of PIO storage
+                if (sr_dev.pin_count == 4  &&  sr_dev.a_chan_cnt != 0) {
                     sr_dev.pin_count = 8;
                 }
+
                 d_dma_bps = sr_dev.pin_count >> 3;
                 Dprintf("pin_count %d\n", sr_dev.pin_count);
+
                 uint16_t capture_prog_instr;
                 capture_prog_instr = pio_encode_in(pio_pins, sr_dev.pin_count);
-                Dprintf("capture_prog_instr 0x%X\n",capture_prog_instr);
+                Dprintf("capture_prog_instr 0x%X\n", capture_prog_instr);
                 struct pio_program capture_prog = {
                         .instructions = &capture_prog_instr,
                         .length = 1,
