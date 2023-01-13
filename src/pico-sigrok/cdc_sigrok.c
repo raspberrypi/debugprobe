@@ -72,6 +72,7 @@ void cdc_sigrok_write(const char *buf, int length)
             i += n2;
         }
         else {
+//            Dprintf("xxxxxxxxxxxxxxxxxx\n");
             tud_cdc_n_write_flush(CDC_SIGROK_N);
             xEventGroupWaitBits(events, EV_TX, pdTRUE, pdFALSE, portMAX_DELAY);
         }
@@ -218,10 +219,15 @@ static bool process_char(sr_device_t *d, char charin)
             case 'D':  ///enable digital channel always a set
                 tmpint = d->cmdstr[1] - '0'; //extract enable value
                 tmpint2 = atoi(&(d->cmdstr[2])); //extract channel number
-                if (tmpint >= 0  &&  tmpint <= 1  &&  tmpint2 >= 0  &&  tmpint2 <= 31) {    // TODO 31 is max bits
+                if (tmpint >= 0  &&  tmpint <= 1  &&  tmpint2 >= 0  &&  tmpint2 < SR_NUM_D_CHAN) {
                     d->d_mask = d->d_mask & ~(1 << tmpint2);
                     d->d_mask = d->d_mask | (tmpint << tmpint2);
-                    Dprintf("D%d EN %d Msk 0x%lX\n", tmpint2, tmpint, d->d_mask);
+
+                    d->d_mask_D4 = 0;
+                    for (int i = 0;  i < 8;  ++i) {
+                        d->d_mask_D4 |= (d->d_mask & 0x0f) << (4 * i);
+                    }
+                    Dprintf("D%d EN %d Msk 0x%lX 0x%lX\n", tmpint2, tmpint, d->d_mask, d->d_mask_D4);
                     ret = true;
                 }
                 else {

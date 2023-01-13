@@ -84,12 +84,12 @@ static uint8_t RxDataBuffer[_DAP_PACKET_COUNT * _DAP_PACKET_SIZE];
 // prios are critical and determine throughput
 #define TUD_TASK_PRIO               (tskIDLE_PRIORITY + 20)       // uses one core continuously
 #define LED_TASK_PRIO               (tskIDLE_PRIORITY + 12)       // simple task which may interrupt everything else for periodic blinking
+#define SIGROK_TASK_PRIO            (tskIDLE_PRIORITY + 9)        // Sigrok digital/analog signals (does nothing at the moment)
 #define MSC_WRITER_THREAD_PRIO      (tskIDLE_PRIORITY + 8)        // this is only running on writing UF2 files
 #define UART_TASK_PRIO              (tskIDLE_PRIORITY + 5)        // target -> host via UART
-#define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 14)        // target -> host via RTT
+#define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 4)        // target -> host via RTT
 #define CDC_DEBUG_TASK_PRIO         (tskIDLE_PRIORITY + 4)        // probe debugging output
 #define DAP_TASK_PRIO               (tskIDLE_PRIORITY + 2)        // DAP execution, during connection this takes the other core
-#define SIGROK_TASK_PRIO            (tskIDLE_PRIORITY + 9)        // Sigrok digital/analog signals (does nothing at the moment)
 
 static TaskHandle_t tud_taskhandle;
 static TaskHandle_t dap_taskhandle;

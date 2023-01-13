@@ -88,6 +88,7 @@ typedef struct sr_device {
     uint32_t num_samples;
     uint32_t a_mask;                                 //!< enable mask for analog channels (bit 0..(SR_NUM_A_CHAN-1))
     uint32_t d_mask;                                 //!< enable mask for digital channels (bit 0..(SR_NUM_D_CHAN-1))
+    uint32_t d_mask_D4;                              //!< enable mask for send_slices_D4() operation
     uint32_t samples_per_half;                       //!< number of samples for one of the 4 dma target arrays
     uint8_t a_chan_cnt;                              //!< count of enabled analog channels
     uint8_t d_chan_cnt;                              //!< count of enabled digital channels

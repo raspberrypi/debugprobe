@@ -99,6 +99,7 @@ void sigrok_full_reset(sr_device_t *d)
     sigrok_reset(d);
     d->a_mask      = 0;
     d->d_mask      = 0;
+    d->d_mask_D4   = 0;
     d->sample_rate = 5000;
     d->num_samples = 10;
     d->a_chan_cnt  = 0;

@@ -134,13 +134,13 @@ static void __no_inline_not_in_flash_func(send_slices_D4)(sr_device_t *d, uint8_
     //Don't optimize the first word (eight samples) perfectly, just send them to make the for loop easier,
     //and setup the initial conditions for rle tracking
     cptr = (uint32_t *)&(dbuf[0]);
-    cword = *cptr;
+    cword = *cptr & d->d_mask_D4;
 #ifdef D4_DBG
     Dprintf("Dbuf %p cptr %p data 0x%X\n",(void *)&(dbuf[0]),(void *) cptr,cword);
 #endif
     lword = cword;
     for (int j = 0;  j < 8;  j++) {
-        nibcurr = cword & d->d_mask;
+        nibcurr = cword & 0x0f;
         txbuf[j] = nibcurr | 0x80;
         cword >>= 4;
     }
@@ -171,7 +171,7 @@ static void __no_inline_not_in_flash_func(send_slices_D4)(sr_device_t *d, uint8_
     //Process one  word (8 samples) at a time.
     for (int i = 0;  i < (samp_remain >> 3);  i++) {
         cptr = (uint32_t *)&(dbuf[rxbufdidx]);
-        cword = *cptr;               // TODO mask according to setup?
+        cword = *cptr & d->d_mask_D4;
         rxbufdidx += 4;
 #ifdef D4_DBG2
         Dprintf("dbuf0 %p dbufr %p cptr %p\n",dbuf,&(dbuf[rxbufdidx]),cptr);
@@ -194,16 +194,16 @@ static void __no_inline_not_in_flash_func(send_slices_D4)(sr_device_t *d, uint8_
         if (cword == lword  &&  (cword >> 4) == (cword & 0x0FFFFFFF)) {
             rlecnt += 8;
 #ifdef D4_DBG2
-            Dprintf("coarse word 0x%X\n",cword);
+            Dprintf("coarse word 0x%lX\n", cword);
 #endif
         }
         else {//if coarse rle didn't match
 #ifdef D4_DBG2
-            Dprintf("cword 0x%X nibcurr 0x%X i %d rx idx %u  rlecnt %u\n",cword,nibcurr,i,rxbufdidx,rlecnt);
+            Dprintf("cword 0x%lX nibcurr 0x%X i %d rx idx %lu  rlecnt %lu\n", cword, nibcurr, i, rxbufdidx, rlecnt);
 #endif
             lword = cword;
             for (int j = 0;  j < 8;  j++) { //process all 8 nibbles
-                nibcurr = cword & d->d_mask;
+                nibcurr = cword & 0x0f;
                 if (nibcurr == niblast) {
                     rlecnt++;
                 }
@@ -218,7 +218,7 @@ static void __no_inline_not_in_flash_func(send_slices_D4)(sr_device_t *d, uint8_
                     //And finally the 0..7 rle along with the new value
                     rlecnt &= 0x7;
 #ifdef D4_DBG2 //print when sample value changes
-                    Dprintf("VChang val 0x%X rlecnt %d i%d j%d\n",nibcurr,rlecnt,i,j);
+                    Dprintf("VChang val 0x%X rlecnt %ld i%d j%d\n", nibcurr, rlecnt, i, j);
 #endif
                     txbuf[txbufidx++] = 0x80 | nibcurr | (rlecnt << 4);
                     rlecnt = 0;
@@ -228,8 +228,8 @@ static void __no_inline_not_in_flash_func(send_slices_D4)(sr_device_t *d, uint8_
             }
         }
 #ifdef D4_DBG2
-        Dprintf("i %d rx idx %u  rlecnt %u\n",i,rxbufdidx,rlecnt);
-        Dprintf("i %u tx idx %d bufs 0x%X 0x%X 0x%X\n",i,txbufidx,txbuf[txbufidx-3],txbuf[txbufidx-2],txbuf[txbufidx-1]);
+        Dprintf("i %d rx idx %lu  rlecnt %lu\n", i, rxbufdidx, rlecnt);
+        Dprintf("i %u tx idx %d bufs 0x%X 0x%X 0x%X\n", i, txbufidx, txbuf[txbufidx-3], txbuf[txbufidx-2], txbuf[txbufidx-1]);
 #endif
         //Emperically found that transmitting groups of around 32B gives optimum bandwidth
         if (txbufidx >= 64) {
