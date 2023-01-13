@@ -27,14 +27,6 @@
 #include "sigrok.h"
 
 
-// TODO nur GP12-GP19 verwenden?
-// TODO wie geht das heier mit dem Debug-Output?
-// TODO TinyUSB-Setup und Handling
-// TODO Taskpriorisierung
-// TODO Puffergrößen
-// TODO Initialisierung der Tasks
-// TODO Initialisierung des Systems
-
 //NODMA is a debug mode that disables the DMA engine and prints raw PIO FIFO outputs
 //it is limited to testing a small number of samples equal to the PIO FIFO depths
 //#define NODMA 1
@@ -505,7 +497,7 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
         //Since we swap the csr pointers we determine the other half from the address offsets.
         uint8_t achan_no = (((uint32_t)tstsa0) >> 6) & 0xF;       // the DMA channel number is derived from its address
         uint8_t dchan_no = (((uint32_t)tstsd0) >> 6) & 0xF;
-        Dprintf("my stts pre a 0x%lX d 0x%lX\n", *tstsa0, *tstsd0);
+        // Dprintf("my stts pre a 0x%lX d 0x%lX\n", *tstsa0, *tstsd0);
         //Set my chain to myself so that I can't chain to the other.
         uint32_t ttmp;
         ttmp = ((tstsd0[1]) & ~DMA_CH0_CTRL_TRIG_CHAIN_TO_BITS) | (dchan_no << DMA_CH0_CTRL_TRIG_CHAIN_TO_LSB);
@@ -558,15 +550,21 @@ static int check_half(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32
         //It's only an error if we haven't already gotten the samples we need, or if we are processing the first
         //half and all the remaining samples we need are in the 2nd half.
         //Note that in continuous mode num_samples isn't defined.
+#if 0
         bool proc_fail =    (d->a_mask != 0  &&  (*tstsa1 & DMA_CH0_CTRL_TRIG_BUSY_BITS) == 0)
                          || (d->d_mask != 0  &&  (*tstsd1 & DMA_CH0_CTRL_TRIG_BUSY_BITS) == 0);
+#else
+        bool proc_fail = (!(((((*tstsa1) >> 24) & 1)  ||  (d->a_mask == 0))              // TODO query bit 24
+                            &&     ((((*tstsd1) >> 24) & 1)  ||  (d->d_mask == 0))) & 1);
+#endif
+        // TODO if the printf() statement is omitted, there is no output in pulseview!?  Does this trigger the DMA?
         Dprintf("pf 0x%lX 0x%lX %d\n", *tstsa1, *tstsd1, proc_fail);
         //       if(mask_xfer_err
         //     || ((piorxstall1==0)
         //      &&((((*tstsa1)>>24)&1)||(d->a_mask==0))
         //         &&((((*tstsd1)>>24)&1)||(d->d_mask==0)))){
         if (mask_xfer_err  ||  (!piorxstall1  &&  !adcfail  &&  !piorxstall2  &&  !proc_fail)) {
-            Dprintf("h\n");
+//            Dprintf("h\n");
             return 1;
         }
         else {
