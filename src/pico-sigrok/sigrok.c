@@ -502,16 +502,17 @@ static void __no_inline_not_in_flash_func(send_slices_analog)(sr_device_t *d, ui
 //See if a given half's dma engines are idle and if so process the data, update the write pointer and
 //ensure that when done the other dma is still busy indicating we didn't lose data .
 static int __no_inline_not_in_flash_func(check_half)(sr_device_t *d,
-                                                     volatile uint32_t *tstsa0, volatile uint32_t *tstsa1,
-                                                     volatile uint32_t *tstsd0, volatile uint32_t *tstsd1,
-                                                     volatile uint32_t *t_addra0, volatile uint32_t *t_addrd0,
-                                                     uint8_t *d_start_addr, uint8_t *a_start_addr, bool mask_xfer_err)
+                                                     volatile uint32_t *dma_a_sts_running, volatile uint32_t *dma_a_sts_next,
+                                                     volatile uint32_t *dma_d_sts_running, volatile uint32_t *dma_d_sts_next,
+                                                     volatile uint32_t *dma_a_addr_next,   volatile uint32_t *dma_d_addr_next,
+                                                     uint8_t *d_start_addr, uint8_t *a_start_addr,
+                                                     bool mask_xfer_err)
 {
     // TODO review
     bool a0busy, d0busy;
 
-    a0busy = DMA_IS_BUSY(tstsa0);
-    d0busy = DMA_IS_BUSY(tstsd0);
+    a0busy = DMA_IS_BUSY(dma_a_sts_running);
+    d0busy = DMA_IS_BUSY(dma_d_sts_running);
 
     if(     ( !a0busy  ||  d->a_mask == 0)
         &&  ( !d0busy  ||  d->d_mask == 0)) {
@@ -537,17 +538,17 @@ static int __no_inline_not_in_flash_func(check_half)(sr_device_t *d,
         //Note that we must use the "alias" versions of the DMA CSRs to prevent writes from triggering them.
         //Since we swap the csr pointers we determine the other half from the address offsets.
 
-        uint32_t achan_no = DMA_ADDR_TO_CHANNEL_NO(tstsa0);
-        uint32_t dchan_no = DMA_ADDR_TO_CHANNEL_NO(tstsd0);
+        uint32_t achan_no = DMA_ADDR_TO_CHANNEL_NO(dma_a_sts_running);
+        uint32_t dchan_no = DMA_ADDR_TO_CHANNEL_NO(dma_d_sts_running);
 
-//        Dprintf("my stts pre a 0x%lX d 0x%lX\n", *tstsa0, *tstsd0);
+//        Dprintf("my stts pre a 0x%lX d 0x%lX\n", *dma_a_sts_running, *dma_d_sts_running);
 
         // Set my chain to myself so that I can't chain to the other.
-        DMA_SET_CHAIN_TO(tstsd0[1], dchan_no);
-        DMA_SET_CHAIN_TO(tstsa0[1], achan_no);
+        DMA_SET_CHAIN_TO(dma_d_sts_running[1], dchan_no);
+        DMA_SET_CHAIN_TO(dma_a_sts_running[1], achan_no);
 
-        *t_addra0 = (uint32_t)a_start_addr;
-        *t_addrd0 = (uint32_t)d_start_addr;
+        *dma_a_addr_next = (uint32_t)a_start_addr;
+        *dma_d_addr_next = (uint32_t)d_start_addr;
 
         bool piorxstall1 = (d->d_mask != 0  &&  PIO_RX_HAS_STALLED(SIGROK_PIO, SIGROK_SM));
 
@@ -573,8 +574,8 @@ static int __no_inline_not_in_flash_func(check_half)(sr_device_t *d,
 
         // Set my other chain to me
         // use aliases here as well to prevent triggers
-        DMA_SET_CHAIN_TO(tstsd1[1], dchan_no);
-        DMA_SET_CHAIN_TO(tstsa1[1], dchan_no);
+        DMA_SET_CHAIN_TO(dma_d_sts_next[1], dchan_no);
+        DMA_SET_CHAIN_TO(dma_a_sts_next[1], dchan_no);
 
         num_halves++;
 
@@ -592,17 +593,17 @@ static int __no_inline_not_in_flash_func(check_half)(sr_device_t *d,
         //half and all the remaining samples we need are in the 2nd half.
         //Note that in continuous mode num_samples isn't defined.
 #if 1
-        bool proc_fail =    (d->a_mask != 0  &&  !DMA_IS_BUSY(tstsa1))               // TODO not sure about this condition
-                         || (d->d_mask != 0  &&  !DMA_IS_BUSY(tstsd1));
+        bool proc_fail =    (d->a_mask != 0  &&  !DMA_IS_BUSY(dma_a_sts_next))               // TODO not sure about this condition
+                         || (d->d_mask != 0  &&  !DMA_IS_BUSY(dma_d_sts_next));
 #else
-        bool proc_fail = (!(((((*tstsa1) >> 24) & 1)  ||  (d->a_mask == 0))              // TODO query bit 24
-                            &&     ((((*tstsd1) >> 24) & 1)  ||  (d->d_mask == 0))) & 1);
+        bool proc_fail = (!(((((*dma_a_sts_next) >> 24) & 1)  ||  (d->a_mask == 0))              // TODO query bit 24
+                            &&     ((((*dma_d_sts_next) >> 24) & 1)  ||  (d->d_mask == 0))) & 1);
 #endif
-//        Dprintf("pf 0x%lX 0x%lX %d\n", *tstsa1, *tstsd1, proc_fail);
+//        Dprintf("pf 0x%lX 0x%lX %d\n", *dma_a_sts_next, *dma_d_sts_next, proc_fail);
         //       if(mask_xfer_err
         //     || ((piorxstall1==0)
-        //      &&((((*tstsa1)>>24)&1)||(d->a_mask==0))
-        //         &&((((*tstsd1)>>24)&1)||(d->d_mask==0)))){
+        //      &&((((*dma_a_sts_next)>>24)&1)||(d->a_mask==0))
+        //         &&((((*dma_d_sts_next)>>24)&1)||(d->d_mask==0)))){
         if (mask_xfer_err  ||  (!piorxstall1  &&  !adcfail  &&  !piorxstall2  &&  !proc_fail)) {
 //            Dprintf("h\n");
             return 1;
@@ -622,8 +623,8 @@ static int __no_inline_not_in_flash_func(check_half)(sr_device_t *d,
             //The main loop also sends these periodically until the host is done..
             cdc_sigrok_write("!!!", 3);
             Dprintf("scnt %lu\n", d->scnt);
-            Dprintf("a st %lu msk %lu\n", *tstsa1, d->a_mask);
-            Dprintf("d st %lu msk %lu\n", *tstsd1, d->d_mask);
+            Dprintf("a st %lu msk %lu\n", *dma_a_sts_next, d->a_mask);
+            Dprintf("d st %lu msk %lu\n", *dma_d_sts_next, d->d_mask);
             return -1;
         }
     }
