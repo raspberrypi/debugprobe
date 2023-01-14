@@ -23,6 +23,12 @@
  *
  */
 
+// here we need a 5x higher frequency than the sampling rate, so that
+// no samplings are missed at the trigger point.
+// Note that timing of the first three samples is still not correct.
+// My main concern was, that no transitions are missed.
+
+ 
     .program sigrok_d4_triggered
     
 public entry_d4:
@@ -48,32 +54,50 @@ triggered:                   ; -> triggered
 
 
 
-/*
-    .program sigrok_8
+    .program sigrok_1b_triggered
     
-public entry_8:
-    wait 1 pin 0
+public entry_1b:
+    in   pins, 8    [31]     ; small start delay to get everything settled
+    mov  isr, null  [31]
+    in   pins, 8             ; get start state and save it to X
+    mov  x, isr
+    mov  isr, null
+wait_loop:
+    in   pins, 8             ; get current state and save it to Y
+    mov  y, isr
+    mov  isr, null
+    jmp  x != y, triggered
+    jmp  wait_loop
+    
+triggered:                   ; -> triggered
+    in   x, 8                ; store values of X and Y as first samples into ISR
+    in   y, 8
+    
 .wrap_target
-    in pins, 8
+    in pins, 8  [4]          ; sample
 .wrap
 
 
 
-    .program sigrok_16
+    .program sigrok_2b_triggered
     
-public entry_16:
-    wait 1 pin 0
-.wrap_target
-    in pins, 16
-.wrap
-
-
-
-    .program sigrok_32
+public entry_2b:
+    in   pins, 16   [31]     ; small start delay to get everything settled
+    mov  isr, null  [31]
+    in   pins, 16            ; get start state and save it to X
+    mov  x, isr
+    mov  isr, null
+wait_loop:
+    in   pins, 16            ; get current state and save it to Y
+    mov  y, isr
+    mov  isr, null
+    jmp  x != y, triggered
+    jmp  wait_loop
     
-public entry_32:
-    wait 1 pin 0
+triggered:                   ; -> triggered
+    in   x, 16               ; store values of X and Y as first samples into ISR
+    in   y, 16
+    
 .wrap_target
-    in pins, 32
+    in pins, 16  [4]         ; sample
 .wrap
-*/

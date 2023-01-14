@@ -684,7 +684,8 @@ static void __no_inline_not_in_flash_func(dma_check)(sr_device_t *d)
  */
 static void setup_pio(void)
 {
-    uint32_t sample_rate_khz;
+    const uint32_t trigger_delay = 5;
+    uint32_t sample_rate_khz = 0;
     pio_sm_config pio_conf;
     uint offset;
     uint32_t f_clk_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);
@@ -694,13 +695,32 @@ static void setup_pio(void)
 
     pio_clear_instruction_memory(SIGROK_PIO);
 
-    if (sr_dev.sample_rate / 1000 <= f_clk_sys / 5  &&  sr_dev.pin_count == 4) {
+    if (sr_dev.sample_rate / 1000 <= f_clk_sys / trigger_delay) {
+        //
+        // Auto triggering for 4/8/16bit: acquisition is triggered if there are changes on the enabled input lines
+        //
         Dprintf("capturing with auto trigger\n");
-        offset = pio_add_program(SIGROK_PIO, &sigrok_d4_triggered_program);
-        pio_conf = sigrok_d4_triggered_program_get_default_config(offset);
-        sample_rate_khz = (5 * sr_dev.sample_rate) / 1000;
+        if (sr_dev.pin_count == 4) {
+            offset = pio_add_program(SIGROK_PIO, &sigrok_d4_triggered_program);
+            pio_conf = sigrok_d4_triggered_program_get_default_config(offset);
+            sample_rate_khz = (trigger_delay * sr_dev.sample_rate) / 1000;
+        }
+        else if (sr_dev.pin_count == 8) {
+            offset = pio_add_program(SIGROK_PIO, &sigrok_1b_triggered_program);
+            pio_conf = sigrok_1b_triggered_program_get_default_config(offset);
+            sample_rate_khz = (trigger_delay * sr_dev.sample_rate) / 1000;
+        }
+        else if (sr_dev.pin_count == 16) {
+            offset = pio_add_program(SIGROK_PIO, &sigrok_2b_triggered_program);
+            pio_conf = sigrok_2b_triggered_program_get_default_config(offset);
+            sample_rate_khz = (trigger_delay * sr_dev.sample_rate) / 1000;
+        }
     }
-    else {
+
+    if (sample_rate_khz == 0) {
+        //
+        // this is too fast for auto triggering: just do sampling of the input
+        //
         uint16_t capture_prog_instr;
 
         capture_prog_instr = pio_encode_in(pio_pins, sr_dev.pin_count);
@@ -744,12 +764,8 @@ static void setup_pio(void)
     sm_config_set_in_shift(&pio_conf, true, true, 32);                               // shift right, autopush, threshold=32
     sm_config_set_fifo_join(&pio_conf, PIO_FIFO_JOIN_RX);
     pio_sm_init(SIGROK_PIO, SIGROK_SM, offset, &pio_conf);
-    //Analyzer arm from pico examples
-    pio_sm_set_enabled(SIGROK_PIO, SIGROK_SM, false); //clear the enabled bit
-    //XOR the shiftctrl field with PIO_SM0_SHIFTCTRL_FJOIN_RX_BITS
-    //Do it twice to restore the value
+    pio_sm_set_enabled(SIGROK_PIO, SIGROK_SM, false);
     pio_sm_clear_fifos(SIGROK_PIO, SIGROK_SM);
-    //write the restart bit of PIO_CTRL
     pio_sm_restart(SIGROK_PIO, SIGROK_SM);
 }   // setup_pio
 
