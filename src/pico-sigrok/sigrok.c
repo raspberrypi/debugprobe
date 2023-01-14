@@ -47,10 +47,10 @@
 //(Assuming 128KB samples per half, a max rle value of 1568 we can get
 //  256*1024/2/1568=83 max length rles on a steady input).
 //Other than that the value is not very specific because the usb tub code
-//implement a 256 entry fifo that queues things up and sends max length 64B transactions
-//20 is arbitrarly picked to ensure that if we have even a little we send it so that
+//implement a 256 entry FIFO that queues things up and sends max length 64B transactions
+//20 is arbitrarily picked to ensure that if we have even a little we send it so that
 //at least something goes across the link.
-#define TX_BUF_THRESH 20
+#define TX_BUF_THRESH 64
 
 
 /// calculate DMA channel number from address
@@ -84,7 +84,7 @@ uint32_t rxbufdidx;
 /// counter for RLE encoding
 uint32_t rlecnt;
 
-/// count of characters sent serially
+/// count of characters sent via USB
 uint32_t sent_cnt;
 
 /// Number of bytes stored as DMA per slice, must be 1,2 or 4 to support aligned access
@@ -128,7 +128,7 @@ static EventGroupHandle_t events;
 
 
 //This is an optimized transmit of trace data for configurations with 4 or fewer digital channels
-//and no analog.  Run length encoding (RLE) is used to send counts of repeated values to effeciently utilize
+//and no analog.  Run length encoding (RLE) is used to send counts of repeated values to efficiently utilize
 //USB CDC link bandwidth.  This is the only mode where a given serial byte can have both sample information
 //and RLE counts.
 //Samples from PIO are dma'd in 32 bit words, each containing 8 samples of 4 bits (1 nibble).
@@ -139,7 +139,7 @@ static EventGroupHandle_t events;
 //  Bits 3:0 are the new value.
 //For longer runs, an RLE only encoding uses decimal values 48 to 127 (0x30 to 0x7F)
 //as x8 run length values of 8..640.
-//All other ascii values (except from the abort and the end of run byte_cnt) are reserved.
+//All other ASCII values (except from the abort and the end of run byte_cnt) are reserved.
 static void __no_inline_not_in_flash_func(send_slices_D4)(sr_device_t *d, uint8_t *dbuf)
 {
     uint8_t nibcurr,niblast;
@@ -173,7 +173,7 @@ static void __no_inline_not_in_flash_func(send_slices_D4)(sr_device_t *d, uint8_
     }
     //chngcnt=8;
     //The total number of 4 bit samples remaining to process from this half.
-    //Subtract 8 because we procesed the word above.
+    //Subtract 8 because we processed the word above.
     samp_remain = d->samples_per_half - 8;
 
     //If in fixed sample (non-continous mode) only send the amount of samples requested
@@ -224,7 +224,7 @@ static void __no_inline_not_in_flash_func(send_slices_D4)(sr_device_t *d, uint8_
                     rlecnt++;
                 }
                 else{
-                    //If the value changes we must push all remaing rles to the txbuf
+                    //If the value changes we must push all remaining rles to the txbuf
                     //chngcnt++;
                     //Send intermediate 8..632 RLEs
                     if (rlecnt > 7) {
@@ -269,13 +269,13 @@ static void __no_inline_not_in_flash_func(send_slices_D4)(sr_device_t *d, uint8_
     //The rle and value encoding counts as both a sample count of rle and a new sample
     //thus we must decrement rlecnt by 1 and resend the current value which will match the previous values
     //(if the current value didn't match, the rlecnt would be 0).
-    if (rlecnt) {
+    if (rlecnt != 0) {
         rlecnt &= 0x7;
         rlecnt--;
         txbuf[txbufidx++] = 0x80 | nibcurr | (rlecnt << 4);
         rlecnt = 0;
     }
-    if (txbufidx) {
+    if (txbufidx != 0) {
         cdc_sigrok_write((char *)txbuf, txbufidx);
         sent_cnt += txbufidx;
         txbufidx = 0;
@@ -532,9 +532,6 @@ static void __no_inline_not_in_flash_func(send_slices_analog)(sr_device_t *d, ui
  * Note that we must use the "alias" versions of the DMA CSRs to prevent writes from triggering them.
  * Since we swap the csr pointers we determine the other half from the address offsets.
  *
- * TODO if the number of samples is fixed so that everything fits into the two halves, then !DMA_BUSY is ok!
- * TODO here is a problem with buffer flushing, who does this anyway?
- *
  * \return  0->no change, 1->buffers must be switched, -1->abort
  */
 static int __no_inline_not_in_flash_func(check_half)(sr_device_t *d,
@@ -610,7 +607,6 @@ static int __no_inline_not_in_flash_func(check_half)(sr_device_t *d,
     //It's only an error if we haven't already gotten the samples we need, or if we are processing the first
     //half and all the remaining samples we need are in the 2nd half.
     //Note that in continuous mode num_samples isn't defined.
-    // TODO check num_samples!
     bool other_dma_running =     (d->a_mask == 0  ||  DMA_IS_BUSY(dma_a_sts_other))
                              &&  (d->d_mask == 0  ||  DMA_IS_BUSY(dma_d_sts_other));
 
@@ -1036,6 +1032,12 @@ static void sigrok_thread(void *ptr)
             sr_dev.abuf0_start = sr_dev.dbuf1_start + sr_dev.d_size;
             sr_dev.abuf1_start = sr_dev.abuf0_start + sr_dev.a_size;
 
+            Dprintf("starting d_nps %u a_chan_cnt %u d_size %lu a_size %lu a_mask %lX\n",
+                    sr_dev.d_nps, sr_dev.a_chan_cnt, sr_dev.d_size, sr_dev.a_size, sr_dev.a_mask);
+            Dprintf("start offsets d0 0x%lX d1 0x%lX a0 0x%lX a1 0x%lX samperhalf %lu\n",
+                    sr_dev.dbuf0_start, sr_dev.dbuf1_start, sr_dev.abuf0_start, sr_dev.abuf1_start, sr_dev.samples_per_half);
+            Dprintf("starting data buf values 0x%X 0x%X\n", capture_buf[sr_dev.dbuf0_start], capture_buf[sr_dev.dbuf1_start]);
+
             if (sr_dev.a_chan_cnt != 0) {
                 adc_run(false);
                 //             en, dreq_en,dreq_thresh,err_in_fifo,byte_shift to 8 bit
@@ -1057,12 +1059,6 @@ static void sigrok_thread(void *ptr)
                 //skew with digital samples.
                 volatile uint32_t *adcdiv = (volatile uint32_t *)(ADC_BASE + ADC_DIV_OFFSET);
                 const uint32_t sample_rate_khz = (sr_dev.a_chan_cnt * sr_dev.sample_rate) / 1000;     // sample_rate is a multiple of 1000
-
-                Dprintf("starting d_nps %u a_chan_cnt %u d_size %lu a_size %lu a_mask %lX\n",
-                        sr_dev.d_nps, sr_dev.a_chan_cnt, sr_dev.d_size, sr_dev.a_size, sr_dev.a_mask);
-                Dprintf("start offsets d0 0x%lX d1 0x%lX a0 0x%lX a1 0x%lX samperhalf %lu\n",
-                        sr_dev.dbuf0_start, sr_dev.dbuf1_start, sr_dev.abuf0_start, sr_dev.abuf1_start, sr_dev.samples_per_half);
-                Dprintf("starting data buf values 0x%X 0x%X\n", capture_buf[sr_dev.dbuf0_start], capture_buf[sr_dev.dbuf1_start]);
 
                 uint32_t div_256 = (256 * f_clk_adc + sample_rate_khz / 2) / sample_rate_khz;
                 uint32_t div_int  = div_256 >> 8;
