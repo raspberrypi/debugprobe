@@ -23,10 +23,11 @@
  *
  */
 
-// here we need a 5x higher frequency than the sampling rate, so that
-// no samplings are missed at the trigger point.
+// here a frequency 7x higher than the sampling rate is required, so that
+// no samples are missed at the trigger point.
 // Note that timing of the first three samples is still not correct.
 // My main concern was, that no transitions are missed.
+// Anyway due to the frequency division
 
  
     .program sigrok_d4_triggered
@@ -49,7 +50,7 @@ triggered:                   ; -> triggered
     in   y, 4
     
 .wrap_target
-    in pins, 4  [4]          ; sample
+    in pins, 4  [6]          ; sample
 .wrap
 
 

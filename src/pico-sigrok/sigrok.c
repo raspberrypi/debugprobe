@@ -100,6 +100,9 @@ uint32_t lval, cval;
 /// track the number of halves we have processed
 uint32_t num_halves;
 
+/// mask of used DMA channels (for interrupts handling)
+uint32_t dma_mask;
+
 /// pointer to DMA status register for A0/A1, D0/D1
 volatile uint32_t *tstsa0, *tstsa1, *tstsd0, *tstsd1;
 
@@ -114,6 +117,10 @@ bool mask_xfer_err;
 
 /// handle for sigrok_thread()
 static TaskHandle_t task_sigrok;
+
+
+#define EV_CMD_RECEIVED       0x01
+#define EV_DMA_SIGNAL         0x02
 
 /// event flags
 static EventGroupHandle_t events;
@@ -668,6 +675,25 @@ static void __no_inline_not_in_flash_func(dma_check)(sr_device_t *d)
 
 
 /**
+ * Simple handler for DMA interrupts.
+ * Just signal to the sigrok task that something happened.
+ */
+static void dma_handler(void)
+{
+    BaseType_t task_woken, res;
+
+    task_woken = pdFALSE;
+
+    dma_hw->ints0 = dma_mask;                             // clear interrupts
+    res = xEventGroupSetBitsFromISR(events, EV_DMA_SIGNAL, &task_woken);
+    if (res != pdFAIL) {
+        portYIELD_FROM_ISR(task_woken);
+    }
+}   // dma_handler
+
+
+
+/**
  * Setup PIO operation.
  * PIO is configured, so that it reads input in \a sr_dev.pin_count chunks and writes the data in 32bit words.
  * That means, that 4bit reads require 8 samples to do one 32bit write and so on.
@@ -681,11 +707,12 @@ static void __no_inline_not_in_flash_func(dma_check)(sr_device_t *d)
  *    - sr_dev.sample_rate must be a multiple of 1000
  *
  * \post
- *    PIO is configured but not started
+ *    - PIO is configured but not started
+ *    - unused pins within pincount are pulled down to prevent those lines from false triggers
  */
 static void setup_pio(void)
 {
-    const uint32_t trigger_delay = 5;
+    const uint32_t trigger_delay = 7;      // see sigrok.pio
     uint32_t sample_rate_khz = 0;
     pio_sm_config pio_conf;
     uint offset;
@@ -811,6 +838,8 @@ static void sigrok_thread(void *ptr)
     admachan1 = dma_claim_unused_channel(true);
     pdmachan0 = dma_claim_unused_channel(true);
     pdmachan1 = dma_claim_unused_channel(true);
+    dma_mask = (1 << admachan0)  |  (1 << admachan1)  |  (1 << pdmachan0)  |  (1 << pdmachan1);
+
     acfg0 = dma_channel_get_default_config(admachan0);
     acfg1 = dma_channel_get_default_config(admachan1);
     pcfg0 = dma_channel_get_default_config(pdmachan0);
@@ -855,6 +884,10 @@ static void sigrok_thread(void *ptr)
     tstsd0 = (volatile uint32_t *)(DMA_BASE + 0x40 * pdmachan0 + DMA_CH0_CTRL_TRIG_OFFSET);
     tstsd1 = (volatile uint32_t *)(DMA_BASE + 0x40 * pdmachan1 + DMA_CH0_CTRL_TRIG_OFFSET);
 
+    dma_set_irq0_channel_mask_enabled(dma_mask, true);
+    irq_set_exclusive_handler(DMA_IRQ_0, dma_handler);
+    irq_set_enabled(DMA_IRQ_0, true);
+
     //Give High priority to DMA to ensure we don't overflow the PIO or DMA fifos
     //The DMA controller must read across the common bus to read the PIO fifo so enabled both reads and write
     bus_ctrl_hw->priority = BUSCTRL_BUS_PRIORITY_DMA_W_BITS | BUSCTRL_BUS_PRIORITY_DMA_R_BITS;
@@ -886,14 +919,12 @@ static void sigrok_thread(void *ptr)
 
     for (;;) {
 //        Dprintf("ss %d %d\n", sr_dev.sample_and_send, sr_dev.all_started);
-        if (sr_dev.sample_and_send  ||  sr_dev.all_started) {
-            // no delay, thread is waiting in data transmission
-            // TODO need a condition to go to sleep / or to wake up
-            vTaskDelay(pdMS_TO_TICKS(1));
-        }
-        else {
-            xEventGroupWaitBits(events, 0x01, pdTRUE, pdFALSE, portMAX_DELAY);
-        }
+
+        //
+        // Wait until either there is something coming from cdc_sigrok or the DMA
+        // tells us, that half a buffer is ready for data transfer (during data acquisition)
+        //
+        xEventGroupWaitBits(events, EV_DMA_SIGNAL | EV_CMD_RECEIVED, pdTRUE, pdFALSE, portMAX_DELAY);
 
         if (sr_dev.send_resp) {
             //
@@ -1102,7 +1133,7 @@ static void sigrok_thread(void *ptr)
                 channel_config_set_dreq(&pcfg0, pio_get_dreq(SIGROK_PIO, SIGROK_SM, false));
                 channel_config_set_dreq(&pcfg1, pio_get_dreq(SIGROK_PIO, SIGROK_SM, false));
 
-                //                       number    config   buffer target                  piosm          xfer size  trigger
+                //                      number    config             buffer target                  piosm                    xfer size       trigger
                 dma_channel_configure(pdmachan0, &pcfg0, &(capture_buf[sr_dev.dbuf0_start]), &SIGROK_PIO->rxf[SIGROK_SM], sr_dev.d_size >> 2, true);
                 dma_channel_configure(pdmachan1, &pcfg1, &(capture_buf[sr_dev.dbuf1_start]), &SIGROK_PIO->rxf[SIGROK_SM], sr_dev.d_size >> 2, false);
 #endif
@@ -1305,5 +1336,5 @@ void sigrok_init(uint32_t task_prio)
 
 void sigrok_notify(void)
 {
-    xEventGroupSetBits(events, 0x01);
+    xEventGroupSetBits(events, EV_CMD_RECEIVED);
 }   // sigrok_notify
