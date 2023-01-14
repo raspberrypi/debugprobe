@@ -506,136 +506,142 @@ static void __no_inline_not_in_flash_func(send_slices_analog)(sr_device_t *d, ui
 
 
 
-//See if a given half's dma engines are idle and if so process the data, update the write pointer and
-//ensure that when done the other dma is still busy indicating we didn't lose data .
+/**
+ * See if a given half's DMA engines are idle and if so process the data, update the write pointer and
+ * ensure that when done the other dma is still busy indicating we didn't lose data.
+ *
+ * Use two dma controllers where each writes half of the trace space.
+ * When one half finishes we send it's data while the other dma controller writes to the other half.
+ * We rely on DMA chaining where one completing dma engine triggers the next.
+ * When chaining happens the original target address is not restored so we must rewrite the starting address.
+ * Also when chaining is enabled we can get into an infinite loop where we ping pong between each other.
+ * and it is possible that if the other DMA controller finishes before we have send our half of the data that
+ * our DMA controller will startup and overwrite our data.  That is the DMA overflow condition.
+ * We don't actually overflow the DMA, but instead we fail to establish proper chaining to keep the
+ * ping pong going.
+ * The only way to avoid the overflow condition is to reduce the sampling rate so that the transmit of samples
+ * can keep up, or do a fixed sample that fits into the sample buffer.
+ * When we first enter the loop it is assumed that the other controller is not chained to us so that if we don't
+ * process in time then our DMA controller won't be started by the other.  That assumption is maintained by
+ * always pointing our DMA engine to itself so tht in the next function call it is the "other" controller.
+ * We then process our half's samples and send to USB.
+ * When done we confirm that the other channel is still active, and if so we know we haven't overflowed and thus
+ * can establish the chain from the other channel to us.  If the other channel is not still active, or if the
+ * PIO/ADC FIFOs indicates an RXstall condition which indicates PIO lost samples, then we abort.
+ * Note that in all cases we should never actually send any corrupted data we just send less than what was requested.
+ * Note that we must use the "alias" versions of the DMA CSRs to prevent writes from triggering them.
+ * Since we swap the csr pointers we determine the other half from the address offsets.
+ *
+ * TODO if the number of samples is fixed so that everything fits into the two halves, then !DMA_BUSY is ok!
+ * TODO here is a problem with buffer flushing, who does this anyway?
+ *
+ * \return  0->no change, 1->buffers must be switched, -1->abort
+ */
 static int __no_inline_not_in_flash_func(check_half)(sr_device_t *d,
-                                                     volatile uint32_t *dma_a_sts_running, volatile uint32_t *dma_a_sts_next,
-                                                     volatile uint32_t *dma_d_sts_running, volatile uint32_t *dma_d_sts_next,
-                                                     volatile uint32_t *dma_a_addr_next,   volatile uint32_t *dma_d_addr_next,
+                                                     volatile uint32_t *dma_a_sts_idle,  volatile uint32_t *dma_a_sts_other,
+                                                     volatile uint32_t *dma_d_sts_idle,  volatile uint32_t *dma_d_sts_other,
+                                                     volatile uint32_t *dma_a_addr_idle, volatile uint32_t *dma_d_addr_idle,
                                                      uint8_t *d_start_addr, uint8_t *a_start_addr,
                                                      bool mask_xfer_err)
 {
-    // TODO review
-    bool a0busy, d0busy;
-
-    a0busy = DMA_IS_BUSY(dma_a_sts_running);
-    d0busy = DMA_IS_BUSY(dma_d_sts_running);
-
-    if(     ( !a0busy  ||  d->a_mask == 0)
-        &&  ( !d0busy  ||  d->d_mask == 0)) {
-        //Use two dma controllers where each writes half of the trace space.
-        //When one half finishes we send it's data while the other dma controller writes to the other half.
-        //We rely on DMA chaining where one completing dma engine triggers the next.
-        //When chaining happens the original target address is not restored so we must rewrite the starting address.
-        //Also when chaining is enabled we can get into an infinite loop where we ping pong between each other.
-        //and it is possible that if the other DMA controller finishes before we have send our half of the data that
-        //our DMA controller will startup and overwrite our data.  That is the DMA overflow condition.
-        //We don't actually overflow the DMA, but instead we fail to establish proper chaining to keep the
-        //ping pong going.
-        //The only way to avoid the overflow condition is to reduce the sampling rate so that the transmit of samples
-        //can keep up, or do a fixed sample that fits into the sample buffer.
-        //When we first enter the loop it is assumed that the other controller is not chained to us so that if we don't
-        //process in time then our DMA controller won't be started by the other.  That assumption is maintained by
-        //always pointing our DMA engine to itself so tht in the next function call it is the "other" controller.
-        //We then process our half's samples and send to USB.
-        //When done we confirm that the other channel is still active, and if so we know we haven't overflowed and thus
-        //can establish the chain from the other channel to us.  If the other channel is not still active, or if the
-        //PIO/ADC FIFOs indicates an RXstall condition which indicates PIO lost samples, then we abort.
-        //Note that in all cases we should never actually send any corrupted data we just send less than what was requested.
-        //Note that we must use the "alias" versions of the DMA CSRs to prevent writes from triggering them.
-        //Since we swap the csr pointers we determine the other half from the address offsets.
-
-        uint32_t achan_no = DMA_ADDR_TO_CHANNEL_NO(dma_a_sts_running);
-        uint32_t dchan_no = DMA_ADDR_TO_CHANNEL_NO(dma_d_sts_running);
-
-//        Dprintf("my stts pre a 0x%lX d 0x%lX\n", *dma_a_sts_running, *dma_d_sts_running);
-
-        // Set my chain to myself so that I can't chain to the other.
-        DMA_SET_CHAIN_TO(dma_d_sts_running[1], dchan_no);
-        DMA_SET_CHAIN_TO(dma_a_sts_running[1], achan_no);
-
-        *dma_a_addr_next = (uint32_t)a_start_addr;
-        *dma_d_addr_next = (uint32_t)d_start_addr;
-
-        bool piorxstall1 = (d->d_mask != 0  &&  PIO_RX_HAS_STALLED(SIGROK_PIO, SIGROK_SM));
-
-        if (d->a_mask != 0) {
-            send_slices_analog(d, d_start_addr, a_start_addr);
-        }
-        else if (d_dma_bps == 0) {
-            send_slices_D4(d, d_start_addr);
-        }
-        else if (d_dma_bps == 1) {
-            send_slices_1B(d, d_start_addr);
-        }
-        else if (d_dma_bps == 2) {
-            send_slices_2B(d, d_start_addr);
-        }
-        else {
-            send_slices_4B(d, d_start_addr);
-        }
-
-        if ( !d->continuous  &&  d->scnt >= d->num_samples) {
-            d->sample_and_send = false;
-        }
-
-        // Set my other chain to me
-        // use aliases here as well to prevent triggers
-        DMA_SET_CHAIN_TO(dma_d_sts_next[1], dchan_no);
-        DMA_SET_CHAIN_TO(dma_a_sts_next[1], dchan_no);
-
-        num_halves++;
-
-        bool piorxstall2 = (d->d_mask != 0  &&  PIO_RX_HAS_STALLED(SIGROK_PIO, SIGROK_SM));
-
-        volatile uint32_t *adcfcs;
-        adcfcs = (volatile uint32_t *)(ADC_BASE + ADC_FCS_OFFSET);
-        bool adcfail = (d->a_mask != 0  &&  (*adcfcs & (ADC_FCS_OVER_BITS | ADC_FCS_UNDER_BITS)) != 0);
-        if (adcfail) {
-            Dprintf("adcfcs 0x%lX %p\n", *adcfcs, (void *)adcfcs);
-        }
-
-        //Ensure other dma is still busy, if not that means we have samples from PIO/ADC that could be lost.
-        //It's only an error if we haven't already gotten the samples we need, or if we are processing the first
-        //half and all the remaining samples we need are in the 2nd half.
-        //Note that in continuous mode num_samples isn't defined.
-#if 1
-        bool proc_fail =    (d->a_mask != 0  &&  !DMA_IS_BUSY(dma_a_sts_next))               // TODO not sure about this condition
-                         || (d->d_mask != 0  &&  !DMA_IS_BUSY(dma_d_sts_next));
-#else
-        bool proc_fail = (!(((((*dma_a_sts_next) >> 24) & 1)  ||  (d->a_mask == 0))              // TODO query bit 24
-                            &&     ((((*dma_d_sts_next) >> 24) & 1)  ||  (d->d_mask == 0))) & 1);
-#endif
-//        Dprintf("pf 0x%lX 0x%lX %d\n", *dma_a_sts_next, *dma_d_sts_next, proc_fail);
-        //       if(mask_xfer_err
-        //     || ((piorxstall1==0)
-        //      &&((((*dma_a_sts_next)>>24)&1)||(d->a_mask==0))
-        //         &&((((*dma_d_sts_next)>>24)&1)||(d->d_mask==0)))){
-        if (mask_xfer_err  ||  (!piorxstall1  &&  !adcfail  &&  !piorxstall2  &&  !proc_fail)) {
-//            Dprintf("h\n");
-            return 1;
-        }
-        else {
-            if (piorxstall1  ||  piorxstall2) {
-                Dprintf("***Abort PIO RXSTALL*** %d %d half %lu\n", piorxstall1, piorxstall2, num_halves);
-            }
-            if (proc_fail) {
-                Dprintf("***Abort DMA ovrflow*** half %lu\n", num_halves);
-            }
-            if (adcfail) {
-                Dprintf("***Abort ADC ovrflow*** half %lu\n", num_halves);
-            }
-            d->aborted = true;
-            //Issue end of trace markers to host
-            //The main loop also sends these periodically until the host is done..
-            cdc_sigrok_write("!!!", 3);
-            Dprintf("scnt %lu\n", d->scnt);
-            Dprintf("a st %lu msk %lu\n", *dma_a_sts_next, d->a_mask);
-            Dprintf("d st %lu msk %lu\n", *dma_d_sts_next, d->d_mask);
-            return -1;
-        }
+    if (DMA_IS_BUSY(dma_a_sts_idle)  ||  DMA_IS_BUSY(dma_d_sts_idle)) {
+        //
+        // DMA is still running
+        // -> do nothing (I'm a fan of positive logic)
+        //
+        return 0;
     }
-    return 0;
+
+    //
+    // From here on the parameter names are correct:
+    // - the idle channel is really idle and the corresponding data block has to be transferred to the host
+    // - the other channel is now active and must be checked that it is still active at end of transmission
+    //
+    uint32_t dma_a_chan = DMA_ADDR_TO_CHANNEL_NO(dma_a_sts_idle);
+    uint32_t dma_d_chan = DMA_ADDR_TO_CHANNEL_NO(dma_d_sts_idle);
+
+//        Dprintf("my stts pre a 0x%lX d 0x%lX\n", *dma_a_sts_idle, *dma_d_sts_idle);
+
+    // disable chain_to of idle channel - use aliases to prevent trigger
+    // chain_to will be enabled on the next round below when the idle channel is the other channel
+    DMA_SET_CHAIN_TO(dma_a_sts_idle[1], dma_a_chan);
+    DMA_SET_CHAIN_TO(dma_d_sts_idle[1], dma_d_chan);
+
+    // reset address write address register of the idle channel for next round
+    *dma_a_addr_idle = (uint32_t)a_start_addr;
+    *dma_d_addr_idle = (uint32_t)d_start_addr;
+
+    if (d->a_mask != 0) {
+        send_slices_analog(d, d_start_addr, a_start_addr);
+    }
+    else if (d_dma_bps == 0) {
+        send_slices_D4(d, d_start_addr);
+    }
+    else if (d_dma_bps == 1) {
+        send_slices_1B(d, d_start_addr);
+    }
+    else if (d_dma_bps == 2) {
+        send_slices_2B(d, d_start_addr);
+    }
+    else {
+        send_slices_4B(d, d_start_addr);
+    }
+
+    if ( !d->continuous  &&  d->scnt >= d->num_samples) {
+        d->sample_and_send = false;
+    }
+
+    // enable chain_to of the other channel, because the idle channel is now free - use aliases to prevent trigger
+    DMA_SET_CHAIN_TO(dma_a_sts_other[1], dma_a_chan);
+    DMA_SET_CHAIN_TO(dma_d_sts_other[1], dma_d_chan);
+
+    num_halves++;
+
+    //
+    // now check, if there has been some kind of error/overflow
+    //
+    bool pio_ok = (d->d_mask == 0  ||  !PIO_RX_HAS_STALLED(SIGROK_PIO, SIGROK_SM));
+
+    volatile uint32_t *adcfcs;
+    adcfcs = (volatile uint32_t *)(ADC_BASE + ADC_FCS_OFFSET);
+    bool adc_ok = (d->a_mask == 0  ||  (*adcfcs & (ADC_FCS_OVER_BITS | ADC_FCS_UNDER_BITS)) == 0);
+
+    //Ensure other dma is still busy, if not that means we have samples from PIO/ADC that could be lost.
+    //It's only an error if we haven't already gotten the samples we need, or if we are processing the first
+    //half and all the remaining samples we need are in the 2nd half.
+    //Note that in continuous mode num_samples isn't defined.
+    // TODO check num_samples!
+    bool other_dma_running =     (d->a_mask == 0  ||  DMA_IS_BUSY(dma_a_sts_other))
+                             &&  (d->d_mask == 0  ||  DMA_IS_BUSY(dma_d_sts_other));
+
+//        Dprintf("pf 0x%lX 0x%lX %d\n", *dma_a_sts_other, *dma_d_sts_other, other_dma_running);
+
+    if (mask_xfer_err  ||  (adc_ok  &&  pio_ok  &&  other_dma_running)) {
+        // -> everything ok, caller must switch buffer
+//            Dprintf("h\n");
+        return 1;
+    }
+
+    //
+    // error condition - abort!
+    //
+    if ( !pio_ok) {
+        Dprintf("***Abort PIO RXSTALL*** half %lu\n", num_halves);
+    }
+    if ( !other_dma_running) {
+        Dprintf("***Abort DMA overflow*** half %lu\n", num_halves);
+    }
+    if ( !adc_ok) {
+        Dprintf("***Abort ADC overflow*** half %lu\n", num_halves);
+    }
+    d->aborted = true;
+    //Issue end of trace markers to host
+    //The main loop also sends these periodically until the host is done..
+    cdc_sigrok_write("!!!", 3);
+    Dprintf("scnt %lu\n", d->scnt);
+    Dprintf("a st %lu msk %lu\n", *dma_a_sts_other, d->a_mask);
+    Dprintf("d st %lu msk %lu\n", *dma_d_sts_other, d->d_mask);
+    return -1;
 }   // check_half
 
 
@@ -675,7 +681,7 @@ static void __no_inline_not_in_flash_func(dma_check)(sr_device_t *d)
 
 
 /**
- * Simple handler for DMA interrupts.
+ * Handler for DMA interrupts.
  * Just signal to the sigrok task that something happened.
  */
 static void dma_handler(void)
@@ -817,15 +823,12 @@ static void sigrok_thread(void *ptr)
     uint32_t f_clk_adc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_ADC);
     Dprintf("clk_adc = %lukHz\n", f_clk_adc);
 
+#if 1
     // TODO what is this?
-#if 0
-    //Set GPIO23 (TP4) to control switched mode power supply noise
+    // Set GPIO23 (TP4) to control switched mode power supply noise
     gpio_init_mask(1 << 23);
     gpio_set_dir_masked(1 << 23, 1 << 23);
     gpio_put_masked(1 << 23, 1 << 23);
-    //Early CDC IO code had lots of sleep statements, but the TUD code seems to have sufficient
-    //checks that this isn't needed, but it doesn't hurt...
-    vTaskDelay(pdMS_TO_TICKS(100));
 #endif
 
     //GPIOs 26 through 28 (the ADC ports) are on the PICO, GPIO29 is not a pin on the PICO
@@ -924,7 +927,7 @@ static void sigrok_thread(void *ptr)
         // Wait until either there is something coming from cdc_sigrok or the DMA
         // tells us, that half a buffer is ready for data transfer (during data acquisition)
         //
-        xEventGroupWaitBits(events, EV_DMA_SIGNAL | EV_CMD_RECEIVED, pdTRUE, pdFALSE, portMAX_DELAY);
+        xEventGroupWaitBits(events, EV_DMA_SIGNAL | EV_CMD_RECEIVED, pdTRUE, pdFALSE, pdMS_TO_TICKS(100)); // portMAX_DELAY);
 
         if (sr_dev.send_resp) {
             //
