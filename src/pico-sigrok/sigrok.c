@@ -52,11 +52,19 @@
 //at least something goes across the link.
 #define TX_BUF_THRESH 20
 
+
 /// calculate DMA channel number from address
 #define DMA_ADDR_TO_CHANNEL_NO(ADDR)      (((uint32_t)(ADDR)) >> 6) & 0xf
 
 /// check if DMA is busy, parameter is the control register
 #define DMA_IS_BUSY(ADDR_CTRL)            ((*(ADDR_CTRL) & DMA_CH0_CTRL_TRIG_BUSY_BITS) != 0)
+
+/// set CHAIN_TO of a DMA channel, beware of unintended trigger
+#define DMA_SET_CHAIN_TO(CTRL_REG, CHN)   (CTRL_REG) = ((CTRL_REG) & ~DMA_CH0_CTRL_TRIG_CHAIN_TO_BITS) | ((CHN) << DMA_CH0_CTRL_TRIG_CHAIN_TO_LSB)
+
+/// check if PIO has stalled
+#define PIO_RX_HAS_STALLED(PIO, SM)       (((PIO)->fdebug & (1 << (SM))) != 0)
+
 
 /// sigrok state (shared between sigrok modules)
 sr_device_t sr_dev;
@@ -350,7 +358,7 @@ static void inline check_tx_buf(uint16_t cnt)
 
 
 //Common init for send_slices_1B/2B/4B, but not D4 or analog
-static void __no_inline_not_in_flash_func(send_slice_init)(sr_device_t *d,uint8_t *dbuf)
+static void __no_inline_not_in_flash_func(send_slice_init)(sr_device_t *d, uint8_t *dbuf)
 {
     rxbufdidx = 0;
     //Adjust the number of samples to send if there are more in the dma buffer
@@ -381,7 +389,7 @@ static void __no_inline_not_in_flash_func(send_slice_init)(sr_device_t *d,uint8_
 //We can just always read a 4B value because the core doesn't support non-aligned accesses.
 //These must be marked noinline to ensure they remain separate functions for good performance
 //1B is 5-8 channels
-static void __no_inline_not_in_flash_func(send_slices_1B)(sr_device_t *d,uint8_t *dbuf)
+static void __no_inline_not_in_flash_func(send_slices_1B)(sr_device_t *d, uint8_t *dbuf)
 {
     send_slice_init(d, dbuf);
     for (int s = 0;  s < samp_remain;  s++) {
@@ -404,9 +412,9 @@ static void __no_inline_not_in_flash_func(send_slices_1B)(sr_device_t *d,uint8_t
 
 
 //2B is 9-16 channels
-static void __no_inline_not_in_flash_func(send_slices_2B)(sr_device_t *d,uint8_t *dbuf)
+static void __no_inline_not_in_flash_func(send_slices_2B)(sr_device_t *d, uint8_t *dbuf)
 {
-    send_slice_init(d,dbuf);
+    send_slice_init(d, dbuf);
     for (int s = 0;  s < samp_remain;  s++) {
         cval = (*((uint16_t *)(dbuf + rxbufdidx)));
         cval &= sr_dev.d_mask;
@@ -428,7 +436,7 @@ static void __no_inline_not_in_flash_func(send_slices_2B)(sr_device_t *d,uint8_t
 
 
 //4B is 17-21 channels and is the only one that must mask invalid bits which are captured by DMA
-static void __no_inline_not_in_flash_func(send_slices_4B)(sr_device_t *d,uint8_t *dbuf)
+static void __no_inline_not_in_flash_func(send_slices_4B)(sr_device_t *d, uint8_t *dbuf)
 {
     send_slice_init(d, dbuf);
     for (int s = 0;  s < samp_remain;  s++) {
@@ -528,19 +536,20 @@ static int __no_inline_not_in_flash_func(check_half)(sr_device_t *d,
         //Note that in all cases we should never actually send any corrupted data we just send less than what was requested.
         //Note that we must use the "alias" versions of the DMA CSRs to prevent writes from triggering them.
         //Since we swap the csr pointers we determine the other half from the address offsets.
+
         uint32_t achan_no = DMA_ADDR_TO_CHANNEL_NO(tstsa0);
         uint32_t dchan_no = DMA_ADDR_TO_CHANNEL_NO(tstsd0);
-        // Dprintf("my stts pre a 0x%lX d 0x%lX\n", *tstsa0, *tstsd0);
-        //Set my chain to myself so that I can't chain to the other.
-        uint32_t ttmp;
-        ttmp = ((tstsd0[1]) & ~DMA_CH0_CTRL_TRIG_CHAIN_TO_BITS) | (dchan_no << DMA_CH0_CTRL_TRIG_CHAIN_TO_LSB);
-        tstsd0[1] = ttmp;
-        ttmp = ((tstsa0[1]) & ~DMA_CH0_CTRL_TRIG_CHAIN_TO_BITS) | (achan_no << DMA_CH0_CTRL_TRIG_CHAIN_TO_LSB);
-        tstsa0[1] = ttmp;
+
+//        Dprintf("my stts pre a 0x%lX d 0x%lX\n", *tstsa0, *tstsd0);
+
+        // Set my chain to myself so that I can't chain to the other.
+        DMA_SET_CHAIN_TO(tstsd0[1], dchan_no);
+        DMA_SET_CHAIN_TO(tstsa0[1], achan_no);
+
         *t_addra0 = (uint32_t)a_start_addr;
         *t_addrd0 = (uint32_t)d_start_addr;
 
-        bool piorxstall1 = (d->d_mask != 0  &&  (SIGROK_PIO->fdebug & 0x1) != 0);    // TODO fixed to SM0
+        bool piorxstall1 = (d->d_mask != 0  &&  PIO_RX_HAS_STALLED(SIGROK_PIO, SIGROK_SM));
 
         if (d->a_mask != 0) {
             send_slices_analog(d, d_start_addr, a_start_addr);
@@ -562,15 +571,14 @@ static int __no_inline_not_in_flash_func(check_half)(sr_device_t *d,
             d->sample_and_send = false;
         }
 
-        //Set my other chain to me
-        //use aliases here as well to prevent triggers
-        ttmp = (tstsd1[1] & ~DMA_CH0_CTRL_TRIG_CHAIN_TO_BITS) | (dchan_no << DMA_CH0_CTRL_TRIG_CHAIN_TO_LSB);
-        tstsd1[1] = ttmp;
-        ttmp = (tstsa1[1] & ~DMA_CH0_CTRL_TRIG_CHAIN_TO_BITS) | (achan_no << DMA_CH0_CTRL_TRIG_CHAIN_TO_LSB);
-        tstsa1[1] = ttmp;
+        // Set my other chain to me
+        // use aliases here as well to prevent triggers
+        DMA_SET_CHAIN_TO(tstsd1[1], dchan_no);
+        DMA_SET_CHAIN_TO(tstsa1[1], dchan_no);
+
         num_halves++;
 
-        bool piorxstall2 = (d->d_mask != 0  &&  (SIGROK_PIO->fdebug & 0x1) != 0);    // TODO fixed to SM0
+        bool piorxstall2 = (d->d_mask != 0  &&  PIO_RX_HAS_STALLED(SIGROK_PIO, SIGROK_SM));
 
         volatile uint32_t *adcfcs;
         adcfcs = (volatile uint32_t *)(ADC_BASE + ADC_FCS_OFFSET);
@@ -669,6 +677,7 @@ static void __no_inline_not_in_flash_func(dma_check)(sr_device_t *d)
  * \pre
  *    - sr_dev.d_mask != 0
  *    - sr_dev.pin_count (4/8/16/32) and sr_dev.sample_rate must be set
+ *    - sr_dev.sample_rate must be a multiple of 1000
  *
  * \post
  *    PIO is configured but not started
@@ -676,18 +685,20 @@ static void __no_inline_not_in_flash_func(dma_check)(sr_device_t *d)
 static void setup_pio(void)
 {
     uint32_t sample_rate_khz;
-    pio_sm_config c;
+    pio_sm_config pio_conf;
     uint offset;
     uint32_t f_clk_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);
 
     assert(sr_dev.d_mask != 0);
     assert(sr_dev.pin_count == 4  ||  sr_dev.pin_count == 8  ||  sr_dev.pin_count == 16  || sr_dev.pin_count == 32);
 
-    if (sr_dev.sample_rate <= 30*1000000  &&  sr_dev.pin_count == 4) {
+    pio_clear_instruction_memory(SIGROK_PIO);
+
+    if (sr_dev.sample_rate / 1000 <= f_clk_sys / 5  &&  sr_dev.pin_count == 4) {
         Dprintf("capturing with auto trigger\n");
         offset = pio_add_program(SIGROK_PIO, &sigrok_d4_triggered_program);
-        c = sigrok_d4_triggered_program_get_default_config(offset);
-        sample_rate_khz = (4 * sr_dev.sample_rate) / 1000;                   // sample_rate is a multiple of 1000
+        pio_conf = sigrok_d4_triggered_program_get_default_config(offset);
+        sample_rate_khz = (5 * sr_dev.sample_rate) / 1000;
     }
     else {
         uint16_t capture_prog_instr;
@@ -702,9 +713,9 @@ static void setup_pio(void)
         offset = pio_add_program(SIGROK_PIO, &capture_prog);
         // Configure state machine to loop over this `in` instruction forever,
         // with autopush enabled.
-        c = pio_get_default_sm_config();
-        sm_config_set_wrap(&c, offset, offset);
-        sample_rate_khz = sr_dev.sample_rate / 1000;                         // sample_rate is a multiple of 1000
+        pio_conf = pio_get_default_sm_config();
+        sm_config_set_wrap(&pio_conf, offset, offset);
+        sample_rate_khz = sr_dev.sample_rate / 1000;
     }
 
     uint32_t div_256 = (256 * f_clk_sys + sample_rate_khz / 2) / sample_rate_khz;
@@ -719,19 +730,20 @@ static void setup_pio(void)
         div_frac = 0xff;
     }
     Dprintf("PIO sample clk %lukHz / %lu.%lu = %lukHz\n", f_clk_sys, div_int, div_frac, sample_rate_khz);
-    sm_config_set_clkdiv_int_frac(&c, div_int, div_frac);
+    sm_config_set_clkdiv_int_frac(&pio_conf, div_int, div_frac);
 
-    sm_config_set_in_pins(&c, SR_BASE_D_CHAN);                                // start at SR_BASE_D_CHAN
-                                                                              // enable pull-down on unused pins in pin_count
+    sm_config_set_in_pins(&pio_conf, SR_BASE_D_CHAN);                                // start at SR_BASE_D_CHAN
+                                                                                     // enable pull-down on unused pins within pin_count
     for (int i = 0;  i < (sr_dev.pin_count < SR_NUM_D_CHAN ? sr_dev.pin_count : SR_NUM_D_CHAN);  ++i) {
         if ((sr_dev.d_mask & (1 << i)) == 0) {
             // pull down seems to be less noise sensitive
             gpio_pull_down(SR_BASE_D_CHAN + i);
         }
     }
-    sm_config_set_in_shift(&c, true, true, 32);
-    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
-    pio_sm_init(SIGROK_PIO, SIGROK_SM, offset, &c);
+
+    sm_config_set_in_shift(&pio_conf, true, true, 32);                               // shift right, autopush, threshold=32
+    sm_config_set_fifo_join(&pio_conf, PIO_FIFO_JOIN_RX);
+    pio_sm_init(SIGROK_PIO, SIGROK_SM, offset, &pio_conf);
     //Analyzer arm from pico examples
     pio_sm_set_enabled(SIGROK_PIO, SIGROK_SM, false); //clear the enabled bit
     //XOR the shiftctrl field with PIO_SM0_SHIFTCTRL_FJOIN_RX_BITS
@@ -960,7 +972,8 @@ static void sigrok_thread(void *ptr)
             dma_channel_abort(admachan1);
             dma_channel_abort(pdmachan0);
             dma_channel_abort(pdmachan1);
-            //Enable the initial chaing from the first half to 2nd, further chains are enabled based
+
+            //Enable the initial chaining from the first half to 2nd, further chains are enabled based
             //on whether we can parse each half in time.
             channel_config_set_chain_to(&acfg0, admachan1);
             channel_config_set_chain_to(&pcfg0, pdmachan1);
@@ -1076,9 +1089,6 @@ static void sigrok_thread(void *ptr)
                 dma_channel_configure(pdmachan0, &pcfg0, &(capture_buf[sr_dev.dbuf0_start]), &SIGROK_PIO->rxf[SIGROK_SM], sr_dev.d_size >> 2, true);
                 dma_channel_configure(pdmachan1, &pcfg1, &(capture_buf[sr_dev.dbuf1_start]), &SIGROK_PIO->rxf[SIGROK_SM], sr_dev.d_size >> 2, false);
 #endif
-
-                //This is done later so that we start everything as close in time as possible
-                //             pio_sm_set_enabled(SIGROK_PIO, SIGROK_SM, true);
             }
 
             //These must be at their initial value,(or zero for the 2ndhalf) otherwise it indicates they have started to countdown

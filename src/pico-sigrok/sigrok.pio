@@ -26,16 +26,15 @@
     .program sigrok_d4_triggered
     
 public entry_d4:
-    mov  x, isr  [31]        ; clear ISR
-    in   pins, 4 [31]        ; get start state and save it to X
-    mov  x, isr  [31]
-    in   pins, 4 [31]        ; get start state and save it to X
-    mov  x, isr  [31]
-    in   pins, 4 [31]        ; get start state and save it to X
+    in   pins, 4    [31]     ; small start delay to get everything settled
+    mov  isr, null  [31]
+    in   pins, 4             ; get start state and save it to X
     mov  x, isr
+    mov  isr, null
 wait_loop:
     in   pins, 4             ; get current state and save it to Y
     mov  y, isr
+    mov  isr, null
     jmp  x != y, triggered
     jmp  wait_loop
     
@@ -44,11 +43,12 @@ triggered:                   ; -> triggered
     in   y, 4
     
 .wrap_target
-    in pins, 4  [3]          ; sample
+    in pins, 4  [4]          ; sample
 .wrap
 
 
 
+/*
     .program sigrok_8
     
 public entry_8:
@@ -76,3 +76,4 @@ public entry_32:
 .wrap_target
     in pins, 32
 .wrap
+*/
