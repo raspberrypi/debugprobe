@@ -59,8 +59,33 @@ void cdc_sigrok_tx_complete_cb(void)
 
 void cdc_sigrok_write(const char *buf, int length)
 {
-    int i = 0;
+    int i;
 
+#if 0
+    static int bytecnt;
+    static int linecnt;
+    char cc[128];
+
+    i = 0;
+    while (i < length) {
+        int n;
+
+        if (length - i > 32)
+            n = 32;
+        else
+            n = length - i;
+
+        for (int j = 0;  j < n;  ++j) {
+            sprintf(cc + 3*j, "%02x ", buf[i+j]);
+        }
+        Dprintf("%4d/%5d: %s\n", ++linecnt, bytecnt, cc);
+
+        bytecnt += n;
+        i += n;
+    }
+#endif
+
+    i = 0;
     while (i < length  &&  tud_cdc_n_connected(CDC_SIGROK_N)) {
         int n = length - i;
         int avail = (int)tud_cdc_n_write_available(CDC_SIGROK_N);
@@ -91,7 +116,8 @@ static bool process_char(sr_device_t *d, char charin)
 
     //set default rspstr for all commands that have a dataless ack
     d->rspstr[0] = '*';
-    d->rspstr[1] = 0;
+    d->rspstr[1] = '\0';
+
     //the reset character works by itself
     if (charin == '*') {
         sigrok_reset(d);
@@ -102,15 +128,17 @@ static bool process_char(sr_device_t *d, char charin)
         d->cmdstr[d->cmdstr_ndx] = 0;
         switch (d->cmdstr[0]) {
             case 'i':
-                //SRPICO,AxxyDzz,02,oo - num analog, analog size, num digital,version,channel offset
+                // identification
+                // SRPICO,AxxyDzz,03,oo - num analog, analog size, num digital,version,channel offset
                 sprintf(d->rspstr, "SRPICO,A%02d1D%02d,03,10", SR_NUM_A_CHAN, SR_NUM_D_CHAN);
                 Dprintf("ID rsp %s\n", d->rspstr);
                 ret = true;
                 break;
 
             case 'R':
+                // sampling rate
                 tmpint = atol(&(d->cmdstr[1]));
-                if (tmpint >= 5000  &&  tmpint <= 120000016) { //Add 16 to support cfg_bits
+                if (tmpint >= 5000  &&  tmpint <= 1000 * PROBE_CPU_CLOCK_KHZ + 16) { //Add 16 to support cfg_bits
                     d->sample_rate = tmpint;
                     Dprintf("SMPRATE= %lu\n", d->sample_rate);
                     ret = true;
@@ -121,8 +149,8 @@ static bool process_char(sr_device_t *d, char charin)
                 }
                 break;
 
-            //sample limit
             case 'L':
+                // sample limit
                 tmpint = atol(&(d->cmdstr[1]));
                 if (tmpint > 0) {
                     d->num_samples = tmpint;
@@ -136,6 +164,7 @@ static bool process_char(sr_device_t *d, char charin)
                 break;
 
             case 'a':
+                // get analog scale
                 tmpint = atoi(&(d->cmdstr[1])); //extract channel number
                 if (tmpint >= 0) {
                     //scale and offset are both in integer uVolts
@@ -166,42 +195,22 @@ static bool process_char(sr_device_t *d, char charin)
                 ret = false;
                 break;
 
-            case 't': //trigger -format tvxx where v is value and xx is two digit channel
-                /*HW trigger depracated
-                tmpint=d->cmdstr[1]-'0';
-                    tmpint2=atoi(&(d->cmdstr[2])); //extract channel number which starts at D2
-                //Dprintf("Trigger input %d val %d\n",tmpint2,tmpint);
-                    if((tmpint2>=2)&&(tmpint>=0)&&(tmpint<=4)){
-                      d->triggered=false;
-                      switch(tmpint){
-                    case 0: d->lvl0mask|=1<<(tmpint2-2);break;
-                    case 1: d->lvl1mask|=1<<(tmpint2-2);break;
-                    case 2: d->risemask|=1<<(tmpint2-2);break;
-                    case 3: d->fallmask|=1<<(tmpint2-2);break;
-                    default: d->chgmask|=1<<(tmpint2-2);break;
-                  }
-                      //Dprintf("Trigger channel %d val %d 0x%X\n",tmpint2,tmpint,d->lvl0mask);
-                  //Dprintf("LVL0mask 0x%X\n",d->lvl0mask);
-                      //Dprintf("LVL1mask 0x%X\n",d->lvl1mask);
-                      //Dprintf("risemask 0x%X\n",d->risemask);
-                      //Dprintf("fallmask 0x%X\n",d->fallmask);
-                      //Dprintf("edgemask 0x%X\n",d->chgmask);
-                    }else{
-                  Dprintf("bad trigger channel %d val %d\n",tmpint2,tmpint);
-                      d->triggered=true;
-                    }
-                 */
+            case 't':
+                // trigger -format tvxx where v is value and xx is two digit channel
+                /* HW trigger deprecated */
                 ret = true;
                 break;
 
-            case 'p': //pretrigger count
+            case 'p':
+                // pretrigger count, this is a nop
                 tmpint = atoi(&(d->cmdstr[1]));
                 Dprintf("Pre-trigger samples %d cmd %s\n", tmpint, d->cmdstr);
                 ret = true;
                 break;
 
-            //format is Axyy where x is 0 for disabled, 1 for enabled and yy is channel #
-            case 'A':  ///enable analog channel always a set
+            case 'A':
+                // enable analog channel always a set
+                // format is Axyy where x is 0 for disabled, 1 for enabled and yy is channel #
                 tmpint = d->cmdstr[1] - '0'; //extract enable value
                 tmpint2 = atoi(&(d->cmdstr[2])); //extract channel number
                 if (tmpint >= 0  &&  tmpint <= 1  &&  tmpint2 >= 0  &&  tmpint2 <= 31) {  // TODO 31 is max bits
@@ -215,8 +224,9 @@ static bool process_char(sr_device_t *d, char charin)
                 }
                 break;
 
-            //format is Dxyy where x is 0 for disabled, 1 for enabled and yy is channel #
-            case 'D':  ///enable digital channel always a set
+            case 'D':
+                // enable digital channel always a set
+                // format is Dxyy where x is 0 for disabled, 1 for enabled and yy is channel #
                 tmpint = d->cmdstr[1] - '0'; //extract enable value
                 tmpint2 = atoi(&(d->cmdstr[2])); //extract channel number
                 if (tmpint >= 0  &&  tmpint <= 1  &&  tmpint2 >= 0  &&  tmpint2 < SR_NUM_D_CHAN) {

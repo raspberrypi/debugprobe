@@ -895,23 +895,22 @@ static void sigrok_thread(void *ptr)
 
     Dprintf("DMA start %p\n",(void *)capture_buf);
 
+#if 0
     //This testmode forces the device into a capture state without needing
     //sigrok cli/pulseview to initiate it
     //All of the needed fields may not be up to date...
-    /*
-   dev.started=false;
-   dev.cont=false;
-   dev.sending=true;
-   dev.a_chan_cnt=0; //count of enabled analog channels
-   dev.a_mask=0x0;
-   dev.d_mask=0xF;
-   dev.d_nps=1; //digital nibbles per slice
-   dev.sample_rate=1000;
-   dev.num_samples=5000;
-   dev.scnt=0; //number of samples sent
-   sent_cnt=0;
-
-     */
+    dev.started=false;
+    dev.cont=false;
+    dev.sending=true;
+    dev.a_chan_cnt=0; //count of enabled analog channels
+    dev.a_mask=0x0;
+    dev.d_mask=0xF;
+    dev.d_nps=1; //digital nibbles per slice
+    dev.sample_rate=1000;
+    dev.num_samples=5000;
+    dev.scnt=0; //number of samples sent
+    sent_cnt=0;
+#endif
 
     gpio_init_mask(SR_GPIO_D_MASK);            // set as GPIO_FUNC_SIO and clear output enable
     gpio_set_dir_masked(SR_GPIO_D_MASK, 0);    // set all to input
@@ -1157,12 +1156,6 @@ static void sigrok_thread(void *ptr)
                 Dprintf("\n\nERROR: DMAA1 should start with 0 tcount\n\n");
             }
 
-//            Dprintf("LVL0mask 0x%X\n", sr_dev.lvl0mask);
-//            Dprintf("LVL1mask 0x%X\n", sr_dev.lvl1mask);
-//            Dprintf("risemask 0x%X\n", sr_dev.risemask);
-//            Dprintf("fallmask 0x%X\n", sr_dev.fallmask);
-//            Dprintf("edgemask 0x%X\n", sr_dev.chgmask);
-
             Dprintf("dma addr start d 0x%lX 0x%lX a 0x%lX 0x%lX\n", *taddrd0, *taddrd1, *taddra0, *taddra1);
             Dprintf("capture_buf base %p\n", capture_buf);
             Dprintf("capture_buf dig %p %p\n", &(capture_buf[sr_dev.dbuf0_start]), &(capture_buf[sr_dev.dbuf1_start]));
@@ -1244,20 +1237,6 @@ static void sigrok_thread(void *ptr)
             sr_dev.all_started = false;
             led_state(LS_SIGROK_STOPPED);
 
-            //Print USB Endpoint controls in the DPSRAM, which is at the base of USBCTRL
-            //0x0 is setup packet,
-            //0x8-0xfc - EP in/out buffer control
-            //0x100 - EP0 buffer 0 (in and out)
-            //0x140 - EPO buffer 1
-            //0x180 - data buffers
-            /*
-             volatile uint32_t *usbctrl;
-             usbctrl=(volatile uint32_t *)(USBCTRL_BASE);
-             for(i=0;i<256;i+=4){ //It's a 4k space, but everything above this is zero
-               Dprintf("0x%03X %8X %8X %8X %8X\n",i*4,usbctrl[i],usbctrl[i+1],usbctrl[i+2],usbctrl[i+3]);
-         }
-             */
-
             //Print out debug information after completing, rather than before so that it doesn't
             //delay the start of a capture
             Dprintf("Complete: SRate %lu NSmp %lu\n", sr_dev.sample_rate, sr_dev.num_samples);
@@ -1267,59 +1246,6 @@ static void sigrok_thread(void *ptr)
         }
     }
 }   // sigrok_thread
-
-
-
-//Depracated trigger logic
-//This HW based trigger which should be part of send slices was tested enough to confirm the
-//trigger value worked, however it
-//was not fully implemented because the RP2040 wasn't able to perform the trigger detection and
-//memory buffer management to support sample rates that were substantially higher than the
-//stream rates across USB.  Thus there wasn't a compelling reason to have it.
-//It's left as an example as to how the masks could be used.
-//  To fully support a HW based triggering, a precapture ring buffer of both digital and analog samples
-//would need to be created an managed to store and send pretrigger values.
-//The ring buffer would need to support RLEs and would need to ensure it was sent before sending
-//other samples capture by the DMA after the trigger event.
-/*
-//   uint32_t tlval; Trigger last val
-//   tlval=d->tlval;
-//   uint32_t all_mask=d->lvl0mask | d->lvl1mask| d->risemask | d->fallmask | d->chgmask;
-
-
-       if(d->triggered==false) {
-         uint32_t matches=0;
-         matches|=(~cval & d->lvl0mask);
-         matches|=(cval & d->lvl1mask);
-         if(d->notfirst){
-           matches|=(cval & ~tlval & d->risemask);
-           matches|=(~cval & tlval & d->fallmask);
-           matches|=(~cval & tlval & d->chgmask);
-         }
-         if(matches==all_mask){
-       //Dprintf("Triggered c 0x%X l 0x%X\n",cval,tlval);
-           d->triggered=true;
-           //This sends the last val on a trigger because SW based trigger on the host needs to see its
-           //value so that rising/falling/edge triggeers will fire there too.
-           lbyte=0;
-           for(char b=0;b < d->d_tx_bps;b++){
-              cbyte=tlval&0xFF;
-              txbuf[txbufidx]=(cbyte<<b)|lbyte|0x80;
-              lbyte=cbyte>>(7-b);
-              tlval>>=8;
-          txbufidx++;
-           } //for b
-         }//matches==all_mask
-         d->notfirst=true;
-       }
-       if(d->triggered){
-             //Transmit samples if we have already triggered.
-        }
-
-//save trigger last value to support rising/falling/change values
-//      tlval=lval;
-End of depracated trigger logic
-*/
 
 
 

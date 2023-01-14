@@ -79,16 +79,6 @@ void sigrok_reset(sr_device_t *d)
     d->aborted         = false;
     d->all_started     = false;
     d->scnt            = 0;
-    //d->notfirst=false;
-    //Set triggered by default so that we don't check for HW triggers
-    //unless the driver sends a trigger command
-    //d->triggered=true;
-    //d->tlval=0;
-    //d->lvl0mask=0;
-    //d->lvl1mask=0;
-    //d->risemask=0;
-    //d->fallmask=0;
-    //d->chgmask=0;
 }   // sigrok_reset
 
 
