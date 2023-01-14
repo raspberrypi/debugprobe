@@ -33,7 +33,7 @@ Finally there is one more Picoprobe around, the YAPicoprobe.
    CMSIS-DAPv2/MSC connection)
 * CDC - virtual com port for logging of the probe
 * sigrok probe - data collection on eight digital and three analog channels
-  (logic analyzer and oscilloscope)
+  (logic analyzer and oscilloscope) with auto-trigger capability
 * LED for state indication
 
 ### Other Benefits
@@ -149,8 +149,9 @@ Specification of the module is:
 * digital sampling rate can be up to 100MHz for a short period of
   time, see https://github.com/pico-coder/sigrok-pico/blob/main/AnalyzerDetails.md[here]
 * analog sampling rate can be up to 500kHz with one channel
-* continuous digital sampling can be up to 8MHz depending on
+* continuous digital sampling can be up to 10MHz depending on
   data stream and USB connection/load
+* auto-trigger for sampling rates <= 24MHz
 
 Drawbacks:
 
