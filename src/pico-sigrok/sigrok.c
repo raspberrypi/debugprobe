@@ -26,6 +26,7 @@
 #include "sigrok_int.h"
 #include "cdc_sigrok.h"
 #include "sigrok.h"
+#include "sigrok.pio.h"
 
 
 //NODMA is a debug mode that disables the DMA engine and prints raw PIO FIFO outputs
@@ -492,8 +493,10 @@ static void __no_inline_not_in_flash_func(send_slices_analog)(sr_device_t *d, ui
 
 //See if a given half's dma engines are idle and if so process the data, update the write pointer and
 //ensure that when done the other dma is still busy indicating we didn't lose data .
-static int __no_inline_not_in_flash_func(check_half)(sr_device_t *d, volatile uint32_t *tstsa0, volatile uint32_t *tstsa1, volatile uint32_t *tstsd0,
-                                                     volatile uint32_t *tstsd1, volatile uint32_t *t_addra0, volatile uint32_t *t_addrd0,
+static int __no_inline_not_in_flash_func(check_half)(sr_device_t *d,
+                                                     volatile uint32_t *tstsa0, volatile uint32_t *tstsa1,
+                                                     volatile uint32_t *tstsd0, volatile uint32_t *tstsd1,
+                                                     volatile uint32_t *t_addra0, volatile uint32_t *t_addrd0,
                                                      uint8_t *d_start_addr, uint8_t *a_start_addr, bool mask_xfer_err)
 {
     // TODO review
@@ -652,6 +655,91 @@ static void __no_inline_not_in_flash_func(dma_check)(sr_device_t *d)
         }
     }
 }   // dma_check
+
+
+
+/**
+ * Setup PIO operation.
+ * PIO is configured, so that it reads input in \a sr_dev.pin_count chunks and writes the data in 32bit words.
+ * That means, that 4bit reads require 8 samples to do one 32bit write and so on.
+ *
+ * \note
+ *    used PIO is \a SIGROK_PIO.
+ *
+ * \pre
+ *    - sr_dev.d_mask != 0
+ *    - sr_dev.pin_count (4/8/16/32) and sr_dev.sample_rate must be set
+ *
+ * \post
+ *    PIO is configured but not started
+ */
+static void setup_pio(void)
+{
+    uint32_t sample_rate_khz;
+    pio_sm_config c;
+    uint offset;
+    uint32_t f_clk_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);
+
+    assert(sr_dev.d_mask != 0);
+    assert(sr_dev.pin_count == 4  ||  sr_dev.pin_count == 8  ||  sr_dev.pin_count == 16  || sr_dev.pin_count == 32);
+
+    if (sr_dev.sample_rate <= 30*1000000  &&  sr_dev.pin_count == 4) {
+        Dprintf("capturing with auto trigger\n");
+        offset = pio_add_program(SIGROK_PIO, &sigrok_d4_triggered_program);
+        c = sigrok_d4_triggered_program_get_default_config(offset);
+        sample_rate_khz = (4 * sr_dev.sample_rate) / 1000;                   // sample_rate is a multiple of 1000
+    }
+    else {
+        uint16_t capture_prog_instr;
+
+        capture_prog_instr = pio_encode_in(pio_pins, sr_dev.pin_count);
+        Dprintf("capture_prog_instr 0x%X\n", capture_prog_instr);
+        struct pio_program capture_prog = {
+                .instructions = &capture_prog_instr,
+                .length = 1,
+                .origin = -1
+        };
+        offset = pio_add_program(SIGROK_PIO, &capture_prog);
+        // Configure state machine to loop over this `in` instruction forever,
+        // with autopush enabled.
+        c = pio_get_default_sm_config();
+        sm_config_set_wrap(&c, offset, offset);
+        sample_rate_khz = sr_dev.sample_rate / 1000;                         // sample_rate is a multiple of 1000
+    }
+
+    uint32_t div_256 = (256 * f_clk_sys + sample_rate_khz / 2) / sample_rate_khz;
+    uint32_t div_int  = div_256 >> 8;
+    uint32_t div_frac = div_256 & 0xff;
+    if (div_int == 0) {
+        div_int  = 1;
+        div_frac = 0;
+    }
+    else if (div_int > 0xffff) {
+        div_int  = 0xffff;
+        div_frac = 0xff;
+    }
+    Dprintf("PIO sample clk %lukHz / %lu.%lu = %lukHz\n", f_clk_sys, div_int, div_frac, sample_rate_khz);
+    sm_config_set_clkdiv_int_frac(&c, div_int, div_frac);
+
+    sm_config_set_in_pins(&c, SR_BASE_D_CHAN);                                // start at SR_BASE_D_CHAN
+                                                                              // enable pull-down on unused pins in pin_count
+    for (int i = 0;  i < (sr_dev.pin_count < SR_NUM_D_CHAN ? sr_dev.pin_count : SR_NUM_D_CHAN);  ++i) {
+        if ((sr_dev.d_mask & (1 << i)) == 0) {
+            // pull down seems to be less noise sensitive
+            gpio_pull_down(SR_BASE_D_CHAN + i);
+        }
+    }
+    sm_config_set_in_shift(&c, true, true, 32);
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
+    pio_sm_init(SIGROK_PIO, SIGROK_SM, offset, &c);
+    //Analyzer arm from pico examples
+    pio_sm_set_enabled(SIGROK_PIO, SIGROK_SM, false); //clear the enabled bit
+    //XOR the shiftctrl field with PIO_SM0_SHIFTCTRL_FJOIN_RX_BITS
+    //Do it twice to restore the value
+    pio_sm_clear_fifos(SIGROK_PIO, SIGROK_SM);
+    //write the restart bit of PIO_CTRL
+    pio_sm_restart(SIGROK_PIO, SIGROK_SM);
+}   // setup_pio
 
 
 
@@ -978,52 +1066,11 @@ static void sigrok_thread(void *ptr)
                 d_dma_bps = sr_dev.pin_count >> 3;
                 Dprintf("pin_count %d\n", sr_dev.pin_count);
 
-                uint16_t capture_prog_instr;
-                capture_prog_instr = pio_encode_in(pio_pins, sr_dev.pin_count);
-                Dprintf("capture_prog_instr 0x%X\n", capture_prog_instr);
-                struct pio_program capture_prog = {
-                        .instructions = &capture_prog_instr,
-                        .length = 1,
-                        .origin = -1
-                };
-                uint offset = pio_add_program(SIGROK_PIO, &capture_prog);
-                // Configure state machine to loop over this `in` instruction forever,
-                // with autopush enabled.
-                pio_sm_config c = pio_get_default_sm_config();
-                //start at SR_BASE_D_CHAN
-                sm_config_set_in_pins(&c, SR_BASE_D_CHAN);
-                sm_config_set_wrap(&c, offset, offset);
-
-                const uint32_t sample_rate_khz = sr_dev.sample_rate / 1000;                         // sample_rate is a multiple of 1000
-                uint32_t div_256 = (256 * f_clk_sys + sample_rate_khz / 2) / sample_rate_khz;
-                uint32_t div_int  = div_256 >> 8;
-                uint32_t div_frac = div_256 & 0xff;
-                if (div_int == 0) {
-                    div_int  = 1;
-                    div_frac = 0;
-                }
-                else if (div_int > 0xffff) {
-                    div_int = 0xffff;
-                    div_frac = 0xff;
-                }
-                Dprintf("PIO sample clk %lukHz / %lu.%lu = %lukHz\n", f_clk_sys, div_int, div_frac, sample_rate_khz);
-                sm_config_set_clkdiv_int_frac(&c, div_int, div_frac);
-
-                //Since we enable digital channels in groups of 4, we always get 32 bit words
-                sm_config_set_in_shift(&c, true, true, 32);
-                sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
-                pio_sm_init(SIGROK_PIO, SIGROK_SM, offset, &c);
-                //Analyzer arm from pico examples
-                pio_sm_set_enabled(SIGROK_PIO, SIGROK_SM, false); //clear the enabled bit
-                //XOR the shiftctrl field with PIO_SM0_SHIFTCTRL_FJOIN_RX_BITS
-                //Do it twice to restore the value
-                pio_sm_clear_fifos(SIGROK_PIO, SIGROK_SM);
-                //write the restart bit of PIO_CTRL
-                pio_sm_restart(SIGROK_PIO, SIGROK_SM);
+                setup_pio();
 
 #ifndef NODMA
-                channel_config_set_dreq(&pcfg0, pio_get_dreq(SIGROK_PIO,SIGROK_SM,false));
-                channel_config_set_dreq(&pcfg1, pio_get_dreq(SIGROK_PIO,SIGROK_SM,false));
+                channel_config_set_dreq(&pcfg0, pio_get_dreq(SIGROK_PIO, SIGROK_SM, false));
+                channel_config_set_dreq(&pcfg1, pio_get_dreq(SIGROK_PIO, SIGROK_SM, false));
 
                 //                       number    config   buffer target                  piosm          xfer size  trigger
                 dma_channel_configure(pdmachan0, &pcfg0, &(capture_buf[sr_dev.dbuf0_start]), &SIGROK_PIO->rxf[SIGROK_SM], sr_dev.d_size >> 2, true);
@@ -1060,32 +1107,46 @@ static void sigrok_thread(void *ptr)
 //            Dprintf("edgemask 0x%X\n", sr_dev.chgmask);
 
             Dprintf("dma addr start d 0x%lX 0x%lX a 0x%lX 0x%lX\n", *taddrd0, *taddrd1, *taddra0, *taddra1);
-            Dprintf("capture_buf base %p\n",capture_buf);
-            Dprintf("capture_buf dig %p %p\n",&(capture_buf[sr_dev.dbuf0_start]),&(capture_buf[sr_dev.dbuf1_start]));
-            Dprintf("capture_buf analog %p %p\n",&(capture_buf[sr_dev.abuf0_start]),&(capture_buf[sr_dev.abuf1_start]));
+            Dprintf("capture_buf base %p\n", capture_buf);
+            Dprintf("capture_buf dig %p %p\n", &(capture_buf[sr_dev.dbuf0_start]), &(capture_buf[sr_dev.dbuf1_start]));
+            Dprintf("capture_buf analog %p %p\n", &(capture_buf[sr_dev.abuf0_start]), &(capture_buf[sr_dev.abuf1_start]));
 
-            Dprintf("DMA channel assignments a %d %d d %d %d\n",admachan0,admachan1,pdmachan0,pdmachan1);
-            Dprintf("DMA ctr reg addrs a %p %p d %p %p\n",(void *) tstsa0,(void *)tstsa1,(void *)tstsd0,(void *)tstsd1);
+            Dprintf("DMA channel assignments a %d %d d %d %d\n", admachan0, admachan1, pdmachan0, pdmachan1);
+            Dprintf("DMA ctr reg addrs a %p %p d %p %p\n", (void *)tstsa0, (void *)tstsa1, (void *)tstsd0, (void *)tstsd1);
             Dprintf("DMA ctrl reg a 0x%lX 0x%lX d 0x%lX 0x%lX\n", *tstsa0, *tstsa1, *tstsd0, *tstsd1);
+
+            Dprintf("------------------------------------- data acquisition initialized\n");
+
             //Enable logic and analog close together for best possible alignment
             //warning - do not put printfs or similar things here...
-            adc_run(true); //enable free run sample mode
-            pio_sm_set_enabled(SIGROK_PIO, SIGROK_SM, true);
+            if (sr_dev.a_mask != 0  &&  sr_dev.d_mask != 0) {
+                adc_run(true);
+                pio_sm_set_enabled(SIGROK_PIO, SIGROK_SM, true);
+            }
+            else if (sr_dev.a_mask != 0) {
+                adc_run(true);
+            }
+            else if (sr_dev.d_mask != 0) {
+                pio_sm_set_enabled(SIGROK_PIO, SIGROK_SM, true);
+            }
+
             sr_dev.all_started = true;
             led_state(LS_SIGROK_RUNNING);
         }
 
-        dma_check(&sr_dev);
+        dma_check( &sr_dev);
 
         //In high verbosity modes the host can miss the "!" so send these until it sends a "+"
         if (sr_dev.aborted) {
-            Dprintf("sending abort !\n");
+            Dprintf("------------------------------------- data acquisition abort\n");
             cdc_sigrok_write("!!!", 3);
             vTaskDelay(pdMS_TO_TICKS(200));
         }
 
-        //if we abort or normally finish a run sending gets dropped
+        // if we abort or normally finish a run sending gets dropped
         if ( !sr_dev.sample_and_send  &&  sr_dev.all_started) {
+            Dprintf("------------------------------------- data acquisition finished\n");
+
             //The end of sequence byte_cnt uses a "$<byte_cnt>+" format.
             //Send the byte_cnt to ensure no bytes were lost
             if ( !sr_dev.aborted) {

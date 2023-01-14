@@ -94,6 +94,8 @@ target_link_libraries(picoprobe PRIVATE
         hardware_dma
     )
 
+pico_generate_pio_header(picoprobe ${CMAKE_CURRENT_LIST_DIR}/src/pico-sigrok/sigrok.pio)
+
 #--------------------------------------------------------------------------------------------------
 
 target_compile_options(picoprobe PRIVATE -Wall)

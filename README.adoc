@@ -11,10 +11,10 @@ it can be used as a debugger and serial console for another Pico.
 Yet another Picoprobe is a fork of the original https://github.com/raspberrypi/picoprobe[Picoprobe]
 and was created due to my lazyness to follow the PR discussions and delays with unknown outcome.
 
-Another reason for this fork is that I wanted to play around with SWD, RTT etc pp, so
+Another reason for this fork is that I wanted to play around with SWD, RTT, PIO etc pp, so
 the established development process was a little bit hindering.
 
-So there is unfortunately one more Picoprobe around, the YAPicoprobe.
+Finally there is one more Picoprobe around, the YAPicoprobe.
 
 
 
@@ -33,6 +33,7 @@ So there is unfortunately one more Picoprobe around, the YAPicoprobe.
    CMSIS-DAPv2/MSC connection)
 * CDC - virtual com port for logging of the probe
 * sigrok probe - data collection on eight digital and three analog channels
+  (logic analyzer and oscilloscope)
 * LED for state indication
 
 ### Other Benefits
@@ -132,8 +133,9 @@ Notes:
 
 ### sigrok - Data Collection
 The probe allows data collection for a https://sigrok.org/[sigrok] compatible
-environment.  The module is based on work taken from https://github.com/pico-coder/sigrok-pico[sigrok-pico].
-This also means, that https://sigrok.org/wiki/Libsigrok[libsigrok] has to be
+environment.  Meaning the probe can act also as a logic analyzer / oscilloscope backend. 
+The module is based on work taken from https://github.com/pico-coder/sigrok-pico[sigrok-pico].
+This also means, that at the moment https://sigrok.org/wiki/Libsigrok[libsigrok] has to be
 adopted accordingly, see https://github.com/pico-coder/sigrok-pico/blob/main/SigrokBuildNotes.md[here].
 Benefit is, that this allows the Pico as a mixed-signal device and 
 RLE compression of the collected data.
@@ -284,7 +286,7 @@ rtt.println("sub module");
 
 ## Optimizations
 
-### Benchmarking
+### SWD / Benchmarking
 Benchmarking is done with an image with a size around 400KByte.  Command lines are as follows:
 
 * **cp**: `time cp firmware.uf2 /media/picoprobe/`
@@ -329,7 +331,7 @@ DAPv2 is always used, because DAPv1 does not run under Linux(?).
 |===
 
 
-### PIO
+### SWD / PIO
 Several PIO optimizations has been implemented.  Main idea of PIO control has
 been taken from https://github.com/essele/pico_debug/blob/main/swd.pio[pico_debug].
 
