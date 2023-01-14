@@ -75,7 +75,7 @@ triggered:                   ; -> triggered
     in   y, 8
     
 .wrap_target
-    in pins, 8  [4]          ; sample
+    in pins, 8  [6]          ; sample
 .wrap
 
 
@@ -100,5 +100,5 @@ triggered:                   ; -> triggered
     in   y, 16
     
 .wrap_target
-    in pins, 16  [4]         ; sample
+    in pins, 16  [6]         ; sample
 .wrap
