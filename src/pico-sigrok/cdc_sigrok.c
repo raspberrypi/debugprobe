@@ -244,6 +244,27 @@ static bool process_char(sr_device_t *d, char charin)
                 }
                 break;
 
+            case 'N':
+                // return channel name
+                // format is N[AD]yy, A=analog, D=digital, yy is channel #
+                ret = false;
+                if (d->cmdstr_ndx >= 4) {
+                    tmpint = atoi(d->cmdstr + 2);
+                    if (d->cmdstr[1] == 'A'  &&  tmpint >= 0  &&  tmpint < SR_NUM_A_CHAN) {
+                        sprintf(d->rspstr, "ADC%d", tmpint);
+                        ret = true;
+                    }
+                    else if (d->cmdstr[1] == 'D'  &&  tmpint >= 0  &&  tmpint < SR_NUM_D_CHAN) {
+                        sprintf(d->rspstr, "GP%d", tmpint + SR_BASE_D_CHAN);
+                        ret = true;
+                    }
+                }
+                else if (d->cmdstr[1] == '?') {
+                    strcpy(d->rspstr, "ok");
+                    ret = true;
+                }
+                break;
+
             default:
                 Dprintf("bad command %s\n", d->cmdstr);
                 ret = false;
@@ -256,6 +277,7 @@ static bool process_char(sr_device_t *d, char charin)
         else {
             Dprintf("sigrok cmd '%s' -> '%s'\n", d->cmdstr, d->rspstr);
         }
+
         d->cmdstr_ndx = 0;
     }
     else {
