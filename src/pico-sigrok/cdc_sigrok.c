@@ -121,7 +121,7 @@ static bool process_char(sr_device_t *d, char charin)
     //the reset character works by itself
     if (charin == '*') {
         sigrok_reset(d);
-        Dprintf("RST* %d\n", d->sample_and_send);
+        Dprintf("sigrok cmd '*' -> RESET %d\n", d->sample_and_send);
         return false;
     }
     else if (charin == '\r'  ||  charin == '\n') {
@@ -129,9 +129,8 @@ static bool process_char(sr_device_t *d, char charin)
         switch (d->cmdstr[0]) {
             case 'i':
                 // identification
-                // SRPICO,AxxyDzz,03,oo - num analog, analog size, num digital,version,channel offset
-                sprintf(d->rspstr, "SRPICO,A%02d1D%02d,03,10", SR_NUM_A_CHAN, SR_NUM_D_CHAN);
-                Dprintf("ID rsp %s\n", d->rspstr);
+                // SRPICO,AxxyDzz,02 - num analog, analog size, num digital,version
+                sprintf(d->rspstr, "SRPICO,A%02d1D%02d,02", SR_NUM_A_CHAN, SR_NUM_D_CHAN);
                 ret = true;
                 break;
 
@@ -140,11 +139,11 @@ static bool process_char(sr_device_t *d, char charin)
                 tmpint = atol(&(d->cmdstr[1]));
                 if (tmpint >= 5000  &&  tmpint <= 1000 * PROBE_CPU_CLOCK_KHZ + 16) { //Add 16 to support cfg_bits
                     d->sample_rate = tmpint;
-                    Dprintf("SMPRATE= %lu\n", d->sample_rate);
+//                    Dprintf("SMPRATE= %lu\n", d->sample_rate);
                     ret = true;
                 }
                 else {
-                    Dprintf("unsupported smp rate %s\n", d->cmdstr);
+//                    Dprintf("unsupported smp rate %s\n", d->cmdstr);
                     ret = false;
                 }
                 break;
@@ -154,11 +153,11 @@ static bool process_char(sr_device_t *d, char charin)
                 tmpint = atol(&(d->cmdstr[1]));
                 if (tmpint > 0) {
                     d->num_samples = tmpint;
-                    Dprintf("NUMSMP=%lu\n", d->num_samples);
+//                    Dprintf("NUMSMP=%lu\n", d->num_samples);
                     ret = true;
                 }
                 else {
-                    Dprintf("bad num samples %s\n", d->cmdstr);
+//                    Dprintf("bad num samples %s\n", d->cmdstr);
                     ret = false;
                 }
                 break;
@@ -170,18 +169,18 @@ static bool process_char(sr_device_t *d, char charin)
                     //scale and offset are both in integer uVolts
                     //separated by x
                     sprintf(d->rspstr, "25700x0");  //3.3/(2^7) and 0V offset
-                    Dprintf("ASCL%d\n",tmpint);
+//                    Dprintf("ASCL%d\n", tmpint);
                     ret = true;
                 }
                 else {
-                    Dprintf("bad ascale %s\n", d->cmdstr);
-                    ret = true; //this will return a '*' causing the host to fail
+//                    Dprintf("bad ascale %s\n", d->cmdstr);
+                    ret = false; //this will return a '*' causing the host to fail
                 }
                 break;
 
             case 'F':
                 // fixed set of samples
-                Dprintf("STRT_FIX\n");
+//                Dprintf("STRT_FIX\n");
                 d->continuous = false;
                 sigrok_tx_init(d);
                 ret = false;
@@ -189,7 +188,7 @@ static bool process_char(sr_device_t *d, char charin)
 
             case 'C':
                 // continuous mode
-                Dprintf("STRT_CONT\n");
+//                Dprintf("STRT_CONT\n");
                 d->continuous = true;
                 sigrok_tx_init(d);
                 ret = false;
@@ -204,7 +203,7 @@ static bool process_char(sr_device_t *d, char charin)
             case 'p':
                 // pretrigger count, this is a nop
                 tmpint = atoi(&(d->cmdstr[1]));
-                Dprintf("Pre-trigger samples %d cmd %s\n", tmpint, d->cmdstr);
+//                Dprintf("Pre-trigger samples %d cmd %s\n", tmpint, d->cmdstr);
                 ret = true;
                 break;
 
@@ -216,7 +215,7 @@ static bool process_char(sr_device_t *d, char charin)
                 if (tmpint >= 0  &&  tmpint <= 1  &&  tmpint2 >= 0  &&  tmpint2 <= 31) {  // TODO 31 is max bits
                     d->a_mask = d->a_mask & ~(1 << tmpint2);
                     d->a_mask = d->a_mask | (tmpint << tmpint2);
-                    Dprintf("A%d EN %d Msk 0x%lX\n", tmpint2, tmpint, d->a_mask);
+//                    Dprintf("A%d EN %d Msk 0x%lX\n", tmpint2, tmpint, d->a_mask);
                     ret = true;
                 }
                 else {
@@ -237,7 +236,7 @@ static bool process_char(sr_device_t *d, char charin)
                     for (int i = 0;  i < 8;  ++i) {
                         d->d_mask_D4 |= (d->d_mask & 0x0f) << (4 * i);
                     }
-                    Dprintf("D%d EN %d Msk 0x%lX 0x%lX\n", tmpint2, tmpint, d->d_mask, d->d_mask_D4);
+//                    Dprintf("D%d EN %d Msk 0x%lX 0x%lX\n", tmpint2, tmpint, d->d_mask, d->d_mask_D4);
                     ret = true;
                 }
                 else {
@@ -251,7 +250,12 @@ static bool process_char(sr_device_t *d, char charin)
                 break;
         }
 
-        Dprintf("CmdDone %s\n", d->cmdstr);
+        if (ret) {
+            Dprintf("sigrok cmd '%s' -> '%s' [OK]\n", d->cmdstr, d->rspstr);
+        }
+        else {
+            Dprintf("sigrok cmd '%s' -> '%s'\n", d->cmdstr, d->rspstr);
+        }
         d->cmdstr_ndx = 0;
     }
     else {

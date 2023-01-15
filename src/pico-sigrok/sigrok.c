@@ -634,9 +634,9 @@ static int __no_inline_not_in_flash_func(check_half)(sr_device_t *d,
     //Issue end of trace markers to host
     //The main loop also sends these periodically until the host is done..
     cdc_sigrok_write("!!!", 3);
-    Dprintf("scnt %lu\n", d->scnt);
-    Dprintf("a st %lu msk %lu\n", *dma_a_sts_other, d->a_mask);
-    Dprintf("d st %lu msk %lu\n", *dma_d_sts_other, d->d_mask);
+//    Dprintf("scnt %lu\n", d->scnt);
+//    Dprintf("a st %lu msk %lu\n", *dma_a_sts_other, d->a_mask);
+//    Dprintf("d st %lu msk %lu\n", *dma_d_sts_other, d->d_mask);
     return -1;
 }   // check_half
 
@@ -729,7 +729,7 @@ static void setup_pio(void)
         //
         // Auto triggering for 4/8/16bit: acquisition is triggered if there are changes on the enabled input lines
         //
-        Dprintf("capturing with auto trigger\n");
+        Dprintf("Capturing with auto trigger\n");
         if (sr_dev.pin_count == 4) {
             offset = pio_add_program(SIGROK_PIO, &sigrok_d4_triggered_program);
             pio_conf = sigrok_d4_triggered_program_get_default_config(offset);
@@ -753,8 +753,8 @@ static void setup_pio(void)
         //
         uint16_t capture_prog_instr;
 
+        Dprintf("Fast immediate capturing\n");
         capture_prog_instr = pio_encode_in(pio_pins, sr_dev.pin_count);
-        Dprintf("capture_prog_instr 0x%X\n", capture_prog_instr);
         struct pio_program capture_prog = {
                 .instructions = &capture_prog_instr,
                 .length = 1,
@@ -779,7 +779,8 @@ static void setup_pio(void)
         div_int  = 0xffff;
         div_frac = 0xff;
     }
-    Dprintf("PIO sample clk %lukHz / %lu.%lu = %lukHz\n", f_clk_sys, div_int, div_frac, sample_rate_khz);
+    Dprintf("PIO sample clk %lukHz / (%lu + %lu/256) = %lukHz, actual %lukHz\n",
+            f_clk_sys, div_int, div_frac, sample_rate_khz, sr_dev.sample_rate / 1000);
     sm_config_set_clkdiv_int_frac(&pio_conf, div_int, div_frac);
 
     sm_config_set_in_pins(&pio_conf, SR_BASE_D_CHAN);                                // start at SR_BASE_D_CHAN
@@ -810,7 +811,7 @@ static void sigrok_thread(void *ptr)
     uint admachan0, admachan1, pdmachan0, pdmachan1;
 
     vTaskDelay(pdMS_TO_TICKS(100));
-    Dprintf("-------------------- Hello from PICO sigrok\n");
+    Dprintf("------------------------------------- PICO sigrok starting\n");
 
     uint32_t f_pll_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_SYS_CLKSRC_PRIMARY);
     Dprintf("pll_sys = %lukHz\n", f_pll_sys);
@@ -893,7 +894,7 @@ static void sigrok_thread(void *ptr)
 
     sigrok_full_reset(&sr_dev);
 
-    Dprintf("DMA start %p\n",(void *)capture_buf);
+//    Dprintf("DMA start %p\n",(void *)capture_buf);
 
 #if 0
     //This testmode forces the device into a capture state without needing
@@ -939,6 +940,8 @@ static void sigrok_thread(void *ptr)
             // - initialize hardware
             //
 
+            Dprintf("------------------------------------- data acquisition initializing...\n");
+
             //Only boost frequency during a sample so that average device power is less.
             //It's not clear that this is needed because rp2040 is pretty low power, but it can't hurt...
             lowerhalf = true;
@@ -981,9 +984,9 @@ static void sigrok_thread(void *ptr)
             uint32_t buff_chunks = (SR_DMA_BUF_SIZE / chunk_size) & 0xFFFFFFFE;
             //round up and force power of two since we cut it in half
             uint32_t chunks_needed = ((sr_dev.num_samples / chunk_samples) + 2) & 0xFFFFFFFE;
-            Dprintf("Initial buf calcs nibbles d %lu a %lu t %lu\n", d_nibbles, a_nibbles, t_nibbles);
-            Dprintf("chunk size %lu samples %lu buff %lu needed %lu\n", chunk_size, chunk_samples, buff_chunks, chunks_needed);
-            Dprintf("dbytes per chunk %lu dig samples per chunk %lu\n", dig_bytes_per_chunk, dig_samples_per_chunk);
+//            Dprintf("Initial buf calcs nibbles d %lu a %lu t %lu\n", d_nibbles, a_nibbles, t_nibbles);
+//            Dprintf("chunk size %lu samples %lu buff %lu needed %lu\n", chunk_size, chunk_samples, buff_chunks, chunks_needed);
+//            Dprintf("dbytes per chunk %lu dig samples per chunk %lu\n", dig_bytes_per_chunk, dig_samples_per_chunk);
             //If all of the samples we need fit in two half buffers or less then we can mask the error
             //logic that is looking for cases where we didn't send one half buffer to the host before
             //the 2nd buffer ended because we only use each half buffer once.
@@ -996,7 +999,7 @@ static void sigrok_thread(void *ptr)
                 if (buff_chunks > chunks_needed) {
                     mask_xfer_err = true;
                     buff_chunks = chunks_needed;
-                    Dprintf("Reduce buf chunks to %ld\n", buff_chunks);
+//                    Dprintf("Reduce buf chunks to %ld\n", buff_chunks);
                 }
             }
             //Give dig and analog equal fractions
@@ -1004,8 +1007,8 @@ static void sigrok_thread(void *ptr)
             sr_dev.d_size = (buff_chunks * chunk_size * d_nibbles) / (t_nibbles * 2);
             sr_dev.a_size = (buff_chunks * chunk_size * a_nibbles) / (t_nibbles * 2);
             sr_dev.samples_per_half = (chunk_samples * buff_chunks) / 2;
-            Dprintf("Final sizes d %ld a %ld mask err %d samples per half %ld\n",
-                    sr_dev.d_size, sr_dev.a_size, mask_xfer_err, sr_dev.samples_per_half);
+//            Dprintf("Final sizes d %ld a %ld mask err %d samples per half %ld\n",
+//                    sr_dev.d_size, sr_dev.a_size, mask_xfer_err, sr_dev.samples_per_half);
 
             //Clear any previous ADC over/underflow
             volatile uint32_t *adcfcs;
@@ -1031,11 +1034,11 @@ static void sigrok_thread(void *ptr)
             sr_dev.abuf0_start = sr_dev.dbuf1_start + sr_dev.d_size;
             sr_dev.abuf1_start = sr_dev.abuf0_start + sr_dev.a_size;
 
-            Dprintf("starting d_nps %u a_chan_cnt %u d_size %lu a_size %lu a_mask %lX\n",
-                    sr_dev.d_nps, sr_dev.a_chan_cnt, sr_dev.d_size, sr_dev.a_size, sr_dev.a_mask);
-            Dprintf("start offsets d0 0x%lX d1 0x%lX a0 0x%lX a1 0x%lX samperhalf %lu\n",
-                    sr_dev.dbuf0_start, sr_dev.dbuf1_start, sr_dev.abuf0_start, sr_dev.abuf1_start, sr_dev.samples_per_half);
-            Dprintf("starting data buf values 0x%X 0x%X\n", capture_buf[sr_dev.dbuf0_start], capture_buf[sr_dev.dbuf1_start]);
+//            Dprintf("starting d_nps %u a_chan_cnt %u d_size %lu a_size %lu a_mask %lX\n",
+//                    sr_dev.d_nps, sr_dev.a_chan_cnt, sr_dev.d_size, sr_dev.a_size, sr_dev.a_mask);
+//            Dprintf("start offsets d0 0x%lX d1 0x%lX a0 0x%lX a1 0x%lX samperhalf %lu\n",
+//                    sr_dev.dbuf0_start, sr_dev.dbuf1_start, sr_dev.abuf0_start, sr_dev.abuf1_start, sr_dev.samples_per_half);
+//            Dprintf("starting data buf values 0x%X 0x%X\n", capture_buf[sr_dev.dbuf0_start], capture_buf[sr_dev.dbuf1_start]);
 
             if (sr_dev.a_chan_cnt != 0) {
                 adc_run(false);
@@ -1071,7 +1074,7 @@ static void sigrok_thread(void *ptr)
                     div_frac = 0xff;
                 }
                 *adcdiv = ((div_int - 1) << 8) | div_frac;
-                Dprintf("adcdiv %lu = %lu.%lu\n", *adcdiv, div_int, div_frac);
+//                Dprintf("adcdiv %lu = %lu.%lu\n", *adcdiv, div_int, div_frac);
 
                 //This is needed to clear the AINSEL so that when the round robin arbiter starts we start sampling on channel 0
                 adc_select_input(0);
@@ -1123,7 +1126,7 @@ static void sigrok_thread(void *ptr)
                 }
 
                 d_dma_bps = sr_dev.pin_count >> 3;
-                Dprintf("pin_count %d\n", sr_dev.pin_count);
+//                Dprintf("pin_count %d\n", sr_dev.pin_count);
 
                 setup_pio();
 
@@ -1138,7 +1141,7 @@ static void sigrok_thread(void *ptr)
             }
 
             //These must be at their initial value,(or zero for the 2ndhalf) otherwise it indicates they have started to countdown
-            Dprintf("Tcount start d %lu %lu a %lu %lu\n", *tcountd0, *tcountd1, *tcounta0, *tcounta1);
+//            Dprintf("Tcount start d %lu %lu a %lu %lu\n", *tcountd0, *tcountd1, *tcounta0, *tcounta1);
             //These must be the initial value for both
 //            Dprintf("Tcount dbg start d 0x%X 0x%X a 0x%X 0x%X\n", *tcountdbgd0, *tcountdbgd1, *tcountdbga0, *tcountdbga1);
             //These catch cases in DMA coding where DMA engines have started too soon..
@@ -1156,16 +1159,16 @@ static void sigrok_thread(void *ptr)
                 Dprintf("\n\nERROR: DMAA1 should start with 0 tcount\n\n");
             }
 
-            Dprintf("dma addr start d 0x%lX 0x%lX a 0x%lX 0x%lX\n", *taddrd0, *taddrd1, *taddra0, *taddra1);
-            Dprintf("capture_buf base %p\n", capture_buf);
-            Dprintf("capture_buf dig %p %p\n", &(capture_buf[sr_dev.dbuf0_start]), &(capture_buf[sr_dev.dbuf1_start]));
-            Dprintf("capture_buf analog %p %p\n", &(capture_buf[sr_dev.abuf0_start]), &(capture_buf[sr_dev.abuf1_start]));
+//            Dprintf("dma addr start d 0x%lX 0x%lX a 0x%lX 0x%lX\n", *taddrd0, *taddrd1, *taddra0, *taddra1);
+//            Dprintf("capture_buf base %p\n", capture_buf);
+//            Dprintf("capture_buf dig %p %p\n", &(capture_buf[sr_dev.dbuf0_start]), &(capture_buf[sr_dev.dbuf1_start]));
+//            Dprintf("capture_buf analog %p %p\n", &(capture_buf[sr_dev.abuf0_start]), &(capture_buf[sr_dev.abuf1_start]));
 
-            Dprintf("DMA channel assignments a %d %d d %d %d\n", admachan0, admachan1, pdmachan0, pdmachan1);
-            Dprintf("DMA ctr reg addrs a %p %p d %p %p\n", (void *)tstsa0, (void *)tstsa1, (void *)tstsd0, (void *)tstsd1);
-            Dprintf("DMA ctrl reg a 0x%lX 0x%lX d 0x%lX 0x%lX\n", *tstsa0, *tstsa1, *tstsd0, *tstsd1);
+//            Dprintf("DMA channel assignments a %d %d d %d %d\n", admachan0, admachan1, pdmachan0, pdmachan1);
+//            Dprintf("DMA ctr reg addrs a %p %p d %p %p\n", (void *)tstsa0, (void *)tstsa1, (void *)tstsd0, (void *)tstsd1);
+//            Dprintf("DMA ctrl reg a 0x%lX 0x%lX d 0x%lX 0x%lX\n", *tstsa0, *tstsa1, *tstsd0, *tstsd1);
 
-            Dprintf("------------------------------------- data acquisition initialized\n");
+            Dprintf("------------------------------------- data acquisition ready\n");
 
             //Enable logic and analog close together for best possible alignment
             //warning - do not put printfs or similar things here...
@@ -1206,7 +1209,7 @@ static void sigrok_thread(void *ptr)
                 //Give the host time to finish processing samples so that the bytecnt
                 //isn't dropped on the wire
                 vTaskDelay(pdMS_TO_TICKS(100));
-                Dprintf("Cleanup bytecnt %lu\n", sent_cnt);
+//                Dprintf("Cleanup bytecnt %lu\n", sent_cnt);
                 n = snprintf(brsp, sizeof(brsp), "$%lu+", sent_cnt);
                 cdc_sigrok_write(brsp, n);
             }
@@ -1239,10 +1242,10 @@ static void sigrok_thread(void *ptr)
 
             //Print out debug information after completing, rather than before so that it doesn't
             //delay the start of a capture
-            Dprintf("Complete: SRate %lu NSmp %lu\n", sr_dev.sample_rate, sr_dev.num_samples);
-            Dprintf("Cont %d bcnt %lu\n", sr_dev.continuous, sent_cnt);
-            Dprintf("DMsk 0x%lX AMsk 0x%lX\n", sr_dev.d_mask, sr_dev.a_mask);
-            Dprintf("Half buffers %lu sampperhalf %lu\n", num_halves, sr_dev.samples_per_half);
+//            Dprintf("Complete: SRate %lu NSmp %lu\n", sr_dev.sample_rate, sr_dev.num_samples);
+//            Dprintf("Cont %d bcnt %lu\n", sr_dev.continuous, sent_cnt);
+//            Dprintf("DMsk 0x%lX AMsk 0x%lX\n", sr_dev.d_mask, sr_dev.a_mask);
+//            Dprintf("Half buffers %lu sampperhalf %lu\n", num_halves, sr_dev.samples_per_half);
         }
     }
 }   // sigrok_thread
