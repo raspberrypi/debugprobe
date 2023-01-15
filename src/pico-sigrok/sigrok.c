@@ -549,6 +549,8 @@ static int __no_inline_not_in_flash_func(check_half)(sr_device_t *d,
         return 0;
     }
 
+    led_state(LS_SIGROK_RUNNING);
+
     //
     // From here on the parameter names are correct:
     // - the idle channel is really idle and the corresponding data block has to be transferred to the host
@@ -725,9 +727,10 @@ static void setup_pio(void)
 
     pio_clear_instruction_memory(SIGROK_PIO);
 
-    if (sr_dev.sample_rate / 1000 <= f_clk_sys / trigger_delay) {
+    if (sr_dev.sample_rate / 1000 <= f_clk_sys / trigger_delay  &&  sr_dev.a_mask == 0) {
         //
         // Auto triggering for 4/8/16bit: acquisition is triggered if there are changes on the enabled input lines
+        // TODO currently no auto trigger with analog/digital signal mix
         //
         Dprintf("Capturing with auto trigger\n");
         if (sr_dev.pin_count == 4) {
@@ -779,7 +782,7 @@ static void setup_pio(void)
         div_int  = 0xffff;
         div_frac = 0xff;
     }
-    Dprintf("PIO sample clk %lukHz / (%lu + %lu/256) = %lukHz, actual %lukHz\n",
+    Dprintf("PIO sample clk %lukHz / (%lu + %lu/256) = %lukHz, requested %lukHz\n",
             f_clk_sys, div_int, div_frac, sample_rate_khz, sr_dev.sample_rate / 1000);
     sm_config_set_clkdiv_int_frac(&pio_conf, div_int, div_frac);
 
@@ -1184,7 +1187,7 @@ static void sigrok_thread(void *ptr)
             }
 
             sr_dev.all_started = true;
-            led_state(LS_SIGROK_RUNNING);
+            led_state(LS_SIGROK_WAIT);
         }
 
         dma_check( &sr_dev);

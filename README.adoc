@@ -193,6 +193,9 @@ Drawbacks:
 
 | sigrok running
 | 10Hz flashing
+
+| sigrok waiting for auto trigger
+| 10Hz negative flashing (flicker)
 |===
 
 
