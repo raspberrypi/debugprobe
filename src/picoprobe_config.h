@@ -57,7 +57,7 @@
     #define picoprobe_info(format,...) ((void)0)
 #endif
 
-#if 1  &&  !defined(NDEBUG)
+#if 0  &&  !defined(NDEBUG)
     #define picoprobe_debug(format,args...) cdc_debug_printf("(DD) " format, ## args)
 #else
     #define picoprobe_debug(format,...) ((void)0)

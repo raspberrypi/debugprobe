@@ -145,7 +145,8 @@ Specification of the module is:
 * 8 digital channels at GP10..GP17
 * 3 analog channels at GP26..GP28 with 8bit resolution
 * internal buffer of 100KByte which allows depending on 
-  setup between 25000 and one hundred thousand samples
+  setup between 25000 and two hundred thousand samples
+  with highest sample speed
 * digital sampling rate can be up to 100MHz for a short period of
   time, see https://github.com/pico-coder/sigrok-pico/blob/main/AnalyzerDetails.md[here]
 * analog sampling rate can be up to 500kHz with one channel
@@ -355,6 +356,14 @@ Switching times between read / write and the gap between two commands are
 candidates.  Note that moving code into RAM did not really help (and
 optimization is still a non/slow-working mystery).
 
+
+
+## Notes
+* Frequencies
+** the CPU is overclocked to 168MHz (=7*24MHz)
+** SWD frequency limit is 25MHz, actually allowed are 24MHz
+* sigrok
+** PIO is running 7x faster in auto trigger mode than the specified sample rate 
 
 
 ## TODO / Known Bugs
