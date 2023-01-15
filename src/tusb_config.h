@@ -39,10 +39,10 @@
   #error CFG_TUSB_MCU must be defined
 #endif
 
-#define CFG_TUSB_RHPORT0_MODE     OPT_MODE_DEVICE
+#define CFG_TUSB_RHPORT0_MODE         OPT_MODE_DEVICE
 
 #ifndef CFG_TUSB_OS
-#define CFG_TUSB_OS                 OPT_OS_PICO
+#define CFG_TUSB_OS                   OPT_OS_PICO
 #endif
 
 #ifndef CFG_TUSB_MEM_SECTION
@@ -50,7 +50,7 @@
 #endif
 
 #ifndef CFG_TUSB_MEM_ALIGN
-#define CFG_TUSB_MEM_ALIGN          __attribute__ ((aligned(4)))
+#define CFG_TUSB_MEM_ALIGN            __attribute__ ((aligned(4)))
 #endif
 
 //--------------------------------------------------------------------
@@ -64,9 +64,9 @@
 //------------- CLASS -------------//
 #define CFG_TUD_HID                   1
 #if !defined(NDEBUG)
-    #define CFG_TUD_CDC               2
+    #define CFG_TUD_CDC               3
 #else
-    #define CFG_TUD_CDC               1
+    #define CFG_TUD_CDC               2
 #endif
 #define CFG_TUD_MSC                   1
 #define CFG_TUD_MIDI                  0
@@ -81,6 +81,12 @@
 
  // note: this is optimized for DAPLink write speed
 #define CFG_TUD_MSC_EP_BUFSIZE        512
+
+
+// CDC numbering
+#define CDC_UART_N                    0
+#define CDC_DEBUG_N                   1
+#define CDC_SIGROK_N                  2
 
 #ifdef __cplusplus
  }

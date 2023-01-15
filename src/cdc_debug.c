@@ -37,9 +37,7 @@
 #include "picoprobe_config.h"
 
 
-#define CDC_DEBUG_N           1
-
-#define STREAM_PRINTF_SIZE    10000
+#define STREAM_PRINTF_SIZE    2048
 #define STREAM_PRINTF_TRIGGER 32
 
 static TaskHandle_t           task_printf = NULL;
@@ -48,48 +46,56 @@ static StreamBufferHandle_t   stream_printf;
 
 static uint8_t cdc_debug_buf[CFG_TUD_CDC_TX_BUFSIZE];
 
+static bool was_connected = false;
 
 
+
+// TODO actually there is enough information to avoid polling below
 void cdc_debug_thread(void *ptr)
 /**
  * Transmit debug output via CDC
  */
 {
-    bool was_connected = false;
-
     for (;;) {
-        if (tud_cdc_n_connected(CDC_DEBUG_N)) {
-            size_t cnt;
-            size_t max_cnt;
+        size_t cnt;
+        size_t max_cnt;
 
-            if ( !was_connected) {
-                // wait here some time (until my terminal program is ready)
-                was_connected = true;
-                vTaskDelay(pdMS_TO_TICKS(2000));
-            }
+        if ( !was_connected) {
+            // wait here some time (until my terminal program is ready)
+            was_connected = true;
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
 
-            max_cnt = tud_cdc_n_write_available(CDC_DEBUG_N);
-            if (max_cnt == 0) {
-                vTaskDelay(pdMS_TO_TICKS(1));
-            }
-            else {
-                max_cnt = MIN(sizeof(cdc_debug_buf), max_cnt);
-                cnt = xStreamBufferReceive(stream_printf, cdc_debug_buf, max_cnt, pdMS_TO_TICKS(50));
-                if (cnt != 0) {
-                    tud_cdc_n_write(CDC_DEBUG_N, cdc_debug_buf, cnt);
-                    tud_cdc_n_write_flush(CDC_DEBUG_N);
-                }
-            }
+        max_cnt = tud_cdc_n_write_available(CDC_DEBUG_N);
+        if (max_cnt == 0) {
+            vTaskDelay(pdMS_TO_TICKS(1));
         }
         else {
-            if (was_connected) {
-                tud_cdc_n_write_clear(CDC_DEBUG_N);
-                was_connected = false;
+            max_cnt = MIN(sizeof(cdc_debug_buf), max_cnt);
+            cnt = xStreamBufferReceive(stream_printf, cdc_debug_buf, max_cnt, pdMS_TO_TICKS(500));
+            if (cnt != 0) {
+                tud_cdc_n_write(CDC_DEBUG_N, cdc_debug_buf, cnt);
+                tud_cdc_n_write_flush(CDC_DEBUG_N);
             }
-            vTaskDelay(pdMS_TO_TICKS(50));
         }
     }
 }   // cdc_debug_thread
+
+
+
+void cdc_debug_line_state_cb(bool dtr, bool rts)
+{
+    /* CDC drivers use linestate as a bodge to activate/deactivate the interface.
+     * Resume our UART polling on activate, stop on deactivate */
+    if (!dtr  &&  !rts) {
+        vTaskSuspend(task_printf);
+        tud_cdc_n_write_clear(CDC_DEBUG_N);
+        was_connected = false;
+    }
+    else {
+        vTaskResume(task_printf);
+    }
+}   // cdc_debug_line_state_cb
 
 
 
@@ -188,4 +194,5 @@ void cdc_debug_init(uint32_t task_prio)
     }
 
     xTaskCreate(cdc_debug_thread, "CDC_DEB", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_printf);
+    cdc_debug_line_state_cb(false, false);
 }   // cdc_debug_init

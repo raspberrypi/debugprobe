@@ -27,9 +27,11 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "timers.h"
+#include "event_groups.h"
 
 #include <pico/stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <string.h>
 
 #include "bsp/board.h"
@@ -52,7 +54,10 @@
 #if defined(INCLUDE_RTT_CONSOLE)
     #include "rtt_console.h"
 #endif
-
+#if defined(INCLUDE_SIGROK)
+    #include "pico-sigrok/cdc_sigrok.h"
+    #include "pico-sigrok/sigrok.h"
+#endif
 
 /*
  * The following is part of a hack to make DAP_PACKET_COUNT a variable.
@@ -79,81 +84,90 @@ static uint8_t RxDataBuffer[_DAP_PACKET_COUNT * _DAP_PACKET_SIZE];
 // prios are critical and determine throughput
 #define TUD_TASK_PRIO               (tskIDLE_PRIORITY + 20)       // uses one core continuously
 #define LED_TASK_PRIO               (tskIDLE_PRIORITY + 12)       // simple task which may interrupt everything else for periodic blinking
+#define SIGROK_TASK_PRIO            (tskIDLE_PRIORITY + 9)        // Sigrok digital/analog signals (does nothing at the moment)
 #define MSC_WRITER_THREAD_PRIO      (tskIDLE_PRIORITY + 8)        // this is only running on writing UF2 files
 #define UART_TASK_PRIO              (tskIDLE_PRIORITY + 5)        // target -> host via UART
-#define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 5)        // target -> host via RTT
+#define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 4)        // target -> host via RTT
 #define CDC_DEBUG_TASK_PRIO         (tskIDLE_PRIORITY + 4)        // probe debugging output
-#define DAP_TASK_PRIO               (tskIDLE_PRIORITY + 1)        // DAP execution, during connection this takes the other core
+#define DAP_TASK_PRIO               (tskIDLE_PRIORITY + 2)        // DAP execution, during connection this takes the other core
 
 static TaskHandle_t tud_taskhandle;
 static TaskHandle_t dap_taskhandle;
+static EventGroupHandle_t events;
+
+
+
+void tud_vendor_rx_cb(uint8_t itf)
+{
+    if (itf == 0) {
+        xEventGroupSetBits(events, 0x01);
+    }
+}   // tud_vendor_rx_cb
 
 
 
 void dap_task(void *ptr)
 {
     bool mounted = false;
-    uint32_t used_us;
+    uint32_t used_us = 0;
     uint32_t rx_len = 0;
 
     for (;;) {
-        if (tud_vendor_available()) {
-            used_us = time_us_32();
-            if ( !mounted) {
-                if (sw_lock("DAPv2", true)) {
-                    mounted = true;
-                    dap_packet_count = _DAP_PACKET_COUNT;
-                    dap_packet_size  = _DAP_PACKET_SIZE;
-                    picoprobe_info("=================================== DAPv2 connect target\n");
-                    led_state(LS_DAPV2_CONNECTED);
-                }
+        // disconnect after 1s without data
+        if (mounted  &&  time_us_32() - used_us > 1000000) {
+            mounted = false;
+            picoprobe_info("=================================== DAPv2 disconnect target\n");
+            led_state(LS_DAPV2_DISCONNECTED);
+            sw_unlock("DAPv2");
+        }
+
+        xEventGroupWaitBits(events, 0x01, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));  // TODO "pyocd reset -f 500000" does otherwise not disconnect
+
+        if ( !mounted  &&  tud_vendor_available()) {
+            if (sw_lock("DAPv2", true)) {
+                mounted = true;
+                dap_packet_count = _DAP_PACKET_COUNT;
+                dap_packet_size  = _DAP_PACKET_SIZE;
+                picoprobe_info("=================================== DAPv2 connect target\n");
+                led_state(LS_DAPV2_CONNECTED);
             }
+        }
 
-            if (mounted) {
-                rx_len += tud_vendor_read(RxDataBuffer + rx_len, sizeof(RxDataBuffer));
+        if (mounted) {
+            rx_len += tud_vendor_read(RxDataBuffer + rx_len, sizeof(RxDataBuffer));
 
-                if (rx_len != 0)
+            if (rx_len != 0)
+            {
+                uint32_t request_len;
+
+                used_us = time_us_32();
+                request_len = DAP_GetCommandLength(RxDataBuffer, rx_len);
+                if (rx_len >= request_len)
                 {
-                    uint32_t request_len;
+                    uint32_t resp_len;
 
-                    request_len = DAP_GetCommandLength(RxDataBuffer, rx_len);
-                    if (rx_len >= request_len)
+                    resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
+                    tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
+                    tud_vendor_flush();
+
+                    if (request_len != (resp_len >> 16))
                     {
-                        uint32_t resp_len;
+                        // there is a bug in CMSIS-DAP, see https://github.com/ARM-software/CMSIS_5/pull/1503
+                        // but we trust our own length calculation
+                        picoprobe_error("   !!!!!!!! request (%lu) and executed length (%lu) differ\n", request_len, resp_len >> 16);
+                    }
 
-                        resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
-                        tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
-                        tud_vendor_flush();
-
-                        if (request_len != (resp_len >> 16))
-                        {
-                            // there is a bug in CMSIS-DAP, see https://github.com/ARM-software/CMSIS_5/pull/1503
-                            // but we trust our own length calculation
-                            picoprobe_error("   !!!!!!!! request (%lu) and executed length (%lu) differ\n", request_len, resp_len >> 16);
-                        }
-
-                        if (rx_len == request_len)
-                        {
-                            rx_len = 0;
-                        }
-                        else
-                        {
-                            memmove(RxDataBuffer, RxDataBuffer + request_len, rx_len - request_len);
-                            rx_len -= request_len;
-                        }
+                    if (rx_len == request_len)
+                    {
+                        rx_len = 0;
+                    }
+                    else
+                    {
+                        memmove(RxDataBuffer, RxDataBuffer + request_len, rx_len - request_len);
+                        rx_len -= request_len;
                     }
                 }
             }
-        }
-        else {
-            // disconnect after 1s without data
-            if (mounted  &&  time_us_32() - used_us > 1000000) {
-                mounted = false;
-                picoprobe_info("=================================== DAPv2 disconnect target\n");
-                led_state(LS_DAPV2_DISCONNECTED);
-                sw_unlock("DAPv2");
-            }
-            taskYIELD();
         }
     }
 }   // dap_task
@@ -178,6 +192,39 @@ void usb_thread(void *ptr)
 
 
 
+void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
+{
+    if (itf == CDC_UART_N) {
+        cdc_uart_line_state_cb(dtr, rts);
+    }
+    else if (itf == CDC_DEBUG_N) {
+        cdc_debug_line_state_cb(dtr, rts);
+    }
+}   // tud_cdc_line_state_cb
+
+
+
+void tud_cdc_rx_cb(uint8_t itf)
+{
+    if (itf == CDC_SIGROK_N) {
+        cdc_sigrok_rx_cb();
+    }
+}   // tud_cdc_rx_cb
+
+
+
+void tud_cdc_tx_complete_cb(uint8_t itf)
+{
+    if (itf != CDC_DEBUG_N) {
+//        picoprobe_info("tud_cdc_tx_complete_cb(%d)\n", itf);
+    }
+    if (itf == CDC_SIGROK_N) {
+        cdc_sigrok_tx_complete_cb();
+    }
+}   // tud_cdc_tx_complete_cb
+
+
+
 int main(void)
 {
     board_init();
@@ -195,6 +242,10 @@ int main(void)
     rtt_console_init(RTT_CONSOLE_TASK_PRIO);
 #endif
 
+#if defined(INCLUDE_SIGROK)
+    sigrok_init(SIGROK_TASK_PRIO);
+#endif
+
     // now we can "print"
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
     picoprobe_info("                     Welcome to Yet Another Picoprobe v%02x.%02x-" GIT_HASH "\n", PICOPROBE_VERSION >> 8, PICOPROBE_VERSION & 0xff);
@@ -207,6 +258,8 @@ int main(void)
     led_init(LED_TASK_PRIO);
 
     DAP_Setup();
+
+    events = xEventGroupCreate();
 
     xTaskCreate(usb_thread, "TUD", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, &tud_taskhandle);
     xTaskCreate(dap_task, "DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);

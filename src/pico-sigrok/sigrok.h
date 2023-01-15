@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2021 a-pushkin on GitHub
+ * Copyright (c) 2021 Raspberry Pi (Trading) Ltd.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,30 +23,24 @@
  *
  */
 
-#ifndef LED_H
-#define LED_H
+#ifndef _SIGROK_H
+#define _SIGROK_H
 
 
 #include <stdint.h>
+#include <stdbool.h>
 
 
-typedef enum _led_state {
-    LS_TARGET_FOUND,          // there is a target
-    LS_NO_TARGET,             // no target found
-    LS_RTT_CB_FOUND,          // found an RTT control block on target
-    LS_RTT_DATA,              // RTT data received from target
-    LS_UART_DATA,             // UART data received from target
-    LS_MSC_CONNECTED,         // MSC connected
-    LS_MSC_DISCONNECTED,      // MSC disconnected
-    LS_DAPV1_CONNECTED,       // DAPV1 connected
-    LS_DAPV1_DISCONNECTED,    // DAPV1 disconnected
-    LS_DAPV2_CONNECTED,       // DAPV2 connected
-    LS_DAPV2_DISCONNECTED,    // DAPV2 disconnected
-    LS_SIGROK_RUNNING,        // sigrok is running
-    LS_SIGROK_STOPPED,        // sigrok stopped
-} led_state_t;
+#ifdef __cplusplus
+    extern "C" {
+#endif
 
-void led_init(uint32_t task_prio);
-void led_state(led_state_t state);
+
+void sigrok_init(uint32_t task_prio);
+
+
+#ifdef __cplusplus
+    }
+#endif
 
 #endif

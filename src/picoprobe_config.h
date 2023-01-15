@@ -28,7 +28,7 @@
 
 
 #if !defined(PICOPROBE_VERSION)
-    #define PICOPROBE_VERSION   0x0103
+    #define PICOPROBE_VERSION   0x0105
 #endif
 
 /// which means: pyocd will not work.
@@ -37,6 +37,7 @@
 #endif
 
 #define INCLUDE_RTT_CONSOLE
+#define INCLUDE_SIGROK
 
 
 
@@ -74,9 +75,14 @@
     #define picoprobe_error(format,...) ((void)0)
 #endif
 
-#define PROBE_CPU_CLOCK_KHZ      (150*1000)             // overclocked to 150MHz, even 200MHz seems to be no problem
+
+// Base value of sys_clk in khz.  Must be <=125Mhz per RP2040 spec and a multiple of 24Mhz
+// to support integer divisors of the PIO clock and ADC clock (for sigrok)
+#define PROBE_CPU_CLOCK_KHZ      ((120 + 2*24) * 1000)             // overclocked, even 200MHz seems to be no problem
+
 
 // PIO config
+#define PROBE_PIO                pio0
 #define PROBE_SM                 0
 #define PROBE_PIN_OFFSET         2
 #define PROBE_PIN_SWCLK          (PROBE_PIN_OFFSET + 0) // 2
@@ -102,7 +108,10 @@
     #endif
 #endif
 
-extern uint32_t probe_freq_khz;
+
+// sigrok config
+#define SIGROK_PIO               pio1
+#define SIGROK_SM                0                      // often hard coded
 
 
 #endif
