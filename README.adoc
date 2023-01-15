@@ -378,6 +378,7 @@ optimization is still a non/slow-working mystery).
 ** pyocd auto-detect?
 ** support of Nordic nRF52xxx (my other target)
 ** DAP_PACKET_SIZE: how to increase?
+** SWDDIR for external level shifter
 * tests
 ** Reset line between probe and target have to be reviewed
 ** Win10 (tools) compatibility

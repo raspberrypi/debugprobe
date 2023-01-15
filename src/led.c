@@ -64,13 +64,6 @@ void led_thread(void *ptr)
             gpio_put(PICOPROBE_LED, 0);
             vTaskDelay(pdMS_TO_TICKS(80));
         }
-        else if ( !target_found) {
-            // -> 5Hz blinking
-            gpio_put(PICOPROBE_LED, 0);
-            vTaskDelay(pdMS_TO_TICKS(100));
-            gpio_put(PICOPROBE_LED, 1);
-            vTaskDelay(pdMS_TO_TICKS(100));
-        }
         else if (dapv1_connected) {
             // -> LED on, off for 100ms once per second
             gpio_put(PICOPROBE_LED, 0);
@@ -88,6 +81,13 @@ void led_thread(void *ptr)
             vTaskDelay(pdMS_TO_TICKS(100));
             gpio_put(PICOPROBE_LED, 1);
             vTaskDelay(pdMS_TO_TICKS(700));
+        }
+        else if ( !target_found) {
+            // -> 5Hz blinking
+            gpio_put(PICOPROBE_LED, 0);
+            vTaskDelay(pdMS_TO_TICKS(100));
+            gpio_put(PICOPROBE_LED, 1);
+            vTaskDelay(pdMS_TO_TICKS(100));
         }
         else if (msc_connected) {
             // -> LED on, off for 100ms thrice per second
