@@ -924,7 +924,10 @@ uint8_t swd_set_target_state_hw(target_state_t state)
 {
     uint32_t val;
     int8_t ap_retries = 2;
-    /* Calling swd_init prior to entering RUN state causes operations to fail. */
+
+    cdc_debug_printf("swd_set_target_state_hw(%d)\n", state);
+
+   /* Calling swd_init prior to entering RUN state causes operations to fail. */
     if (state != RUN) {
         swd_init();
     }
@@ -1050,6 +1053,13 @@ uint8_t swd_set_target_state_hw(target_state_t state)
             swd_off();
             break;
 
+        case ATTACH:
+            // attach without doing anything else
+            if (!swd_init_debug()) {
+                return 0;
+            }
+            break;
+
         case POST_FLASH_RESET:
             // This state should be handled in target_reset.c, nothing needs to be done here.
             break;
@@ -1065,6 +1075,9 @@ uint8_t swd_set_target_state_sw(target_state_t state)
 {
     uint32_t val;
     int8_t ap_retries = 2;
+
+    cdc_debug_printf("swd_set_target_state_sw(%d)\n", state);
+
     /* Calling swd_init prior to enterring RUN state causes operations to fail. */
     if (state != RUN) {
         swd_init();
@@ -1231,6 +1244,13 @@ uint8_t swd_set_target_state_sw(target_state_t state)
 
         case POST_FLASH_RESET:
             // This state should be handled in target_reset.c, nothing needs to be done here.
+            break;
+
+        case ATTACH:
+            // attach without doing anything else
+            if (!swd_init_debug()) {
+                return 0;
+            }
             break;
 
         default:

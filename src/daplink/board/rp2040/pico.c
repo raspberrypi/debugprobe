@@ -99,10 +99,22 @@ target_cfg_t target_device_rp2040 = {
 
 
 
-static void pico_prerun_board_config(void)
+extern target_cfg_t target_device_nrf52840;
+const char *board_id_nrf52840_dk = "1102";
+
+
+
+void target_init_all(void)
 {
+#if 0
     target_device = target_device_rp2040;
-}   // pico_prerun_board_config
+#else
+    target_device = target_device_nrf52840;
+    target_device.rt_family_id = kNordic_Nrf52_FamilyID;
+    target_device.rt_board_id = board_id_nrf52840_dk;
+#endif
+    init_family();
+}   // target_init_all
 
 
 
@@ -113,7 +125,6 @@ const board_info_t g_board_info = {
     .daplink_drive_name  = "-unknown-",
     .daplink_target_url  = "https://daplink.io",
     .target_cfg          = &target_device,
-    .prerun_board_config = pico_prerun_board_config,
     .board_vendor        = "RaspberryPi",
     .board_name          = "Pico",
 };
