@@ -30,9 +30,8 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
-#include "target_family.h"
+#include "target_board.h"
 #include "swd_host.h"
-#include "daplink_addr.h"
 
 #include "picoprobe_config.h"
 #include "rtt_console.h"
@@ -42,6 +41,9 @@
 #include "led.h"
 
 
+
+#define TARGET_RAM_START   g_board_info.target_cfg->ram_regions[0].start
+#define TARGET_RAM_END     g_board_info.target_cfg->ram_regions[0].end
 
 static const uint32_t segger_alignment = 4;
 static const uint8_t  seggerRTT[16] = "SEGGER RTT\0\0\0\0\0\0";
@@ -81,6 +83,8 @@ static uint32_t search_for_rtt_cb(void)
     bool ok;
     uint32_t rtt_cb = 0;
 
+    picoprobe_debug("searching RTT_CB in 0x%08lx..0x%08lx, prev: 0x%08lx\n", TARGET_RAM_START, TARGET_RAM_END - 1, prev_rtt_cb);
+
     if (prev_rtt_cb != 0) {
         // fast search, saves a little SW traffic and a few ms
         ok = swd_read_memory(prev_rtt_cb, buf, sizeof(seggerRTT));
@@ -91,7 +95,7 @@ static uint32_t search_for_rtt_cb(void)
 
     if (rtt_cb == 0) {
         // note that searches must somehow overlap to find (unaligned) control blocks at the border of read chunks
-        for (uint32_t addr = DAPLINK_RAM_START;  addr <= DAPLINK_RAM_START + DAPLINK_RAM_SIZE - sizeof(buf);  addr += sizeof(buf) - sizeof(seggerRTT)) {
+        for (uint32_t addr = TARGET_RAM_START;  addr <= TARGET_RAM_END - sizeof(buf);  addr += sizeof(buf) - sizeof(seggerRTT)) {
             ok = swd_read_memory(addr, buf, sizeof(buf));
             if ( !ok  ||  sw_unlock_requested()) {
                 break;
@@ -123,7 +127,7 @@ static void do_rtt_console(uint32_t rtt_cb)
     uint8_t buf[100];
     bool ok = true;
 
-    if (rtt_cb < DAPLINK_RAM_START  ||  rtt_cb >= DAPLINK_RAM_START + DAPLINK_RAM_SIZE) {
+    if (rtt_cb < TARGET_RAM_START  ||  rtt_cb >= TARGET_RAM_END) {
         return;
     }
 
