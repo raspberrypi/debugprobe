@@ -41,26 +41,27 @@
 * at address start + size.
 */
 static const sector_info_t sectors_info[] = {
-    {DAPLINK_ROM_IF_START, DAPLINK_SECTOR_SIZE},
+    {0x10000000, 4096},
 };
 
-static target_cfg_t rp2040_target_device = {
+
+static target_cfg_t target_device_rp2040 = {
     .version                    = kTargetConfigVersion,
     .sectors_info               = sectors_info,
     .sector_info_length         = (sizeof(sectors_info))/(sizeof(sector_info_t)),
-    .flash_regions[0].start     = DAPLINK_ROM_IF_START,
-    .flash_regions[0].end       = DAPLINK_ROM_IF_START + DAPLINK_ROM_IF_SIZE,
+    .flash_regions[0].start     = 0x10000000,
+    .flash_regions[0].end       = 0x10000000 + KB(2048),
     .flash_regions[0].flags     = kRegionIsDefault,
-    .ram_regions[0].start       = DAPLINK_RAM_APP_START,
-    .ram_regions[0].end         = DAPLINK_RAM_APP_START + DAPLINK_RAM_APP_SIZE,
+    .ram_regions[0].start       = 0x20000000,
+    .ram_regions[0].end         = 0x20000000 + KB(256),
 };
 
 const board_info_t g_board_info = {
-    .info_version       = kBoardInfoVersion,
-    .board_id           = "0000",                // see e.g. https://github.com/pyocd/pyOCD/blob/main/pyocd/board/board_ids.py and https://os.mbed.com/request-board-id
-    .family_id          = CREATE_FAMILY_ID(127, 1),
-    .daplink_url_name   = "-unknown-",
-    .daplink_drive_name = "-unknown-",
-    .daplink_target_url = "https://daplink.io",
-    .target_cfg         = &rp2040_target_device,
+    .info_version        = kBoardInfoVersion,
+    .board_id            = "0000",                // see e.g. https://github.com/pyocd/pyOCD/blob/main/pyocd/board/board_ids.py and https://os.mbed.com/request-board-id
+    .family_id           = CREATE_FAMILY_ID(127, 1),
+    .daplink_url_name    = "-unknown-",
+    .daplink_drive_name  = "-unknown-",
+    .daplink_target_url  = "https://daplink.io",
+    .target_cfg          = &target_device_rp2040,
 };
