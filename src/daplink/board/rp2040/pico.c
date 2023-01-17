@@ -58,6 +58,7 @@ static target_cfg_t rp2040_target_device = {
 const board_info_t g_board_info = {
     .info_version       = kBoardInfoVersion,
     .board_id           = "0000",                // see e.g. https://github.com/pyocd/pyOCD/blob/main/pyocd/board/board_ids.py and https://os.mbed.com/request-board-id
+    .family_id          = CREATE_FAMILY_ID(127, 1),
     .daplink_url_name   = "-unknown-",
     .daplink_drive_name = "-unknown-",
     .daplink_target_url = "https://daplink.io",

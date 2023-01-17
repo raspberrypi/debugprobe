@@ -60,9 +60,11 @@ target_include_directories(picoprobe PRIVATE
 target_sources(picoprobe PRIVATE
         src/msc/msc_drive.c
         src/msc/msc_utils.c
+        src/daplink/board/rp2040/pico.c
         src/daplink/daplink/interface/swd_host.c
+        src/daplink/family/raspberry/rp2040/target.c
         src/daplink/family/raspberry/target_reset.c
-        src/daplink/hic_hal/rp2040/rp2040.c
+        src/daplink/target/target_board.c
         src/daplink/target/target_family.c
         )
 
@@ -73,7 +75,7 @@ target_include_directories(picoprobe PRIVATE
         src/daplink/daplink/interface
         src/daplink/family/raspberry
         src/daplink/hic_hal
-        src/daplink/hic_hal/rp2040
+        src/daplink/hic_hal/raspberry/rp2040
         src/daplink/target
         $ENV{PICO_SDK_PATH}/src/common/boot_uf2/include
         )

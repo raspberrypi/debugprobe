@@ -582,13 +582,10 @@ bool rp2040_core_unhalt_with_masked_ints(void)
 
 //----------------------------------------------------------------------------------------------------------------------
 
-static const target_family_descriptor_t g_rp2040_family = {
+const target_family_descriptor_t g_raspberry_rp2040_family = {
     .family_id                = CREATE_FAMILY_ID(127, 1),      // TODO what to use here?
     // .default_reset_type       = kSoftwareReset,             // not required if target_set_state specified
     // .soft_reset_type          = SYSRESETREQ,
     .swd_set_target_reset     = &rp2040_swd_set_target_reset,
     .target_set_state         = &rp2040_target_set_state,
 };
-
-
-const target_family_descriptor_t *g_target_family = &g_rp2040_family;
