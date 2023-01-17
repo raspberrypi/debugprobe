@@ -377,7 +377,7 @@ static bool target_call_function(uint32_t addr, uint32_t args[], int argc, uint3
     static uint32_t trampoline_addr = 0;  // trampoline is fine to get the return value of the callee
     static uint32_t trampoline_end;
 
-    if ( !rp2040_core_halt())
+    if ( !target_core_halt())
     	return false;
 
     assert(argc <= 4);
@@ -411,7 +411,7 @@ static bool target_call_function(uint32_t addr, uint32_t args[], int argc, uint3
     if ( !swd_write_core_register(16, (1 << 24)))
     	return false;
 
-    if ( !rp2040_core_halt())
+    if ( !target_core_halt())
     	return false;
 
 #if DEBUG_MODULE
@@ -421,7 +421,7 @@ static bool target_call_function(uint32_t addr, uint32_t args[], int argc, uint3
 
     // start execution
 //    picoprobe_info(".................... execute\n");
-    if ( !rp2040_core_unhalt_with_masked_ints())
+    if ( !target_core_unhalt_with_masked_ints())
     	return false;
 
     // check status
@@ -442,11 +442,11 @@ static bool target_call_function(uint32_t addr, uint32_t args[], int argc, uint3
     	bool interrupted = false;
     	uint32_t start_us = time_us_32();
 
-    	while ( !rp2040_core_is_halted()) {
+    	while ( !target_core_is_halted()) {
     		uint32_t dt_us = time_us_32() - start_us;
 
     		if (dt_us > timeout_us) {
-    			rp2040_core_halt();
+    		    target_core_halt();
     			picoprobe_error("target_call_function: execution timed out after %lu ms\n", dt_us / 1000);
     			interrupted = true;
     		}

@@ -535,7 +535,7 @@ static uint8_t rp2040_target_set_state(target_state_t state)
 //
 
 
-bool rp2040_core_is_halted(void)
+bool target_core_is_halted(void)
 {
     uint32_t value;
 
@@ -544,40 +544,40 @@ bool rp2040_core_is_halted(void)
     if (value & S_HALT)
         return true;
     return false;
-}   // rp2040_core_is_halted
+}   // target_core_is_halted
 
 
 
-bool rp2040_core_halt(void)
+bool target_core_halt(void)
 {
     if ( !swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_MASKINTS | C_HALT)) {
         return false;
     }
 
-    while ( !rp2040_core_is_halted())
+    while ( !target_core_is_halted())
         ;
     return true;
-}   // rp2040_core_halt
+}   // target_core_halt
 
 
 
-bool rp2040_core_unhalt(void)
+bool target_core_unhalt(void)
 {
     if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN)) {
         return false;
     }
     return true;
-}   // rp2040_core_unhalt
+}   // target_core_unhalt
 
 
 
-bool rp2040_core_unhalt_with_masked_ints(void)
+bool target_core_unhalt_with_masked_ints(void)
 {
     if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_MASKINTS)) {
         return false;
     }
     return true;
-}   // rp2040_core_unhalt_with_masked_ints
+}   // target_core_unhalt_with_masked_ints
 
 
 //----------------------------------------------------------------------------------------------------------------------

@@ -39,10 +39,10 @@
 #endif
 
 
-bool rp2040_core_is_halted(void);
-bool rp2040_core_halt(void);
-bool rp2040_core_unhalt(void);
-bool rp2040_core_unhalt_with_masked_ints(void);
+bool target_core_is_halted(void);
+bool target_core_halt(void);
+bool target_core_unhalt(void);
+bool target_core_unhalt_with_masked_ints(void);
 
 
 #ifdef __cplusplus
