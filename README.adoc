@@ -429,6 +429,7 @@ optimization is still a non/slow-working mystery).
 ** support of Nordic nRF52xxx (my other target)
 ** DAP_PACKET_SIZE: how to increase?
 ** description of the several COM ports
+** MSD/MSC commands just like in DAPLink
 * tests
 ** Reset line between probe and target have to be reviewed
 ** Win10 (tools) compatibility

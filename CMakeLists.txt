@@ -55,23 +55,25 @@ target_include_directories(picoprobe PRIVATE
 
 #--------------------------------------------------------------------------------------------------
 #
-# this is for MSC operation
+# this is for MSC/DAPLink operation
 #
 target_sources(picoprobe PRIVATE
         src/msc/msc_drive.c
         src/msc/msc_utils.c
+        src/daplink/daplink/interface/swd_host.c
+        src/daplink/family/raspberry/target_reset.c
         src/daplink/hic_hal/rp2040/rp2040.c
-        src/daplink/interface/swd_host.c
         src/daplink/target/target_family.c
         )
 
 target_include_directories(picoprobe PRIVATE
         src/daplink
-        src/daplink/cmsis-dap
-        src/daplink/drag-n-drop
+        src/daplink/daplink/cmsis-dap
+        src/daplink/daplink/drag-n-drop
+        src/daplink/daplink/interface
+        src/daplink/family/raspberry
         src/daplink/hic_hal
         src/daplink/hic_hal/rp2040
-        src/daplink/interface
         src/daplink/target
         $ENV{PICO_SDK_PATH}/src/common/boot_uf2/include
         )
