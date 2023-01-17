@@ -47,19 +47,57 @@ Finally there is one more Picoprobe around, the YAPicoprobe.
 
 
 ## Details
-### Overview and Wiring
+### Wiring
 Picoprobe documentation can be found in the https://datasheets.raspberrypi.com/pico/getting-started-with-pico.pdf[Pico Getting Started Guide].
 See "Appendix A: Using Picoprobe".
 
-Wires between probe and target board are the same as before, but the UART wires can
+image::board_schematic_bb.png[Wiring]
+
+Wires between probe and target board are the same as before, but the target UART wires can
 be omitted if RTT is used for logging on the target device.
+
+Additionally there is an additional /RESET line and the sigrok digital and analog inputs.
 
 I recommend to use a simple Raspberry Pi Pico board as the probe.  The Pico W board
 does not add any features, instead the LED indicator does not work there.
 
+.Pins Assignments Rasberry Pi Pico
+[%header]
+|===
+| Pin | Description
+
+| GP2       | target SWCLK
+| GP3       | target SWDIO
+| GP4       | target UART-RX
+| GP5       | target UART-TX
+| GP6       | target /RESET (RUN)
+| GP10..17  | sigrok digital inputs
+| GP26/ADC0 | sigrok ADC0
+| GP27/ADC1 | sigrok ADC1
+| GP28/ADC2 | sigrok ADC2
+
+|===
+
+.Other Pin Assigments RP2040
+[%header]
+|===
+| Pin | Description
+
+| GPIO0..1    | spare
+| GPIO7..9    | spare
+| GPIO18      | spare
+| GPIO19..21  | debug pins (for probe debugging)
+| GPIO22      | spare
+| GPIO23      | power supply control
+| GPIO24      | USB sense
+| GPIO25      | LED
+| GPIO29/ADC3 | VSYS/3
+|===
+
 
 ### Tool Compatibility
 
+.Tool Compatibility
 [%header]
 |===
 |Tool | Linux | Windows (10) | Command line
@@ -161,8 +199,9 @@ Drawbacks:
 * currently no hardware triggering supported
 
 
-### LED Indication
+### LED Indications
 
+.LED Indications
 [%header]
 |===
 | state | indication
@@ -302,6 +341,7 @@ Benchmarking is done with an image with a size around 400KByte.  Command lines a
 Note that benchmarking takes place under Linux.  Surprisingly `openocd` and `pyocd` behave differently under Windows.
 DAPv2 is always used, because DAPv1 does not run under Linux(?).
 
+.CMSIS-DAP Benchmarks
 [%header]
 |===
 |command / version  | cp    | openocd DAPv1 | openocd DAPv2 | pyocd DAPv2 | comment
@@ -369,16 +409,26 @@ optimization is still a non/slow-working mystery).
 ** PIO is running 7x faster in auto trigger mode than the specified sample rate 
 
 
+## Ideas
+* hardware
+** SWDDIR for external level shifter, should be high for TX 
+   operation (compatible with SN74AVC(H)2T45)
+** 7803 for power supply of target
+** level shifter for sigrok
+** is a direction switch required at all?  See TXS0108E: https://cdn.sparkfun.com/assets/1/8/1/e/2/txs0108e.pdf
+
+
 ## TODO / Known Bugs
 
 * Bugs
 ** check the benchmark "miracle" with the NDEBUG version 
 ** if `configTICK_RATE_HZ` is around 100, the SWD IF no longer works
 * TODO
+** sigrok pins description
 ** pyocd auto-detect?
 ** support of Nordic nRF52xxx (my other target)
 ** DAP_PACKET_SIZE: how to increase?
-** SWDDIR for external level shifter
+** description of the several COM ports
 * tests
 ** Reset line between probe and target have to be reviewed
 ** Win10 (tools) compatibility
