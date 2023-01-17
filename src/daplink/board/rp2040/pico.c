@@ -25,43 +25,95 @@
  * Note that handling of the rescue DP has been dropped (no idea how to test this).
  */
 
-#include "DAP_config.h"
-#include "DAP.h"
-
-#include "daplink_addr.h"
 #include "target_board.h"
 
 
 
-/**
-* List of start and size for each size of flash sector
-* The size will apply to all sectors between the listed address and the next address
-* in the list.
-* The last pair in the list will have sectors starting at that address and ending
-* at address start + size.
-*/
-static const sector_info_t sectors_info[] = {
+target_cfg_t target_device;
+
+
+
+// TODO this is not correct, taken from nRF52
+
+static const uint32_t RP2040_FLM[] = {
+    0xE00ABE00, 0x062D780D, 0x24084068, 0xD3000040, 0x1E644058, 0x1C49D1FA, 0x2A001E52, 0x4770D1F2,
+    0x47702000, 0x47702000, 0x4c2bb570, 0x60202002, 0x20014929, 0x60083108, 0x68284d28, 0xd00207c0,
+    0x60202000, 0xf000bd70, 0xe7f6f833, 0x4c22b570, 0x60212102, 0x2f10f1b0, 0x491fd303, 0x31102001,
+    0x491de001, 0x60081d09, 0xf0004d1c, 0x6828f821, 0xd0fa07c0, 0x60202000, 0xe92dbd70, 0xf8df41f0,
+    0x088e8058, 0x46142101, 0xf8c84605, 0x4f131000, 0xc501cc01, 0x07c06838, 0x1e76d007, 0x2100d1f8,
+    0x1000f8c8, 0xe8bd4608, 0xf00081f0, 0xe7f1f801, 0x6800480b, 0x00fff010, 0x490ad00c, 0x29006809,
+    0x4908d008, 0x31fc4a08, 0xd00007c3, 0x1d09600a, 0xd1f90840, 0x00004770, 0x4001e504, 0x4001e400,
+    0x40010404, 0x40010504, 0x6e524635, 0x00000000,
+};
+
+
+
+// TODO this is not correct, taken from nRF52
+
+static const program_target_t flash_rp2040 = {
+    .init              = 0x20000021,
+    .uninit            = 0x20000025,
+    .erase_chip        = 0x20000029,
+    .erase_sector      = 0x2000004D,
+    .program_page      = 0x2000007B,
+    .verify            = 0x0,
+    {
+        .breakpoint    = 0x20000001,
+        .static_base   = 0x20000020 + 0x00000150,
+        .stack_pointer = 0x20001000
+    },
+    .program_buffer    = 0x20000200,
+    .algo_start        = 0x20000000,
+    .algo_size         = 0x00000150,
+    .algo_blob         = RP2040_FLM,
+    .program_buffer_size = 512 // should be USBD_MSC_BlockSize
+};
+
+
+
+// TODO this is not correct, taken from nRF52
+
+static const sector_info_t sectors_info_rp2040[] = {     // actually the external QSPI flash
     {0x10000000, 4096},
 };
 
 
-static target_cfg_t target_device_rp2040 = {
-    .version                    = kTargetConfigVersion,
-    .sectors_info               = sectors_info,
-    .sector_info_length         = (sizeof(sectors_info))/(sizeof(sector_info_t)),
-    .flash_regions[0].start     = 0x10000000,
-    .flash_regions[0].end       = 0x10000000 + KB(2048),
-    .flash_regions[0].flags     = kRegionIsDefault,
-    .ram_regions[0].start       = 0x20000000,
-    .ram_regions[0].end         = 0x20000000 + KB(256),
+
+// target information
+target_cfg_t target_device_rp2040 = {
+    .version                        = kTargetConfigVersion,
+    .sectors_info                   = sectors_info_rp2040,
+    .sector_info_length             = (sizeof(sectors_info_rp2040))/(sizeof(sectors_info_rp2040)),
+    .flash_regions[0].start         = 0x10000000,
+    .flash_regions[0].end           = 0x10000000 + MB(2),
+    .flash_regions[0].flags         = kRegionIsDefault,
+    .flash_regions[0].flash_algo    = (program_target_t *)&flash_rp2040,
+    .ram_regions[0].start           = 0x20000000,
+    .ram_regions[0].end             = 0x20000000 + KB(256),
+    .erase_reset                    = 1,
+    .target_vendor                  = "RaspberryPi",
+    .target_part_number             = "RP2040",
+    .rt_family_id                   = CREATE_FAMILY_ID(127, 1),         // -> g_target_family
+    .rt_board_id                    = "7f01",                           // TODO whatfor?
 };
+
+
+
+static void pico_prerun_board_config(void)
+{
+    target_device = target_device_rp2040;
+}   // pico_prerun_board_config
+
+
 
 const board_info_t g_board_info = {
     .info_version        = kBoardInfoVersion,
     .board_id            = "0000",                // see e.g. https://github.com/pyocd/pyOCD/blob/main/pyocd/board/board_ids.py and https://os.mbed.com/request-board-id
-    .family_id           = CREATE_FAMILY_ID(127, 1),
     .daplink_url_name    = "-unknown-",
     .daplink_drive_name  = "-unknown-",
     .daplink_target_url  = "https://daplink.io",
-    .target_cfg          = &target_device_rp2040,
+    .target_cfg          = &target_device,
+    .prerun_board_config = pico_prerun_board_config,
+    .board_vendor        = "RaspberryPi",
+    .board_name          = "Pico",
 };
