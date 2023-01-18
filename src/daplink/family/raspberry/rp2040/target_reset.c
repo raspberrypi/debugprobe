@@ -57,7 +57,7 @@ static uint8_t core;
 
 void osDelay(uint32_t ticks)
 {
-    vTaskDelay(10 * ticks);
+    vTaskDelay(pdMS_TO_TICKS(ticks));
 }   // osDelay
 
 

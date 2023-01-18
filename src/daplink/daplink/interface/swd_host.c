@@ -801,6 +801,7 @@ static uint8_t swd_read_idcode(uint32_t *id)
     }
 
     *id = (tmp_out[3] << 24) | (tmp_out[2] << 16) | (tmp_out[1] << 8) | tmp_out[0];
+    cdc_debug_printf("swd_read_idcode: 0x%08lx\n", *id);   // TODO wieder raus 0x2ba01477=nRF52840, 0x0bc12477=RP2040
     return 1;
 }
 
@@ -1053,15 +1054,15 @@ uint8_t swd_set_target_state_hw(target_state_t state)
             swd_off();
             break;
 
+        case POST_FLASH_RESET:
+            // This state should be handled in target_reset.c, nothing needs to be done here.
+            break;
+
         case ATTACH:
             // attach without doing anything else
             if (!swd_init_debug()) {
                 return 0;
             }
-            break;
-
-        case POST_FLASH_RESET:
-            // This state should be handled in target_reset.c, nothing needs to be done here.
             break;
 
         default:
@@ -1152,8 +1153,6 @@ uint8_t swd_set_target_state_sw(target_state_t state)
                     return 0;
                 }
             } while ((val & S_HALT) == 0);
-
-            return 1;
 
             // Enable halt on reset
             if (!swd_write_word(DBG_EMCR, VC_CORERESET)) {

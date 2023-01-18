@@ -62,8 +62,9 @@ target_sources(picoprobe PRIVATE
         src/msc/msc_utils.c
         src/daplink/board/rp2040/pico.c
         src/daplink/daplink/interface/swd_host.c
-        src/daplink/family/raspberry/rp2040/target.c
-        src/daplink/family/raspberry/target_reset.c
+        src/daplink/family/nordic/target_reset_nrf52.c
+        src/daplink/family/nordic/nrf52/target.c
+        src/daplink/family/raspberry/rp2040/target_reset.c
         src/daplink/target/target_board.c
         src/daplink/target/target_family.c
         )
