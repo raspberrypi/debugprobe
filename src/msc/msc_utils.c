@@ -42,19 +42,20 @@
 #include "timers.h"
 
 #include "target_family.h"
+#include "target_config.h"
 #include "swd_host.h"
-#include "DAP_config.h"
-#include "DAP.h"
-#include "daplink_addr.h"
 #include "rp2040.h"
-
-#define DBG_Addr     (0xe000edf0)
-#include "debug_cm.h"
 
 
 #define DEBUG_MODULE    0
 
 #define TARGET_WRITER_THREAD_MSGBUFF_SIZE   (4 * sizeof(struct uf2_block) + 100)
+
+extern target_cfg_t target_device_rp2040;
+
+// these constants are for range checking on the probe
+#define RP2040_FLASH_START    (target_device_rp2040.flash_regions[0].start)
+#define RP2040_FLASH_END      (target_device_rp2040.flash_regions[0].end)
 
 static TaskHandle_t           task_target_writer_thread;
 static MessageBufferHandle_t  msgbuff_target_writer_thread;
@@ -64,77 +65,10 @@ static void                  *timer_disconnect_id;
 static bool                   have_lock;
 
 
-#if 0
-	/*
-	 * For lowlevel debugging (or better recording), DAP.c can be modified as follows:
-	 * (but take care that the output FIFO of cdc_debug_printf() is big enough to hold all output)
-	 */
-            uint32_t DAP_ProcessCommand(const uint8_t *request, uint8_t *response)
-            {
-            uint32_t num;
-
-            num = _DAP_ProcessCommand(request, response);
-
-            {
-                uint32_t req_len = (num >> 16);
-                uint32_t resp_len = (num & 0xffff);
-                const char *s;
-
-                switch (*request) {
-                case ID_DAP_Info              : s = "ID_DAP_Info              "; break;
-                case ID_DAP_HostStatus        : s = "ID_DAP_HostStatus        "; break;
-                case ID_DAP_Connect           : s = "ID_DAP_Connect           "; break;    
-                case ID_DAP_Disconnect        : s = "ID_DAP_Disconnect        "; break;
-                case ID_DAP_TransferConfigure : s = "ID_DAP_TransferConfigure "; break;
-                case ID_DAP_Transfer          : s = "ID_DAP_Transfer          "; break;
-                case ID_DAP_TransferBlock     : s = "ID_DAP_TransferBlock     "; break;
-                case ID_DAP_TransferAbort     : s = "ID_DAP_TransferAbort     "; break;
-                case ID_DAP_WriteABORT        : s = "ID_DAP_WriteABORT        "; break;
-                case ID_DAP_Delay             : s = "ID_DAP_Delay             "; break;
-                case ID_DAP_ResetTarget       : s = "ID_DAP_ResetTarget       "; break;
-                case ID_DAP_SWJ_Pins          : s = "ID_DAP_SWJ_Pins          "; break;
-                case ID_DAP_SWJ_Clock         : s = "ID_DAP_SWJ_Clock         "; break;
-                case ID_DAP_SWJ_Sequence      : s = "ID_DAP_SWJ_Sequence      "; break;
-                case ID_DAP_SWD_Configure     : s = "ID_DAP_SWD_Configure     "; break;
-                case ID_DAP_SWD_Sequence      : s = "ID_DAP_SWD_Sequence      "; break;
-                case ID_DAP_JTAG_Sequence     : s = "ID_DAP_JTAG_Sequence     "; break;
-                case ID_DAP_JTAG_Configure    : s = "ID_DAP_JTAG_Configure    "; break;
-                case ID_DAP_JTAG_IDCODE       : s = "ID_DAP_JTAG_IDCODE       "; break;
-                case ID_DAP_SWO_Transport     : s = "ID_DAP_SWO_Transport     "; break;
-                case ID_DAP_SWO_Mode          : s = "ID_DAP_SWO_Mode          "; break;
-                case ID_DAP_SWO_Baudrate      : s = "ID_DAP_SWO_Baudrate      "; break;
-                case ID_DAP_SWO_Control       : s = "ID_DAP_SWO_Control       "; break;
-                case ID_DAP_SWO_Status        : s = "ID_DAP_SWO_Status        "; break;
-                case ID_DAP_SWO_ExtendedStatus: s = "ID_DAP_SWO_ExtendedStatus"; break;
-                case ID_DAP_SWO_Data          : s = "ID_DAP_SWO_Data          "; break;       
-                default                       : s = "unknown                  "; break;
-                }
-
-            #if 1
-                cdc_debug_printf("    /* len */ %2ld, /* %s */ 0x%02x, ", req_len, s, *request);
-                for (uint32_t u = 1;  u < req_len;  ++u) {
-                cdc_debug_printf("0x%02x, ", request[u]);
-                }
-                cdc_debug_printf("\n");
-            #endif
-            #if 0
-                cdc_debug_printf("                                                                                               /* --> len=0x%02lx: ", resp_len);
-                for (uint32_t u = 0;  u < MIN(resp_len, 32);  ++u) {
-                cdc_debug_printf("0x%02x, ", response[u]);
-                }
-                cdc_debug_printf(" */\n");
-            #endif
-            }
-
-            return num;
-            }
-#endif
-
-
-
 // -----------------------------------------------------------------------------------
 // THIS CODE IS DESIGNED TO RUN ON THE TARGET AND WILL BE COPIED OVER
 // (hence it has it's own section)
+// All constants here are used on the target!
 // -----------------------------------------------------------------------------------
 //
 // Memory Map on target for programming:
@@ -150,14 +84,19 @@ extern char __start_for_target[];
 extern char __stop_for_target[];
 
 #define FOR_TARGET_CODE        __attribute__((noinline, section("for_target")))
-#define TARGET_CODE            0x20010000
-#define TARGET_STACK           0x20030800
+
+#define TARGET_FLASH_START     0x10000000
+#define TARGET_FLASH_MAX_SIZE  0x10000000
+#define TARGET_RAM_START       0x20000000
+
+#define TARGET_CODE            (TARGET_RAM_START + 0x10000)
+#define TARGET_STACK           (TARGET_RAM_START + 0x30800)
 #define TARGET_FLASH_BLOCK     ((uint32_t)flash_block - (uint32_t)__start_for_target + TARGET_CODE)
-#define TARGET_BOOT2           0x20020000
+#define TARGET_BOOT2           (TARGET_RAM_START + 0x20000)
 #define TARGET_BOOT2_SIZE      256
-#define TARGET_ERASE_MAP       0x20020100
+#define TARGET_ERASE_MAP       (TARGET_BOOT2 + TARGET_BOOT2_SIZE)
 #define TARGET_ERASE_MAP_SIZE  256
-#define TARGET_DATA            0x20000000
+#define TARGET_DATA            (TARGET_RAM_START + 0x00000)
 
 #define rom_hword_as_ptr(rom_address) (void *)(uintptr_t)(*(uint16_t *)rom_address)
 #define fn(a, b)        (uint32_t)((b << 8) | a)
@@ -202,7 +141,7 @@ typedef void *(*rom_flash_prog_fn)(uint32_t addr, const uint8_t *data, size_t co
 
 ///
 /// Code should be checked via "arm-none-eabi-objdump -S build/picoprobe.elf"
-/// \param addr     \a DAPLINK_ROM_START....  A 64KByte block will be erased if \a addr is on a 64K boundary
+/// \param addr     \a TARGET_FLASH_START....  A 64KByte block will be erased if \a addr is on a 64K boundary
 /// \param src      pointer to source data
 /// \param length   length of data block (256, 512, 1024, 2048 are legal (but unchecked)), packet may not overflow
 ///                 into next 64K block
@@ -225,13 +164,13 @@ FOR_TARGET_CODE uint32_t flash_block(uint32_t addr, uint32_t *src, int length)
     rom_void_fn         _flash_flush_cache = rom_table_lookup(function_table, fn('F', 'C'));
     rom_void_fn         _flash_enter_cmd_xip = rom_table_lookup(function_table, fn('C', 'X'));
 
-    const uint32_t erase_block_size = 0x10000;        // if this is changed, then some logic below has to changed as well
-    uint32_t offset = addr - DAPLINK_ROM_START;       // this is actually the physical flash address
+    const uint32_t erase_block_size = 0x10000;        // 64K - if this is changed, then some logic below has to changed as well
+    uint32_t offset = addr - TARGET_FLASH_START;      // this is actually the physical flash address
     uint32_t erase_map_offset = (offset >> 16);       // 64K per map entry
     uint8_t *erase_map_entry = ((uint8_t *)TARGET_ERASE_MAP) + erase_map_offset;
     uint32_t res = 0;
 
-    if (offset > DAPLINK_ROM_SIZE)
+    if (offset > TARGET_FLASH_MAX_SIZE)
         return 0x40000000;
 
     // We want to make sure the flash is connected so that we can check its current content
@@ -510,7 +449,7 @@ static bool target_copy_flash_code(void)
 #if 1
     // this works only if target and probe have the same BOOT2 code
     picoprobe_info("FLASH: Copying BOOT2 code to 0x%08x (%d bytes)\r\n", TARGET_BOOT2, TARGET_BOOT2_SIZE);
-    if ( !swd_write_memory(TARGET_BOOT2, (uint8_t *)DAPLINK_ROM_START, TARGET_BOOT2_SIZE))
+    if ( !swd_write_memory(TARGET_BOOT2, (uint8_t *)RP2040_FLASH_START, TARGET_BOOT2_SIZE))
         return false;
 #else
     // TODO this means, that the target function fetches the code from the image (actually this could be done here...)
@@ -619,10 +558,10 @@ bool msc_is_uf2_record(const void *sector, uint32_t sector_size)
             &&  uf2->magic_end == UF2_MAGIC_END
             &&  uf2->block_no < uf2->num_blocks
             &&  uf2->payload_size == payload_size
-            &&  uf2->target_addr >= DAPLINK_ROM_START
-            &&  uf2->target_addr - payload_size * uf2->block_no >= DAPLINK_ROM_START             // could underflow
+            &&  uf2->target_addr >= RP2040_FLASH_START
+            &&  uf2->target_addr - payload_size * uf2->block_no >= RP2040_FLASH_START             // could underflow
             &&  uf2->target_addr - payload_size * uf2->block_no + payload_size * uf2->num_blocks
-                        <= DAPLINK_ROM_START + DAPLINK_ROM_SIZE) {
+                        <= RP2040_FLASH_END) {
             if ((uf2->flags & UF2_FLAG_FAMILY_ID_PRESENT) != 0) {
                 if (uf2->file_size == RP2040_FAMILY_ID) {
                     r = true;
@@ -683,6 +622,8 @@ void target_writer_thread(void *ptr)
         arg[0] = uf2.target_addr;
         arg[1] = TARGET_DATA;
         arg[2] = uf2.payload_size;
+
+//        picoprobe_info("     0x%lx, 0x%lx, 0x%lx, %ld\n", TARGET_FLASH_BLOCK, arg[0], arg[1], arg[2]);
 
         if (swd_write_memory(TARGET_DATA, (uint8_t *)uf2.data, uf2.payload_size)) {
             target_call_function(TARGET_FLASH_BLOCK, arg, sizeof(arg) / sizeof(arg[0]), &res);
