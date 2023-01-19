@@ -44,7 +44,7 @@ tusb_desc_device_t const desc_device =
 
     .idVendor           = 0x2E8A, // Pi
     .idProduct          = 0x000c, // CMSIS-DAP adapter
-    .bcdDevice          = PICOPROBE_VERSION,
+    .bcdDevice          = (PICOPROBE_VERSION_MAJOR << 8) + PICOPROBE_VERSION_MINOR,
     .iManufacturer      = 0x01,
     .iProduct           = 0x02,
     .iSerialNumber      = 0x03,
