@@ -247,6 +247,7 @@ void usb_thread(void *ptr)
 
     xTaskCreate(dap_task, "DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);
 
+    tusb_init();
     for (;;) {
         tud_task();
         taskYIELD();    // not sure, if this triggers the scheduler
@@ -261,7 +262,6 @@ int main(void)
     set_sys_clock_khz(PROBE_CPU_CLOCK_KHZ, true);
 
     usb_serial_init();
-    tusb_init();
 
     // should be done before anything else (that does cdc_debug_printf())
 #if !defined(NDEBUG)

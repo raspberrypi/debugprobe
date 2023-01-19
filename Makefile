@@ -3,7 +3,7 @@
 # ATTENTION: to get the version number & git hash into the image, cmake-create-* has to be invoked.
 #
 
-VERSION              := 0105
+VERSION              := 0106
 OPTIMIZE_FOR_OPENOCD ?= 0
 
 

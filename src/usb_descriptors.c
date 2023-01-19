@@ -167,8 +167,8 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 char const* string_desc_arr [] =
 {
   (const char[]) { 0x09, 0x04 },       // 0: is supported language is English (0x0409)
-  "Raspberry Pi",                      // 1: Manufacturer
-  "YAPicoprobe CMSIS-DAP",             // 2: Product
+  "RaspberryPi",                       // 1: Manufacturer
+  "YAPicoprobe",                       // 2: Product
   usb_serial,                          // 3: Serial, uses flash unique ID
   "YAPicoprobe CMSIS-DAP v1",          // 4: Interface descriptor for HID transport
   "YAPicoprobe CMSIS-DAP v2",          // 5: Interface descriptor for Bulk transport

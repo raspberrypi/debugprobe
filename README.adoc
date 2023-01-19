@@ -425,8 +425,8 @@ optimization is still a non/slow-working mystery).
 ** if `configTICK_RATE_HZ` is around 100, the SWD IF no longer works
 * TODO
 ** sigrok pins description
-** pyocd auto-detect?
 ** support of Nordic nRF52xxx (my other target)
+*** voltage of SWD IF is VDD
 ** DAP_PACKET_SIZE: how to increase?
 ** description of the several COM ports
 ** MSD/MSC commands just like in DAPLink

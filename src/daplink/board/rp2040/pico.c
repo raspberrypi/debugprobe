@@ -86,7 +86,7 @@ static const sector_info_t sectors_info_rp2040[] = {     // actually the externa
 
 
 
-// target information for RP2040 (actually Pico)
+// target information for RP2040 (actually Pico), must be global
 target_cfg_t target_device_rp2040 = {
     .version                        = kTargetConfigVersion,
     .sectors_info                   = sectors_info_rp2040,
@@ -118,7 +118,7 @@ target_cfg_t target_device_generic = {
     .ram_regions[0].end             = 0x20000000 + KB(256),
     .erase_reset                    = 1,
     .target_vendor                  = "Generic",
-    .target_part_number             = "ARM",
+    .target_part_number             = "cortex_m",
     .rt_family_id                   = kStub_SWSysReset_FamilyID,
     .rt_board_id                    = "ffff",
 };
@@ -130,10 +130,6 @@ const char *board_id_nrf52840_dk = "1102";
 
 const uint32_t id_rp2040   = 0x0bc12477;
 const uint32_t id_nrf52840 = 0x2ba01477;
-
-extern const target_family_descriptor_t g_hw_reset_family;
-extern const target_family_descriptor_t g_sw_vectreset_family;
-extern const target_family_descriptor_t g_sw_sysresetreq_family;
 
 
 
@@ -180,11 +176,12 @@ void target_auto_detect(void)
         target_device = target_device_nrf52840;
         target_device.rt_family_id = kNordic_Nrf52_FamilyID;
         target_device.rt_board_id = board_id_nrf52840_dk;
+        target_device.target_part_number = "nRF52840";
         search_family();
         if (target_set_state(ATTACH)) {
             r = swd_read_dp(DP_IDCODE, &id);
             if (r  &&  id == id_nrf52840) {
-                strcpy(board_vendor, "Nordic");
+                strcpy(board_vendor, "Nordic Semiconductor");
                 strcpy(board_name, "PCA10056");
             }
             else {
