@@ -35,6 +35,8 @@
 
 
 target_cfg_t target_device;
+static char board_vendor[30];
+static char board_name[30];
 
 
 
@@ -98,7 +100,7 @@ target_cfg_t target_device_rp2040 = {
     .erase_reset                    = 1,
     .target_vendor                  = "RaspberryPi",
     .target_part_number             = "RP2040",
-    .rt_family_id                   = CREATE_FAMILY_ID(127, 1),         // -> g_target_family
+    .rt_family_id                   = CREATE_FAMILY_ID(127, 1),         // must fit g_raspberry_rp2040_family.family_id
     .rt_board_id                    = "7f01",                           // TODO whatfor?
 };
 
@@ -157,14 +159,17 @@ void target_auto_detect(void)
     bool r;
     uint32_t id = 0;
 
-    id = 0;
     if (id == 0) {
         // check for RP2040
         target_device = target_device_rp2040;
         search_family();
         if (target_set_state(ATTACH)) {
             r = swd_read_dp(DP_IDCODE, &id);
-            if ( !r  ||  id != id_rp2040) {
+            if (r  &&  id == id_rp2040) {
+                strcpy(board_vendor, "RaspberryPi");
+                strcpy(board_name, "Pico");
+            }
+            else {
                 id = 0;
             }
         }
@@ -178,7 +183,11 @@ void target_auto_detect(void)
         search_family();
         if (target_set_state(ATTACH)) {
             r = swd_read_dp(DP_IDCODE, &id);
-            if ( !r  ||  id != id_nrf52840) {
+            if (r  &&  id == id_nrf52840) {
+                strcpy(board_vendor, "Nordic");
+                strcpy(board_name, "PCA10056");
+            }
+            else {
                 id = 0;
             }
         }
@@ -188,6 +197,8 @@ void target_auto_detect(void)
         // set generic device
         target_device = target_device_generic;
         search_family();
+        strcpy(board_vendor, "Generic");
+        strcpy(board_name, "Generic");
     }
 }   // target_auto_detect
 
@@ -200,6 +211,6 @@ const board_info_t g_board_info = {
     .daplink_drive_name  = "-unknown-",
     .daplink_target_url  = "https://daplink.io",
     .target_cfg          = &target_device,
-    .board_vendor        = "RaspberryPi",
-    .board_name          = "Pico",
+    .board_vendor        = board_vendor,
+    .board_name          = board_name,
 };

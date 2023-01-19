@@ -212,17 +212,23 @@ void dap_task(void *ptr)
 
 void usb_thread(void *ptr)
 {
-    picoprobe_info("system starting...\n");
-
     {
         extern void target_auto_detect(void);
 
-        picoprobe_info("+++++++++++++++++ auto detect target +++++++++++++++++\n");
         target_auto_detect();
-        picoprobe_info("family: 0x%04x\n", g_target_family->family_id);
-        picoprobe_info("vendor: %s\n", g_board_info.target_cfg->target_vendor);
-        picoprobe_info("part  : %s\n", g_board_info.target_cfg->target_part_number);
-        picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+        picoprobe_info("Target family : 0x%04x\n", g_target_family->family_id);
+        picoprobe_info("Target vendor : %s\n", g_board_info.target_cfg->target_vendor);
+        picoprobe_info("Target part   : %s\n", g_board_info.target_cfg->target_part_number);
+        picoprobe_info("Board vendor  : %s\n", g_board_info.board_vendor);
+        picoprobe_info("Board name    : %s\n", g_board_info.board_name);
+        picoprobe_info("Flash         : 0x%08lx..0x%08lx (%ldK)\n", g_board_info.target_cfg->flash_regions[0].start,
+                       g_board_info.target_cfg->flash_regions[0].end - 1,
+                       (g_board_info.target_cfg->flash_regions[0].end - g_board_info.target_cfg->flash_regions[0].start) / 1024);
+        picoprobe_info("RAM           : 0x%08lx..0x%08lx (%ldK)\n",
+                       g_board_info.target_cfg->ram_regions[0].start,
+                       g_board_info.target_cfg->ram_regions[0].end - 1,
+                       (g_board_info.target_cfg->ram_regions[0].end - g_board_info.target_cfg->ram_regions[0].start) / 1024);
+        picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
     }
 
     cdc_uart_init(UART_TASK_PRIO);
