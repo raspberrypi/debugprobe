@@ -28,7 +28,6 @@ static void swd_set_target_reset_nrf(uint8_t asserted)
 {
     uint32_t ap_index_return;
 
-    cdc_debug_printf("!!!!!!!!!!!!!!!!!!!!swd_set_target_reset_nrf(%d)\n", asserted);
     if (asserted) {
         swd_init_debug();
 

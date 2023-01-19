@@ -25,6 +25,11 @@
  * Note that handling of the rescue DP has been dropped (no idea how to test this).
  */
 
+#include "DAP_config.h"
+#include "DAP.h"
+#include "swd_host.h"
+
+#include "target_family.h"
 #include "target_board.h"
 
 
@@ -48,7 +53,7 @@ static const uint32_t RP2040_FLM[] = {
 
 
 
-// TODO this is not correct, taken from nRF52
+// TODO this is not correct, taken from nRF52 (above)
 
 static const program_target_t flash_rp2040 = {
     .init              = 0x20000021,
@@ -79,7 +84,7 @@ static const sector_info_t sectors_info_rp2040[] = {     // actually the externa
 
 
 
-// target information
+// target information for RP2040 (actually Pico)
 target_cfg_t target_device_rp2040 = {
     .version                        = kTargetConfigVersion,
     .sectors_info                   = sectors_info_rp2040,
@@ -98,23 +103,93 @@ target_cfg_t target_device_rp2040 = {
 };
 
 
+// target information for a generic device which allows at least RTT (if connected)
+target_cfg_t target_device_generic = {
+    .version                        = kTargetConfigVersion,
+    .sectors_info                   = NULL,
+    .sector_info_length             = 0,
+    .flash_regions[0].start         = 0x00000000,
+    .flash_regions[0].end           = 0x00000000 + MB(1),
+    .flash_regions[0].flags         = kRegionIsDefault,
+    .flash_regions[0].flash_algo    = NULL,
+    .ram_regions[0].start           = 0x20000000,
+    .ram_regions[0].end             = 0x20000000 + KB(256),
+    .erase_reset                    = 1,
+    .target_vendor                  = "Generic",
+    .target_part_number             = "ARM",
+    .rt_family_id                   = kStub_SWSysReset_FamilyID,
+    .rt_board_id                    = "ffff",
+};
+
+
 
 extern target_cfg_t target_device_nrf52840;
 const char *board_id_nrf52840_dk = "1102";
 
+const uint32_t id_rp2040   = 0x0bc12477;
+const uint32_t id_nrf52840 = 0x2ba01477;
+
+extern const target_family_descriptor_t g_hw_reset_family;
+extern const target_family_descriptor_t g_sw_vectreset_family;
+extern const target_family_descriptor_t g_sw_sysresetreq_family;
 
 
-void target_init_all(void)
+
+static void search_family(void)
 {
-#if 0
-    target_device = target_device_rp2040;
-#else
-    target_device = target_device_nrf52840;
-    target_device.rt_family_id = kNordic_Nrf52_FamilyID;
-    target_device.rt_board_id = board_id_nrf52840_dk;
-#endif
+    // force search of family
+    g_target_family = NULL;
+
+    // search family
     init_family();
-}   // target_init_all
+}   // search_family
+
+
+
+/**
+ * Search the correct board / target / family.
+ * Currently nRF52840 and RP2040 are auto detected.
+ *
+ * Global outputs are \a g_board_info, \a g_target_family.  These are the only variables that should be (read) accessed.
+ */
+void target_auto_detect(void)
+{
+    bool r;
+    uint32_t id = 0;
+
+    id = 0;
+    if (id == 0) {
+        // check for RP2040
+        target_device = target_device_rp2040;
+        search_family();
+        if (target_set_state(ATTACH)) {
+            r = swd_read_dp(DP_IDCODE, &id);
+            if ( !r  ||  id != id_rp2040) {
+                id = 0;
+            }
+        }
+    }
+
+    if (id == 0) {
+        // check for nRF52840
+        target_device = target_device_nrf52840;
+        target_device.rt_family_id = kNordic_Nrf52_FamilyID;
+        target_device.rt_board_id = board_id_nrf52840_dk;
+        search_family();
+        if (target_set_state(ATTACH)) {
+            r = swd_read_dp(DP_IDCODE, &id);
+            if ( !r  ||  id != id_nrf52840) {
+                id = 0;
+            }
+        }
+    }
+
+    if (id == 0) {
+        // set generic device
+        target_device = target_device_generic;
+        search_family();
+    }
+}   // target_auto_detect
 
 
 

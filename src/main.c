@@ -48,6 +48,9 @@
 #include "DAP.h"
 #include "sw_lock.h"
 
+#include "target_board.h"    // DAPLink
+
+
 #if CFG_TUD_MSC
     #include "msc/msc_utils.h"
 #endif
@@ -94,6 +97,39 @@ static uint8_t RxDataBuffer[_DAP_PACKET_COUNT * _DAP_PACKET_SIZE];
 static TaskHandle_t tud_taskhandle;
 static TaskHandle_t dap_taskhandle;
 static EventGroupHandle_t events;
+
+
+
+void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
+{
+    if (itf == CDC_UART_N) {
+        cdc_uart_line_state_cb(dtr, rts);
+    }
+    else if (itf == CDC_DEBUG_N) {
+        cdc_debug_line_state_cb(dtr, rts);
+    }
+}   // tud_cdc_line_state_cb
+
+
+
+void tud_cdc_rx_cb(uint8_t itf)
+{
+    if (itf == CDC_SIGROK_N) {
+        cdc_sigrok_rx_cb();
+    }
+}   // tud_cdc_rx_cb
+
+
+
+void tud_cdc_tx_complete_cb(uint8_t itf)
+{
+    if (itf != CDC_DEBUG_N) {
+//        picoprobe_info("tud_cdc_tx_complete_cb(%d)\n", itf);
+    }
+    if (itf == CDC_SIGROK_N) {
+        cdc_sigrok_tx_complete_cb();
+    }
+}   // tud_cdc_tx_complete_cb
 
 
 
@@ -178,50 +214,38 @@ void usb_thread(void *ptr)
 {
     picoprobe_info("system starting...\n");
 
+    {
+        extern void target_auto_detect(void);
+
+        picoprobe_info("+++++++++++++++++ auto detect target +++++++++++++++++\n");
+        target_auto_detect();
+        picoprobe_info("family: 0x%04x\n", g_target_family->family_id);
+        picoprobe_info("vendor: %s\n", g_board_info.target_cfg->target_vendor);
+        picoprobe_info("part  : %s\n", g_board_info.target_cfg->target_part_number);
+        picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+    }
+
     cdc_uart_init(UART_TASK_PRIO);
 
 #if CFG_TUD_MSC
     msc_init(MSC_WRITER_THREAD_PRIO);
 #endif
 
+#if defined(INCLUDE_RTT_CONSOLE)
+    rtt_console_init(RTT_CONSOLE_TASK_PRIO);
+#endif
+
+#if defined(INCLUDE_SIGROK)
+    sigrok_init(SIGROK_TASK_PRIO);
+#endif
+
+    xTaskCreate(dap_task, "DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);
+
     for (;;) {
         tud_task();
         taskYIELD();    // not sure, if this triggers the scheduler
     }
 }   // usb_thread
-
-
-
-void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
-{
-    if (itf == CDC_UART_N) {
-        cdc_uart_line_state_cb(dtr, rts);
-    }
-    else if (itf == CDC_DEBUG_N) {
-        cdc_debug_line_state_cb(dtr, rts);
-    }
-}   // tud_cdc_line_state_cb
-
-
-
-void tud_cdc_rx_cb(uint8_t itf)
-{
-    if (itf == CDC_SIGROK_N) {
-        cdc_sigrok_rx_cb();
-    }
-}   // tud_cdc_rx_cb
-
-
-
-void tud_cdc_tx_complete_cb(uint8_t itf)
-{
-    if (itf != CDC_DEBUG_N) {
-//        picoprobe_info("tud_cdc_tx_complete_cb(%d)\n", itf);
-    }
-    if (itf == CDC_SIGROK_N) {
-        cdc_sigrok_tx_complete_cb();
-    }
-}   // tud_cdc_tx_complete_cb
 
 
 
@@ -238,13 +262,11 @@ int main(void)
     cdc_debug_init(CDC_DEBUG_TASK_PRIO);
 #endif
 
-#if defined(INCLUDE_RTT_CONSOLE)
-    rtt_console_init(RTT_CONSOLE_TASK_PRIO);
-#endif
+    sw_lock_init();
 
-#if defined(INCLUDE_SIGROK)
-    sigrok_init(SIGROK_TASK_PRIO);
-#endif
+    led_init(LED_TASK_PRIO);
+
+    DAP_Setup();
 
     // now we can "print"
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
@@ -254,15 +276,9 @@ int main(void)
 #endif
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
-    sw_lock_init();
-    led_init(LED_TASK_PRIO);
-
-    DAP_Setup();
-
     events = xEventGroupCreate();
 
     xTaskCreate(usb_thread, "TUD", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, &tud_taskhandle);
-    xTaskCreate(dap_task, "DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);
     vTaskStartScheduler();
 
     return 0;

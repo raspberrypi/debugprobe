@@ -125,7 +125,7 @@ static bool dp_core_select(uint8_t _core)
 {
     uint32_t rv;
 
-//  cdc_debug_printf("---dp_core_select(%u)\n", _core);
+//    cdc_debug_printf("---dp_core_select(%u)\n", _core);
 
     if (core == _core) {
         return true;
@@ -164,8 +164,8 @@ static bool dp_disable_breakpoint()
 /*************************************************************************************************/
 
 
-#define CHECK_ABORT(COND)          if ( !(COND)) { do_abort = 1; continue; }
-#define CHECK_ABORT_BREAK(COND)    if ( !(COND)) { do_abort = 1; break; }
+#define CHECK_ABORT(COND)          if ( !(COND)) { do_abort = true; continue; }
+#define CHECK_ABORT_BREAK(COND)    if ( !(COND)) { do_abort = true; break; }
 
 /**
  * Try very hard to initialize the target processor.
@@ -180,9 +180,9 @@ static bool rp2040_swd_init_debug(uint8_t core)
     int i = 0;
     const int timeout = 100;
     int8_t retries = 4;
-    int8_t do_abort = 0;
+    bool do_abort = false;
 
-//  cdc_debug_printf("rp2040_swd_init_debug(%d)\n", core);
+//    cdc_debug_printf("rp2040_swd_init_debug(%d)\n", core);
 
     swd_init();
     swd_from_dormant();
@@ -195,7 +195,7 @@ static bool rp2040_swd_init_debug(uint8_t core)
             osDelay(2);
             swd_set_target_reset(0);
             osDelay(2);
-            do_abort = 0;
+            do_abort = false;
         }
 
         CHECK_ABORT( dp_core_select(core) );

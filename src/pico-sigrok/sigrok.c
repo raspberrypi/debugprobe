@@ -824,8 +824,9 @@ static void sigrok_thread(void *ptr)
     Dprintf("clk_adc = %lukHz\n", f_clk_adc);
 
 #if 1
-    // TODO what is this?
     // Set GPIO23 (TP4) to control switched mode power supply noise
+    // Note: this is Pico special: GPIO23=PS=1 -> PWM mode of RT6150 (improved ripple but much worse efficiency at light loads)
+    // TODO do this just when fetching analog data
     gpio_init_mask(1 << 23);
     gpio_set_dir_masked(1 << 23, 1 << 23);
     gpio_put_masked(1 << 23, 1 << 23);
