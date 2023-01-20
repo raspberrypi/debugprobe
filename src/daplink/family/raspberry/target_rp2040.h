@@ -27,8 +27,8 @@
  * This module holds some additional swp functions.
  */
 
-#ifndef _RP2040_H
-#define _RP2040_H
+#ifndef _TARGET_RP2040_H
+#define _TARGET_RP2040_H
 
 
 #include <stdbool.h>

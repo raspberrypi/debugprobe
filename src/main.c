@@ -213,9 +213,9 @@ void dap_task(void *ptr)
 void usb_thread(void *ptr)
 {
     {
-        extern void target_auto_detect(void);
-
-        target_auto_detect();
+        if (g_board_info.prerun_board_config != NULL) {
+            g_board_info.prerun_board_config();
+        }
         picoprobe_info("Target family : 0x%04x\n", g_target_family->family_id);
         picoprobe_info("Target vendor : %s\n", g_board_info.target_cfg->target_vendor);
         picoprobe_info("Target part   : %s\n", g_board_info.target_cfg->target_part_number);

@@ -148,9 +148,13 @@ static void search_family(void)
  * Search the correct board / target / family.
  * Currently nRF52840 and RP2040 are auto detected.
  *
- * Global outputs are \a g_board_info, \a g_target_family.  These are the only variables that should be (read) accessed.
+ * Global outputs are \a g_board_info, \a g_target_family.  These are the only variables that should be (read) accessed
+ * externally.
+ *
+ * \note
+ *    I'm not sure if the usage of board_vendor/name is correct here.
  */
-void target_auto_detect(void)
+void pico_prerun_board_config(void)
 {
     bool r;
     uint32_t id = 0;
@@ -197,7 +201,7 @@ void target_auto_detect(void)
         strcpy(board_vendor, "Generic");
         strcpy(board_name, "Generic");
     }
-}   // target_auto_detect
+}   // pico_prerun_board_config
 
 
 
@@ -210,4 +214,5 @@ const board_info_t g_board_info = {
     .target_cfg          = &target_device,
     .board_vendor        = board_vendor,
     .board_name          = board_name,
+    .prerun_board_config = pico_prerun_board_config,
 };
