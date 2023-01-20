@@ -28,6 +28,7 @@
 #include <string.h>
 
 #include <pico/stdlib.h>
+#include <target_rp2040.h>
 
 #include "boot/uf2.h"                // this is the Pico variant of the UF2 header
 
@@ -44,7 +45,6 @@
 #include "target_family.h"
 #include "target_config.h"
 #include "swd_host.h"
-#include "rp2040.h"
 
 
 #define DEBUG_MODULE    0

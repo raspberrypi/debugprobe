@@ -36,13 +36,13 @@
 #include "picoprobe_config.h"
 #include "boot/uf2.h"                // this is the Pico variant of the UF2 header
 
-#include "daplink_addr.h"
+#include "target_board.h"
 
 #include "probe.h"
 #include "msc_utils.h"
 
 
-#define INCLUDE_RAM_UTF2
+#define INCLUDE_RAM_UF2
 
 
 #if CFG_TUD_MSC
@@ -71,7 +71,7 @@
 - CURRENT.UF2 mirrors the flash content of the target\r\n\
 - INFO_UF2.TXT holds some information about probe and target\r\n\
 - drop a UF2 file to flash the target device\r\n"
-#define README_SIZE   (sizeof(README_CONTENTS) - 1)
+#define README_SIZE            (sizeof(README_CONTENTS) - 1)
 
 #define INDEXHTM_CONTENTS \
 "<html><head>\r\n\
@@ -79,46 +79,56 @@
 </head>\r\n\
 <body>Redirecting to <a href=\"https://github.com/rgrr/yapicoprobe/tree/rg-\">yapicoprobe repository</a></body>\r\n\
 </html>\r\n"
-#define INDEXHTM_SIZE   (sizeof(INDEXHTM_CONTENTS) - 1)
+#define INDEXHTM_SIZE          (sizeof(INDEXHTM_CONTENTS) - 1)
 
 #define INFOUF2_CONTENTS \
-"UF2 Target Programmer v" PICOPROBE_VERSION_STRING _GIT_HASH SPEC_VERSION " for RP2040\r\n\
+"UF2 Target Programmer v" PICOPROBE_VERSION_STRING _GIT_HASH SPEC_VERSION " for %s\r\n\
 Model: Yet Another Picoprobe\r\n\
 Board-ID: RPI-RP2\r\n"
-#define INFOUF2_SIZE   (sizeof(INFOUF2_CONTENTS) - 1)
+#define INFOUF2_SIZE           150                                              // generated text must fit into buffer
 
-#define BPB_BytsPerSec         512UL
-#define BPB_BytsPerClus        65536UL
-const uint16_t BPB_TotSec16    = 32768;                                         // 16MB
-const uint8_t  BPB_SecPerClus  = SECTORS(BPB_BytsPerClus);                      // cluster size (65536 -> BPB_SecPerClus=128)
-const uint16_t BPB_RootEntCnt  = BPB_BytsPerSec / 32;                           // only one sector for root directory
-const uint16_t BPB_ResvdSecCnt = 1;
-const uint8_t  BPB_NumFATs     = 1;
-const uint16_t BPB_FATSz16     = 1;                                             // -> ~340 cluster fit into one sector for FAT12
-const uint32_t BS_VolID        = 0x1234;
-const uint8_t  BPB_Media       = 0xf8;                                          // f0=floppy, f8=HDD, fa=RAM disk (format prompt)
-const uint8_t  BS_DrvNum       = 0x80;                                          // 00=floppy, 80=fixed disk
+
+#define BPB_BytsPerSec              512UL
+#define BPB_BytsPerClus             65536UL
+#define BPB_TotSec                  (128*1024*2+20)                             // 16MB + some offset for FAT overhead
+
+#if (BPB_TotSec < 65536)
+    const uint16_t BPB_TotSec16     = BPB_TotSec;
+    const uint32_t BPB_TotSec32     = 0;
+#else
+    const uint16_t BPB_TotSec16     = 0;
+    const uint32_t BPB_TotSec32     = BPB_TotSec;
+#endif
+const uint8_t  BPB_SecPerClus       = SECTORS(BPB_BytsPerClus);                 // cluster size (65536 -> BPB_SecPerClus=128)
+const uint16_t BPB_RootEntCnt       = BPB_BytsPerSec / 32;                      // only one sector for root directory
+const uint16_t BPB_ResvdSecCnt      = 1;
+const uint8_t  BPB_NumFATs          = 1;
+const uint16_t BPB_FATSz16          = 8;                                        // -> ~2700 cluster fit into one sector for FAT12 (max ~170MB)
+const uint32_t BS_VolID             = 0x1234;
+const uint8_t  BPB_Media            = 0xf8;                                     // f0=floppy, f8=HDD, fa=RAM disk (format prompt)
+const uint8_t  BS_DrvNum            = 0x80;                                     // 00=floppy, 80=fixed disk
 
 // some calculations
-const uint32_t c_TotalCluster = BPB_TotSec16 / BPB_SecPerClus;                  // -> 256 cluster for 16MB total size and 64KByte cluster size
-const uint32_t c_BootStartSector = 0;
-const uint32_t c_BootSectors = 1;                                               // must be 1
-const uint32_t c_FatStartSector = BPB_ResvdSecCnt;
-const uint32_t c_FatSectors = BPB_FATSz16 * BPB_NumFATs;                        // must be 1
+const uint32_t c_TotalCluster       = BPB_TotSec / BPB_SecPerClus;              // -> 256 cluster for 16MB total size and 64KByte cluster size
+const uint32_t c_BootStartSector    = 0;
+const uint32_t c_BootSectors        = 1;                                        // must be 1
+const uint32_t c_FatStartSector     = BPB_ResvdSecCnt;
+const uint32_t c_FatSectors         = BPB_FATSz16 * BPB_NumFATs;
 const uint32_t c_RootDirStartSector = c_FatStartSector + c_FatSectors;
-const uint32_t c_RootDirSectors = SECTORS(32 * BPB_RootEntCnt);                 // must be 1
-const uint32_t c_DataStartSector = c_RootDirStartSector + c_RootDirSectors;
+const uint32_t c_RootDirSectors     = SECTORS(32 * BPB_RootEntCnt);             // must be 1
+const uint32_t c_DataStartSector    = c_RootDirStartSector + c_RootDirSectors;
 
-#define c_FirstSectorofCluster(N) (c_DataStartSector + ((N) - 2) * BPB_SecPerClus)
+#define c_FirstSectorofCluster(N)   (c_DataStartSector + ((N) - 2) * BPB_SecPerClus)
 
-#define RP2040_IMG_SIZE        DAPLINK_ROM_SIZE
-#define RP2040_IMG_BASE        DAPLINK_ROM_START
-#define RP2040_UF2_SIZE        (2 * RP2040_IMG_SIZE)
+// TODO remove
+#define TARGET_FLASH_IMG_BASE       (g_board_info.target_cfg->flash_regions[0].start)
+#define TARGET_FLASH_IMG_SIZE       (g_board_info.target_cfg->flash_regions[0].end - g_board_info.target_cfg->flash_regions[0].start)
+#define TARGET_FLASH_UF2_SIZE       (2 * TARGET_FLASH_IMG_SIZE)
 
-#ifdef INCLUDE_RAM_UTF2
-    #define RP2040_RAM_IMG_SIZE        DAPLINK_RAM_SIZE
-    #define RP2040_RAM_IMG_BASE        DAPLINK_RAM_START
-    #define RP2040_RAM_UF2_SIZE        (2 * RP2040_RAM_IMG_SIZE)
+#ifdef INCLUDE_RAM_UF2
+    #define TARGET_RAM_IMG_BASE     (g_board_info.target_cfg->ram_regions[0].start)
+    #define TARGET_RAM_IMG_SIZE     (g_board_info.target_cfg->ram_regions[0].end - g_board_info.target_cfg->ram_regions[0].start)
+    #define TARGET_RAM_UF2_SIZE     (2 * TARGET_RAM_IMG_SIZE)
 #endif
 
 //
@@ -140,21 +150,21 @@ const uint32_t f_IndexHtmClusters = 1;
 const uint32_t f_IndexHtmStartSector = c_FirstSectorofCluster(f_IndexHtmStartCluster);
 const uint32_t f_IndexHtmSectors = BPB_SecPerClus * f_IndexHtmClusters;
 
-const uint32_t f_CurrentUF2StartCluster = 16;
-const uint32_t f_CurrentUF2Clusters = CLUSTERS(RP2040_UF2_SIZE);
-const uint32_t f_CurrentUF2StartSector = c_FirstSectorofCluster(f_CurrentUF2StartCluster);
-const uint32_t f_CurrentUF2Sectors = BPB_SecPerClus * f_CurrentUF2Clusters;
+#define f_CurrentUF2StartCluster      16
+#define f_CurrentUF2Clusters          (CLUSTERS(TARGET_FLASH_UF2_SIZE))
+#define f_CurrentUF2StartSector       (c_FirstSectorofCluster(f_CurrentUF2StartCluster))
+#define f_CurrentUF2Sectors           (BPB_SecPerClus * f_CurrentUF2Clusters)
 
-#ifdef INCLUDE_RAM_UTF2
-    const uint32_t f_RAMUF2StartCluster = 80;
-    const uint32_t f_RAMUF2Clusters = CLUSTERS(RP2040_RAM_UF2_SIZE);
-    const uint32_t f_RAMUF2StartSector = c_FirstSectorofCluster(f_RAMUF2StartCluster);
-    const uint32_t f_RAMUF2Sectors = BPB_SecPerClus * f_RAMUF2Clusters;
+#ifdef INCLUDE_RAM_UF2
+    #define f_RAMUF2StartCluster      (f_CurrentUF2StartCluster + f_CurrentUF2Clusters)
+    #define f_RAMUF2Clusters          (CLUSTERS(TARGET_RAM_UF2_SIZE))
+    #define f_RAMUF2StartSector       (c_FirstSectorofCluster(f_RAMUF2StartCluster))
+    #define f_RAMUF2Sectors           (BPB_SecPerClus * f_RAMUF2Clusters)
 #endif
 
 static uint64_t last_write_ms = 0;
 
-const uint8_t bootsector[BPB_BytsPerSec] =
+static const uint8_t bootsector[BPB_BytsPerSec] =
     //------------- Block0: Boot Sector -------------//
     // see http://elm-chan.org/docs/fat_e.html
     {
@@ -165,13 +175,13 @@ const uint8_t bootsector[BPB_BytsPerSec] =
         AWORD(BPB_ResvdSecCnt),
         BPB_NumFATs,
         AWORD(BPB_RootEntCnt),
-        AWORD(BPB_TotSec16),                              // BPB_TotSec16 / BPB_SecPerClus determines FAT type, there are legal 340 cluster -> FAT12
+        AWORD(BPB_TotSec16),                              // BPB_TotSec16 / BPB_SecPerClus determines FAT type, there are legal 1365 cluster -> FAT12
         BPB_Media,
         AWORD(BPB_FATSz16),
         AWORD(1),                                         // BPB_SecPerTrk
         AWORD(1),                                         // BPB_NumHeads
         ADWORD(0),                                        // BPB_HiddSec
-        ADWORD(0),                                        // BPB_TotSec32
+        ADWORD(BPB_TotSec32),                             // BPB_TotSec32
 
         // byte 36 and more:
                            BS_DrvNum, 0x00, 0x29,       ADWORD(BS_VolID),  'Y',  'A',  'P',  'i',  'c',
@@ -210,8 +220,8 @@ const uint8_t bootsector[BPB_BytsPerSec] =
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, AWORD(0xaa55)
     };
 
-const uint8_t fatsector[BPB_BytsPerSec] =
-    //------------- Block1: FAT16 Table -------------//
+static const uint8_t fatsector[] =
+    //------------- Block1: FAT12 Table -------------//
     {
         // cluster 0 & 1
         AFAT12(0xf00 + BPB_Media, 0xfff), 
@@ -226,26 +236,12 @@ const uint8_t fatsector[BPB_BytsPerSec] =
         AFAT12(0xfff, 0xff7),
 
 		// cluster 8..15 (8) are spares
-		AFAT12( 0,  0), AFAT12( 0,  0), AFAT12( 0,  0), AFAT12( 0,  0),
+		AFAT12(0xff7, 0xff7), AFAT12(0xff7, 0xff7), AFAT12(0xff7, 0xff7), AFAT12(0xff7, 0xff7),
 
-        // cluster 16..79 (64) - must be f_CurrentUF2StartCluster (twice the size of the image)
-        AFAT12(17, 18), AFAT12(19, 20), AFAT12(21, 22),
-        AFAT12(23, 24), AFAT12(25, 26), AFAT12(27, 28), AFAT12(29, 30), 
-        AFAT12(31, 32), AFAT12(33, 34), AFAT12(35, 36), AFAT12(37, 38),
-        AFAT12(39, 40), AFAT12(41, 42), AFAT12(43, 44), AFAT12(45, 46),
-        AFAT12(47, 48), AFAT12(49, 50), AFAT12(51, 52), AFAT12(53, 54),
-        AFAT12(55, 56), AFAT12(57, 58), AFAT12(59, 60), AFAT12(61, 62),
-        AFAT12(63, 64), AFAT12(65, 66), AFAT12(67, 68), AFAT12(69, 70),
-        AFAT12(71, 72), AFAT12(73, 74), AFAT12(75, 76), AFAT12(77, 78),
-		AFAT12(79, 0xfff),
-
-#ifdef INCLUDE_RAM_UTF2
-        // cluster 80..87 (8) - must be f_RAMUF2StartCluster (twice the size of the image)
-        AFAT12(81, 82), AFAT12(83, 84), AFAT12(85, 86), AFAT12(87, 0xfff),
-#endif
+        // cluster 16.. f_CurrentUF2StartCluster
     };
 
-const uint8_t rootdirsector[BPB_BytsPerSec] =
+static const uint8_t rootdirsector[] =
     //------------- Block2: Root Directory -------------//
     {
         // first entry is volume label
@@ -304,23 +300,13 @@ const uint8_t rootdirsector[BPB_BytsPerSec] =
         AWORD(f_IndexHtmStartCluster),                                    // DIR_FstClusLO
         ADWORD(INDEXHTM_SIZE),                                            // DIR_FileSize
 
-        // fifth entry is "CURRENT.UF2"
-        'C', 'U', 'R', 'R', 'E', 'N', 'T', ' ', 'U', 'F', '2',
-        0x01,                                                             // DIR_Attr: ATTR_READ_ONLY
-        0,                                                                // DIR_NTRes
-        0,                                                                // DIR_CrtTimeTenth
-        ATIME(12, 0, 0),                                                  // DIR_CrtTime
-        ADATE(2022, 12, 6),                                               // DIR_CrtDate
-        ADATE(2022, 12, 6),                                               // DIR_LstAccDate
-        AWORD(0),                                                         // DIR_FstClusHi
-        ATIME(12, 0, 0),                                                  // DIR_WrtTime
-        ADATE(2022, 12, 6),                                               // DIR_WrtDate
-        AWORD(f_CurrentUF2StartCluster),                                  // DIR_FstClusLO
-        ADWORD(RP2040_UF2_SIZE),                                          // DIR_FileSize
+        // more entries are appended via append_dir_entry()
+    };
 
-#ifdef INCLUDE_RAM_UTF2
-        // sixth entry is "CURRENT.UF2"
-        'R', 'A', 'M', ' ', ' ', ' ', ' ', ' ', 'U', 'F', '2',
+static const uint8_t blank_dir_entry[] =
+    {
+        // second entry is "0_README.TXT"
+        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k',
         0x01,                                                             // DIR_Attr: ATTR_READ_ONLY
         0,                                                                // DIR_NTRes
         0,                                                                // DIR_CrtTimeTenth
@@ -330,16 +316,15 @@ const uint8_t rootdirsector[BPB_BytsPerSec] =
         AWORD(0),                                                         // DIR_FstClusHi
         ATIME(12, 0, 0),                                                  // DIR_WrtTime
         ADATE(2022, 12, 6),                                               // DIR_WrtDate
-        AWORD(f_RAMUF2StartCluster),                                      // DIR_FstClusLO
-        ADWORD(RP2040_RAM_UF2_SIZE),                                      // DIR_FileSize
-#endif
+        AWORD(0xffff),                                                    // DIR_FstClusLO
+        ADWORD(0xffffffff),                                               // DIR_FileSize
     };
 
 
 
 /// Read a single sector from an input buffer.
 /// Note that the input is checked against overflow, but the output buffer must have at least size of a sector.
-int32_t read_sector_from_buffer(void *sector_buffer, const uint8_t *src, uint32_t src_len, uint32_t sector_offs)
+static int32_t read_sector_from_buffer(void *sector_buffer, const uint8_t *src, uint32_t src_len, uint32_t sector_offs)
 {
     uint32_t src_offs = BPB_BytsPerSec * sector_offs;
 
@@ -352,7 +337,56 @@ int32_t read_sector_from_buffer(void *sector_buffer, const uint8_t *src, uint32_
         memset(sector_buffer + n, 0, BPB_BytsPerSec - n);
     }
     return BPB_BytsPerSec;
-}
+}   // read_sector_from_buffer
+
+
+
+static void append_dir_entry(uint8_t *buf, const char *name, uint32_t start_cluster, uint32_t size)
+{
+    uint32_t n;
+
+    for (n = 0;  n < BPB_BytsPerSec;  n += sizeof(blank_dir_entry)) {
+        if (buf[n] == 0) {
+            break;
+        }
+    }
+    if (n <= BPB_BytsPerSec - sizeof(blank_dir_entry)) {
+        memcpy(buf + n, blank_dir_entry, sizeof(blank_dir_entry));
+        memcpy(buf + n, name, 11);
+        buf[n + 26 + 0] = start_cluster & 0xff;
+        buf[n + 26 + 1] = start_cluster >> 8;
+        buf[n + 28 + 0] = size & 0xff;
+        buf[n + 28 + 1] = size >>  8;
+        buf[n + 28 + 2] = size >> 16;
+        buf[n + 28 + 3] = size >> 24;
+    }
+    else {
+        // directory is full, how to proceed?  (but this is a static / compile time problem...)
+    }
+}   // append_dir_entry
+
+
+
+static void insert_fat_entry(uint8_t *buf, uint16_t start, uint16_t entry_no, uint16_t cluster_ref)
+{
+    uint16_t end = start + BPB_BytsPerSec - 1;
+    uint16_t n;
+
+//    cdc_debug_printf("%u %u\n", entry_no, cluster_ref);
+
+    if ((entry_no & 0x01) == 0) {
+        n = 3 * (entry_no / 2);
+        if (n >= start  &&  n <= end) { buf[n - start] = cluster_ref & 0xff; }
+        ++n;
+        if (n >= start  &&  n <= end) { buf[n - start] = (buf[n - start] & 0xf0) | (cluster_ref >> 8); }
+    }
+    else {
+        n = 3 * (entry_no / 2) + 1;
+        if (n >= start  &&  n <= end) { buf[n - start] = (buf[n - start] & 0x0f) | ((cluster_ref & 0x0f) << 4); }
+        ++n;
+        if (n >= start  &&  n <= end) { buf[n - start] = (cluster_ref & 0xff0) >> 4; }
+    }
+}   // insert_fat_entry
 
 
 
@@ -368,7 +402,7 @@ void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16
     memcpy(product_id, pid, 16);
     memcpy(product_rev, rev, 4);
 //    picoprobe_info("tud_msc_inquiry_cb(%d, %s, %s, %s)\n", lun, vendor_id, product_id, product_rev);
-}
+}   // tud_msc_inquiry_cb
 
 
 
@@ -378,7 +412,7 @@ bool tud_msc_test_unit_ready_cb(uint8_t lun)
 {
     (void)lun;
 
-    // picoprobe_info("tud_msc_test_unit_ready_cb(%d)\n", lun);
+//    picoprobe_info("tud_msc_test_unit_ready_cb(%d)\n", lun);
     
 #if 0
     if (last_write_ms != 0) {
@@ -395,7 +429,7 @@ bool tud_msc_test_unit_ready_cb(uint8_t lun)
 #endif
 
     return true; // always ready
-}
+}   // tud_msc_test_unit_ready_cb
 
 
 
@@ -405,11 +439,11 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_siz
 {
     (void)lun;
 
-    *block_count = BPB_TotSec16;
+    *block_count = BPB_TotSec;
     *block_size = BPB_BytsPerSec;
 
 //    picoprobe_info("tud_msc_capacity_cb(%d, %lu, %u)\n", lun, *block_count, *block_size);
-}
+}   // tud_msc_capacity_cb
 
 
 
@@ -432,20 +466,26 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
     }
 
     return true;
-}
+}   // tud_msc_start_stop_cb
 
 
 
 /// Callback invoked when received READ10 command.
 /// Copy disk's data to buffer (up to bufsize) and return number of copied bytes.
 /// Note that tinyusb tries to read ahead until the internal buffer is full (until CFG_TUD_MSC_EP_BUFSIZE).
+///
+/// \note
+///    one can assume that \a bufsize >= 512
+///
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
 {
     int32_t r = bufsize;
 
-//     picoprobe_info("tud_msc_read10_cb(%d, %lu, %lu, 0x%p, %lu)\n", lun, lba, offset, buffer, bufsize);
+    assert(bufsize >= 512);
 
-    if (lba >= BPB_TotSec16)
+//    picoprobe_info("tud_msc_read10_cb(%d, %lu, %lu, 0x%p, %lu)\n", lun, lba, offset, buffer, bufsize);
+
+    if (lba >= BPB_TotSec)
         return -1;
 
     if (lba >= c_BootStartSector  &&  lba < c_BootStartSector + c_BootSectors) {
@@ -454,22 +494,53 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
         memcpy(buffer, bootsector, r);
     }
     else if (lba >= c_FatStartSector  &&  lba < c_FatStartSector + c_FatSectors) {
-//        picoprobe_info("  FAT\n");
-        r = MIN(bufsize, BPB_BytsPerSec);
-        memcpy(buffer, fatsector, r);
+        //
+        // FAT has to be generated dynamically because of CURRENT.UF2 and RAM.UF2
+        //
+        uint32_t block_no = lba - c_FatStartSector;
+
+//        picoprobe_info("  FAT %lu\n", block_no);
+        r = BPB_BytsPerSec;
+        memset(buffer, 0, r);
+        if (block_no == 0) {
+            memcpy(buffer, fatsector, sizeof(fatsector));
+        }
+        for (uint16_t cluster = f_CurrentUF2StartCluster;  cluster < f_CurrentUF2StartCluster + f_CurrentUF2Clusters;  ++cluster) {
+            insert_fat_entry(buffer, block_no * BPB_BytsPerSec,
+                             cluster, cluster < (f_CurrentUF2StartCluster + f_CurrentUF2Clusters - 1) ? cluster + 1 : 0xfff);
+        }
+#ifdef INCLUDE_RAM_UF2
+        for (uint16_t cluster = f_RAMUF2StartCluster;  cluster < f_RAMUF2StartCluster + f_RAMUF2Clusters;  ++cluster) {
+            insert_fat_entry(buffer, block_no * BPB_BytsPerSec,
+                             cluster, cluster < (f_RAMUF2StartCluster + f_RAMUF2Clusters - 1) ? cluster + 1 : 0xfff);
+        }
+#endif
     }
     else if (lba >= c_RootDirStartSector  &&  lba < c_RootDirStartSector + c_RootDirSectors) {
+        //
+        // CURRENT.UF2 and RAM.UF2 are dynamically created because they may vary in size depending on target
+        //
 //        picoprobe_info("  ROOTDIR\n");
-        r = MIN(bufsize, BPB_BytsPerSec);
-        memcpy(buffer, rootdirsector, r);
+        r = read_sector_from_buffer(buffer, rootdirsector, sizeof(rootdirsector), lba - c_RootDirStartSector);
+        append_dir_entry(buffer, "CURRENT UF2", f_CurrentUF2StartCluster, TARGET_FLASH_UF2_SIZE);
+#ifdef INCLUDE_RAM_UF2
+        append_dir_entry(buffer, "RAM     UF2", f_RAMUF2StartCluster, TARGET_RAM_UF2_SIZE);
+#endif
     }
     else if (lba >= f_ReadmeStartSector  &&  lba < f_ReadmeStartSector + f_ReadmeSectors) {
 //        picoprobe_info("  README\n");
         r = read_sector_from_buffer(buffer, (const uint8_t *)README_CONTENTS, README_SIZE, lba - f_ReadmeStartSector);
     }
     else if (lba >= f_InfoUF2TxtStartSector  &&  lba < f_InfoUF2TxtStartSector + f_InfoUF2TxtSectors) {
+        char buf[INFOUF2_SIZE];
+        int n;
+
 //        picoprobe_info("  INFO_UF2.TXT\n");
-        r = read_sector_from_buffer(buffer, (const uint8_t *)INFOUF2_CONTENTS, INFOUF2_SIZE, lba - f_InfoUF2TxtStartSector);
+        n = snprintf(buf, sizeof(buf), INFOUF2_CONTENTS, g_board_info.target_cfg->target_part_number);
+        for (int i = n;  i < sizeof(buf);  ++i) {
+            buf[i] = ' ';
+        }
+        r = read_sector_from_buffer(buffer, (const uint8_t *)buf, sizeof(buf), lba - f_InfoUF2TxtStartSector);
     }
     else if (lba >= f_IndexHtmStartSector  &&  lba < f_IndexHtmStartSector + f_IndexHtmSectors) {
 //        picoprobe_info("  INDEX.HTM\n");
@@ -479,28 +550,27 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
         const uint32_t payload_size = 256;
         const uint32_t num_blocks   = f_CurrentUF2Sectors;
         uint32_t block_no     = lba - f_CurrentUF2StartSector;
-        uint32_t target_addr  = payload_size * block_no + RP2040_IMG_BASE;
+        uint32_t target_addr  = payload_size * block_no + TARGET_FLASH_IMG_BASE;
         struct uf2_block *uf2 = (struct uf2_block *)buffer;
 
         static_assert(BPB_BytsPerSec == 512);
         static_assert(payload_size <= sizeof(uf2->data));
         assert(bufsize >= sizeof(*uf2));
 
-//        picoprobe_debug("  CURRENT.UF2 0x%lx\n", target_addr);
+//        picoprobe_debug("  CURRENT.UF2 %lu 0x%lx\n", lba, target_addr);
         r = -1;
         if (msc_target_connect(false)) {
             if (msc_target_read_memory(uf2, target_addr, block_no, num_blocks) != 0) {
                 r = BPB_BytsPerSec;
             }
         }
-//        picoprobe_debug("    %lu\n", r);
     }
-#ifdef INCLUDE_RAM_UTF2
+#ifdef INCLUDE_RAM_UF2
     else if (lba >= f_RAMUF2StartSector  &&  lba < f_RAMUF2StartSector + f_RAMUF2Sectors) {
         const uint32_t payload_size = 256;
         const uint32_t num_blocks   = f_RAMUF2Sectors;
         uint32_t block_no     = lba - f_RAMUF2StartSector;
-        uint32_t target_addr  = payload_size * block_no + RP2040_RAM_IMG_BASE;
+        uint32_t target_addr  = payload_size * block_no + TARGET_RAM_IMG_BASE;
         struct uf2_block *uf2 = (struct uf2_block *)buffer;
 
         static_assert(BPB_BytsPerSec == 512);
@@ -523,7 +593,7 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
     }
 
     return r;
-}
+}   // tud_msc_read10_cb
 
 
 
@@ -531,10 +601,10 @@ bool tud_msc_is_writable_cb(uint8_t lun)
 {
     (void)lun;
 
-    // picoprobe_info("tud_msc_is_writable_cb(%d)\n", lun);
+//    picoprobe_info("tud_msc_is_writable_cb(%d)\n", lun);
 
     return true;
-}
+}   // tud_msc_is_writable_cb
 
 
 
@@ -548,12 +618,22 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
 
 //    picoprobe_info("tud_msc_write10_cb(%d, %lu, %lu, 0x%p, %lu)\n", lun, lba, offset, buffer, bufsize);
     
-    if (lba >= BPB_TotSec16)
+    if (lba >= BPB_TotSec)
         return -1;
 
     if (lba >= c_BootStartSector  &&  lba < c_BootStartSector + c_BootSectors) {
 //        picoprobe_info("  BOOT\n");
         r = MIN(bufsize, BPB_BytsPerSec);
+#if 0
+        for (int i = 0;  i < 512;  ++i) {
+            if (i % 32 == 0)
+                cdc_debug_printf("\n");
+            else if (i % 16 == 0)
+                cdc_debug_printf(" ");
+            cdc_debug_printf(" %02x", buffer[i]);
+        }
+        cdc_debug_printf("\n");
+#endif
     }
     else if (lba >= c_FatStartSector  &&  lba < c_FatStartSector + c_FatSectors) {
 //        picoprobe_info("  FAT\n");
@@ -609,6 +689,6 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, u
     }
 
     return resplen;
-}
+}   // tud_msc_scsi_cb
 
 #endif
