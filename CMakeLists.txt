@@ -76,7 +76,9 @@ target_sources(picoprobe PRIVATE
         src/msc/msc_drive.c
         src/msc/msc_utils.c
         src/daplink/board/rp2040/pico.c
+        src/daplink/daplink/drag-n-drop/flash_manager.c
         src/daplink/daplink/interface/swd_host.c
+        src/daplink/daplink/interface/target_flash.c
         src/daplink/family/nordic/target_reset_nrf52.c
         src/daplink/family/nordic/nrf52/target.c
         src/daplink/family/raspberry/rp2040/target_reset_rp2040.c
@@ -89,6 +91,7 @@ target_include_directories(picoprobe PRIVATE
         src/daplink/daplink/cmsis-dap
         src/daplink/daplink/drag-n-drop
         src/daplink/daplink/interface
+        src/daplink/daplink/settings
         src/daplink/family/raspberry
         src/daplink/hic_hal
         src/daplink/hic_hal/raspberry/rp2040
@@ -96,8 +99,15 @@ target_include_directories(picoprobe PRIVATE
         $ENV{PICO_SDK_PATH}/src/common/boot_uf2/include
         )
 
+# both are actually dummies, because picoprobes structure is different
 add_compile_definitions(INTERFACE_RP2040=1
                         DAPLINK_IF=1)
+
+# one more dummy
+add_compile_definitions(DAPLINK_HIC_ID=0x08154711)
+
+# required to get the DAPLink functions required
+add_compile_definitions(DRAG_N_DROP_SUPPORT=1)
 
 #--------------------------------------------------------------------------------------------------
 #
