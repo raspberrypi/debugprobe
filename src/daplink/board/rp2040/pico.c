@@ -32,6 +32,8 @@
 #include "target_family.h"
 #include "target_board.h"
 
+#include "probe.h"
+
 
 
 target_cfg_t target_device;
@@ -159,6 +161,8 @@ void pico_prerun_board_config(void)
     bool r;
     uint32_t id = 0;
 
+    probe_set_swclk_freq(1500);                            // slow down during target probing
+
     if (id == 0) {
         // check for RP2040
         target_device = target_device_rp2040;
@@ -168,6 +172,7 @@ void pico_prerun_board_config(void)
             if (r  &&  id == id_rp2040) {
                 strcpy(board_vendor, "RaspberryPi");
                 strcpy(board_name, "Pico");
+                probe_set_swclk_freq(15000);
             }
             else {
                 id = 0;
@@ -187,6 +192,7 @@ void pico_prerun_board_config(void)
             if (r  &&  id == id_nrf52840) {
                 strcpy(board_vendor, "Nordic Semiconductor");
                 strcpy(board_name, "PCA10056");
+                probe_set_swclk_freq(8000);
             }
             else {
                 id = 0;

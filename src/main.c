@@ -212,6 +212,7 @@ void dap_task(void *ptr)
 
 void usb_thread(void *ptr)
 {
+    // init DAPLink
     {
         if (g_board_info.prerun_board_config != NULL) {
             g_board_info.prerun_board_config();
@@ -228,6 +229,7 @@ void usb_thread(void *ptr)
                        g_board_info.target_cfg->ram_regions[0].start,
                        g_board_info.target_cfg->ram_regions[0].end - 1,
                        (g_board_info.target_cfg->ram_regions[0].end - g_board_info.target_cfg->ram_regions[0].start) / 1024);
+        picoprobe_info("SWD frequency : %lukHz\n", DAP_DEFAULT_SWJ_CLOCK / 1000);
         picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
     }
 
