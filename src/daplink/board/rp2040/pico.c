@@ -127,11 +127,18 @@ target_cfg_t target_device_generic = {
 
 
 
+extern target_cfg_t target_device_nrf52;
+extern target_cfg_t target_device_nrf52833;
 extern target_cfg_t target_device_nrf52840;
+
+const char *board_id_nrf52832_dk = "1101";    // TODO what for?
+const char *board_id_nrf52833_dk = "1101";
 const char *board_id_nrf52840_dk = "1102";
 
-const uint32_t id_rp2040   = 0x0bc12477;
-const uint32_t id_nrf52840 = 0x2ba01477;
+const uint32_t id_rp2040   = (0x927) + (0x0002 << 12);    // taken from RP2040 SDK platform.c
+const uint32_t id_nrf52832 = 0x00052832;
+const uint32_t id_nrf52833 = 0x00052833;
+const uint32_t id_nrf52840 = 0x00052840;
 
 
 
@@ -168,34 +175,63 @@ void pico_prerun_board_config(void)
         target_device = target_device_rp2040;
         search_family();
         if (target_set_state(ATTACH)) {
-            r = swd_read_dp(DP_IDCODE, &id);
-            if (r  &&  id == id_rp2040) {
+            uint32_t chip_id;
+
+            r = swd_read_word(0x40000000, &chip_id);
+            if (r  &&  (chip_id & 0x0fffffff) == id_rp2040) {
+                id = id_rp2040;
                 strcpy(board_vendor, "RaspberryPi");
                 strcpy(board_name, "Pico");
                 probe_set_swclk_freq(15000);
-            }
-            else {
-                id = 0;
             }
         }
     }
 
     if (id == 0) {
-        // check for nRF52840
+        // check for nRF52832, nRF52833 or nRF52840
+        // DK names taken from https://infocenter.nordicsemi.com/topic/ug_gsg_ses/UG/gsg/chips_and_sds.html
         target_device = target_device_nrf52840;
         target_device.rt_family_id = kNordic_Nrf52_FamilyID;
         target_device.rt_board_id = board_id_nrf52840_dk;
         target_device.target_part_number = "nRF52840";
         search_family();
         if (target_set_state(ATTACH)) {
-            r = swd_read_dp(DP_IDCODE, &id);
-            if (r  &&  id == id_nrf52840) {
-                strcpy(board_vendor, "Nordic Semiconductor");
-                strcpy(board_name, "PCA10056");
+            uint32_t info_part;
+            uint32_t info_ram;
+            uint32_t info_flash;
+
+            r = swd_read_word(0x10000100, &info_part)  &&  swd_read_word(0x1000010c, &info_ram)  &&  swd_read_word(0x10000110, &info_flash);
+            if (r  &&  info_part == id_nrf52832) {
+                id = id_nrf52832;
+                target_device = target_device_nrf52;
+                target_device.rt_family_id = kNordic_Nrf52_FamilyID;
+                target_device.rt_board_id = board_id_nrf52832_dk;
+                target_device.target_part_number = "nRF52832";
+                target_device.flash_regions[0].end = target_device.flash_regions[0].start + 1024 * info_flash;
+                target_device.ram_regions[0].end   = target_device.ram_regions[0].start + 1024 * info_ram;
+                strcpy(board_vendor, "NordicSemiconductor");
+                strcpy(board_name, "PCA10040");
                 probe_set_swclk_freq(8000);
             }
-            else {
-                id = 0;
+            else if (r  &&  info_part == id_nrf52833) {
+                id = id_nrf52833;
+                target_device = target_device_nrf52833;
+                target_device.rt_family_id = kNordic_Nrf52_FamilyID;
+                target_device.rt_board_id = board_id_nrf52833_dk;
+                target_device.target_part_number = "nRF52833";
+                target_device.flash_regions[0].end = target_device.flash_regions[0].start + 1024 * info_flash;
+                target_device.ram_regions[0].end   = target_device.ram_regions[0].start + 1024 * info_ram;
+                strcpy(board_vendor, "NordicSemiconductor");
+                strcpy(board_name, "PCA10100");
+                probe_set_swclk_freq(8000);
+            }
+            else if (r  &&  info_part == id_nrf52840) {
+                id = id_nrf52840;
+                target_device.flash_regions[0].end = target_device.flash_regions[0].start + 1024 * info_flash;
+                target_device.ram_regions[0].end   = target_device.ram_regions[0].start + 1024 * info_ram;
+                strcpy(board_vendor, "NordicSemiconductor");
+                strcpy(board_name, "PCA10056");
+                probe_set_swclk_freq(8000);
             }
         }
     }
