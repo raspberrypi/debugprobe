@@ -51,17 +51,23 @@
 
 
 
-// these are ids for target identification, required registers to identify may/do differ
-const uint32_t id_rp2040   = (0x927) + (0x0002 << 12);    // taken from RP2040 SDK platform.c
-const uint32_t id_nrf52832 = 0x00052832;
-const uint32_t id_nrf52833 = 0x00052833;
-const uint32_t id_nrf52840 = 0x00052840;
+// these are IDs for target identification, required registers to identify may/do differ
+const uint32_t swd_id_rp2040    = (0x927) + (0x0002 << 12);    // taken from RP2040 SDK platform.c
+const uint32_t swd_id_nrf52832  = 0x00052832;                  // see FICR.INFO.PART
+const uint32_t swd_id_nrf52833  = 0x00052833;
+const uint32_t swd_id_nrf52840  = 0x00052840;
 
-const char *board_id_nrf52832_dk = "1101";                // TODO what for?
-const char *board_id_nrf52833_dk = "1101";
-const char *board_id_nrf52840_dk = "1102";
+// IDs for UF2 identification
+const uint32_t uf2_id_nrf52     = 0x1b57745f;
+const uint32_t uf2_id_nrf52833  = 0x621e937a;
+const uint32_t uf2_id_nrf52840  = 0xada52840;
+const uint32_t uf2_id_rp2040    = 0xe48bff56;
 
-
+// IDs for board identification (but whatfor?)
+#define board_id_nrf52832_dk      "1101"
+#define board_id_nrf52833_dk      "1101"
+#define board_id_nrf52840_dk      "1102"
+#define board_id_rp2040_pico      "7f01"
 
 // here we can modify the otherwise constant board/target information
 target_cfg_t target_device;
@@ -85,7 +91,8 @@ target_cfg_t target_device_rp2040 = {
     .target_vendor                  = "RaspberryPi",
     .target_part_number             = "RP2040",
     .rt_family_id                   = TARGET_RP2040_FAMILY_ID,
-    .rt_board_id                    = "7f01",                           // TODO whatfor?
+    .rt_board_id                    = board_id_rp2040_pico,
+    .rt_uf2_id                      = uf2_id_rp2040,
 };
 
 
@@ -105,6 +112,7 @@ target_cfg_t target_device_generic = {
     .target_part_number             = "cortex_m",
     .rt_family_id                   = kStub_SWSysReset_FamilyID,
     .rt_board_id                    = "ffff",
+    .rt_uf2_id                      = 0,                               // this also implies no write operation
 };
 
 
@@ -151,7 +159,7 @@ void pico_prerun_board_config(void)
             uint32_t chip_id;
 
             r = swd_read_word(0x40000000, &chip_id);
-            if (r  &&  (chip_id & 0x0fffffff) == id_rp2040) {
+            if (r  &&  (chip_id & 0x0fffffff) == swd_id_rp2040) {
                 target_found = true;
                 strcpy(board_vendor, "RaspberryPi");
                 strcpy(board_name, "Pico");
@@ -174,11 +182,12 @@ void pico_prerun_board_config(void)
             uint32_t info_flash;
 
             r = swd_read_word(0x10000100, &info_part)  &&  swd_read_word(0x1000010c, &info_ram)  &&  swd_read_word(0x10000110, &info_flash);
-            if (r  &&  info_part == id_nrf52832) {
+            if (r  &&  info_part == swd_id_nrf52832) {
                 target_found = true;
                 target_device = target_device_nrf52;
                 target_device.rt_family_id = kNordic_Nrf52_FamilyID;
-                target_device.rt_board_id = board_id_nrf52832_dk;
+                target_device.rt_board_id  = board_id_nrf52832_dk;
+                target_device.rt_uf2_id    = uf2_id_nrf52;
                 target_device.target_part_number = "nRF52832";
                 target_device.flash_regions[0].end = target_device.flash_regions[0].start + 1024 * info_flash;
                 target_device.ram_regions[0].end   = target_device.ram_regions[0].start + 1024 * info_ram;
@@ -186,11 +195,12 @@ void pico_prerun_board_config(void)
                 strcpy(board_name, "PCA10040");
                 probe_set_swclk_freq(8000);
             }
-            else if (r  &&  info_part == id_nrf52833) {
+            else if (r  &&  info_part == swd_id_nrf52833) {
                 target_found = true;
                 target_device = target_device_nrf52833;
                 target_device.rt_family_id = kNordic_Nrf52_FamilyID;
-                target_device.rt_board_id = board_id_nrf52833_dk;
+                target_device.rt_board_id  = board_id_nrf52833_dk;
+                target_device.rt_uf2_id    = uf2_id_nrf52833;
                 target_device.target_part_number = "nRF52833";
                 target_device.flash_regions[0].end = target_device.flash_regions[0].start + 1024 * info_flash;
                 target_device.ram_regions[0].end   = target_device.ram_regions[0].start + 1024 * info_ram;
@@ -198,8 +208,9 @@ void pico_prerun_board_config(void)
                 strcpy(board_name, "PCA10100");
                 probe_set_swclk_freq(8000);
             }
-            else if (r  &&  info_part == id_nrf52840) {
+            else if (r  &&  info_part == swd_id_nrf52840) {
                 target_found = true;
+                target_device.rt_uf2_id = uf2_id_nrf52840;
                 target_device.flash_regions[0].end = target_device.flash_regions[0].start + 1024 * info_flash;
                 target_device.ram_regions[0].end   = target_device.ram_regions[0].start + 1024 * info_ram;
                 strcpy(board_vendor, "NordicSemiconductor");
@@ -215,6 +226,7 @@ void pico_prerun_board_config(void)
         search_family();
         strcpy(board_vendor, "Generic");
         strcpy(board_name, "Generic");
+        probe_set_swclk_freq(2000);
     }
 }   // pico_prerun_board_config
 

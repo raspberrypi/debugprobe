@@ -79,6 +79,7 @@ typedef struct __attribute__((__packed__)) target_cfg {
                                      terminal NULL. */
     char *target_part_number;   /*!< Part number of the target device. Must match the Dname attribute value
                                      of the device's CMSIS DFP. Maximum 60 characters including terminal NULL. */
+    uint32_t rt_uf2_id;
     //@}
 } target_cfg_t;
 
