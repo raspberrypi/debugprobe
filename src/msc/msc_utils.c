@@ -48,6 +48,7 @@
 #include "error.h"
 #include "flash_intf.h"
 #include "flash_manager.h"
+#include "pico_target_utils.h"
 
 
 #define DEBUG_MODULE    0
@@ -76,6 +77,7 @@ static void                  *timer_disconnect_id;
 static bool                   have_lock;
 static bool                   must_initialize = true;
 static bool                   had_write;
+static volatile bool          is_connected;
 
 
 // -----------------------------------------------------------------------------------
@@ -98,12 +100,7 @@ extern char __stop_for_target[];
 
 #define FOR_TARGET_RP2040_CODE        __attribute__((noinline, section("for_target")))
 
-#define TARGET_RP2040_FLASH_START     0x10000000
-#define TARGET_RP2040_FLASH_MAX_SIZE  0x10000000
-#define TARGET_RP2040_RAM_START       0x20000000
-
 #define TARGET_RP2040_CODE            (TARGET_RP2040_RAM_START + 0x10000)
-#define TARGET_RP2040_STACK           (TARGET_RP2040_RAM_START + 0x30800)
 #define TARGET_RP2040_FLASH_BLOCK     ((uint32_t)rp2040_flash_block - (uint32_t)__start_for_target + TARGET_RP2040_CODE)
 #define TARGET_RP2040_BOOT2           (TARGET_RP2040_RAM_START + 0x20000)
 #define TARGET_RP2040_BOOT2_SIZE      256
@@ -111,45 +108,7 @@ extern char __stop_for_target[];
 #define TARGET_RP2040_ERASE_MAP_SIZE  256
 #define TARGET_RP2040_DATA            (TARGET_RP2040_RAM_START + 0x00000)
 
-#define rom_hword_as_ptr(rom_address) (void *)(uintptr_t)(*(uint16_t *)rom_address)
-#define fn(a, b)        (uint32_t)((b << 8) | a)
-typedef void *(*rom_table_lookup_fn)(uint16_t *table, uint32_t code);
 
-typedef void *(*rom_void_fn)(void);
-typedef void *(*rom_flash_erase_fn)(uint32_t addr, size_t count, uint32_t block_size, uint8_t block_cmd);
-typedef void *(*rom_flash_prog_fn)(uint32_t addr, const uint8_t *data, size_t count);
-
-
-// pre: flash connected, post: generic XIP active
-#define RP2040_FLASH_RANGE_ERASE(OFFS, CNT, BLKSIZE, CMD)       \
-    do {                                                        \
-        _flash_exit_xip();                                      \
-        _flash_range_erase((OFFS), (CNT), (BLKSIZE), (CMD));    \
-        _flash_flush_cache();                                   \
-        _flash_enter_cmd_xip();                                 \
-    } while (0)
-
-// pre: flash connected, post: generic XIP active
-#define RP2040_FLASH_RANGE_PROGRAM(ADDR, DATA, LEN)             \
-    do {                                                        \
-        _flash_exit_xip();                                      \
-        _flash_range_program((ADDR), (DATA), (LEN));            \
-        _flash_flush_cache();                                   \
-        _flash_enter_cmd_xip();                                 \
-    } while (0)
-
-// post: flash connected && fast or generic XIP active
-#define RP2040_FLASH_ENTER_CMD_XIP()                            \
-    do {                                                        \
-        _connect_internal_flash();                              \
-        _flash_flush_cache();                                   \
-        if (*((uint32_t *)TARGET_RP2040_BOOT2) == 0xffffffff) { \
-            _flash_enter_cmd_xip();                             \
-        }                                                       \
-        else {                                                  \
-            ((void (*)(void))TARGET_RP2040_BOOT2+1)();          \
-        }                                                       \
-    } while (0)
 
 
 ///
@@ -171,13 +130,13 @@ FOR_TARGET_RP2040_CODE uint32_t rp2040_flash_block(uint32_t addr, uint32_t *src,
     uint16_t            *function_table = (uint16_t *)rom_hword_as_ptr(0x14);
 
     rom_void_fn         _connect_internal_flash = rom_table_lookup(function_table, fn('I', 'F'));
-    rom_void_fn         _flash_exit_xip = rom_table_lookup(function_table, fn('E', 'X'));
-    rom_flash_erase_fn  _flash_range_erase = rom_table_lookup(function_table, fn('R', 'E'));
-    rom_flash_prog_fn   _flash_range_program = rom_table_lookup(function_table, fn('R', 'P'));
-    rom_void_fn         _flash_flush_cache = rom_table_lookup(function_table, fn('F', 'C'));
-    rom_void_fn         _flash_enter_cmd_xip = rom_table_lookup(function_table, fn('C', 'X'));
+    rom_void_fn         _flash_exit_xip         = rom_table_lookup(function_table, fn('E', 'X'));
+    rom_flash_erase_fn  _flash_range_erase      = rom_table_lookup(function_table, fn('R', 'E'));
+    rom_flash_prog_fn   _flash_range_program    = rom_table_lookup(function_table, fn('R', 'P'));
+    rom_void_fn         _flash_flush_cache      = rom_table_lookup(function_table, fn('F', 'C'));
+    rom_void_fn         _flash_enter_cmd_xip    = rom_table_lookup(function_table, fn('C', 'X'));
 
-    const uint32_t erase_block_size = 0x10000;               // 64K - if this is changed, then some logic below has to changed as well
+    const uint32_t erase_block_size = 0x10000;               // 64K - if this is changed, then some logic below has to be changed as well
     uint32_t offset = addr - TARGET_RP2040_FLASH_START;      // this is actually the physical flash address
     uint32_t erase_map_offset = (offset >> 16);              // 64K per map entry
     uint8_t *erase_map_entry = ((uint8_t *)TARGET_RP2040_ERASE_MAP) + erase_map_offset;
@@ -235,66 +194,6 @@ FOR_TARGET_RP2040_CODE uint32_t rp2040_flash_block(uint32_t addr, uint32_t *src,
 
 
 
-// Read 16-bit word from target memory.
-static uint8_t swd_read_word16(uint32_t addr, uint16_t *val)
-{
-	uint8_t v1, v2;
-
-	if ( !swd_read_byte(addr+0, &v1))
-		return 0;
-	if ( !swd_read_byte(addr+1, &v2))
-		return 0;
-
-	*val = ((uint16_t)v2 << 8) + v1;
-	return 1;
-}   // swd_read_word16
-
-
-
-// this is 'M' 'u', 1 (version)
-#define RP2040_BOOTROM_MAGIC 0x01754d
-#define RP2040_BOOTROM_MAGIC_ADDR 0x00000010
-
-
-//
-// find a function in the bootrom, see RP2040 datasheet, chapter 2.8
-//
-static uint32_t rp2040_target_find_rom_func(char ch1, char ch2)
-{
-	uint16_t tag = (ch2 << 8) | ch1;
-
-	// First read the bootrom magic value...
-	uint32_t magic;
-
-	if ( !swd_read_word(RP2040_BOOTROM_MAGIC_ADDR, &magic))
-		return 0;
-	if ((magic & 0x00ffffff) != RP2040_BOOTROM_MAGIC)
-		return 0;
-
-	// Now find the start of the table...
-	uint16_t v;
-	uint32_t tabaddr;
-	if ( !swd_read_word16(RP2040_BOOTROM_MAGIC_ADDR+4, &v))
-		return 0;
-	tabaddr = v;
-
-	// Now try to find our function...
-	uint16_t value;
-	do {
-		if ( !swd_read_word16(tabaddr, &value))
-			return 0;
-		if (value == tag) {
-			if ( !swd_read_word16(tabaddr+2, &value))
-				return 0;
-			return (uint32_t)value;
-		}
-		tabaddr += 4;
-	} while (value != 0);
-	return 0;
-}   // rp2040_target_find_rom_func
-
-
-
 #if DEBUG_MODULE
 static bool display_reg(uint8_t num)
 {
@@ -308,138 +207,6 @@ static bool display_reg(uint8_t num)
     return true;
 }   // display_reg
 #endif
-
-
-
-///
-/// Call function on the target device at address \a addr.
-/// Arguments are in \a args[] / \a argc, result of the called function (from r0) will be
-/// put to \a *result (if != NULL).
-///
-/// \pre
-///    - target MCU must be connected
-///    - code must be already uploaded to target
-///
-/// \note
-///    The called function could end with __breakpoint(), but with the help of the used trampoline
-///    functions in ROM, the functions can be fetched.
-///
-static bool rp2040_target_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t *result)
-{
-    static uint32_t trampoline_addr = 0;  // trampoline is fine to get the return value of the callee
-    static uint32_t trampoline_end;
-
-    if ( !target_core_halt())
-    	return false;
-
-    assert(argc <= 4);
-
-    // First get the trampoline address...  (actually not required, because the functions reside in RAM...)
-    if (trampoline_addr == 0) {
-        trampoline_addr = rp2040_target_find_rom_func('D', 'T');
-        trampoline_end = rp2040_target_find_rom_func('D', 'E');
-        if (trampoline_addr == 0  ||  trampoline_end == 0)
-        	return false;
-    }
-
-    // Set the registers for the trampoline call...
-    // function in r7, args in r0, r1, r2, and r3, end in lr?
-    for (int i = 0;  i < argc;  ++i) {
-        if ( !swd_write_core_register(i, args[i]))
-        	return false;
-    }
-    if ( !swd_write_core_register(7, addr))
-    	return false;
-
-    // Set the stack pointer to something sensible... (MSP)
-    if ( !swd_write_core_register(13, TARGET_RP2040_STACK))
-    	return false;
-
-    // Now set the PC to go to our address
-    if ( !swd_write_core_register(15, trampoline_addr))
-    	return false;
-
-    // Set xPSR for the thumb thingy...
-    if ( !swd_write_core_register(16, (1 << 24)))
-    	return false;
-
-    if ( !target_core_halt())
-    	return false;
-
-#if DEBUG_MODULE
-    for (int i = 0;  i < 18;  ++i)
-        display_reg(i);
-#endif
-
-    // start execution
-//    picoprobe_info(".................... execute\n");
-    if ( !target_core_unhalt_with_masked_ints())
-    	return false;
-
-    // check status
-    {
-    	uint32_t status;
-
-		if (!swd_read_dp(DP_CTRL_STAT, &status)) {
-			return false;
-		}
-		if (status & (STICKYERR | WDATAERR)) {
-			return false;
-		}
-    }
-
-    // Wait until core is halted (again)
-    {
-    	const uint32_t timeout_us = 5000000;
-    	bool interrupted = false;
-    	uint32_t start_us = time_us_32();
-
-    	while ( !target_core_is_halted()) {
-    		uint32_t dt_us = time_us_32() - start_us;
-
-    		if (dt_us > timeout_us) {
-    		    target_core_halt();
-    			picoprobe_error("rp2040_target_call_function: execution timed out after %lu ms\n", dt_us / 1000);
-    			interrupted = true;
-    		}
-    	}
-    	if ( !interrupted) {
-    	    uint32_t dt_ms = (time_us_32() - start_us) / 1000;
-    	    if (dt_ms > 10) {
-    	        picoprobe_debug("rp2040_target_call_function: execution finished after %lu ms\n", dt_ms);
-    	    }
-    	}
-    }
-
-#if DEBUG_MODULE
-    for (int i = 0;  i < 18;  ++i)
-        display_reg(i);
-#endif
-
-    if (result != NULL) {
-    	// fetch result of function (r0)
-    	if ( !swd_read_core_register(0, result))
-    		return false;
-    }
-
-    {
-    	uint32_t r15;
-
-    	if ( !swd_read_core_register(15, &r15)) {
-    		return false;
-    	}
-
-		if (r15 != (trampoline_end & 0xfffffffe)) {
-			picoprobe_error("rp2040_target_call_function: invoked target function did not run til end: 0x%0lx != 0x%0lx\n", r15, trampoline_end);
-			return false;
-		}
-    }
-    return true;
-}   // rp2040_target_call_function
-
-
-
-static volatile bool is_connected;
 
 
 

@@ -215,7 +215,3 @@ bool rp2040_target_call_function(uint32_t addr, uint32_t args[], int argc, uint3
     }
     return true;
 }   // rp2040_target_call_function
-
-
-
-

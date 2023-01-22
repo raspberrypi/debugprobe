@@ -11,10 +11,17 @@
 // YAPicoprobe definitions
 //
 
+#include "swd_host.h"
+
+#include "pico_target_utils.h"
+
 extern char __start_for_target_connect[];
 extern char __stop_for_target_connect[];
 
 #define FOR_TARGET_RP2040_CODE        __attribute__((noinline, section("for_target_connect")))
+
+#define TARGET_RP2040_CODE            (TARGET_RP2040_RAM_START + 0x10000)
+#define TARGET_RP2040_FLASH_SIZE      ((uint32_t)rp2040_flash_size - (uint32_t)__start_for_target_connect + TARGET_RP2040_CODE)
 
 //
 // ---------------------------------------------------------------------------------------------------------------------
@@ -143,7 +150,7 @@ FOR_TARGET_RP2040_CODE static uint32_t bytes_to_u32le(const uint8_t *b) {
 
 // Return value >= 0: log 2 of flash size in bytes.
 // Return value < 0: unable to determine size.
-FOR_TARGET_RP2040_CODE int __noinline flash_size_log2() {
+FOR_TARGET_RP2040_CODE static int __noinline flash_size_log2() {
     uint8_t rxbuf[16];
 
     // Check magic
@@ -189,3 +196,57 @@ FOR_TARGET_RP2040_CODE int __noinline flash_size_log2() {
     jedec_id_fail:
     return -1;
 }
+
+
+
+// ---------------------------------------------------------------------------------------------------------------------
+// YAPicoprobe definitions
+//
+
+FOR_TARGET_RP2040_CODE static uint32_t rp2040_flash_size(void)
+{
+    // Fill in the rom functions...
+    rom_table_lookup_fn rom_table_lookup = (rom_table_lookup_fn)rom_hword_as_ptr(0x18);
+    uint16_t            *function_table = (uint16_t *)rom_hword_as_ptr(0x14);
+
+    rom_void_fn         _flash_exit_xip         = rom_table_lookup(function_table, fn('E', 'X'));
+    rom_void_fn         _flash_flush_cache      = rom_table_lookup(function_table, fn('F', 'C'));
+    rom_void_fn         _flash_enter_cmd_xip    = rom_table_lookup(function_table, fn('C', 'X'));
+
+    _flash_exit_xip();
+    int r = flash_size_log2();
+    _flash_flush_cache();
+    _flash_enter_cmd_xip();
+
+    return (r < 0) ? 0 : (1UL << r);
+}   // rp2040_flash_size
+
+
+
+static bool rp2040_target_copy_flash_code(void)
+{
+    int code_len = (__stop_for_target_connect - __start_for_target_connect);
+
+    picoprobe_info("FLASH: Copying custom flash code to 0x%08x (%d bytes)\r\n", TARGET_RP2040_CODE, code_len);
+
+    if ( !swd_write_memory(TARGET_RP2040_CODE, (uint8_t *)__start_for_target_connect, code_len))
+        return false;
+    return true;
+}   // rp2040_target_copy_flash_code
+
+
+
+uint32_t target_rp2040_get_external_flash_size(void)
+{
+    uint32_t res = 0;
+    bool ok;
+
+    ok = target_set_state(RESET_PROGRAM);
+    if (ok) {
+        rp2040_target_copy_flash_code();
+        rp2040_target_call_function(TARGET_RP2040_FLASH_SIZE, NULL, 0, &res);
+        target_set_state(RESET_PROGRAM);
+    }
+
+    return res;
+}   // target_rp2040_get_external_flash_size

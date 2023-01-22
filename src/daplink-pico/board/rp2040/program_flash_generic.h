@@ -10,6 +10,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-int flash_size_log2();
+uint32_t target_rp2040_get_external_flash_size(void);
 
 #endif // _PROGRAM_FLASH_GENERIC_H_

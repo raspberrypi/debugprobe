@@ -49,7 +49,8 @@ Finally there is **Y**et **A**nother **Picoprobe** around, the YAPicoprobe.
 
 ## Details
 ### Known Devices
-* RP2040 (and its flash "win w25q16jv")
+* RP2040 (and its flash "win w25q16jv"), size of the targets flash is detected but
+  it's not tested, if MSC flashing does work
 * nRF52832/833/840
 * other SWD compatible (Arm) devices with limitations in MSC access
 

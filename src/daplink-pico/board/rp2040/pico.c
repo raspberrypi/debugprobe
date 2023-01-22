@@ -164,6 +164,12 @@ void pico_prerun_board_config(void)
                 strcpy(board_vendor, "RaspberryPi");
                 strcpy(board_name, "Pico");
                 probe_set_swclk_freq(15000);
+
+                // get size of targets flash
+                uint32_t size = target_rp2040_get_external_flash_size();
+                if (size > 0) {
+                    target_device.flash_regions[0].end = target_device.flash_regions[0].start + size;
+                }
             }
         }
     }
