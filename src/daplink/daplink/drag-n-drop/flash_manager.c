@@ -30,10 +30,10 @@
 #define DEBUG_FLASH_MANAGER     0
 
 #if DEBUG_FLASH_MANAGER
-#include "daplink_debug.h"
-#define flash_manager_printf    debug_msg
+    #include "cmsis_os2.h"
+    #define flash_manager_printf cdc_debug_printf
 #else
-#define flash_manager_printf(...)
+    #define flash_manager_printf(...)
 #endif
 
 typedef enum {
@@ -117,7 +117,7 @@ error_t flash_manager_data(uint32_t addr, const uint8_t *data, uint32_t size)
     uint32_t copy_size;
     uint32_t pos;
     error_t status = ERROR_SUCCESS;
-    flash_manager_printf("flash_manager_data(addr=0x%x size=0x%x)\r\n", addr, size);
+    flash_manager_printf("flash_manager_data(addr=0x%lx size=0x%lx)\r\n", addr, size);
 
     if (state != STATE_OPEN) {
         util_assert(0);
@@ -286,7 +286,7 @@ static error_t flush_current_block(uint32_t addr){
     error_t status = ERROR_SUCCESS;
     if (!buf_empty) {
         status = intf->program_page(current_write_block_addr, buf, current_write_block_size);
-        flash_manager_printf("    intf->program_page(addr=0x%x, size=0x%x) ret=%i\r\n", current_write_block_addr, current_write_block_size, status);
+        flash_manager_printf("    intf->program_page(addr=0x%lx, size=0x%lx) ret=%i\r\n", current_write_block_addr, current_write_block_size, status);
         buf_empty = true;
     }
 
@@ -333,7 +333,7 @@ static error_t setup_next_sector(uint32_t addr)
     if (page_erase_enabled) {
         // Erase the current sector
         status = intf->erase_sector(current_sector_addr);
-        flash_manager_printf("    intf->erase_sector(addr=0x%x) ret=%i\r\n", current_sector_addr);
+        flash_manager_printf("    intf->erase_sector(addr=0x%lx) ret=%i\r\n", current_sector_addr, status);
         if (ERROR_SUCCESS != status) {
             intf->uninit();
             return status;
@@ -342,9 +342,9 @@ static error_t setup_next_sector(uint32_t addr)
 
     // Clear out buffer in case block size changed
     memset(buf, 0xFF, current_write_block_size);
-    flash_manager_printf("    setup_next_sector(addr=0x%x) sect_addr=0x%x, write_addr=0x%x,\r\n",
+    flash_manager_printf("    setup_next_sector(addr=0x%lx) sect_addr=0x%lx, write_addr=0x%lx,\r\n",
                          addr, current_sector_addr, current_write_block_addr);
-    flash_manager_printf("        actual_write_size=0x%x, sector_size=0x%x, min_write=0x%x\r\n",
+    flash_manager_printf("        actual_write_size=0x%lx, sector_size=0x%lx, min_write=0x%lx\r\n",
                          current_write_block_size, current_sector_size, min_prog_size);
     return ERROR_SUCCESS;
 }
