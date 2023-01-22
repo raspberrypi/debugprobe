@@ -61,8 +61,8 @@ create-images:
 	$(MAKE) all
 	mkdir -p images
 	rm images/*.uf2
-	cp build/picoprobe.uf2 images/yapicoprobe-$(VERSION)-$(GIT_HASH)-openocd.uf2
+	cp build/picoprobe.uf2 images/yapicoprobe-$(shell printf "%02x%02x" $(VERSION_MAJOR) $(VERSION_MINOR))-$(GIT_HASH)-openocd.uf2
 	@
 	$(MAKE) cmake-create-debug OPTIMIZE_FOR_OPENOCD=0
 	$(MAKE) all
-	cp build/picoprobe.uf2 images/yapicoprobe-$(VERSION)-$(GIT_HASH).uf2
+	cp build/picoprobe.uf2 images/yapicoprobe-$(shell printf "%02x%02x" $(VERSION_MAJOR) $(VERSION_MINOR))-$(GIT_HASH).uf2

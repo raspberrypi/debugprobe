@@ -31,7 +31,7 @@ endif()
 if (OPTIMIZE_FOR_OPENOCD)
     add_definitions(-DOPTIMIZE_FOR_OPENOCD=${OPTIMIZE_FOR_OPENOCD})
 endif()
-if (PICOPROBE_VERSION)
+if (GIT_HASH)
     add_definitions(-DGIT_HASH="${GIT_HASH}")
 endif()
 
