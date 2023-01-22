@@ -17,6 +17,7 @@
 #include <string.h>
 #include "DAP_config.h"
 #include "target_family.h"
+#include "target_rp2040.h"
 #include "swd_host.h"
 
 
@@ -583,9 +584,7 @@ bool target_core_unhalt_with_masked_ints(void)
 //----------------------------------------------------------------------------------------------------------------------
 
 const target_family_descriptor_t g_raspberry_rp2040_family = {
-    .family_id                = CREATE_FAMILY_ID(127, 1),      // TODO what to use here?
-    // .default_reset_type       = kSoftwareReset,             // not required if target_set_state specified
-    // .soft_reset_type          = SYSRESETREQ,
+    .family_id                = TARGET_RP2040_FAMILY_ID,
     .swd_set_target_reset     = &rp2040_swd_set_target_reset,
     .target_set_state         = &rp2040_target_set_state,
 };

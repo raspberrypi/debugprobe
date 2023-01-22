@@ -39,6 +39,10 @@
 #endif
 
 
+// required for linking of \a g_board_info.target_cfg and \a g_raspberry_rp2040_family
+#define TARGET_RP2040_FAMILY_ID       CREATE_FAMILY_ID(127, 1)
+
+
 bool target_core_is_halted(void);
 bool target_core_halt(void);
 bool target_core_unhalt(void);
