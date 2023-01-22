@@ -1,3 +1,4 @@
+
 /**
  * @file    target_flash.c
  * @brief   Implementation of target_flash.h
@@ -24,9 +25,9 @@
 #include <string.h>
 
 #include "target_config.h"
-#include "gpio.h"
-#include "target_config.h"
-#include "intelhex.h"
+//#include "gpio.h"
+//#include "target_config.h"
+//#include <intelhex.h>
 #include "swd_host.h"
 #include "flash_intf.h"
 #include "util.h"

@@ -44,12 +44,15 @@ This information includes:
  - Optional information about a connected Target Device (for Evaluation Boards).
 */
 #include <stdbool.h>
+#include <string.h>
 #include <pico/stdlib.h>
 #include <hardware/gpio.h>
 
 #include "cmsis_compiler.h"
 #include "picoprobe_config.h"
 #include "probe.h"
+#include "get_serial.h"
+#include "target_board.h"
 
 /// Processor Clock of the Cortex-M MCU used in the Debug Unit.
 /// This value is used to calculate the SWD/JTAG clock speed.
@@ -145,127 +148,85 @@ extern uint8_t dap_packet_count;
 /// This information is returned by the command \ref DAP_Info as part of <b>Capabilities</b>.
 #define DAP_UART_USB_COM_PORT   0               ///< USB COM Port:  1 = available, 0 = not available.
 
-/// Debug Unit is connected to fixed Target Device.
-/// The Debug Unit may be part of an evaluation board and always connected to a fixed
-/// known device. In this case a Device Vendor, Device Name, Board Vendor and Board Name strings
-/// are stored and may be used by the debugger or IDE to configure device parameters.
-#define TARGET_FIXED            1               ///< Target: 1 = known, 0 = unknown;
-
-#define TARGET_DEVICE_VENDOR    "Raspberry"     ///< String indicating the Silicon Vendor
-#define TARGET_DEVICE_NAME      "RP2040"        ///< String indicating the Target Device
-#define TARGET_BOARD_VENDOR     "Raspberry"     ///< String indicating the Board Vendor
-#define TARGET_BOARD_NAME       "Pico"          ///< String indicating the Board Name
-
-#if TARGET_FIXED != 0
-#include <string.h>
-static const char TargetDeviceVendor [] = TARGET_DEVICE_VENDOR;
-static const char TargetDeviceName   [] = TARGET_DEVICE_NAME;
-static const char TargetBoardVendor  [] = TARGET_BOARD_VENDOR;
-static const char TargetBoardName    [] = TARGET_BOARD_NAME;
-#endif
 
 /** Get Vendor Name string.
 \param str Pointer to buffer to store the string (max 60 characters).
 \return String length (including terminating NULL character) or 0 (no string).
 */
-__STATIC_INLINE uint8_t DAP_GetVendorString (char *str) {
-  (void)str;
-  return (0U);
+__STATIC_INLINE uint8_t DAP_GetVendorString (char *str)
+{
+    strcpy(str, "RaspberryPi");
+    return strlen(str) + 1;
 }
 
 /** Get Product Name string.
 \param str Pointer to buffer to store the string (max 60 characters).
 \return String length (including terminating NULL character) or 0 (no string).
 */
-__STATIC_INLINE uint8_t DAP_GetProductString (char *str) {
-  (void)str;
-  return (0U);
+__STATIC_INLINE uint8_t DAP_GetProductString (char *str)
+{
+    strcpy(str, "YAPicoprobe");
+    return strlen(str) + 1;
 }
 
 /** Get Serial Number string.
 \param str Pointer to buffer to store the string (max 60 characters).
 \return String length (including terminating NULL character) or 0 (no string).
 */
-__STATIC_INLINE uint8_t DAP_GetSerNumString (char *str) {
-  (void)str;
-  return (0U);
+__STATIC_INLINE uint8_t DAP_GetSerNumString (char *str)
+{
+    strcpy(str, usb_serial);
+    return strlen(str) + 1;
 }
 
 /** Get Target Device Vendor string.
 \param str Pointer to buffer to store the string (max 60 characters).
 \return String length (including terminating NULL character) or 0 (no string).
 */
-__STATIC_INLINE uint8_t DAP_GetTargetDeviceVendorString (char *str) {
-#if TARGET_FIXED != 0
-  uint8_t len;
-
-  strcpy(str, TargetDeviceVendor);
-  len = (uint8_t)(strlen(TargetDeviceVendor) + 1U);
-  return (len);
-#else
-  (void)str;
-  return (0U);
-#endif
+__STATIC_INLINE uint8_t DAP_GetTargetDeviceVendorString (char *str)
+{
+    strcpy(str, g_board_info.target_cfg->target_vendor);
+    return strlen(str) + 1;
 }
 
 /** Get Target Device Name string.
 \param str Pointer to buffer to store the string (max 60 characters).
 \return String length (including terminating NULL character) or 0 (no string).
 */
-__STATIC_INLINE uint8_t DAP_GetTargetDeviceNameString (char *str) {
-#if TARGET_FIXED != 0
-  uint8_t len;
-
-  strcpy(str, TargetDeviceName);
-  len = (uint8_t)(strlen(TargetDeviceName) + 1U);
-  return (len);
-#else
-  (void)str;
-  return (0U);
-#endif
+__STATIC_INLINE uint8_t DAP_GetTargetDeviceNameString (char *str)
+{
+    strcpy(str, g_board_info.target_cfg->target_part_number);
+    return strlen(str) + 1;
 }
 
 /** Get Target Board Vendor string.
 \param str Pointer to buffer to store the string (max 60 characters).
 \return String length (including terminating NULL character) or 0 (no string).
 */
-__STATIC_INLINE uint8_t DAP_GetTargetBoardVendorString (char *str) {
-#if TARGET_FIXED != 0
-  uint8_t len;
-
-  strcpy(str, TargetBoardVendor);
-  len = (uint8_t)(strlen(TargetBoardVendor) + 1U);
-  return (len);
-#else
-  (void)str;
-  return (0U);
-#endif
+__STATIC_INLINE uint8_t DAP_GetTargetBoardVendorString (char *str)
+{
+    strcpy(str, g_board_info.board_vendor);
+    return strlen(str) + 1;
 }
 
 /** Get Target Board Name string.
 \param str Pointer to buffer to store the string (max 60 characters).
 \return String length (including terminating NULL character) or 0 (no string).
 */
-__STATIC_INLINE uint8_t DAP_GetTargetBoardNameString (char *str) {
-#if TARGET_FIXED != 0
-  uint8_t len;
-
-  strcpy(str, TargetBoardName);
-  len = (uint8_t)(strlen(TargetBoardName) + 1U);
-  return (len);
-#else
-  (void)str;
-  return (0U);
-#endif
+__STATIC_INLINE uint8_t DAP_GetTargetBoardNameString (char *str)
+{
+    strcpy(str, g_board_info.board_name);
+    return strlen(str) + 1;
 }
 
 /** Get Product Firmware Version string.
 \param str Pointer to buffer to store the string (max 60 characters).
 \return String length (including terminating NULL character) or 0 (no string).
 */
-__STATIC_INLINE uint8_t DAP_GetProductFirmwareVersionString (char *str) {
-  (void)str;
-  return (0U);
+__STATIC_INLINE uint8_t DAP_GetProductFirmwareVersionString (char *str)
+{
+    (void)str;
+    return 0;
 }
 
 ///@}

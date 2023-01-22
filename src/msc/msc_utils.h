@@ -41,6 +41,7 @@
 bool msc_target_connect(bool write_mode);
 bool msc_target_write_memory(const struct uf2_block *uf2);
 bool msc_target_read_memory(struct uf2_block *uf2, uint32_t target_addr, uint32_t block_no, uint32_t num_blocks);
+bool msc_target_is_writable(void);
 
 bool msc_is_uf2_record(const void *sector, uint32_t sector_size);
 

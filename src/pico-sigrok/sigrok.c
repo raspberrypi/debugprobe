@@ -814,18 +814,19 @@ static void sigrok_thread(void *ptr)
     uint admachan0, admachan1, pdmachan0, pdmachan1;
 
     vTaskDelay(pdMS_TO_TICKS(100));
-    Dprintf("------------------------------------- PICO sigrok starting\n");
-
+    Dprintf("+++++++++++++++++++++++++++++++++ PICO sigrok starting +++++++++++++++++++++++++++++++++\n");
     uint32_t f_pll_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_SYS_CLKSRC_PRIMARY);
     Dprintf("pll_sys = %lukHz\n", f_pll_sys);
     uint32_t f_clk_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);
     Dprintf("clk_sys = %lukHz\n", f_clk_sys);
     uint32_t f_clk_adc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_ADC);
     Dprintf("clk_adc = %lukHz\n", f_clk_adc);
+    Dprintf("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
 #if 1
-    // TODO what is this?
     // Set GPIO23 (TP4) to control switched mode power supply noise
+    // Note: this is Pico special: GPIO23=PS=1 -> PWM mode of RT6150 (improved ripple but much worse efficiency at light loads)
+    // TODO do this just when fetching analog data
     gpio_init_mask(1 << 23);
     gpio_set_dir_masked(1 << 23, 1 << 23);
     gpio_put_masked(1 << 23, 1 << 23);

@@ -48,6 +48,9 @@
 #include "DAP.h"
 #include "sw_lock.h"
 
+#include "target_board.h"    // DAPLink
+
+
 #if CFG_TUD_MSC
     #include "msc/msc_utils.h"
 #endif
@@ -94,6 +97,39 @@ static uint8_t RxDataBuffer[_DAP_PACKET_COUNT * _DAP_PACKET_SIZE];
 static TaskHandle_t tud_taskhandle;
 static TaskHandle_t dap_taskhandle;
 static EventGroupHandle_t events;
+
+
+
+void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
+{
+    if (itf == CDC_UART_N) {
+        cdc_uart_line_state_cb(dtr, rts);
+    }
+    else if (itf == CDC_DEBUG_N) {
+        cdc_debug_line_state_cb(dtr, rts);
+    }
+}   // tud_cdc_line_state_cb
+
+
+
+void tud_cdc_rx_cb(uint8_t itf)
+{
+    if (itf == CDC_SIGROK_N) {
+        cdc_sigrok_rx_cb();
+    }
+}   // tud_cdc_rx_cb
+
+
+
+void tud_cdc_tx_complete_cb(uint8_t itf)
+{
+    if (itf != CDC_DEBUG_N) {
+//        picoprobe_info("tud_cdc_tx_complete_cb(%d)\n", itf);
+    }
+    if (itf == CDC_SIGROK_N) {
+        cdc_sigrok_tx_complete_cb();
+    }
+}   // tud_cdc_tx_complete_cb
 
 
 
@@ -176,66 +212,31 @@ void dap_task(void *ptr)
 
 void usb_thread(void *ptr)
 {
-    picoprobe_info("system starting...\n");
+    // init DAPLink
+    {
+        if (g_board_info.prerun_board_config != NULL) {
+            g_board_info.prerun_board_config();
+        }
+        picoprobe_info("Target family : 0x%04x\n", g_target_family->family_id);
+        picoprobe_info("Target vendor : %s\n", g_board_info.target_cfg->target_vendor);
+        picoprobe_info("Target part   : %s\n", g_board_info.target_cfg->target_part_number);
+        picoprobe_info("Board vendor  : %s\n", g_board_info.board_vendor);
+        picoprobe_info("Board name    : %s\n", g_board_info.board_name);
+        picoprobe_info("Flash         : 0x%08lx..0x%08lx (%ldK)\n", g_board_info.target_cfg->flash_regions[0].start,
+                       g_board_info.target_cfg->flash_regions[0].end - 1,
+                       (g_board_info.target_cfg->flash_regions[0].end - g_board_info.target_cfg->flash_regions[0].start) / 1024);
+        picoprobe_info("RAM           : 0x%08lx..0x%08lx (%ldK)\n",
+                       g_board_info.target_cfg->ram_regions[0].start,
+                       g_board_info.target_cfg->ram_regions[0].end - 1,
+                       (g_board_info.target_cfg->ram_regions[0].end - g_board_info.target_cfg->ram_regions[0].start) / 1024);
+        picoprobe_info("SWD frequency : %lukHz\n", DAP_DEFAULT_SWJ_CLOCK / 1000);
+        picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+    }
 
     cdc_uart_init(UART_TASK_PRIO);
 
 #if CFG_TUD_MSC
     msc_init(MSC_WRITER_THREAD_PRIO);
-#endif
-
-    for (;;) {
-        tud_task();
-        taskYIELD();    // not sure, if this triggers the scheduler
-    }
-}   // usb_thread
-
-
-
-void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
-{
-    if (itf == CDC_UART_N) {
-        cdc_uart_line_state_cb(dtr, rts);
-    }
-    else if (itf == CDC_DEBUG_N) {
-        cdc_debug_line_state_cb(dtr, rts);
-    }
-}   // tud_cdc_line_state_cb
-
-
-
-void tud_cdc_rx_cb(uint8_t itf)
-{
-    if (itf == CDC_SIGROK_N) {
-        cdc_sigrok_rx_cb();
-    }
-}   // tud_cdc_rx_cb
-
-
-
-void tud_cdc_tx_complete_cb(uint8_t itf)
-{
-    if (itf != CDC_DEBUG_N) {
-//        picoprobe_info("tud_cdc_tx_complete_cb(%d)\n", itf);
-    }
-    if (itf == CDC_SIGROK_N) {
-        cdc_sigrok_tx_complete_cb();
-    }
-}   // tud_cdc_tx_complete_cb
-
-
-
-int main(void)
-{
-    board_init();
-    set_sys_clock_khz(PROBE_CPU_CLOCK_KHZ, true);
-
-    usb_serial_init();
-    tusb_init();
-
-    // should be done before anything else (that does cdc_debug_printf())
-#if !defined(NDEBUG)
-    cdc_debug_init(CDC_DEBUG_TASK_PRIO);
 #endif
 
 #if defined(INCLUDE_RTT_CONSOLE)
@@ -246,23 +247,46 @@ int main(void)
     sigrok_init(SIGROK_TASK_PRIO);
 #endif
 
+    xTaskCreate(dap_task, "DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);
+
+    tusb_init();
+    for (;;) {
+        tud_task();
+        taskYIELD();    // not sure, if this triggers the scheduler
+    }
+}   // usb_thread
+
+
+
+int main(void)
+{
+    board_init();
+    set_sys_clock_khz(PROBE_CPU_CLOCK_KHZ, true);
+
+    usb_serial_init();
+
+    // should be done before anything else (that does cdc_debug_printf())
+#if !defined(NDEBUG)
+    cdc_debug_init(CDC_DEBUG_TASK_PRIO);
+#endif
+
+    sw_lock_init();
+
+    led_init(LED_TASK_PRIO);
+
+    DAP_Setup();
+
     // now we can "print"
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
-    picoprobe_info("                     Welcome to Yet Another Picoprobe v%02x.%02x-" GIT_HASH "\n", PICOPROBE_VERSION >> 8, PICOPROBE_VERSION & 0xff);
+    picoprobe_info("                     Welcome to Yet Another Picoprobe v" PICOPROBE_VERSION_STRING "-" GIT_HASH "\n");
 #if OPTIMIZE_FOR_OPENOCD
     picoprobe_info("                               OpenOCD optimized version\n");
 #endif
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
-    sw_lock_init();
-    led_init(LED_TASK_PRIO);
-
-    DAP_Setup();
-
     events = xEventGroupCreate();
 
     xTaskCreate(usb_thread, "TUD", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, &tud_taskhandle);
-    xTaskCreate(dap_task, "DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);
     vTaskStartScheduler();
 
     return 0;

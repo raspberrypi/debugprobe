@@ -58,6 +58,7 @@ __WEAK const target_family_descriptor_t g_toshiba_tz_family = {0};
 __WEAK const target_family_descriptor_t g_ambiq_ama3b1kk = {0};
 __WEAK const target_family_descriptor_t g_maxim_max3262x_family = {0};
 __WEAK const target_family_descriptor_t g_maxim_max3266x_family = {0};
+__WEAK const target_family_descriptor_t g_raspberry_rp2040_family = {0};
 
 //! @brief Terminator value for g_families list.
 //!
@@ -90,6 +91,7 @@ const target_family_descriptor_t *g_families[] = {
     &g_ambiq_ama3b1kk,
     &g_maxim_max3262x_family,
     &g_maxim_max3266x_family,
+    &g_raspberry_rp2040_family,
     FAMILY_LIST_TERMINATOR // list terminator
 };
 
@@ -152,6 +154,7 @@ uint8_t target_set_state(target_state_t state)
 
 void swd_set_target_reset(uint8_t asserted)
 {
+//    cdc_debug_printf("swd_set_target_reset(%d), %p %p\n", asserted, g_target_family, g_target_family == NULL ? NULL : g_target_family->swd_set_target_reset);
     if (g_target_family && g_target_family->swd_set_target_reset) {
         g_target_family->swd_set_target_reset(asserted);
     } else {
