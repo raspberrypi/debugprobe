@@ -82,9 +82,9 @@
 #define INDEXHTM_SIZE          (sizeof(INDEXHTM_CONTENTS) - 1)
 
 #define INFOUF2_CONTENTS \
-"UF2 Target Programmer v" PICOPROBE_VERSION_STRING _GIT_HASH SPEC_VERSION " for %s\r\n\
+"UF2 Target Programmer v" PICOPROBE_VERSION_STRING _GIT_HASH SPEC_VERSION " for %s%s\r\n\
 Model: Yet Another Picoprobe\r\n\
-Board-ID: RPI-RP2\r\n"
+Board-ID: %s\r\n"
 #define INFOUF2_SIZE           150                                              // generated text must fit into buffer
 
 
@@ -536,7 +536,10 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
         int n;
 
 //        picoprobe_info("  INFO_UF2.TXT\n");
-        n = snprintf(buf, sizeof(buf), INFOUF2_CONTENTS, g_board_info.target_cfg->target_part_number);
+        n = snprintf(buf, sizeof(buf), INFOUF2_CONTENTS,
+                     g_board_info.target_cfg->target_part_number,
+                     msc_target_is_writable() ? "" : " (READONLY)",
+                     g_board_info.board_name);
         for (int i = n;  i < sizeof(buf);  ++i) {
             buf[i] = ' ';
         }
@@ -603,7 +606,7 @@ bool tud_msc_is_writable_cb(uint8_t lun)
 
 //    picoprobe_info("tud_msc_is_writable_cb(%d)\n", lun);
 
-    return true;
+    return msc_target_is_writable();
 }   // tud_msc_is_writable_cb
 
 

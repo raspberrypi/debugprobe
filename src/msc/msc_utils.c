@@ -50,17 +50,14 @@
 #include "flash_manager.h"
 
 
-#define XXX
 #define DEBUG_MODULE    0
 
-#define FAMILY_ID_NRF52    0x1b57745f     // TODO
-#define FAMILY_ID_NRF52840    0xada52840
+// DAPLink needs bigger buffer
+#define TARGET_WRITER_THREAD_MSGBUFF_SIZE   (16 * sizeof(struct uf2_block) + 100)
 
-#ifdef XXX
-    #define TARGET_WRITER_THREAD_MSGBUFF_SIZE   (8 * sizeof(struct uf2_block) + 100)
-#else
-    #define TARGET_WRITER_THREAD_MSGBUFF_SIZE   (4 * sizeof(struct uf2_block) + 100)
-#endif
+#define USE_DAPLINK()         (UF2_ID != RP2040_FAMILY_ID)
+#define UF2_ID                (g_board_info.target_cfg->rt_uf2_id)
+#define UF2_ID_IS_PRESENT()   (UF2_ID != 0)
 
 extern target_cfg_t target_device_rp2040;
 
@@ -492,9 +489,9 @@ static void target_disconnect(TimerHandle_t xTimer)
             picoprobe_info("=================================== MSC disconnect target\n");
             led_state(LS_MSC_DISCONNECTED);
             if (had_write) {
-#ifdef XXX
-                flash_manager_uninit();
-#endif
+                if (USE_DAPLINK()) {
+                    flash_manager_uninit();
+                }
                 target_set_state(RESET_RUN);
             }
             is_connected = false;
@@ -553,12 +550,12 @@ static void setup_uf2_record(struct uf2_block *uf2, uint32_t target_addr, uint32
 {
     uf2->magic_start0 = UF2_MAGIC_START0;
     uf2->magic_start1 = UF2_MAGIC_START1;
-    uf2->flags        = UF2_FLAG_FAMILY_ID_PRESENT;
+    uf2->flags        = UF2_ID_IS_PRESENT() ? UF2_FLAG_FAMILY_ID_PRESENT : 0;
     uf2->target_addr  = target_addr;
     uf2->payload_size = payload_size;
     uf2->block_no     = block_no;
     uf2->num_blocks   = num_blocks;
-    uf2->file_size    = RP2040_FAMILY_ID;                  // TODO family is target dependent
+    uf2->file_size    = UF2_ID;
     uf2->magic_end    = UF2_MAGIC_END;
 }   // setup_uf2_record
 
@@ -582,7 +579,7 @@ bool msc_is_uf2_record(const void *sector, uint32_t sector_size)
             &&  uf2->target_addr - payload_size * uf2->block_no + payload_size * uf2->num_blocks
                         <= TARGET_FLASH_END) {
             if ((uf2->flags & UF2_FLAG_FAMILY_ID_PRESENT) != 0) {
-                if (uf2->file_size == RP2040_FAMILY_ID) {          // // TODO family is target dependent
+                if (uf2->file_size == UF2_ID) {
                     r = true;
                 }
             }
@@ -638,32 +635,32 @@ void target_writer_thread(void *ptr)
         xSemaphoreTake(sema_swd_in_use, portMAX_DELAY);
 
         if (must_initialize) {
-#ifdef XXX
-            error_t sts;
+            if (USE_DAPLINK()) {
+                error_t sts;
 
-//            flash_manager_set_page_erase(false);
-            sts = flash_manager_init(flash_intf_target);
-            picoprobe_info("flash_manager_init = %d\n", sts);
-            if (sts == ERROR_SUCCESS) {
-                must_initialize = false;
+//              flash_manager_set_page_erase(false);
+                sts = flash_manager_init(flash_intf_target);
+                picoprobe_info("flash_manager_init = %d\n", sts);
+                if (sts == ERROR_SUCCESS) {
+                    must_initialize = false;
+                }
+            }
+            else {
+                bool ok;
+
+                ok = target_set_state(RESET_PROGRAM);
+                if (ok) {
+                    must_initialize = false;
+                    rp2040_target_copy_flash_code();
+                }
             }
             had_write = true;
-#else
-            bool ok;
-
-            ok = target_set_state(RESET_PROGRAM);
-            if (ok) {
-                must_initialize = false;
-                rp2040_target_copy_flash_code();
-            }
-            had_write = true;
-#endif
         }
 
-#ifdef XXX
-        flash_manager_data(uf2.target_addr, uf2.data, uf2.payload_size);
-#else
-        {
+        if (USE_DAPLINK()) {
+            flash_manager_data(uf2.target_addr, uf2.data, uf2.payload_size);
+        }
+        else {
             uint32_t arg[3];
             uint32_t res;
 
@@ -671,7 +668,7 @@ void target_writer_thread(void *ptr)
             arg[1] = TARGET_RP2040_DATA;
             arg[2] = uf2.payload_size;
 
-    //        picoprobe_info("     0x%lx, 0x%lx, 0x%lx, %ld\n", TARGET_RP2040_FLASH_BLOCK, arg[0], arg[1], arg[2]);
+//          picoprobe_info("     0x%lx, 0x%lx, 0x%lx, %ld\n", TARGET_RP2040_FLASH_BLOCK, arg[0], arg[1], arg[2]);
 
             if (swd_write_memory(TARGET_RP2040_DATA, (uint8_t *)uf2.data, uf2.payload_size)) {
                 rp2040_target_call_function(TARGET_RP2040_FLASH_BLOCK, arg, sizeof(arg) / sizeof(arg[0]), &res);
@@ -683,12 +680,18 @@ void target_writer_thread(void *ptr)
                 picoprobe_error("target_writer_thread: failed to write to 0x%lx/%ld\n", uf2.target_addr, uf2.payload_size);
             }
         }
-#endif
 
         xTimerReset(timer_disconnect, pdMS_TO_TICKS(10));    // the above operation could take several 100ms!
         xSemaphoreGive(sema_swd_in_use);
     }
 }   // target_writer_thread
+
+
+
+bool msc_target_is_writable(void)
+{
+    return UF2_ID_IS_PRESENT();
+}   // msc_target_is_writable
 
 
 
