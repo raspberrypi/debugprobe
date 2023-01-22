@@ -85,6 +85,7 @@ target_sources(picoprobe PRIVATE
         src/daplink/target/target_board.c
         src/daplink/target/target_family.c
         src/daplink-pico/board/rp2040/pico.c
+        src/daplink-pico/board/rp2040/program_flash_generic.c
         src/daplink-pico/family/raspberry/rp2040/target_reset_rp2040.c
         )
 
