@@ -1,20 +1,20 @@
 :imagesdir: doc/png
 :source-highlighter: rouge
 
-# Yet another Picoprobe
+# Yet Another Picoprobe
 
 :toc:
 
-Picoprobe allows a Pico / RP2040 to be used as USB -> SWD and UART bridge. This means
-it can be used as a debugger and serial console for another Pico.
+YAPicoprobe allows a Pico / RP2040 to be used as USB -> SWD and UART bridge. This means
+it can be used as a debugger and serial console for another Pico or any other SWD compatible controller.
 
-Yet another Picoprobe is a fork of the original https://github.com/raspberrypi/picoprobe[Picoprobe]
+YAPicoprobe is a fork of the original https://github.com/raspberrypi/picoprobe[Picoprobe]
 and was created due to my lazyness to follow the PR discussions and delays with unknown outcome.
 
 Another reason for this fork is that I wanted to play around with SWD, RTT, PIO etc pp, so
 the established development process was a little bit hindering.
 
-Finally there is one more Picoprobe around, the YAPicoprobe.
+Finally there is **Y**et **A**nother **Picoprobe** around, the YAPicoprobe.
 
 
 
@@ -26,7 +26,7 @@ Finally there is one more Picoprobe around, the YAPicoprobe.
 ** CMSIS-DAPv2 WinUSB (driver-less vendor-specific bulk) - CMSIS compliant debug channel
 ** CMSIS-DAPv1 HID - CMSIS compliant debug channel as a fallback
 * MSC - drag-n-drop support of UF2 firmware image à la https://github.com/ARMmbed/DAPLink[DAPLink]
-  for the RP2040 Pico / PicoW
+  for RP2040 Pico / PicoW and nRF52832/833/840 targets
 * CDC - virtual com port for logging of the target
 ** UART connection between target and probe is redirected
 ** RTT terminal channel is automatically redirected into this CDC (if there is no
@@ -40,6 +40,7 @@ Finally there is one more Picoprobe around, the YAPicoprobe.
 * on Windows no more Zadig fiddling because the underlying protocols of CMSIS-DAPv1 and v2 are driver-less
 * easy drag-n-drop (or copy) upload of a firmware image to the target via the probe
 * no more reset push button (or disconnect/connect cycle)  to put the target into BOOTSEL mode
+* auto detection of RP2040/nRF52/Generic targets
 
 ### Minus
 * custom Picoprobe protocol has been dropped
@@ -47,6 +48,30 @@ Finally there is one more Picoprobe around, the YAPicoprobe.
 
 
 ## Details
+### Known Devices
+* RP2040 (and its flash "win w25q16jv")
+* nRF52832/833/840
+* other SWD compatible (Arm) devices with limitations in MSC access
+
+### Code Inherited
+[%header]
+|===
+| |
+
+| https://github.com/raspberrypi/picoprobe[Picoprobe] | the original
+
+| https://github.com/essele/pico_debug[pico_debug]
+| another probe which gave ideas for PIO code
+
+| https://github.com/pico-coder/sigrok-pico[sigrok-pico]
+| original RP2040 based sigrok logic analyzer / oscilloscope
+
+| https://github.com/ARMmbed/DAPLink[DAPLink]
+| The SWD probe software for a lot of targets and boards
+
+|===
+
+
 ### Wiring
 Picoprobe documentation can be found in the https://datasheets.raspberrypi.com/pico/getting-started-with-pico.pdf[Pico Getting Started Guide].
 See "Appendix A: Using Picoprobe".
@@ -139,14 +164,34 @@ SWCLK speed for MSC and RTT (below) is set according to the latest used tool set
 E.g. `pyocd reset -f 5000000` sets SWCLK to 5MHz.
 ====
 
+[NOTE]
+====
+SWD clock frequency is also limited by the target controller.  For nRF52 targets default clock is set to 8MHz,
+for unknown SWD targets 2MHz are used.
+====
+
 
 ### MSC - Mass Storage Device Class
 Via MSC the so called "drag-n-drop" supported is implemented.  Actually this also helps in copying a UF2 image directly into the target via command line.
 
-Note, that flash erase takes place on a 64KByte base:  on the first write to a 64 KByte page, the corresponding page is erased.  That means, that multiple UF2 images can be flashed into the target as long as there is no overlapping within 64 KByte boundaries.
+MSC write access, i.e. flashing of the target, is device dependent and thus works only for a few selected
+devices which are in my range of interest.  Those devices are the RP2040 (and its flash "win w25q16jv") and the
+Nordic nRF52 family (namely nRF52832/833/840). +
+For the RP2040 some special flash routines has been implemented.  For nRF52 flashing
+regular DAPLink modules have been taken.  Which also implies, that extending the probes capabilities shouln't be
+too hard.
 
-Because writing/erasing of the flash is target depending, the current implementation is limited to the RP2040 and its "win w25q16jv".
-CMSIS-DAP should be generic, which means that its tools dependant (openocd/pyocd).
+[NOTE]
+====
+* RP2040: flash erase takes place on a 64KByte base:  on the first write to a 64 KByte page, 
+  the corresponding page is erased.  That means, that multiple UF2 images can be flashed into the 
+  target as long as there is no overlapping within 64 KByte boundaries
+* nRF52: whole chip is erased on first write operation of an UF2 image which means that
+  only one UF2 image can be flashed
+====
+
+Because CMSIS-DAP access should be generic, flashing of other SWD compatible devices is tool dependant
+(openocd/pyocd).
 
 
 ### RTT - Real Time Transfer
@@ -155,18 +200,19 @@ allows transfer from the target to the host in "realtime".  YAPicoprobe currentl
 channel 0 of the targets RTT and sends it into the CDC of the target.  Effectively this
 allows RTT debug output into a terminal.
 
-Notes:
-
-* only the RP2040 RAM is scanned for an RTT control block which 
-  means 0x20000000-0x2003ffff
+[NOTE]
+====
+* only the devices RAM is scanned for an RTT control block, for unknown devices
+  RAM in the range 0x20000000-0x2003ffff is assumed
 * don't be too overwhelmed about Seggers numbers in
   the above mentioned document.  The data must still be
-  transferred which to my opinion is not taken into
-  account (of course the target processor has finished
+  transferred which is not taken into account in the diagram
+  (of course the target processor has finished
   after writing the data)
 * only one of CMSIS-DAP / MSC / RTT can access the
   target at the same time.  RTT is disconnected in 
   case CMSIS-DAP or MSC are claiming access
+====
 
 
 ### sigrok - Data Collection
@@ -424,9 +470,7 @@ optimization is still a non/slow-working mystery).
 ** check the benchmark "miracle" with the NDEBUG version 
 ** if `configTICK_RATE_HZ` is around 100, the SWD IF no longer works
 * TODO
-** sigrok pins description
-** support of Nordic nRF52xxx (my other target)
-*** voltage of SWD IF is VDD
+** voltage of SWD IF is VDD
 ** DAP_PACKET_SIZE: how to increase?
 ** description of the several COM ports
 ** MSD/MSC commands just like in DAPLink

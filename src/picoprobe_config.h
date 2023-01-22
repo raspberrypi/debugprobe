@@ -27,10 +27,6 @@
 #define PICOPROBE_H_
 
 
-#if !defined(PICOPROBE_VERSION)
-    #define PICOPROBE_VERSION   0x0105
-#endif
-
 /// which means: pyocd will not work.
 #ifndef OPTIMIZE_FOR_OPENOCD
     #define OPTIMIZE_FOR_OPENOCD     0
