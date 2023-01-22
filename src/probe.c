@@ -43,6 +43,8 @@
 #define CTRL_WORD_WRITE(CNT, DATA)    (((DATA) << 13) + ((CNT) << 8) + (probe.offset + probe_offset_short_output))
 #define CTRL_WORD_READ(CNT)           (                 ((CNT) << 8) + (probe.offset + probe_offset_input))
 
+#define OPTIMIZE  __attribute__((optimize("O3")))
+
 
 // Only want to set / clear one gpio per event so go up in powers of 2
 enum _dbg_pins {
@@ -133,7 +135,7 @@ void probe_assert_reset(bool state)
  * Actually only 32bit can be set, more data is sent as "zero".  Especially useful for
  * idle cycles (although never seen),
  */
-void __not_in_flash_func(probe_write_bits)(uint bit_count, uint32_t data)
+OPTIMIZE void __not_in_flash_func(probe_write_bits)(uint bit_count, uint32_t data)
 {
     DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE);
     for (;;) {
@@ -152,7 +154,7 @@ void __not_in_flash_func(probe_write_bits)(uint bit_count, uint32_t data)
 
 
 
-uint32_t __not_in_flash_func(probe_read_bits)(uint bit_count, bool push, bool pull)
+OPTIMIZE uint32_t __not_in_flash_func(probe_read_bits)(uint bit_count, bool push, bool pull)
 {
     uint32_t data = 0xffffffff;
     uint32_t data_shifted;
