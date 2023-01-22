@@ -24,7 +24,7 @@
  */
 
 /**
- * This module holds some additional swp functions.
+ * This module holds some additional SWD functions.
  */
 
 #ifndef _TARGET_RP2040_H

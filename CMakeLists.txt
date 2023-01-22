@@ -85,6 +85,7 @@ target_sources(picoprobe PRIVATE
         src/daplink/target/target_board.c
         src/daplink/target/target_family.c
         src/daplink-pico/board/rp2040/pico.c
+        src/daplink-pico/board/rp2040/pico_target_utils.c
         src/daplink-pico/board/rp2040/program_flash_generic.c
         src/daplink-pico/family/raspberry/rp2040/target_reset_rp2040.c
         )
@@ -97,6 +98,7 @@ target_include_directories(picoprobe PRIVATE
         src/daplink/daplink/settings
         src/daplink/hic_hal
         src/daplink/target
+        src/daplink-pico/board/rp2040
         src/daplink-pico/family/raspberry
         src/daplink-pico/hic_hal/raspberry/rp2040
         $ENV{PICO_SDK_PATH}/src/common/boot_uf2/include

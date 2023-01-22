@@ -1,6 +1,6 @@
 /**
- * @file    rp2040.c
- * @brief   board ID for the Raspberry Pi Pico board
+ * @file    pico.c
+ * @brief   board code for Pico
  *
  * DAPLink Interface Firmware
  * Copyright (c) 2009-2019, ARM Limited, All Rights Reserved
