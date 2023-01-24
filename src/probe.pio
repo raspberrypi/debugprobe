@@ -27,12 +27,14 @@
 // PIO clock is set to a high frequency to keep the timing effects of the instructions outside the shift loops small
 // BUT take care of maximum frequency / minimum divisor:
 //      Effective frequency is sysclk/(int + frac/256). Value of 0 is interpreted as 65536. If INT is 0, FRAC must also be 0.
+//
+// Sideset pin0 is SWDIR, pin1 is SWCLK
 
 // The following code has been mainly taken from https://github.com/essele/pico_debug/blob/main/swd.pio
 
     .program probe
     
-    .side_set 1 opt                                ; side set SWCLK
+    .side_set 2 opt                                ; side set SWCLK
 
 
 ; The default approach is to just accept jump targets in the FIFO so they effectively
@@ -40,7 +42,7 @@
 ; The jump target is 8 bits (the least significant 8)
 
 public start:
-    out pc, 8                   side 0
+    out pc, 8
 
 
 ; // OUTPUT //
@@ -50,11 +52,11 @@ public start:
 
 public short_output:
     out x, 5
-    set pindirs, 1              side 0
+    set pindirs, 1              side 1
 bulk_out_loop:
-    out pins, 1                 side 0 [2]
-    jmp x--, bulk_out_loop      side 1 [2]
-    set pins, 1                 side 0
+    out pins, 1                 side 1 [2]
+    jmp x--, bulk_out_loop      side 3 [2]
+    set pins, 1                 side 1
     out NULL, 32                                  ; clear anything not sent
     jmp start
 
@@ -68,7 +70,7 @@ public input:
 public in_jmp:
     set pindirs, 0              side 0
 bulk_in_loop:
-    in pins, 1                  side 1 [2]
+    in pins, 1                  side 2 [2]
     jmp x--, bulk_in_loop       side 0 [2]
     push
     jmp start

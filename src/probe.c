@@ -186,6 +186,7 @@ void probe_gpio_init()
 		picoprobe_debug("probe_gpio_init()\n");
 
 		// Funcsel pins
+        pio_gpio_init(PROBE_PIO, PROBE_PIN_SWDIR);
 		pio_gpio_init(PROBE_PIO, PROBE_PIN_SWCLK);
 		pio_gpio_init(PROBE_PIO, PROBE_PIN_SWDIO);
 		// Make sure SWDIO has a pullup on it. Idle state is high
@@ -213,15 +214,15 @@ void probe_init()
         pio_sm_config sm_config = probe_program_get_default_config(offset);
 
         // Set SWCLK as a sideset pin
-        sm_config_set_sideset_pins(&sm_config, PROBE_PIN_SWCLK);
+        sm_config_set_sideset_pins(&sm_config, PROBE_PIN_SWDIR);
 
         // Set SWDIO offset
         sm_config_set_out_pins(&sm_config, PROBE_PIN_SWDIO, 1);
         sm_config_set_set_pins(&sm_config, PROBE_PIN_SWDIO, 1);
         sm_config_set_in_pins(&sm_config, PROBE_PIN_SWDIO);
 
-        // Set SWD and SWDIO pins as output to start. This will be set in the sm
-        pio_sm_set_consecutive_pindirs(PROBE_PIO, PROBE_SM, PROBE_PIN_OFFSET, 2, true);
+        // Set SWDIR, SWCLK and SWDIO pins as output to start. This will be set in the sm
+        pio_sm_set_consecutive_pindirs(PROBE_PIO, PROBE_SM, PROBE_PIN_OFFSET, 3, true);
 
         // shift output right, autopull on, autopull threshold
         sm_config_set_out_shift(&sm_config, true, true, 32);
