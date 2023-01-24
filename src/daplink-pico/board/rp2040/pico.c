@@ -57,7 +57,8 @@ const uint32_t swd_id_nrf52832  = 0x00052832;                  // see FICR.INFO.
 const uint32_t swd_id_nrf52833  = 0x00052833;
 const uint32_t swd_id_nrf52840  = 0x00052840;
 
-// IDs for UF2 identification
+// IDs for UF2 identification, use the following command to obtain recent list:
+// curl https://raw.githubusercontent.com/microsoft/uf2/master/utils/uf2families.json | jq -r '.[] | "\(.id)\t\(.description)"' | sort -k 2
 const uint32_t uf2_id_nrf52     = 0x1b57745f;
 const uint32_t uf2_id_nrf52833  = 0x621e937a;
 const uint32_t uf2_id_nrf52840  = 0xada52840;
