@@ -4,7 +4,7 @@
 #
 
 VERSION_MAJOR        := 1
-VERSION_MINOR        := 6
+VERSION_MINOR        := 7
 OPTIMIZE_FOR_OPENOCD ?= 0
 
 
