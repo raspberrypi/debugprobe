@@ -49,7 +49,8 @@ Finally there is **Y**et **A**nother **Picoprobe** around, the YAPicoprobe.
 
 ## Details
 ### Known Devices
-* RP2040 (and its flash "win w25q16jv")
+* RP2040 (and its flash "win w25q16jv"), size of the targets flash is detected but
+  it's not tested, if MSC flashing does work
 * nRF52832/833/840
 * other SWD compatible (Arm) devices with limitations in MSC access
 
@@ -91,6 +92,7 @@ does not add any features, instead the LED indicator does not work there.
 |===
 | Pin | Description
 
+| GP1       | SWDIR
 | GP2       | target SWCLK
 | GP3       | target SWDIO
 | GP4       | target UART-RX
@@ -108,7 +110,7 @@ does not add any features, instead the LED indicator does not work there.
 |===
 | Pin | Description
 
-| GPIO0..1    | spare
+| GPIO0       | spare
 | GPIO7..9    | spare
 | GPIO18      | spare
 | GPIO19..21  | debug pins (for probe debugging)
@@ -446,6 +448,35 @@ candidates.  Note that moving code into RAM did not really help (and
 optimization is still a non/slow-working mystery).
 
 
+### SWDIR
+Level shifter must be used to allow different voltage levels on probe and target.
+There are different switching circuits out there, e.g.
+
+* https://www.ti.com/product/TXS0108E[TXS0108E] (or TXS0102/4E) which
+  allows 3.3V on probe side and up to 5V on target side for up to 8 signals
+* https://www.ti.com/product/SN74LXC1T45[74LXC1T45] which allows the same voltage levels
+  for a single signal (depending of type)
+
+Because SWDIO is a bidirectional signal, the level shifter must
+switch between input and output.  The TXS010xx does this automatically while the 74LXCxT45
+requires an SWDIR signal to control direction.
+
+Drawback of the automatic switching are much lower frequencies (\<=24MHz) which may pass
+the component and the condition Vcca\<=Vccb.  So the TXS0108E is actually not
+recommended for this purpose.
+
+For a clean implementation SWDIR has been provided to allow support of the 74LXCxT45.  The following image
+shows the timing of SWDIR, SWCLK and SWDIO.
+
+image::Screenshot_20230124_140906.png[SWDIR]
+
+[NOTE]
+====
+For the sigrok input signals it's also good practice to use level shifter if the target
+uses other voltage levels than the probe.
+====
+
+
 
 ## Notes
 * Frequencies
@@ -455,16 +486,15 @@ optimization is still a non/slow-working mystery).
 ** PIO is running 7x faster in auto trigger mode than the specified sample rate 
 
 
-## Ideas
-* hardware
-** SWDDIR for external level shifter, should be high for TX 
-   operation (compatible with SN74AVC(H)2T45)
-** 7803 for power supply of target
-** level shifter for sigrok
-** is a direction switch required at all?  See TXS0108E: https://cdn.sparkfun.com/assets/1/8/1/e/2/txs0108e.pdf
+## Misc
+### Hardware
+* use 2x 74LXC1T45 for the SWD IF
+* 7803 for power supply of target
+* https://www.ti.com/product/SN74LVC4245A[74LVC4245] level shifter for sigrok input
 
 
-## TODO / Known Bugs
+
+### TODO / Known Bugs
 
 * Bugs
 ** check the benchmark "miracle" with the NDEBUG version 

@@ -1,6 +1,6 @@
 /**
- * @file    rp2040.c
- * @brief   board ID for the Raspberry Pi Pico board
+ * @file    pico.c
+ * @brief   board code for Pico
  *
  * DAPLink Interface Firmware
  * Copyright (c) 2009-2019, ARM Limited, All Rights Reserved
@@ -164,6 +164,12 @@ void pico_prerun_board_config(void)
                 strcpy(board_vendor, "RaspberryPi");
                 strcpy(board_name, "Pico");
                 probe_set_swclk_freq(15000);
+
+                // get size of targets flash
+                uint32_t size = target_rp2040_get_external_flash_size();
+                if (size > 0) {
+                    target_device.flash_regions[0].end = target_device.flash_regions[0].start + size;
+                }
             }
         }
     }

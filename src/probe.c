@@ -43,6 +43,8 @@
 #define CTRL_WORD_WRITE(CNT, DATA)    (((DATA) << 13) + ((CNT) << 8) + (probe.offset + probe_offset_short_output))
 #define CTRL_WORD_READ(CNT)           (                 ((CNT) << 8) + (probe.offset + probe_offset_input))
 
+#define OPTIMIZE  __attribute__((optimize("O3")))
+
 
 // Only want to set / clear one gpio per event so go up in powers of 2
 enum _dbg_pins {
@@ -133,7 +135,7 @@ void probe_assert_reset(bool state)
  * Actually only 32bit can be set, more data is sent as "zero".  Especially useful for
  * idle cycles (although never seen),
  */
-void __not_in_flash_func(probe_write_bits)(uint bit_count, uint32_t data)
+OPTIMIZE void __not_in_flash_func(probe_write_bits)(uint bit_count, uint32_t data)
 {
     DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE);
     for (;;) {
@@ -152,7 +154,7 @@ void __not_in_flash_func(probe_write_bits)(uint bit_count, uint32_t data)
 
 
 
-uint32_t __not_in_flash_func(probe_read_bits)(uint bit_count, bool push, bool pull)
+OPTIMIZE uint32_t __not_in_flash_func(probe_read_bits)(uint bit_count, bool push, bool pull)
 {
     uint32_t data = 0xffffffff;
     uint32_t data_shifted;
@@ -184,6 +186,7 @@ void probe_gpio_init()
 		picoprobe_debug("probe_gpio_init()\n");
 
 		// Funcsel pins
+        pio_gpio_init(PROBE_PIO, PROBE_PIN_SWDIR);
 		pio_gpio_init(PROBE_PIO, PROBE_PIN_SWCLK);
 		pio_gpio_init(PROBE_PIO, PROBE_PIN_SWDIO);
 		// Make sure SWDIO has a pullup on it. Idle state is high
@@ -211,15 +214,15 @@ void probe_init()
         pio_sm_config sm_config = probe_program_get_default_config(offset);
 
         // Set SWCLK as a sideset pin
-        sm_config_set_sideset_pins(&sm_config, PROBE_PIN_SWCLK);
+        sm_config_set_sideset_pins(&sm_config, PROBE_PIN_SWDIR);
 
         // Set SWDIO offset
         sm_config_set_out_pins(&sm_config, PROBE_PIN_SWDIO, 1);
         sm_config_set_set_pins(&sm_config, PROBE_PIN_SWDIO, 1);
         sm_config_set_in_pins(&sm_config, PROBE_PIN_SWDIO);
 
-        // Set SWD and SWDIO pins as output to start. This will be set in the sm
-        pio_sm_set_consecutive_pindirs(PROBE_PIO, PROBE_SM, PROBE_PIN_OFFSET, 2, true);
+        // Set SWDIR, SWCLK and SWDIO pins as output to start. This will be set in the sm
+        pio_sm_set_consecutive_pindirs(PROBE_PIO, PROBE_SM, PROBE_PIN_OFFSET, 3, true);
 
         // shift output right, autopull on, autopull threshold
         sm_config_set_out_shift(&sm_config, true, true, 32);

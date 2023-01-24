@@ -80,9 +80,10 @@
 // PIO config
 #define PROBE_PIO                pio0
 #define PROBE_SM                 0
-#define PROBE_PIN_OFFSET         2
-#define PROBE_PIN_SWCLK          (PROBE_PIN_OFFSET + 0) // 2
-#define PROBE_PIN_SWDIO          (PROBE_PIN_OFFSET + 1) // 3
+#define PROBE_PIN_OFFSET         1
+#define PROBE_PIN_SWDIR          (PROBE_PIN_OFFSET + 0) // 1
+#define PROBE_PIN_SWCLK          (PROBE_PIN_OFFSET + 1) // 2
+#define PROBE_PIN_SWDIO          (PROBE_PIN_OFFSET + 2) // 3
 #define PROBE_PIN_RESET          6                      // Target reset config
 #define PROBE_MAX_KHZ            25000U                 // overclocked: according to RP2040 datasheet 24MHz
 #define PROBE_DEFAULT_KHZ        15000
