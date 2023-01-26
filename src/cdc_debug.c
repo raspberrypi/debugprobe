@@ -69,23 +69,27 @@ void cdc_debug_thread(void *ptr)
             vTaskDelay(pdMS_TO_TICKS(100));
         }
 
-        xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
-
-        if ( !xStreamBufferIsEmpty(stream_printf)) {
+        if (xStreamBufferIsEmpty(stream_printf)) {
+            // -> end of transmission: flush and sleep for a long time
+            tud_cdc_n_write_flush(CDC_DEBUG_N);
+            xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
+        }
+        else {
             size_t cnt;
             size_t max_cnt;
 
             max_cnt = tud_cdc_n_write_available(CDC_DEBUG_N);
-            if (max_cnt != 0) {
+            if (max_cnt == 0) {
+                // -> sleep for a short time, actually wait until data transmitted via USB
+                xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
+            }
+            else {
                 max_cnt = MIN(sizeof(cdc_debug_buf), max_cnt);
                 cnt = xStreamBufferReceive(stream_printf, cdc_debug_buf, max_cnt, pdMS_TO_TICKS(500));
                 if (cnt != 0) {
                     tud_cdc_n_write(CDC_DEBUG_N, cdc_debug_buf, cnt);
                 }
             }
-        }
-        else {
-            tud_cdc_n_write_flush(CDC_DEBUG_N);
         }
     }
 }   // cdc_debug_thread

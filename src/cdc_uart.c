@@ -27,6 +27,7 @@
 #include "FreeRTOS.h"
 #include "stream_buffer.h"
 #include "task.h"
+#include "event_groups.h"
 
 #include "tusb.h"
 
@@ -45,13 +46,20 @@ static uint8_t cdc_tx_buf[CFG_TUD_CDC_TX_BUFSIZE];
 static bool was_connected = false;
 
 
-// TODO actually there is enough information to avoid polling below
+#define EV_TX_COMPLETE        0x01
+#define EV_STREAM             0x02
+#define EV_RX                 0x04
+
+/// event flags
+static EventGroupHandle_t     events;
+
+
+
 void cdc_thread(void *ptr)
 {
 
     for (;;) {
-        size_t cnt;
-        size_t max_cnt;
+        size_t cdc_rx_chars;
 
         if ( !was_connected) {
             // wait here some time (until my terminal program is ready)
@@ -59,36 +67,52 @@ void cdc_thread(void *ptr)
             vTaskDelay(pdMS_TO_TICKS(100));
         }
 
-        //
-        // transmit characters target -> picoprobe -> host
-        //
-        max_cnt = tud_cdc_n_write_available(CDC_UART_N);
-        if (max_cnt == 0) {
-            vTaskDelay(pdMS_TO_TICKS(1));
+        cdc_rx_chars = tud_cdc_n_available(CDC_UART_N);
+        if (cdc_rx_chars == 0  &&  xStreamBufferIsEmpty(stream_uart)) {
+            // -> nothing left to do: sleep for a long time
+            tud_cdc_n_write_flush(CDC_UART_N);
+            xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM | EV_RX, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
+        }
+        else if (cdc_rx_chars != 0) {
+            // wait a short period if there are characters host -> probe -> target
+            xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM | EV_RX, pdTRUE, pdFALSE, pdMS_TO_TICKS(1));
         }
         else {
-            max_cnt = MIN(sizeof(cdc_tx_buf), max_cnt);
-            cnt = xStreamBufferReceive(stream_uart, cdc_tx_buf, max_cnt, pdMS_TO_TICKS(50));
-            if (cnt != 0) {
-                tud_cdc_n_write(CDC_UART_N, cdc_tx_buf, cnt);
-                tud_cdc_n_write_flush(CDC_UART_N);
+            // wait until transmission via USB has finished
+            xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM | EV_RX, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
+        }
+
+        if ( !xStreamBufferIsEmpty(stream_uart)) {
+            //
+            // transmit characters target -> picoprobe -> host
+            //
+            size_t cnt;
+            size_t max_cnt;
+
+            max_cnt = tud_cdc_n_write_available(CDC_UART_N);
+            if (max_cnt != 0) {
+                max_cnt = MIN(sizeof(cdc_tx_buf), max_cnt);
+                cnt = xStreamBufferReceive(stream_uart, cdc_tx_buf, max_cnt, pdMS_TO_TICKS(500));
+                if (cnt != 0) {
+                    tud_cdc_n_write(CDC_UART_N, cdc_tx_buf, cnt);
+                }
             }
+        }
+        else {
+            tud_cdc_n_write_flush(CDC_UART_N);
         }
 
         //
-        // transmit characters host -> picoprobe -> target
+        // transmit characters host -> probe -> target
         // (actually don't know if this works, but note that in worst case this loop is taken just every 50ms.
         //  So this is not for high throughput)
         //
-        size_t watermark = tud_cdc_n_available(CDC_UART_N);
-        while (watermark > 0  &&  uart_is_writable(PICOPROBE_UART_INTERFACE)) {
+        if (cdc_rx_chars > 0  &&  uart_is_writable(PICOPROBE_UART_INTERFACE)) {
             uint8_t ch;
             size_t tx_len;
 
             tx_len = tud_cdc_n_read(CDC_UART_N, &ch, 1);
             uart_write_blocking(PICOPROBE_UART_INTERFACE, &ch, tx_len);
-
-            --watermark;
         }
     }
 }   // cdc_thread
@@ -127,6 +151,20 @@ void cdc_uart_line_state_cb(bool dtr, bool rts)
 
 
 
+void cdc_uart_tx_complete_cb(void)
+{
+    xEventGroupSetBits(events, EV_TX_COMPLETE);
+}   // cdc_uart_tx_complete_cb
+
+
+
+void cdc_uart_rx_cb()
+{
+    xEventGroupSetBits(events, EV_RX);
+}   // cdc_uart_rx_cb
+
+
+
 void on_uart_rx(void)
 {
     uint8_t buf[40];
@@ -145,6 +183,16 @@ void on_uart_rx(void)
         led_state(LS_UART_DATA);
         xStreamBufferSendFromISR(stream_uart, buf, cnt, NULL);
     }
+
+    {
+        BaseType_t task_woken, res;
+
+        task_woken = pdFALSE;
+        res = xEventGroupSetBitsFromISR(events, EV_STREAM, &task_woken);
+        if (res != pdFAIL) {
+            portYIELD_FROM_ISR(task_woken);
+        }
+    }
 }   // on_uart_rx
 
 
@@ -152,12 +200,15 @@ void on_uart_rx(void)
 void cdc_uart_write(const uint8_t *buf, uint32_t cnt)
 {
     xStreamBufferSend(stream_uart, buf, cnt, pdMS_TO_TICKS(100));
+    xEventGroupSetBits(events, EV_STREAM);
 }   // cdc_uart_write
 
 
 
 void cdc_uart_init(uint32_t task_prio)
 {
+    events = xEventGroupCreate();
+
     stream_uart = xStreamBufferCreate(STREAM_UART_SIZE, STREAM_UART_TRIGGER);
     if (stream_uart == NULL) {
         picoprobe_error("cdc_uart_init: cannot create stream_uart\n");

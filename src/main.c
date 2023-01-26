@@ -117,17 +117,23 @@ void tud_cdc_rx_cb(uint8_t itf)
     if (itf == CDC_SIGROK_N) {
         cdc_sigrok_rx_cb();
     }
+    else if (itf == CDC_UART_N) {
+        cdc_uart_rx_cb();
+    }
 }   // tud_cdc_rx_cb
 
 
 
 void tud_cdc_tx_complete_cb(uint8_t itf)
 {
-    if (itf != CDC_DEBUG_N) {
-        cdc_debug_tx_complete_cb();
-    }
     if (itf == CDC_SIGROK_N) {
         cdc_sigrok_tx_complete_cb();
+    }
+    else if (itf == CDC_UART_N) {
+        cdc_uart_tx_complete_cb();
+    }
+    else if (itf == CDC_DEBUG_N) {
+        cdc_debug_tx_complete_cb();
     }
 }   // tud_cdc_tx_complete_cb
 
