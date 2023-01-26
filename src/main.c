@@ -124,7 +124,7 @@ void tud_cdc_rx_cb(uint8_t itf)
 void tud_cdc_tx_complete_cb(uint8_t itf)
 {
     if (itf != CDC_DEBUG_N) {
-//        picoprobe_info("tud_cdc_tx_complete_cb(%d)\n", itf);
+        cdc_debug_tx_complete_cb();
     }
     if (itf == CDC_SIGROK_N) {
         cdc_sigrok_tx_complete_cb();
