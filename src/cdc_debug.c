@@ -31,6 +31,7 @@
 #include "semphr.h"
 #include "stream_buffer.h"
 #include "task.h"
+#include "event_groups.h"
 
 #include "tusb.h"
 
@@ -44,38 +45,50 @@ static TaskHandle_t           task_printf = NULL;
 static SemaphoreHandle_t      sema_printf;
 static StreamBufferHandle_t   stream_printf;
 
+#define EV_TX_COMPLETE        0x01
+#define EV_STREAM             0x02
+
+/// event flags
+static EventGroupHandle_t events;
+
 static uint8_t cdc_debug_buf[CFG_TUD_CDC_TX_BUFSIZE];
 
 static bool was_connected = false;
 
 
 
-// TODO actually there is enough information to avoid polling below
 void cdc_debug_thread(void *ptr)
 /**
  * Transmit debug output via CDC
  */
 {
     for (;;) {
-        size_t cnt;
-        size_t max_cnt;
-
         if ( !was_connected) {
             // wait here some time (until my terminal program is ready)
             was_connected = true;
             vTaskDelay(pdMS_TO_TICKS(100));
         }
 
-        max_cnt = tud_cdc_n_write_available(CDC_DEBUG_N);
-        if (max_cnt == 0) {
-            vTaskDelay(pdMS_TO_TICKS(1));
+        if (xStreamBufferIsEmpty(stream_printf)) {
+            // -> end of transmission: flush and sleep for a long time
+            tud_cdc_n_write_flush(CDC_DEBUG_N);
+            xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
         }
         else {
-            max_cnt = MIN(sizeof(cdc_debug_buf), max_cnt);
-            cnt = xStreamBufferReceive(stream_printf, cdc_debug_buf, max_cnt, pdMS_TO_TICKS(500));
-            if (cnt != 0) {
-                tud_cdc_n_write(CDC_DEBUG_N, cdc_debug_buf, cnt);
-                tud_cdc_n_write_flush(CDC_DEBUG_N);
+            size_t cnt;
+            size_t max_cnt;
+
+            max_cnt = tud_cdc_n_write_available(CDC_DEBUG_N);
+            if (max_cnt == 0) {
+                // -> sleep for a short time, actually wait until data transmitted via USB
+                xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
+            }
+            else {
+                max_cnt = MIN(sizeof(cdc_debug_buf), max_cnt);
+                cnt = xStreamBufferReceive(stream_printf, cdc_debug_buf, max_cnt, pdMS_TO_TICKS(500));
+                if (cnt != 0) {
+                    tud_cdc_n_write(CDC_DEBUG_N, cdc_debug_buf, cnt);
+                }
             }
         }
     }
@@ -96,6 +109,13 @@ void cdc_debug_line_state_cb(bool dtr, bool rts)
         vTaskResume(task_printf);
     }
 }   // cdc_debug_line_state_cb
+
+
+
+void cdc_debug_tx_complete_cb(void)
+{
+    xEventGroupSetBits(events, EV_TX_COMPLETE);
+}   // cdc_debug_tx_complete_cb
 
 
 
@@ -176,6 +196,8 @@ int cdc_debug_printf(const char* format, ...)
     }
     xSemaphoreGive(sema_printf);
 
+    xEventGroupSetBits(events, EV_STREAM);
+
     return total_cnt;
 } // cdc_debug_printf
 
@@ -183,6 +205,8 @@ int cdc_debug_printf(const char* format, ...)
 
 void cdc_debug_init(uint32_t task_prio)
 {
+    events = xEventGroupCreate();
+
     stream_printf = xStreamBufferCreate(STREAM_PRINTF_SIZE, STREAM_PRINTF_TRIGGER);
     if (stream_printf == NULL) {
         panic("cdc_debug_init: cannot create stream_printf\n");

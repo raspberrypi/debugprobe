@@ -46,6 +46,7 @@
 #include "target_family.h"
 #include "target_board.h"
 #include "target_rp2040.h"
+#include "program_flash_generic.h"
 
 #include "probe.h"
 
@@ -235,6 +236,8 @@ void pico_prerun_board_config(void)
         strcpy(board_name, "Generic");
         probe_set_swclk_freq(2000);
     }
+
+    target_set_state(RESET_RUN);
 }   // pico_prerun_board_config
 
 
