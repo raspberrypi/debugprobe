@@ -46,6 +46,7 @@ static SemaphoreHandle_t      sema_printf;
 static StreamBufferHandle_t   stream_printf;
 
 #define EV_TX_COMPLETE        0x01
+#define EV_STREAM             0x02
 
 /// event flags
 static EventGroupHandle_t events;
@@ -62,26 +63,29 @@ void cdc_debug_thread(void *ptr)
  */
 {
     for (;;) {
-        size_t cnt;
-        size_t max_cnt;
-
         if ( !was_connected) {
             // wait here some time (until my terminal program is ready)
             was_connected = true;
             vTaskDelay(pdMS_TO_TICKS(100));
         }
 
-        max_cnt = tud_cdc_n_write_available(CDC_DEBUG_N);
-        if (max_cnt == 0) {
-            xEventGroupWaitBits(events, EV_TX_COMPLETE, pdTRUE, pdFALSE, pdMS_TO_TICKS(100)); // portMAX_DELAY);
+        xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
+
+        if ( !xStreamBufferIsEmpty(stream_printf)) {
+            size_t cnt;
+            size_t max_cnt;
+
+            max_cnt = tud_cdc_n_write_available(CDC_DEBUG_N);
+            if (max_cnt != 0) {
+                max_cnt = MIN(sizeof(cdc_debug_buf), max_cnt);
+                cnt = xStreamBufferReceive(stream_printf, cdc_debug_buf, max_cnt, pdMS_TO_TICKS(500));
+                if (cnt != 0) {
+                    tud_cdc_n_write(CDC_DEBUG_N, cdc_debug_buf, cnt);
+                }
+            }
         }
         else {
-            max_cnt = MIN(sizeof(cdc_debug_buf), max_cnt);
-            cnt = xStreamBufferReceive(stream_printf, cdc_debug_buf, max_cnt, pdMS_TO_TICKS(500));
-            if (cnt != 0) {
-                tud_cdc_n_write(CDC_DEBUG_N, cdc_debug_buf, cnt);
-                tud_cdc_n_write_flush(CDC_DEBUG_N);
-            }
+            tud_cdc_n_write_flush(CDC_DEBUG_N);
         }
     }
 }   // cdc_debug_thread
@@ -187,6 +191,8 @@ int cdc_debug_printf(const char* format, ...)
         ndx += cnt;
     }
     xSemaphoreGive(sema_printf);
+
+    xEventGroupSetBits(events, EV_STREAM);
 
     return total_cnt;
 } // cdc_debug_printf

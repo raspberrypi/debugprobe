@@ -488,14 +488,24 @@ uses other voltage levels than the probe.
 
 ## Misc
 ### Hardware
-* use 2x 74LXC1T45 for the SWD IF
+* use 2x https://www.ti.com/product/SN74LXC1T45[74LXC1T45] for the SWD IF,
+  largest package: 6 pin SOT-23
 * 7803 for power supply of target
-* https://www.ti.com/product/SN74LVC4245A[74LVC4245] level shifter for sigrok input
+* https://www.ti.com/product/SN74LVC8T245[74LVC8T245] level shifter for sigrok input,
+  24 pin SOIC / _SOP_ packages are visible for soldering
 
 
 
 ### TODO / Known Bugs
 
+* Features
+** Wireless with PicoW
+*** USBIP
+**** https://usbip.sourceforge.net/
+**** https://github.com/thevoidnn/esp8266-wifi-cmsis-dap
+**** https://github.com/windowsair/wireless-esp8266-dap
+*** https://arm-software.github.io/CMSIS_5/Driver/html/group__wifi__interface__gr.html[CMSIS WiFi interface]
+** semihosting?
 * Bugs
 ** check the benchmark "miracle" with the NDEBUG version 
 ** if `configTICK_RATE_HZ` is around 100, the SWD IF no longer works
