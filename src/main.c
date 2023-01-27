@@ -50,7 +50,6 @@
 
 #include "target_board.h"    // DAPLink
 
-
 #if CFG_TUD_MSC
     #include "msc/msc_utils.h"
 #endif
@@ -61,6 +60,7 @@
     #include "pico-sigrok/cdc_sigrok.h"
     #include "pico-sigrok/sigrok.h"
 #endif
+
 
 /*
  * The following is part of a hack to make DAP_PACKET_COUNT a variable.
@@ -257,8 +257,7 @@ void usb_thread(void *ptr)
 
     tusb_init();
     for (;;) {
-        tud_task();
-        taskYIELD();    // not sure, if this triggers the scheduler
+        tud_task();             // the FreeRTOS version goes into blocking state if its event queue is empty
     }
 }   // usb_thread
 

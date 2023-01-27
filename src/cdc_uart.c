@@ -41,8 +41,6 @@
 static TaskHandle_t           task_uart = NULL;
 static StreamBufferHandle_t   stream_uart;
 
-static uint8_t cdc_tx_buf[CFG_TUD_CDC_TX_BUFSIZE];
-
 static bool was_connected = false;
 
 
@@ -57,6 +55,7 @@ static EventGroupHandle_t     events;
 
 void cdc_thread(void *ptr)
 {
+    static uint8_t cdc_tx_buf[CFG_TUD_CDC_TX_BUFSIZE];
 
     for (;;) {
         size_t cdc_rx_chars;
@@ -107,6 +106,7 @@ void cdc_thread(void *ptr)
         // (actually don't know if this works, but note that in worst case this loop is taken just every 50ms.
         //  So this is not for high throughput)
         //
+        cdc_rx_chars = tud_cdc_n_available(CDC_UART_N);
         if (cdc_rx_chars > 0  &&  uart_is_writable(PICOPROBE_UART_INTERFACE)) {
             uint8_t ch;
             size_t tx_len;
