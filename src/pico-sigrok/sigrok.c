@@ -303,7 +303,7 @@ static void inline tx_d_samp(sr_device_t *d, uint32_t cval)
 //
 // not used for D4 mode!
 //
-static uint32_t inline get_cval(uint8_t *dbuf)
+static uint32_t __TIME_CRITICAL_FUNCTION(get_cval)(uint8_t *dbuf)
 {
     uint32_t cval;
 
@@ -333,7 +333,7 @@ forward txbuf bytes to USB to prevent txbufidx from overflowing the size
 of txbuf. We do not always push to USB to reduce its impact
 on performance.
  */
-static void inline check_rle(void)
+static void __TIME_CRITICAL_FUNCTION(check_rle)(void)
 {
     while (rlecnt >= 1568) {
         txbuf[txbufidx++] = 127;
@@ -353,7 +353,7 @@ static void inline check_rle(void)
 
 
 //Send txbuf to usb based on an input threshold
-static void inline check_tx_buf(uint16_t cnt)
+static void __TIME_CRITICAL_FUNCTION(check_tx_buf)(uint16_t cnt)
 {
     if (txbufidx >= cnt) {
         cdc_sigrok_write((char *)txbuf, txbufidx);
@@ -472,7 +472,7 @@ static void __TIME_CRITICAL_FUNCTION(send_slices_4B)(sr_device_t *d, uint8_t *db
 //This does not support run length encoding because it's not clear how to define RLE on analog signals
 static void __TIME_CRITICAL_FUNCTION(send_slices_analog)(sr_device_t *d, uint8_t *dbuf, uint8_t *abuf)
 {
-    uint32_t rxbufaidx=0;
+    uint32_t rxbufaidx = 0;
 
     rxbufdidx = 0;
     samp_remain = d->samples_per_half;
