@@ -31,6 +31,8 @@
  * the target must be already connected.
  */
 
+#include "pico/stdlib.h"
+
 #include "tusb.h"
 
 #include "picoprobe_config.h"

@@ -41,9 +41,9 @@
 
 #define CFG_TUSB_RHPORT0_MODE         OPT_MODE_DEVICE
 
-#ifndef CFG_TUSB_OS
-#define CFG_TUSB_OS                   OPT_OS_PICO
-#endif
+#undef CFG_TUSB_OS
+#define CFG_TUSB_OS                   OPT_OS_FREERTOS
+
 
 #ifndef CFG_TUSB_MEM_SECTION
 #define CFG_TUSB_MEM_SECTION
