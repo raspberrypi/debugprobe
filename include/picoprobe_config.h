@@ -111,4 +111,7 @@
 #define SIGROK_SM                0                      // often hard coded
 
 
+// optimize a single function
+#define __TIME_CRITICAL_FUNCTION(func)   __attribute__((optimize("O3")))   __time_critical_func(func)
+
 #endif

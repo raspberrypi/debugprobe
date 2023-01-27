@@ -34,15 +34,13 @@
 #define MAKE_KHZ(fast, delay) ((fast) ? 100000 : (CPU_CLOCK / 2000) / ((delay) * DELAY_SLOW_CYCLES + IO_PORT_WRITE_CYCLES))
 volatile uint32_t cached_delay = 0;
 
-#define OPTIMIZE  __attribute__((optimize("O3")))
-
 
 
 // Generate SWJ Sequence
 //   count:  sequence bit count
 //   data:   pointer to sequence bit data
 //   return: none
-OPTIMIZE void __not_in_flash_func(SWJ_Sequence)(uint32_t count, const uint8_t *data)
+void __TIME_CRITICAL_FUNCTION(SWJ_Sequence)(uint32_t count, const uint8_t *data)
 {
     uint32_t bits;
     uint32_t n;
@@ -70,7 +68,7 @@ OPTIMIZE void __not_in_flash_func(SWJ_Sequence)(uint32_t count, const uint8_t *d
 //   swdo:   pointer to SWDIO generated data
 //   swdi:   pointer to SWDIO captured data
 //   return: none
-OPTIMIZE void __not_in_flash_func(SWD_Sequence)(uint32_t info, const uint8_t *swdo, uint8_t *swdi)
+void __TIME_CRITICAL_FUNCTION(SWD_Sequence)(uint32_t info, const uint8_t *swdo, uint8_t *swdi)
 {
     uint32_t bits;
     uint32_t n;
@@ -128,7 +126,7 @@ OPTIMIZE void __not_in_flash_func(SWD_Sequence)(uint32_t info, const uint8_t *sw
  *    - \a data_phase:  do a data phase on \a DAP_TRANSFER_WAIT and \a DAP_TRANSFER_FAULT
  *    - \a idle_cycles: number of extra idle cycles after each transfer
  */
-OPTIMIZE uint8_t __not_in_flash_func(SWD_Transfer)(uint32_t request, uint32_t *data)
+uint8_t __TIME_CRITICAL_FUNCTION(SWD_Transfer)(uint32_t request, uint32_t *data)
 {
     static const uint8_t prqs[16] = { 0x81, 0xa3, 0xa5, 0x87,
                                       0xa9, 0x8b, 0x8d, 0xaf,

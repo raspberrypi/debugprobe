@@ -140,7 +140,7 @@ static EventGroupHandle_t events;
 //For longer runs, an RLE only encoding uses decimal values 48 to 127 (0x30 to 0x7F)
 //as x8 run length values of 8..640.
 //All other ASCII values (except from the abort and the end of run byte_cnt) are reserved.
-static void __no_inline_not_in_flash_func(send_slices_D4)(sr_device_t *d, uint8_t *dbuf)
+static void __TIME_CRITICAL_FUNCTION(send_slices_D4)(sr_device_t *d, uint8_t *dbuf)
 {
     uint8_t nibcurr,niblast;
     uint32_t cword,lword; //current and last word
@@ -365,7 +365,7 @@ static void inline check_tx_buf(uint16_t cnt)
 
 
 //Common init for send_slices_1B/2B/4B, but not D4 or analog
-static void __no_inline_not_in_flash_func(send_slice_init)(sr_device_t *d, uint8_t *dbuf)
+static void __TIME_CRITICAL_FUNCTION(send_slice_init)(sr_device_t *d, uint8_t *dbuf)
 {
     rxbufdidx = 0;
     //Adjust the number of samples to send if there are more in the dma buffer
@@ -396,7 +396,7 @@ static void __no_inline_not_in_flash_func(send_slice_init)(sr_device_t *d, uint8
 //We can just always read a 4B value because the core doesn't support non-aligned accesses.
 //These must be marked noinline to ensure they remain separate functions for good performance
 //1B is 5-8 channels
-static void __no_inline_not_in_flash_func(send_slices_1B)(sr_device_t *d, uint8_t *dbuf)
+static void __TIME_CRITICAL_FUNCTION(send_slices_1B)(sr_device_t *d, uint8_t *dbuf)
 {
     send_slice_init(d, dbuf);
     for (int s = 0;  s < samp_remain;  s++) {
@@ -419,7 +419,7 @@ static void __no_inline_not_in_flash_func(send_slices_1B)(sr_device_t *d, uint8_
 
 
 //2B is 9-16 channels
-static void __no_inline_not_in_flash_func(send_slices_2B)(sr_device_t *d, uint8_t *dbuf)
+static void __TIME_CRITICAL_FUNCTION(send_slices_2B)(sr_device_t *d, uint8_t *dbuf)
 {
     send_slice_init(d, dbuf);
     for (int s = 0;  s < samp_remain;  s++) {
@@ -443,7 +443,7 @@ static void __no_inline_not_in_flash_func(send_slices_2B)(sr_device_t *d, uint8_
 
 
 //4B is 17-21 channels and is the only one that must mask invalid bits which are captured by DMA
-static void __no_inline_not_in_flash_func(send_slices_4B)(sr_device_t *d, uint8_t *dbuf)
+static void __TIME_CRITICAL_FUNCTION(send_slices_4B)(sr_device_t *d, uint8_t *dbuf)
 {
     send_slice_init(d, dbuf);
     for (int s = 0;  s < samp_remain;  s++) {
@@ -470,7 +470,7 @@ static void __no_inline_not_in_flash_func(send_slices_4B)(sr_device_t *d, uint8_
 //All digital channels for one slice are sent first in 7 bit bytes using values 0x80 to 0xFF
 //Analog channels are sent next, with each channel taking one 7 bit byte using values 0x80 to 0xFF.
 //This does not support run length encoding because it's not clear how to define RLE on analog signals
-static void __no_inline_not_in_flash_func(send_slices_analog)(sr_device_t *d, uint8_t *dbuf, uint8_t *abuf)
+static void __TIME_CRITICAL_FUNCTION(send_slices_analog)(sr_device_t *d, uint8_t *dbuf, uint8_t *abuf)
 {
     uint32_t rxbufaidx=0;
 
@@ -534,12 +534,12 @@ static void __no_inline_not_in_flash_func(send_slices_analog)(sr_device_t *d, ui
  *
  * \return  0->no change, 1->buffers must be switched, -1->abort
  */
-static int __no_inline_not_in_flash_func(check_half)(sr_device_t *d,
-                                                     volatile uint32_t *dma_a_sts_idle,  volatile uint32_t *dma_a_sts_other,
-                                                     volatile uint32_t *dma_d_sts_idle,  volatile uint32_t *dma_d_sts_other,
-                                                     volatile uint32_t *dma_a_addr_idle, volatile uint32_t *dma_d_addr_idle,
-                                                     uint8_t *d_start_addr, uint8_t *a_start_addr,
-                                                     bool mask_xfer_err)
+static int __TIME_CRITICAL_FUNCTION(check_half)(sr_device_t *d,
+                                                volatile uint32_t *dma_a_sts_idle,  volatile uint32_t *dma_a_sts_other,
+                                                volatile uint32_t *dma_d_sts_idle,  volatile uint32_t *dma_d_sts_other,
+                                                volatile uint32_t *dma_a_addr_idle, volatile uint32_t *dma_d_addr_idle,
+                                                uint8_t *d_start_addr, uint8_t *a_start_addr,
+                                                bool mask_xfer_err)
 {
     if (DMA_IS_BUSY(dma_a_sts_idle)  ||  DMA_IS_BUSY(dma_d_sts_idle)) {
         //
@@ -647,7 +647,7 @@ static int __no_inline_not_in_flash_func(check_half)(sr_device_t *d,
 //Check if dma activity is complete.  This was split out to allow core1 to do the monitoring
 //and slice processing and leave usb interrupt handling to core 0, but doing so did not improve
 //streaming performance, so it's left in core0.
-static void __no_inline_not_in_flash_func(dma_check)(sr_device_t *d)
+static void __TIME_CRITICAL_FUNCTION(dma_check)(sr_device_t *d)
 {
 //    Dprintf("dma_check: %d %d %lu %lu %d\n", d->sample_and_send, d->all_started, d->scnt, d->num_samples, d->continuous);
     if (d->sample_and_send  &&  d->all_started  &&  (d->scnt < d->num_samples  ||  d->continuous)) {
