@@ -162,7 +162,7 @@ target_link_libraries(picoprobe PRIVATE
         tinyusb_board
         hardware_pio
         FreeRTOS-Kernel
-        FreeRTOS-Kernel-Heap1
+        FreeRTOS-Kernel-Heap4
 )
 
 #

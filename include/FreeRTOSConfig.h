@@ -87,9 +87,15 @@
 #define configUSE_DAEMON_TASK_STARTUP_HOOK      0
 
 /* Run time and task stats gathering related definitions. */
-#define configGENERATE_RUN_TIME_STATS           0
-#define configUSE_TRACE_FACILITY                0
+#define configUSE_TRACE_FACILITY                1                                // switch on task status output
+#define configGENERATE_RUN_TIME_STATS           configUSE_TRACE_FACILITY
 #define configUSE_STATS_FORMATTING_FUNCTIONS    0
+
+#if configUSE_TRACE_FACILITY
+    #define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS()        do {} while( 0 )
+    #define portALT_GET_RUN_TIME_COUNTER_VALUE( dest )      ( dest = time_us_64() )
+    #warning "configUSE_TRACE_FACILITY is set"
+#endif
 
 /* Co-routine related definitions. */
 #define configUSE_CO_ROUTINES                   0

@@ -229,6 +229,6 @@ void cdc_uart_init(uint32_t task_prio)
     uart_set_irq_enables(PICOPROBE_UART_INTERFACE, true, false);
 
     /* UART needs to preempt USB as if we don't, characters get lost */
-    xTaskCreate(cdc_thread, "UART", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_uart);
+    xTaskCreate(cdc_thread, "CDC_UART", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_uart);
     cdc_uart_line_state_cb(false, false);
 }   // cdc_uart_init

@@ -27,8 +27,6 @@
 #ifndef _TUSB_OSAL_FREERTOS_H_
 #define _TUSB_OSAL_FREERTOS_H_
 
-#warning "Im here"
-
 // FreeRTOS Headers
 #include TU_INCLUDE_PATH(CFG_TUSB_OS_INC_PATH,FreeRTOS.h)
 #include TU_INCLUDE_PATH(CFG_TUSB_OS_INC_PATH,semphr.h)

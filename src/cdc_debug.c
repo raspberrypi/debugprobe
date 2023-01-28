@@ -38,7 +38,7 @@
 #include "picoprobe_config.h"
 
 
-#define STREAM_PRINTF_SIZE    2048
+#define STREAM_PRINTF_SIZE    4096
 #define STREAM_PRINTF_TRIGGER 32
 
 static TaskHandle_t           task_printf = NULL;
@@ -179,7 +179,7 @@ int cdc_debug_printf(const char* format, ...)
                 snprintf(tbuf, sizeof(tbuf), "%lu.%03lu (%3lu) - ", now_ms / 1000, now_ms % 1000, d_ms);
                 prev_ms = now_ms;
             }
-            xStreamBufferSend(stream_printf, tbuf, strnlen(tbuf, sizeof(tbuf)), 1);
+            xStreamBufferSend(stream_printf, tbuf, strnlen(tbuf, sizeof(tbuf)), 0);
         }
 
         p = memchr(buf + ndx, '\n', total_cnt - ndx);
@@ -190,7 +190,7 @@ int cdc_debug_printf(const char* format, ...)
             newline = true;
         }
 
-        xStreamBufferSend(stream_printf, buf + ndx, cnt, 1);
+        xStreamBufferSend(stream_printf, buf + ndx, cnt, 0);
 
         ndx += cnt;
     }
@@ -217,6 +217,6 @@ void cdc_debug_init(uint32_t task_prio)
         panic("cdc_debug_init: cannot create sema_printf\n");
     }
 
-    xTaskCreate(cdc_debug_thread, "CDC_DEB", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_printf);
+    xTaskCreate(cdc_debug_thread, "CDC_DEBUG", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_printf);
     cdc_debug_line_state_cb(false, false);
 }   // cdc_debug_init

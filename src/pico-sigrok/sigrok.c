@@ -1259,7 +1259,7 @@ static void sigrok_thread(void *ptr)
 void sigrok_init(uint32_t task_prio)
 {
     events = xEventGroupCreate();
-    xTaskCreate(sigrok_thread, "CDC_SIGROK", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_sigrok);
+    xTaskCreate(sigrok_thread, "SIGROK", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_sigrok);
 
     cdc_sigrok_init(task_prio);
 }   // sigrok_init
