@@ -219,22 +219,95 @@ void dap_task(void *ptr)
 #if configUSE_TRACE_FACILITY
 char task_state(eTaskState state)
 {
-    switch (state) {
-        case eRunning:
-            return 'R';
-        case eReady:
-            return 'r';
-        case eBlocked:
-            return 'B';
-        case eSuspended:
-            return 'S';
-        case eDeleted:
-            return 'D';
-        default:
-            return 'I';
-    }
-    return 'x';
+    static const char state_ch[] = "RrBSDI";
+    return state_ch[state];
 }   // task_state
+
+
+
+void print_task_stat(void)
+{
+    static uint32_t prev_s = (uint32_t)-8;
+    uint32_t curr_s;
+
+    curr_s = (uint32_t)(time_us_64() / 1000000);
+    if (curr_s - prev_s >= 10) {
+        #define NUM_ENTRY 15
+        HeapStats_t heap_status;
+
+        picoprobe_info("--------------------------------------\n");
+
+        vPortGetHeapStats( &heap_status);
+        picoprobe_info("curr heap free: %d\n", heap_status.xAvailableHeapSpaceInBytes);
+        picoprobe_info("min  heap free: %d\n", heap_status.xMinimumEverFreeBytesRemaining);
+
+        picoprobe_info("number of tasks: %lu\n", uxTaskGetNumberOfTasks());
+        if (uxTaskGetNumberOfTasks() > NUM_ENTRY) {
+            picoprobe_info("!!!!!!!!!!!!!!! redefine NUM_ENTRY to see task state\n");
+        }
+        else {
+            // this part is critical concerning overflow because the numbers are getting quickly very big (us timer resolution)
+            static TaskStatus_t task_status[NUM_ENTRY];
+            static uint32_t prev_tick[NUM_ENTRY+1];
+            uint32_t total_run_time;
+            uint32_t cnt;
+            uint32_t curr_tick_sum;
+            uint32_t delta_tick_sum;
+            uint32_t percent_sum;
+            uint32_t percent_total_sum;
+
+            picoprobe_info("NUM PRI  S  CPU  TOT STACK  NAME\n");
+            picoprobe_info("--------------------------------------\n");
+            cnt = uxTaskGetSystemState(task_status, NUM_ENTRY, &total_run_time);
+            curr_tick_sum = 0;
+            delta_tick_sum = 0;
+            for (uint32_t n = 0;  n < cnt;  ++n) {
+                uint32_t prev_ndx = task_status[n].xTaskNumber;
+                assert(prev_ndx < NUM_ENTRY + 1);
+
+                if (task_status[n].ulRunTimeCounter < prev_tick[prev_ndx]) {
+                    // this happens from time to time
+                    prev_tick[prev_ndx] = task_status[n].ulRunTimeCounter;
+                }
+                curr_tick_sum += task_status[n].ulRunTimeCounter;
+                delta_tick_sum += task_status[n].ulRunTimeCounter - prev_tick[prev_ndx];
+            }
+            picoprobe_info("sum: %lu %lu\n", delta_tick_sum, curr_tick_sum);
+            percent_sum = 0;
+            percent_total_sum = 0;
+            for (uint32_t n = 0;  n < cnt;  ++n) {
+                uint32_t percent;
+                uint32_t percent_total;
+                uint32_t curr_tick;
+                uint32_t delta_tick;
+                uint32_t prev_ndx = task_status[n].xTaskNumber;
+
+                curr_tick = task_status[n].ulRunTimeCounter;
+                delta_tick = curr_tick - prev_tick[prev_ndx];
+
+                percent = (delta_tick + delta_tick_sum / 2000) / (delta_tick_sum / 1000);
+                percent_total = (curr_tick + curr_tick_sum / 2000) / (curr_tick_sum / 1000);
+                percent_sum += percent;
+                percent_total_sum += percent_total;
+
+                picoprobe_info("%3lu  %2lu  %c %4lu %4lu %5lu  %s\n",
+                               task_status[n].xTaskNumber,
+                               task_status[n].uxCurrentPriority,
+                               task_state(task_status[n].eCurrentState),
+                               percent, percent_total,
+                               task_status[n].usStackHighWaterMark,
+                               task_status[n].pcTaskName);
+
+                prev_tick[prev_ndx] = curr_tick;
+            }
+            picoprobe_info("--------------------------------------\n");
+            picoprobe_info("           %3lu %3lu\n", percent_sum, percent_total_sum);
+        }
+        picoprobe_info("--------------------------------------\n");
+
+        prev_s = curr_s;
+    }
+}   // print_task_stat
 #endif
 
 
@@ -283,84 +356,7 @@ void usb_thread(void *ptr)
         tud_task();             // the FreeRTOS version goes into blocking state if its event queue is empty
 
 #if configUSE_TRACE_FACILITY
-        {
-            static uint32_t prev_s = (uint32_t)-8;
-            uint32_t curr_s;
-
-            curr_s = (uint32_t)(time_us_64() / 1000000);
-            if (curr_s - prev_s >= 10) {
-                #define NUM_ENTRY 15
-                HeapStats_t heap_status;
-
-                picoprobe_info("--------------------------------------\n");
-
-                vPortGetHeapStats( &heap_status);
-                picoprobe_info("curr heap free: %d\n", heap_status.xAvailableHeapSpaceInBytes);
-                picoprobe_info("min  heap free: %d\n", heap_status.xMinimumEverFreeBytesRemaining);
-
-                picoprobe_info("number of tasks: %lu\n", uxTaskGetNumberOfTasks());
-                if (uxTaskGetNumberOfTasks() > NUM_ENTRY) {
-                    picoprobe_info("!!!!!!!!!!!!!!! redefine NUM_ENTRY to see task state\n");
-                }
-                else {
-                    // this part is critical concerning overflow because the numbers are getting quickly very big (us timer resolution)
-                    static TaskStatus_t task_status[NUM_ENTRY];
-                    static uint32_t prev_tick[NUM_ENTRY];
-                    uint32_t total_run_time;
-                    uint32_t cnt;
-                    uint32_t curr_tick_sum;
-                    uint32_t delta_tick_sum;
-                    uint32_t percent_sum;
-                    uint32_t percent_total_sum;
-
-                    picoprobe_info("NUM PRI  S CPU TOT STACK  NAME\n");
-                    picoprobe_info("--------------------------------------\n");
-                    cnt = uxTaskGetSystemState(task_status, NUM_ENTRY, &total_run_time);
-                    curr_tick_sum = 0;
-                    delta_tick_sum = 0;
-                    for (uint32_t n = 0;  n < cnt;  ++n) {
-                        if (task_status[n].ulRunTimeCounter < prev_tick[n]) {
-                            // this happens from time to time
-                            prev_tick[n] = task_status[n].ulRunTimeCounter;
-                        }
-                        curr_tick_sum += task_status[n].ulRunTimeCounter;
-                        delta_tick_sum += task_status[n].ulRunTimeCounter - prev_tick[n];
-                    }
-                    picoprobe_info("sum: %lu %lu\n", delta_tick_sum, curr_tick_sum);
-                    percent_sum = 0;
-                    percent_total_sum = 0;
-                    for (uint32_t n = 0;  n < cnt;  ++n) {
-                        uint32_t percent;
-                        uint32_t percent_total;
-                        uint32_t curr_tick;
-                        uint32_t delta_tick;
-
-                        curr_tick = task_status[n].ulRunTimeCounter;
-                        delta_tick = curr_tick - prev_tick[n];
-
-                        percent = (delta_tick + delta_tick_sum / 200) / (delta_tick_sum / 100);
-                        percent_total = (curr_tick + curr_tick_sum / 200) / (curr_tick_sum / 100);
-                        percent_sum += percent;
-                        percent_total_sum += percent_total;
-
-                        picoprobe_info("%3lu  %2lu  %c %3lu %3lu %5lu  %s\n",
-                                       task_status[n].xTaskNumber,
-                                       task_status[n].uxCurrentPriority,
-                                       task_state(task_status[n].eCurrentState),
-                                       percent, percent_total,
-                                       task_status[n].usStackHighWaterMark,
-                                       task_status[n].pcTaskName);
-
-                        prev_tick[n] = curr_tick;
-                    }
-                    picoprobe_info("--------------------------------------\n");
-                    picoprobe_info("           %3lu %3lu\n", percent_sum, percent_total_sum);
-                }
-                picoprobe_info("--------------------------------------\n");
-
-                prev_s = curr_s;
-            }
-        }
+        print_task_stat();
 #endif
     }
 }   // usb_thread
