@@ -92,9 +92,12 @@
 #define configUSE_STATS_FORMATTING_FUNCTIONS    0
 
 #if configUSE_TRACE_FACILITY
-    #define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS()        do {} while( 0 )
-    #define portALT_GET_RUN_TIME_COUNTER_VALUE( dest )      ( dest = time_us_64() )
+    #define TF_TIMER_BASE            _u(0x40054000)
+    #define TF_TIMER_TIMERAWL_OFFSET _u(0x00000028)
+
     #warning "configUSE_TRACE_FACILITY is set"
+    #define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS()        do {} while( 0 )
+    #define portALT_GET_RUN_TIME_COUNTER_VALUE( dest )      ( dest = *((uint32_t *)(TF_TIMER_BASE + TF_TIMER_TIMERAWL_OFFSET)) )
 #endif
 
 /* Co-routine related definitions. */
@@ -118,7 +121,7 @@
 #define configNUM_CORES                         2
 #define configTICK_CORE                         1
 #define configRUN_MULTIPLE_PRIORITIES           1
-#define configUSE_CORE_AFFINITY                 0
+#define configUSE_CORE_AFFINITY                 1
 
 /* RP2040 specific */
 #define configSUPPORT_PICO_SYNC_INTEROP         1
