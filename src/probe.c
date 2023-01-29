@@ -104,7 +104,17 @@ void probe_set_swclk_freq(uint32_t freq_khz)
     div_int  = div_256 >> 8;
     div_frac = div_256 & 0xff;
 
-//    picoprobe_debug("Set sysclk %lukHz swclk freq %lukHz, divider %lu + %lu/256\n", clk_sys_freq_khz, freq_khz, div_int, div_frac);
+    {
+        static uint32_t prev_div_256;
+
+        if (div_256 != prev_div_256) {
+            prev_div_256 = div_256;
+            picoprobe_info("SWD clk req   : %lukHz = %lukHz / (6 * (%lu + %lu/256)), eff : %lukHz\n",
+                           freq_khz, clk_sys_freq_khz, div_int, div_frac,
+                           (256 * clk_sys_freq_khz) / (6 * div_256));
+        }
+    }
+
     if (div_int == 0) {
         picoprobe_error("probe_set_swclk_freq: underflow of clock setup, setting clock to maximum.\n");
         div_int  = 1;

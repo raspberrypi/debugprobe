@@ -112,6 +112,11 @@
 
 
 // optimize a single function
-#define __TIME_CRITICAL_FUNCTION(func)   __attribute__((optimize("O3")))   __time_critical_func(func)
+#if 0
+    // actually no positive effect
+    #define __TIME_CRITICAL_FUNCTION(func)   __attribute__((optimize("O3")))   __time_critical_func(func)
+#else
+    #define __TIME_CRITICAL_FUNCTION(func)   func
+#endif
 
 #endif

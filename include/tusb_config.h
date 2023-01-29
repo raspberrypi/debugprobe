@@ -85,8 +85,8 @@
 
 // CDC numbering
 #define CDC_UART_N                    0
-#define CDC_DEBUG_N                   1
-#define CDC_SIGROK_N                  2
+#define CDC_SIGROK_N                  1
+#define CDC_DEBUG_N                   2
 
 #ifdef __cplusplus
  }

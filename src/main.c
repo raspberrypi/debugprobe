@@ -40,7 +40,9 @@
 
 #include "picoprobe_config.h"
 #include "probe.h"
-#include "cdc_debug.h"
+#ifndef NDEBUG
+    #include "cdc_debug.h"
+#endif
 #include "cdc_uart.h"
 #include "dap_util.h"
 #include "get_serial.h"
@@ -106,9 +108,11 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
     if (itf == CDC_UART_N) {
         cdc_uart_line_state_cb(dtr, rts);
     }
+#ifndef NDEBUG
     else if (itf == CDC_DEBUG_N) {
         cdc_debug_line_state_cb(dtr, rts);
     }
+#endif
 }   // tud_cdc_line_state_cb
 
 
@@ -133,9 +137,11 @@ void tud_cdc_tx_complete_cb(uint8_t itf)
     else if (itf == CDC_UART_N) {
         cdc_uart_tx_complete_cb();
     }
+#ifndef NDEBUG
     else if (itf == CDC_DEBUG_N) {
         cdc_debug_tx_complete_cb();
     }
+#endif
 }   // tud_cdc_tx_complete_cb
 
 

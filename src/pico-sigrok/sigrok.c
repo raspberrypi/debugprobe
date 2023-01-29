@@ -814,14 +814,16 @@ static void sigrok_thread(void *ptr)
     uint admachan0, admachan1, pdmachan0, pdmachan1;
 
     vTaskDelay(pdMS_TO_TICKS(100));
+    uint32_t f_clk_adc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_ADC);
+#ifndef NDEBUG
     Dprintf("+++++++++++++++++++++++++++++++++ PICO sigrok starting +++++++++++++++++++++++++++++++++\n");
     uint32_t f_pll_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_SYS_CLKSRC_PRIMARY);
     Dprintf("pll_sys = %lukHz\n", f_pll_sys);
     uint32_t f_clk_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_SYS);
     Dprintf("clk_sys = %lukHz\n", f_clk_sys);
-    uint32_t f_clk_adc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_ADC);
     Dprintf("clk_adc = %lukHz\n", f_clk_adc);
     Dprintf("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+#endif
 
 #if 1
     // Set GPIO23 (TP4) to control switched mode power supply noise
