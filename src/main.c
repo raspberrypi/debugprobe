@@ -33,6 +33,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include "hardware/vreg.h"
 
 #include "bsp/board.h"
 #include "tusb.h"
@@ -388,6 +389,10 @@ int main(void)
 {
     board_init();
     set_sys_clock_khz(PROBE_CPU_CLOCK_KHZ, true);
+#if (PROBE_CPU_CLOCK_KHZ >= 150*1000)
+    // increase voltage on higher frequencies
+    vreg_set_voltage(VREG_VOLTAGE_1_20);
+#endif
 
     usb_serial_init();
 
