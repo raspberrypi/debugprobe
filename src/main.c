@@ -228,17 +228,35 @@ char task_state(eTaskState state)
 void print_task_stat(void)
 {
     static uint32_t prev_s = (uint32_t)-8;
+    static bool initialized;
     uint32_t curr_s;
 
     curr_s = (uint32_t)(time_us_64() / 1000000);
     if (curr_s - prev_s >= 10) {
         #define NUM_ENTRY 15
         HeapStats_t heap_status;
+        static TaskStatus_t task_status[NUM_ENTRY];
+        uint32_t total_run_time;
 
-        picoprobe_info("--------------------------------------\n");
+        picoprobe_info("---------------------------------------\n");
+        if ( !initialized) {
+            uint32_t cnt;
+
+            initialized = true;
+            picoprobe_info("fix IDLE tasks to certain core\n");
+            cnt = uxTaskGetSystemState(task_status, NUM_ENTRY, &total_run_time);
+            for (uint32_t n = 0;  n < cnt;  ++n) {
+                if (strcmp(task_status[n].pcTaskName, "IDLE0") == 0) {
+                    vTaskCoreAffinitySet(task_status[n].xHandle, 1 << 0);
+                }
+                else if (strcmp(task_status[n].pcTaskName, "IDLE1") == 0) {
+                    vTaskCoreAffinitySet(task_status[n].xHandle, 1 << 1);
+                }
+            }
+        }
 
         vPortGetHeapStats( &heap_status);
-        picoprobe_info("curr heap free: %d\n", heap_status.xAvailableHeapSpaceInBytes);
+        //picoprobe_info("curr heap free: %d\n", heap_status.xAvailableHeapSpaceInBytes);
         picoprobe_info("min  heap free: %d\n", heap_status.xMinimumEverFreeBytesRemaining);
 
         picoprobe_info("number of tasks: %lu\n", uxTaskGetNumberOfTasks());
@@ -247,17 +265,15 @@ void print_task_stat(void)
         }
         else {
             // this part is critical concerning overflow because the numbers are getting quickly very big (us timer resolution)
-            static TaskStatus_t task_status[NUM_ENTRY];
             static uint32_t prev_tick[NUM_ENTRY+1];
-            uint32_t total_run_time;
             uint32_t cnt;
             uint32_t curr_tick_sum;
             uint32_t delta_tick_sum;
             uint32_t percent_sum;
             uint32_t percent_total_sum;
 
-            picoprobe_info("NUM PRI  S  CPU  TOT STACK  NAME\n");
-            picoprobe_info("--------------------------------------\n");
+            picoprobe_info("NUM PRI  S/AM  CPU  TOT STACK  NAME\n");
+            picoprobe_info("---------------------------------------\n");
             cnt = uxTaskGetSystemState(task_status, NUM_ENTRY, &total_run_time);
             curr_tick_sum = 0;
             delta_tick_sum = 0;
@@ -265,14 +281,19 @@ void print_task_stat(void)
                 uint32_t prev_ndx = task_status[n].xTaskNumber;
                 assert(prev_ndx < NUM_ENTRY + 1);
 
+#if 0
                 if (task_status[n].ulRunTimeCounter < prev_tick[prev_ndx]) {
                     // this happens from time to time
                     prev_tick[prev_ndx] = task_status[n].ulRunTimeCounter;
                 }
+#endif
                 curr_tick_sum += task_status[n].ulRunTimeCounter;
                 delta_tick_sum += task_status[n].ulRunTimeCounter - prev_tick[prev_ndx];
             }
             picoprobe_info("sum: %lu %lu\n", delta_tick_sum, curr_tick_sum);
+
+            curr_tick_sum /= configNUM_CORES;
+            delta_tick_sum /= configNUM_CORES;
             percent_sum = 0;
             percent_total_sum = 0;
             for (uint32_t n = 0;  n < cnt;  ++n) {
@@ -290,20 +311,20 @@ void print_task_stat(void)
                 percent_sum += percent;
                 percent_total_sum += percent_total;
 
-                picoprobe_info("%3lu  %2lu  %c %4lu %4lu %5lu  %s\n",
+                picoprobe_info("%3lu  %2lu  %c/%2d %4lu %4lu %5lu  %s\n",
                                task_status[n].xTaskNumber,
                                task_status[n].uxCurrentPriority,
-                               task_state(task_status[n].eCurrentState),
+                               task_state(task_status[n].eCurrentState), (int)task_status[n].uxCoreAffinityMask,
                                percent, percent_total,
                                task_status[n].usStackHighWaterMark,
                                task_status[n].pcTaskName);
 
                 prev_tick[prev_ndx] = curr_tick;
             }
-            picoprobe_info("--------------------------------------\n");
-            picoprobe_info("           %3lu %3lu\n", percent_sum, percent_total_sum);
+            picoprobe_info("---------------------------------------\n");
+            picoprobe_info("              %3lu %3lu\n", percent_sum, percent_total_sum);
         }
-        picoprobe_info("--------------------------------------\n");
+        picoprobe_info("---------------------------------------\n");
 
         prev_s = curr_s;
     }
@@ -349,7 +370,7 @@ void usb_thread(void *ptr)
     sigrok_init(SIGROK_TASK_PRIO);
 #endif
 
-    xTaskCreate(dap_task, "CMSIS-DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);
+    xTaskCreateAffinitySet(dap_task, "CMSIS-DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, 2, &dap_taskhandle);
 
     tusb_init();
     for (;;) {
@@ -391,7 +412,7 @@ int main(void)
 
     events = xEventGroupCreate();
 
-    xTaskCreate(usb_thread, "TinyUSB Main", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, &tud_taskhandle);
+    xTaskCreateAffinitySet(usb_thread, "TinyUSB Main", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, 1, &tud_taskhandle);
     vTaskStartScheduler();
 
     return 0;

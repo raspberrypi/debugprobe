@@ -480,8 +480,8 @@ void msc_init(uint32_t task_prio)
     if (msgbuff_target_writer_thread == NULL) {
         panic("msc_init: cannot create msgbuff_target_writer_thread\n");
     }
-    if (xTaskCreate(target_writer_thread, "MSC Writer", configMINIMAL_STACK_SIZE,
-                    NULL, task_prio, &task_target_writer_thread) != pdPASS) {
+    if (xTaskCreateAffinitySet(target_writer_thread, "MSC Writer", configMINIMAL_STACK_SIZE,
+                               NULL, task_prio, 2, &task_target_writer_thread) != pdPASS) {
         panic("msc_init: cannot create task_target_writer_thread\n");
     }
 }   // msc_init

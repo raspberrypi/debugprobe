@@ -43,8 +43,8 @@
 
 
 
-#define STREAM_SIGROK_SIZE    4096
-#define STREAM_SIGROK_TRIGGER 64
+#define STREAM_SIGROK_SIZE    8192
+#define STREAM_SIGROK_TRIGGER 32
 
 #define EV_RX                 0x01
 #define EV_TX                 0x02
@@ -375,5 +375,5 @@ void cdc_sigrok_init(uint32_t task_prio)
 {
     events = xEventGroupCreate();
     stream_sigrok = xStreamBufferCreate(STREAM_SIGROK_SIZE, STREAM_SIGROK_TRIGGER);
-    xTaskCreate(cdc_sigrok_thread, "CDC_SIGROK", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_cdc_sigrok);
+    xTaskCreateAffinitySet(cdc_sigrok_thread, "CDC_SIGROK", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_cdc_sigrok);
 }   // cdc_sigrok_init
