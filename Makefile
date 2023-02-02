@@ -5,14 +5,12 @@
 
 VERSION_MAJOR        := 1
 VERSION_MINOR        := 9
-OPTIMIZE_FOR_OPENOCD ?= 0
 
 
 GIT_HASH := $(shell git rev-parse --short HEAD)
 
 CMAKE_FLAGS  = -DPICOPROBE_VERSION_MAJOR=$(VERSION_MAJOR)
 CMAKE_FLAGS += -DPICOPROBE_VERSION_MINOR=$(VERSION_MINOR)
-CMAKE_FLAGS += -DOPTIMIZE_FOR_OPENOCD=$(OPTIMIZE_FOR_OPENOCD)
 CMAKE_FLAGS += -DGIT_HASH=$(GIT_HASH)
 CMAKE_FLAGS += -DCMAKE_EXPORT_COMPILE_COMMANDS=True
 
@@ -57,12 +55,7 @@ flash: all
 .PHONY: create-images
 create-images:
 	$(MAKE) clean-build
-	$(MAKE) cmake-create-debug OPTIMIZE_FOR_OPENOCD=1
+	$(MAKE) cmake-create-debug
 	$(MAKE) all
 	mkdir -p images
-	rm images/*.uf2
-	cp build/picoprobe.uf2 images/yapicoprobe-$(shell printf "%02x%02x" $(VERSION_MAJOR) $(VERSION_MINOR))-$(GIT_HASH)-openocd.uf2
-	@
-	$(MAKE) cmake-create-debug OPTIMIZE_FOR_OPENOCD=0
-	$(MAKE) all
 	cp build/picoprobe.uf2 images/yapicoprobe-$(shell printf "%02x%02x" $(VERSION_MAJOR) $(VERSION_MINOR))-$(GIT_HASH).uf2

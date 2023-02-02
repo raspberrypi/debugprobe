@@ -72,19 +72,18 @@
  *     "CMSIS-DAP transfer count mismatch: expected 12, got 8" on flashing.
  * The correct packet count has to be set on connection.
  */
-#define _DAP_PACKET_COUNT       2
-#if OPTIMIZE_FOR_OPENOCD
-    #define _DAP_PACKET_SIZE    CFG_TUD_VENDOR_RX_BUFSIZE
-#else
-    // pyocd does not like packets > 128
-    #define _DAP_PACKET_SIZE    MIN(CFG_TUD_VENDOR_RX_BUFSIZE, 128)
-#endif
+#define _DAP_PACKET_COUNT           2
+#define _DAP_PACKET_SIZE_OPENOCD    CFG_TUD_VENDOR_RX_BUFSIZE
+#define _DAP_PACKET_SIZE_PYOCD      128                                   // pyocd does not like packets > 128
+
+#define _DAP_PACKET_COUNT_HID       1
+#define _DAP_PACKET_SIZE_HID        64
 
 uint8_t  dap_packet_count = _DAP_PACKET_COUNT;
-uint16_t dap_packet_size  = _DAP_PACKET_SIZE;
+uint16_t dap_packet_size  = _DAP_PACKET_SIZE_PYOCD;
 
-static uint8_t TxDataBuffer[_DAP_PACKET_COUNT * _DAP_PACKET_SIZE];
-static uint8_t RxDataBuffer[_DAP_PACKET_COUNT * _DAP_PACKET_SIZE];
+static uint8_t TxDataBuffer[_DAP_PACKET_COUNT * CFG_TUD_VENDOR_RX_BUFSIZE];     // maximum required size
+static uint8_t RxDataBuffer[_DAP_PACKET_COUNT * CFG_TUD_VENDOR_RX_BUFSIZE];     // maximum required size
 
 
 // prios are critical and determine throughput
@@ -160,10 +159,15 @@ void dap_task(void *ptr)
     bool mounted = false;
     uint32_t used_us = 0;
     uint32_t rx_len = 0;
+    uint32_t request_cnt = 0;
+    daptool_t tool = E_DAPTOOL_UNKNOWN;
 
     for (;;) {
         // disconnect after 1s without data
         if (mounted  &&  time_us_32() - used_us > 1000000) {
+            if (request_cnt <= 3  &&  tool == E_DAPTOOL_OPENOCD) {
+                picoprobe_info("\n        ATTENTION: this seems to be an incompatible version of OpenOCD (<0.12).  Please update.\n\n");
+            }
             mounted = false;
             picoprobe_info("=================================== DAPv2 disconnect target\n");
             led_state(LS_DAPV2_DISCONNECTED);
@@ -176,9 +180,11 @@ void dap_task(void *ptr)
             if (sw_lock("DAPv2", true)) {
                 mounted = true;
                 dap_packet_count = _DAP_PACKET_COUNT;
-                dap_packet_size  = _DAP_PACKET_SIZE;
+                dap_packet_size  = _DAP_PACKET_SIZE_PYOCD;
                 picoprobe_info("=================================== DAPv2 connect target\n");
                 led_state(LS_DAPV2_CONNECTED);
+                tool = DAP_FingerprintTool(NULL, 0);
+                request_cnt = 0;
             }
         }
 
@@ -195,7 +201,21 @@ void dap_task(void *ptr)
                 {
                     uint32_t resp_len;
 
+                    ++request_cnt;
+//                    picoprobe_info("<<<(%lx) %d %d\n", request_len, RxDataBuffer[0], RxDataBuffer[1]);
+                    if (tool == E_DAPTOOL_UNKNOWN) {
+                        tool = DAP_FingerprintTool(RxDataBuffer, request_len);
+                        if (tool == E_DAPTOOL_OPENOCD) {
+                            dap_packet_count = _DAP_PACKET_COUNT;
+                            dap_packet_size  = _DAP_PACKET_SIZE_OPENOCD;
+                            picoprobe_info("OpenOCD detected: switch to big buffers\n");
+                        }
+                        else if (tool == E_DAPTOOL_PYOCD) {
+                            picoprobe_info("pyOCD detected\n");
+                        }
+                    }
                     resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
+//                    picoprobe_info(">>>(%lx) %d %d %d %d\n", resp_len, TxDataBuffer[0], TxDataBuffer[1], TxDataBuffer[2], TxDataBuffer[3]);
                     tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
                     tud_vendor_flush();
 
@@ -416,9 +436,6 @@ int main(void)
     // now we can "print"
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
     picoprobe_info("                     Welcome to Yet Another Picoprobe v" PICOPROBE_VERSION_STRING "-" GIT_HASH "\n");
-#if OPTIMIZE_FOR_OPENOCD
-    picoprobe_info("                               OpenOCD optimized version\n");
-#endif
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
     events = xEventGroupCreate();
@@ -487,8 +504,8 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
     if ( !hid_mounted) {
         if (sw_lock("DAPv1", true)) {
             // this is the minimum version which should always work
-            dap_packet_count = 1;
-            dap_packet_size  = 64;
+            dap_packet_count = _DAP_PACKET_COUNT_HID;
+            dap_packet_size  = _DAP_PACKET_SIZE_HID;
 
             hid_mounted = true;
             picoprobe_info("=================================== DAPv1 connect target\n");
