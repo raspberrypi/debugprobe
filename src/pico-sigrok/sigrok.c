@@ -825,9 +825,10 @@ static void sigrok_thread(void *ptr)
     Dprintf("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 #endif
 
-#if 1
+#ifndef CYW43_LWIP
     // Set GPIO23 (TP4) to control switched mode power supply noise
-    // Note: this is Pico special: GPIO23=PS=1 -> PWM mode of RT6150 (improved ripple but much worse efficiency at light loads)
+    // Note1: this is Pico special: GPIO23=PS=1 -> PWM mode of RT6150 (improved ripple but much worse efficiency at light loads)
+    // Note2: on PicoW this pin must not be touched
     // TODO do this just when fetching analog data
     gpio_init_mask(1 << 23);
     gpio_set_dir_masked(1 << 23, 1 << 23);

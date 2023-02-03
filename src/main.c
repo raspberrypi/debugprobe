@@ -30,7 +30,9 @@
 #include "event_groups.h"
 
 #include <pico/stdlib.h>
-#include <pico/cyw43_arch.h>
+#ifdef CYW43_LWIP
+    #include <pico/cyw43_arch.h>
+#endif
 
 #include <stdio.h>
 #include <stdbool.h>
@@ -399,7 +401,16 @@ void print_task_stat(void)
 
 void usb_thread(void *ptr)
 {
-    // init DAPLink
+#ifdef CYW43_LWIP
+    if (cyw43_arch_init()) {
+        printf("failed to initialize WiFi\n");
+    }
+#endif
+
+    led_init(LED_TASK_PRIO);
+
+    vTaskCoreAffinitySet(tud_taskhandle, 1);
+
     {
         if (g_board_info.prerun_board_config != NULL) {
             g_board_info.prerun_board_config();
@@ -457,10 +468,6 @@ int main(void)
 #endif
     set_sys_clock_khz(PROBE_CPU_CLOCK_KHZ, true);
 
-//    if (cyw43_arch_init()) {
-//        printf("failed to initialize WiFi\n");
-//    }
-
     usb_serial_init();
 
     // initialize stdio and should be done before anything else (that does printf())
@@ -469,8 +476,6 @@ int main(void)
 #endif
 
     sw_lock_init();
-
-    led_init(LED_TASK_PRIO);
 
     DAP_Setup();
 
@@ -481,7 +486,8 @@ int main(void)
 
     events = xEventGroupCreate();
 
-    xTaskCreateAffinitySet(usb_thread, "TinyUSB Main", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, 1, &tud_taskhandle);
+    // it seems that lwip does not like affinity setting in its thread, so the affinity of the USB thread is corrected in the task itself
+    xTaskCreateAffinitySet(usb_thread, "TinyUSB Main", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, -1, &tud_taskhandle);
     vTaskStartScheduler();
 
     return 0;

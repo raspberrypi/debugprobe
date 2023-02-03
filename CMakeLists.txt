@@ -1,5 +1,12 @@
 cmake_minimum_required(VERSION 3.12)
 
+#
+# board definition: pico or pico_w
+#
+set(PICO_BOARD pico_w)
+set(PICO_STDIO_UART 0)
+
+
 include(pico_sdk_import.cmake)
 
 set(FREERTOS_KERNEL_PATH ${CMAKE_CURRENT_LIST_DIR}/freertos)
@@ -47,7 +54,7 @@ add_executable(picoprobe
         src/usb_descriptors.c
 )
 
-if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
         target_sources(picoprobe PRIVATE
                 src/cdc_debug.c
                 )
@@ -134,9 +141,9 @@ pico_generate_pio_header(picoprobe ${CMAKE_CURRENT_LIST_DIR}/src/pico-sigrok/sig
 
 target_compile_options(picoprobe PRIVATE -Wall)
 
-if (DEFINED ENV{PICOPROBE_LED})
-        message("PICOPROBE_LED is defined as " $ENV{PICOPROBE_LED})
-        target_compile_definitions(picoprobe PRIVATE PICOPROBE_LED=$ENV{PICOPROBE_LED})
+if(DEFINED ENV{PICOPROBE_LED})
+    message("PICOPROBE_LED is defined as " $ENV{PICOPROBE_LED})
+    target_compile_definitions(picoprobe PRIVATE PICOPROBE_LED=$ENV{PICOPROBE_LED})
 endif()
 
 set(DBG_PIN_COUNT=4)
@@ -161,6 +168,14 @@ target_link_libraries(picoprobe PRIVATE
         FreeRTOS-Kernel
         FreeRTOS-Kernel-Heap4
 )
+
+if(PICO_BOARD STREQUAL "pico_w")
+    target_link_libraries(picoprobe PRIVATE
+        pico_cyw43_arch_lwip_sys_freertos
+        pico_lwip_iperf
+    )
+endif()
+
 
 #
 # code resides in flash (in former versions it was in RAM)

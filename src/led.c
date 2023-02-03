@@ -27,6 +27,10 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#ifdef CYW43_LWIP
+    #include "pico/cyw43_arch.h"
+#endif
+
 #include "FreeRTOS.h"
 #include "task.h"
 
@@ -58,7 +62,9 @@ static uint64_t     rtt_data_trigger;
 
 static void led(uint8_t state)
 {
-#ifdef PICOPROBE_LED
+#ifdef CYW43_LWIP
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, state);
+#elif defined(PICOPROBE_LED)
     static bool initialized;
 
     if ( !initialized) {
