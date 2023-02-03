@@ -31,7 +31,8 @@
  * the target must be already connected.
  */
 
-#include "pico/stdlib.h"
+#include <pico/stdlib.h>
+#include <stdio.h>
 
 #include "tusb.h"
 
@@ -369,7 +370,7 @@ static void insert_fat_entry(uint8_t *buf, uint16_t start, uint16_t entry_no, ui
     uint16_t end = start + BPB_BytsPerSec - 1;
     uint16_t n;
 
-//    cdc_debug_printf("%u %u\n", entry_no, cluster_ref);
+//    printf("%u %u\n", entry_no, cluster_ref);
 
     if ((entry_no & 0x01) == 0) {
         n = 3 * (entry_no / 2);
@@ -627,12 +628,12 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
 #if 0
         for (int i = 0;  i < 512;  ++i) {
             if (i % 32 == 0)
-                cdc_debug_printf("\n");
+                printf("\n");
             else if (i % 16 == 0)
-                cdc_debug_printf(" ");
-            cdc_debug_printf(" %02x", buffer[i]);
+                printf(" ");
+            printf(" %02x", buffer[i]);
         }
-        cdc_debug_printf("\n");
+        printf("\n");
 #endif
     }
     else if (lba >= c_FatStartSector  &&  lba < c_FatStartSector + c_FatSectors) {

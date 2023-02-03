@@ -23,6 +23,8 @@
  *
  */
 
+#include <stdio.h>
+
 #include "FreeRTOS.h"
 #include "semphr.h"
 

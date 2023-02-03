@@ -11,6 +11,8 @@
 // YAPicoprobe definitions
 //
 
+#include <stdio.h>
+
 #include "swd_host.h"
 
 #include "pico_target_utils.h"

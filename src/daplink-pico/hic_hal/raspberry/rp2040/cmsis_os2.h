@@ -10,8 +10,6 @@ extern "C" {
 
 void osDelay(uint32_t ticks);
 
-extern int cdc_debug_printf(const char* format, ...) __attribute__ ((format (printf, 1, 2)));
-
 #ifdef __cplusplus
 }
 #endif

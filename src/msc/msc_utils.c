@@ -26,6 +26,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <stdio.h>
 
 #include <pico/stdlib.h>
 #include <target_rp2040.h>
@@ -203,7 +204,7 @@ static bool display_reg(uint8_t num)
     rc = swd_read_core_register(num, &val);
     if ( !rc)
     	return rc;
-    cdc_debug_printf("xx %d r%d=0x%lx\n", __LINE__, num, val);
+    printf("xx %d r%d=0x%lx\n", __LINE__, num, val);
     return true;
 }   // display_reg
 #endif

@@ -108,17 +108,17 @@ does not add any features, instead the LED indicator does not work there.
 .Other Pin Assigments RP2040
 [%header]
 |===
-| Pin | Description
+| Pin | Description | Pico W
 
-| GPIO0       | spare
-| GPIO7..9    | spare
-| GPIO18      | spare
-| GPIO19..21  | debug pins (for probe debugging)
-| GPIO22      | spare
-| GPIO23      | power supply control
-| GPIO24      | USB sense
-| GPIO25      | LED
-| GPIO29/ADC3 | VSYS/3
+| GPIO0       | spare                            |
+| GPIO7..9    | spare                            |
+| GPIO18      | spare                            |
+| GPIO19..21  | debug pins (for probe debugging) |
+| GPIO22      | spare                            |
+| GPIO23      | power supply control             | WL_ON
+| GPIO24      | USB sense                        | WL_D
+| GPIO25      | LED                              | WL_CS
+| GPIO29/ADC3 | VSYS/3                           | WL_CLK
 |===
 
 
@@ -137,7 +137,7 @@ does not add any features, instead the LED indicator does not work there.
 |pyocd
 |yes
 |no
-|`pyocd flash -f 2500000 -firmware.elf`
+|`pyocd flash -f 2500000 -t rp2040 firmware.elf`
 
 |cp / copy
 |yes

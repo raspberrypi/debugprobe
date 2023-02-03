@@ -74,11 +74,8 @@
 #define SR_ADC_A_MASK       (((1 << (SR_NUM_A_CHAN)) - 1))
 
 
-#if !defined(NDEBUG)
-    int cdc_debug_printf(const char* format, ...) __attribute__ ((format (printf, 1, 2)));
-#endif
 #if 1  &&  !defined(NDEBUG)
-    #define Dprintf(format,args...) cdc_debug_printf("(SR) " format, ## args)
+    #define Dprintf(format,args...) printf("(SR) " format, ## args)
 #else
     #define Dprintf(format,...) ((void)0)
 #endif

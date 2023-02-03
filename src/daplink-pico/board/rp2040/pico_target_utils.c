@@ -23,6 +23,8 @@
  *
  */
 
+#include <stdio.h>
+
 #include "pico_target_utils.h"
 
 #include "swd_host.h"

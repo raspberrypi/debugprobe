@@ -19,6 +19,7 @@
  * limitations under the License.
  */
 
+#include <stdio.h>
 #include "daplink.h"
 #include "DAP_config.h"
 #include "swd_host.h"
@@ -154,7 +155,7 @@ uint8_t target_set_state(target_state_t state)
 
 void swd_set_target_reset(uint8_t asserted)
 {
-//    cdc_debug_printf("swd_set_target_reset(%d), %p %p\n", asserted, g_target_family, g_target_family == NULL ? NULL : g_target_family->swd_set_target_reset);
+//    printf("swd_set_target_reset(%d), %p %p\n", asserted, g_target_family, g_target_family == NULL ? NULL : g_target_family->swd_set_target_reset);
     if (g_target_family && g_target_family->swd_set_target_reset) {
         g_target_family->swd_set_target_reset(asserted);
     } else {

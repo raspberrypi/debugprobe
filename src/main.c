@@ -30,6 +30,8 @@
 #include "event_groups.h"
 
 #include <pico/stdlib.h>
+#include <pico/cyw43_arch.h>
+
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
@@ -449,15 +451,19 @@ void usb_thread(void *ptr)
 int main(void)
 {
     board_init();
-    set_sys_clock_khz(PROBE_CPU_CLOCK_KHZ, true);
 #if (PROBE_CPU_CLOCK_KHZ >= 150*1000)
     // increase voltage on higher frequencies
     vreg_set_voltage(VREG_VOLTAGE_1_20);
 #endif
+    set_sys_clock_khz(PROBE_CPU_CLOCK_KHZ, true);
+
+//    if (cyw43_arch_init()) {
+//        printf("failed to initialize WiFi\n");
+//    }
 
     usb_serial_init();
 
-    // should be done before anything else (that does cdc_debug_printf())
+    // initialize stdio and should be done before anything else (that does printf())
 #if !defined(NDEBUG)
     cdc_debug_init(CDC_DEBUG_TASK_PRIO);
 #endif
