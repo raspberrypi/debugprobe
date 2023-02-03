@@ -218,13 +218,12 @@ void dap_task(void *ptr)
                         if (tool == E_DAPTOOL_OPENOCD) {
                             dap_packet_count = _DAP_PACKET_COUNT;
                             dap_packet_size  = _DAP_PACKET_SIZE_OPENOCD;
-                            picoprobe_info("OpenOCD detected: switch to big buffers\n");
-                        }
-                        else if (tool == E_DAPTOOL_PYOCD) {
-                            picoprobe_info("pyOCD detected\n");
                         }
                     }
 
+                    //
+                    // initiate SWD connect / disconnect
+                    //
                     if ( !swd_connected  &&  RxDataBuffer[0] == ID_DAP_Connect) {
                         if (sw_lock("DAPv2", true)) {
                             swd_connected = true;
@@ -241,11 +240,15 @@ void dap_task(void *ptr)
                         swd_disconnect_requested = false;
                     }
 
+                    //
+                    // execute request and send back response
+                    //
+                    if (swd_connected  ||  DAP_OfflineCommand(RxDataBuffer))
                     {
                         uint32_t resp_len;
 
                         resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
-                        //                    picoprobe_info(">>>(%lx) %d %d %d %d\n", resp_len, TxDataBuffer[0], TxDataBuffer[1], TxDataBuffer[2], TxDataBuffer[3]);
+//                        picoprobe_info(">>>(%lx) %d %d %d %d\n", resp_len, TxDataBuffer[0], TxDataBuffer[1], TxDataBuffer[2], TxDataBuffer[3]);
 
                         tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
                         tud_vendor_flush();
@@ -480,15 +483,16 @@ int main(void)
 
 
 
-static bool hid_mounted;
+static bool hid_swd_connected;
+static bool hid_swd_disconnect_requested;
 static TimerHandle_t     timer_hid_disconnect = NULL;
 static void             *timer_hid_disconnect_id;
 
 
 static void hid_disconnect(TimerHandle_t xTimer)
 {
-    if (hid_mounted) {
-        hid_mounted = false;
+    if (hid_swd_disconnect_requested  &&  hid_swd_connected) {
+        hid_swd_connected = false;
         picoprobe_info("=================================== DAPv1 disconnect target\n");
         led_state(LS_DAPV1_DISCONNECTED);
         sw_unlock("DAPv1");
@@ -533,19 +537,31 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
         xTimerReset(timer_hid_disconnect, pdMS_TO_TICKS(1000));
     }
 
-    if ( !hid_mounted) {
+    //
+    // initiate SWD connect / disconnect
+    //
+    if ( !hid_swd_connected  &&  RxDataBuffer[0] == ID_DAP_Connect) {
         if (sw_lock("DAPv1", true)) {
-            // this is the minimum version which should always work
-            dap_packet_count = _DAP_PACKET_COUNT_HID;
-            dap_packet_size  = _DAP_PACKET_SIZE_HID;
-
-            hid_mounted = true;
+            hid_swd_connected = true;
             picoprobe_info("=================================== DAPv1 connect target\n");
             led_state(LS_DAPV1_CONNECTED);
         }
     }
+    if (RxDataBuffer[0] == ID_DAP_Disconnect  ||  RxDataBuffer[0] == ID_DAP_Info  ||  RxDataBuffer[0] == ID_DAP_HostStatus) {
+        hid_swd_disconnect_requested = true;
 
-    if (hid_mounted) {
+        // this is the minimum version which should always work
+        dap_packet_count = _DAP_PACKET_COUNT_HID;
+        dap_packet_size  = _DAP_PACKET_SIZE_HID;
+    }
+    else {
+        hid_swd_disconnect_requested = false;
+    }
+
+    //
+    // execute request and send back response
+    //
+    if (hid_swd_connected  ||  DAP_OfflineCommand(RxDataBuffer)) {
 #if 0
         // heavy debug output, set dap_packet_count=2 to stumble into the bug
         uint32_t request_len = DAP_GetCommandLength(RxDataBuffer, bufsize);

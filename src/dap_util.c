@@ -436,3 +436,14 @@ daptool_t DAP_FingerprintTool(const uint8_t *request, uint32_t request_len)
 
     return (cnt < 3) ? E_DAPTOOL_UNKNOWN : tool;
 }   // DAP_FingerprintTool
+
+
+
+bool DAP_OfflineCommand(const uint8_t *request_data)
+{
+    return      *request_data == ID_DAP_Info
+            ||  *request_data == ID_DAP_HostStatus
+            ||  *request_data == ID_DAP_Connect
+            ||  *request_data == ID_DAP_Disconnect
+            ||  *request_data == ID_DAP_SWJ_Clock;          // this is not true, but unfortunately pyOCD does it
+}   // DAP_OfflineCommand
