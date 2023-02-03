@@ -27,14 +27,8 @@
 #define PICOPROBE_H_
 
 
-/// which means: pyocd will not work.
-#ifndef OPTIMIZE_FOR_OPENOCD
-    #define OPTIMIZE_FOR_OPENOCD     0
-#endif
-
 #define INCLUDE_RTT_CONSOLE
 #define INCLUDE_SIGROK
-
 
 
 #if !defined(NDEBUG)
@@ -74,7 +68,7 @@
 
 // Base value of sys_clk in khz.  Must be <=125Mhz per RP2040 spec and a multiple of 24Mhz
 // to support integer divisors of the PIO clock and ADC clock (for sigrok)
-#define PROBE_CPU_CLOCK_KHZ      ((120 + 2*24) * 1000)             // overclocked, even 200MHz seems to be no problem
+#define PROBE_CPU_CLOCK_KHZ      ((120 + 2*24) * 1000)             // overclocked, even 264MHz seems to be no problem
 
 
 // PIO config
@@ -110,5 +104,13 @@
 #define SIGROK_PIO               pio1
 #define SIGROK_SM                0                      // often hard coded
 
+
+// optimize a single function
+#if 0
+    // actually no positive effect
+    #define __TIME_CRITICAL_FUNCTION(func)   __attribute__((optimize("O3")))   __time_critical_func(func)
+#else
+    #define __TIME_CRITICAL_FUNCTION(func)   func
+#endif
 
 #endif

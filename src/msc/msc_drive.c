@@ -31,6 +31,8 @@
  * the target must be already connected.
  */
 
+#include "pico/stdlib.h"
+
 #include "tusb.h"
 
 #include "picoprobe_config.h"
@@ -55,11 +57,6 @@
 #define CLUSTERS(BYTES) (((BYTES) + BPB_BytsPerClus - 1) / BPB_BytsPerClus)
 #define AFAT12(C1,C2)   (C1) & 0xff, (((C1) & 0xf00) >> 8) + (((C2) & 0x0f) << 4), (((C2) & 0xff0) >> 4)
 
-#if OPTIMIZE_FOR_OPENOCD
-    #define SPEC_VERSION "-openocd"
-#else
-    #define SPEC_VERSION
-#endif
 #if defined(GIT_HASH)
     #define _GIT_HASH "-" GIT_HASH
 #else
@@ -67,7 +64,7 @@
 #endif
 
 #define README_CONTENTS \
-"This is Yet Another Picoprobe v" PICOPROBE_VERSION_STRING  _GIT_HASH SPEC_VERSION ".\r\n\r\n\
+"This is Yet Another Picoprobe v" PICOPROBE_VERSION_STRING  _GIT_HASH ".\r\n\r\n\
 - CURRENT.UF2 mirrors the flash content of the target\r\n\
 - INFO_UF2.TXT holds some information about probe and target\r\n\
 - drop a UF2 file to flash the target device\r\n"
@@ -82,7 +79,7 @@
 #define INDEXHTM_SIZE          (sizeof(INDEXHTM_CONTENTS) - 1)
 
 #define INFOUF2_CONTENTS \
-"UF2 Target Programmer v" PICOPROBE_VERSION_STRING _GIT_HASH SPEC_VERSION " for %s%s\r\n\
+"UF2 Target Programmer v" PICOPROBE_VERSION_STRING _GIT_HASH " for %s%s\r\n\
 Model: Yet Another Picoprobe\r\n\
 Board-ID: %s\r\n"
 #define INFOUF2_SIZE           150                                              // generated text must fit into buffer

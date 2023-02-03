@@ -35,15 +35,13 @@
 #include "led.h"
 
 
-#define STREAM_UART_SIZE      1024
+#define STREAM_UART_SIZE      4096
 #define STREAM_UART_TRIGGER   32
 
 static TaskHandle_t           task_uart = NULL;
 static StreamBufferHandle_t   stream_uart;
 
-static uint8_t cdc_tx_buf[CFG_TUD_CDC_TX_BUFSIZE];
-
-static bool was_connected = false;
+static bool m_connected = false;
 
 
 #define EV_TX_COMPLETE        0x01
@@ -57,13 +55,14 @@ static EventGroupHandle_t     events;
 
 void cdc_thread(void *ptr)
 {
+    static uint8_t cdc_tx_buf[CFG_TUD_CDC_TX_BUFSIZE];
 
     for (;;) {
         size_t cdc_rx_chars;
 
-        if ( !was_connected) {
+        if ( !m_connected) {
             // wait here some time (until my terminal program is ready)
-            was_connected = true;
+            m_connected = true;
             vTaskDelay(pdMS_TO_TICKS(100));
         }
 
@@ -107,6 +106,7 @@ void cdc_thread(void *ptr)
         // (actually don't know if this works, but note that in worst case this loop is taken just every 50ms.
         //  So this is not for high throughput)
         //
+        cdc_rx_chars = tud_cdc_n_available(CDC_UART_N);
         if (cdc_rx_chars > 0  &&  uart_is_writable(PICOPROBE_UART_INTERFACE)) {
             uint8_t ch;
             size_t tx_len;
@@ -142,7 +142,7 @@ void cdc_uart_line_state_cb(bool dtr, bool rts)
     if (!dtr  &&  !rts) {
         vTaskSuspend(task_uart);
         tud_cdc_n_write_clear(CDC_UART_N);
-        was_connected = false;
+        m_connected = false;
     }
     else {
         vTaskResume(task_uart);
@@ -165,6 +165,42 @@ void cdc_uart_rx_cb()
 
 
 
+static void cdc_uart_put_into_stream(const void *data, size_t len, bool in_isr)
+/**
+ * Write into stream.  If not connected use the stream as a FIFO and drop old content.
+ */
+{
+    if ( !m_connected) {
+        size_t available = xStreamBufferSpacesAvailable(stream_uart);
+        for (;;) {
+            uint8_t dummy[64];
+            size_t n;
+
+            if (available >= len) {
+                break;
+            }
+            if (in_isr) {
+                n = xStreamBufferReceiveFromISR(stream_uart, dummy, sizeof(dummy), NULL);
+            }
+            else {
+                n = xStreamBufferReceive(stream_uart, dummy, sizeof(dummy), 0);
+            }
+            if (n <= 0) {
+                break;
+            }
+            available += n;
+        }
+    }
+    if (in_isr) {
+        xStreamBufferSendFromISR(stream_uart, data, len, NULL);
+    }
+    else {
+        xStreamBufferSend(stream_uart, data, len, 0);
+    }
+}   // cdc_uart_put_into_stream
+
+
+
 void on_uart_rx(void)
 {
     uint8_t buf[40];
@@ -181,7 +217,7 @@ void on_uart_rx(void)
 
     if (cnt != 0) {
         led_state(LS_UART_DATA);
-        xStreamBufferSendFromISR(stream_uart, buf, cnt, NULL);
+        cdc_uart_put_into_stream(buf, cnt, true);
     }
 
     {
@@ -199,7 +235,7 @@ void on_uart_rx(void)
 
 void cdc_uart_write(const uint8_t *buf, uint32_t cnt)
 {
-    xStreamBufferSend(stream_uart, buf, cnt, pdMS_TO_TICKS(100));
+    cdc_uart_put_into_stream(buf, cnt, false);
     xEventGroupSetBits(events, EV_STREAM);
 }   // cdc_uart_write
 
@@ -229,6 +265,6 @@ void cdc_uart_init(uint32_t task_prio)
     uart_set_irq_enables(PICOPROBE_UART_INTERFACE, true, false);
 
     /* UART needs to preempt USB as if we don't, characters get lost */
-    xTaskCreate(cdc_thread, "UART", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_uart);
+    xTaskCreateAffinitySet(cdc_thread, "CDC_UART", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_uart);
     cdc_uart_line_state_cb(false, false);
 }   // cdc_uart_init

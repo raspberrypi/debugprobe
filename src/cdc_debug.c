@@ -38,7 +38,7 @@
 #include "picoprobe_config.h"
 
 
-#define STREAM_PRINTF_SIZE    2048
+#define STREAM_PRINTF_SIZE    4096
 #define STREAM_PRINTF_TRIGGER 32
 
 static TaskHandle_t           task_printf = NULL;
@@ -53,7 +53,7 @@ static EventGroupHandle_t events;
 
 static uint8_t cdc_debug_buf[CFG_TUD_CDC_TX_BUFSIZE];
 
-static bool was_connected = false;
+static bool m_connected = false;
 
 
 
@@ -63,9 +63,9 @@ void cdc_debug_thread(void *ptr)
  */
 {
     for (;;) {
-        if ( !was_connected) {
+        if ( !m_connected) {
             // wait here some time (until my terminal program is ready)
-            was_connected = true;
+            m_connected = true;
             vTaskDelay(pdMS_TO_TICKS(100));
         }
 
@@ -103,7 +103,7 @@ void cdc_debug_line_state_cb(bool dtr, bool rts)
     if (!dtr  &&  !rts) {
         vTaskSuspend(task_printf);
         tud_cdc_n_write_clear(CDC_DEBUG_N);
-        was_connected = false;
+        m_connected = false;
     }
     else {
         vTaskResume(task_printf);
@@ -116,6 +116,32 @@ void cdc_debug_tx_complete_cb(void)
 {
     xEventGroupSetBits(events, EV_TX_COMPLETE);
 }   // cdc_debug_tx_complete_cb
+
+
+
+static void cdc_debug_put_into_stream(const void *data, size_t len)
+/**
+ * Write into stream.  If not connected use the stream as a FIFO and drop old content.
+ */
+{
+    if ( !m_connected) {
+        size_t available = xStreamBufferSpacesAvailable(stream_printf);
+        for (;;) {
+            uint8_t dummy[64];
+            size_t n;
+
+            if (available >= len) {
+                break;
+            }
+            n = xStreamBufferReceive(stream_printf, dummy, sizeof(dummy), 0);
+            if (n <= 0) {
+                break;
+            }
+            available += n;
+        }
+    }
+    xStreamBufferSend(stream_printf, data, len, 0);
+}   // cdc_debug_put_into_stream
 
 
 
@@ -179,7 +205,7 @@ int cdc_debug_printf(const char* format, ...)
                 snprintf(tbuf, sizeof(tbuf), "%lu.%03lu (%3lu) - ", now_ms / 1000, now_ms % 1000, d_ms);
                 prev_ms = now_ms;
             }
-            xStreamBufferSend(stream_printf, tbuf, strnlen(tbuf, sizeof(tbuf)), 1);
+            cdc_debug_put_into_stream(tbuf, strnlen(tbuf, sizeof(tbuf)));
         }
 
         p = memchr(buf + ndx, '\n', total_cnt - ndx);
@@ -190,7 +216,7 @@ int cdc_debug_printf(const char* format, ...)
             newline = true;
         }
 
-        xStreamBufferSend(stream_printf, buf + ndx, cnt, 1);
+        cdc_debug_put_into_stream(buf + ndx, cnt);
 
         ndx += cnt;
     }
@@ -217,6 +243,6 @@ void cdc_debug_init(uint32_t task_prio)
         panic("cdc_debug_init: cannot create sema_printf\n");
     }
 
-    xTaskCreate(cdc_debug_thread, "CDC_DEB", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_printf);
+    xTaskCreateAffinitySet(cdc_debug_thread, "CDC_DEBUG", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_printf);
     cdc_debug_line_state_cb(false, false);
 }   // cdc_debug_init

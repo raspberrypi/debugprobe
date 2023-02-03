@@ -28,8 +28,18 @@
 
 #include <stdint.h>
 
+
+typedef enum {
+    E_DAPTOOL_UNKNOWN,
+    E_DAPTOOL_OPENOCD,
+    E_DAPTOOL_PYOCD
+} daptool_t;
+
+
 static const uint32_t DAP_CHECK_ABORT = 99999999;
 
 uint32_t DAP_GetCommandLength(const uint8_t *request_data, uint32_t request_len);
+daptool_t DAP_FingerprintTool(const uint8_t *request, uint32_t request_len);
+bool DAP_OfflineCommand(const uint8_t *request_data);
 
 #endif

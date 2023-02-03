@@ -43,7 +43,6 @@
 #define CTRL_WORD_WRITE(CNT, DATA)    (((DATA) << 13) + ((CNT) << 8) + (probe.offset + probe_offset_short_output))
 #define CTRL_WORD_READ(CNT)           (                 ((CNT) << 8) + (probe.offset + probe_offset_input))
 
-#define OPTIMIZE  __attribute__((optimize("O3")))
 
 
 // Only want to set / clear one gpio per event so go up in powers of 2
@@ -105,7 +104,17 @@ void probe_set_swclk_freq(uint32_t freq_khz)
     div_int  = div_256 >> 8;
     div_frac = div_256 & 0xff;
 
-//    picoprobe_debug("Set sysclk %lukHz swclk freq %lukHz, divider %lu + %lu/256\n", clk_sys_freq_khz, freq_khz, div_int, div_frac);
+    {
+        static uint32_t prev_div_256;
+
+        if (div_256 != prev_div_256) {
+            prev_div_256 = div_256;
+            picoprobe_info("SWD clk req   : %lukHz = %lukHz / (6 * (%lu + %lu/256)), eff : %lukHz\n",
+                           freq_khz, clk_sys_freq_khz, div_int, div_frac,
+                           (256 * clk_sys_freq_khz) / (6 * div_256));
+        }
+    }
+
     if (div_int == 0) {
         picoprobe_error("probe_set_swclk_freq: underflow of clock setup, setting clock to maximum.\n");
         div_int  = 1;
@@ -135,7 +144,7 @@ void probe_assert_reset(bool state)
  * Actually only 32bit can be set, more data is sent as "zero".  Especially useful for
  * idle cycles (although never seen),
  */
-OPTIMIZE void __not_in_flash_func(probe_write_bits)(uint bit_count, uint32_t data)
+void __TIME_CRITICAL_FUNCTION(probe_write_bits)(uint bit_count, uint32_t data)
 {
     DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE);
     for (;;) {
@@ -154,7 +163,7 @@ OPTIMIZE void __not_in_flash_func(probe_write_bits)(uint bit_count, uint32_t dat
 
 
 
-OPTIMIZE uint32_t __not_in_flash_func(probe_read_bits)(uint bit_count, bool push, bool pull)
+uint32_t __TIME_CRITICAL_FUNCTION(probe_read_bits)(uint bit_count, bool push, bool pull)
 {
     uint32_t data = 0xffffffff;
     uint32_t data_shifted;

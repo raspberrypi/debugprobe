@@ -214,5 +214,5 @@ void led_init(uint32_t task_prio)
     gpio_set_dir(PICOPROBE_LED, GPIO_OUT);
     gpio_put(PICOPROBE_LED, 1);
 
-    xTaskCreate(led_thread, "LED", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_led);
+    xTaskCreateAffinitySet(led_thread, "LED", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_led);
 }   // led_init

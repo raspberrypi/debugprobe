@@ -41,9 +41,10 @@
 
 #define CFG_TUSB_RHPORT0_MODE         OPT_MODE_DEVICE
 
-#ifndef CFG_TUSB_OS
-#define CFG_TUSB_OS                   OPT_OS_PICO
-#endif
+// force usage of FreeRTOS
+#undef CFG_TUSB_OS
+#define CFG_TUSB_OS                   OPT_OS_FREERTOS
+
 
 #ifndef CFG_TUSB_MEM_SECTION
 #define CFG_TUSB_MEM_SECTION
@@ -85,8 +86,8 @@
 
 // CDC numbering
 #define CDC_UART_N                    0
-#define CDC_DEBUG_N                   1
-#define CDC_SIGROK_N                  2
+#define CDC_SIGROK_N                  1
+#define CDC_DEBUG_N                   2
 
 #ifdef __cplusplus
  }

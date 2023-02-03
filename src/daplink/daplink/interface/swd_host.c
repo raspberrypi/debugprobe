@@ -926,7 +926,7 @@ uint8_t swd_set_target_state_hw(target_state_t state)
     uint32_t val;
     int8_t ap_retries = 2;
 
-    cdc_debug_printf("swd_set_target_state_hw(%d)\n", state);
+//    cdc_debug_printf("swd_set_target_state_hw(%d)\n", state);
 
    /* Calling swd_init prior to entering RUN state causes operations to fail. */
     if (state != RUN) {

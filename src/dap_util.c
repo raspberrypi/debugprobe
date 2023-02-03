@@ -229,6 +229,7 @@ static uint32_t DAP_GetSingleCommandLength(const uint8_t *request, uint32_t requ
     switch (request[0])
     {
         case ID_DAP_Info:
+//            picoprobe_info("DAP_info: %d %d\n", request[0], request[1]);
             num = 1 + 1;
             break;
 
@@ -381,3 +382,68 @@ uint32_t DAP_GetCommandLength(const uint8_t *request, uint32_t request_len)
 
     return DAP_GetSingleCommandLength(request, request_len);
 }   // DAP_GetCommandLength
+
+
+
+/**
+ * Detect the connecting tool via simple fingerprinting of the first requests.
+ *
+ * pyocd   sends  0/254, 0/4, 0/255
+ * openocd sends  0/240, 0/4, 0/3
+ *
+ * Actual idea is, to switch to a faster mode if openocd is detected reliably.
+ *
+ * If any parameter is "0", the logic is reset.
+ *
+ * \note
+ *    Sequence is different for pyocd, if CMSIS > 5.7.0 is used in the probe.
+ */
+daptool_t DAP_FingerprintTool(const uint8_t *request, uint32_t request_len)
+{
+    static uint32_t cnt;
+    static daptool_t tool;
+
+    if (request == NULL  ||  request_len == 0) {
+        cnt = 0;
+        tool = E_DAPTOOL_UNKNOWN;
+    }
+    else if (request_len >= 2) {
+        ++cnt;
+
+        if (cnt == 1) {
+            if (request[0] == ID_DAP_Info  &&  request[1] == DAP_ID_PACKET_COUNT) {
+                tool = E_DAPTOOL_PYOCD;
+            }
+            else if (request[0] == ID_DAP_Info  &&  request[1] == DAP_ID_CAPABILITIES) {
+                tool = E_DAPTOOL_OPENOCD;
+            }
+        }
+        else if (cnt == 2) {
+            if (request[0] != ID_DAP_Info  ||  request[1] != DAP_ID_FW_VER)
+            {
+                tool = E_DAPTOOL_UNKNOWN;
+            }
+        }
+        else if (cnt == 3) {
+            if (tool == E_DAPTOOL_PYOCD  &&  (request[0] != ID_DAP_Info  ||  request[1] != DAP_ID_PACKET_SIZE)) {
+                tool = E_DAPTOOL_UNKNOWN;
+            }
+            else if (tool == E_DAPTOOL_OPENOCD  &&  (request[0] != ID_DAP_Info  ||  request[1] != DAP_ID_SER_NUM)) {
+                tool = E_DAPTOOL_UNKNOWN;
+            }
+        }
+    }
+
+    return (cnt < 3) ? E_DAPTOOL_UNKNOWN : tool;
+}   // DAP_FingerprintTool
+
+
+
+bool DAP_OfflineCommand(const uint8_t *request_data)
+{
+    return      *request_data == ID_DAP_Info
+            ||  *request_data == ID_DAP_HostStatus
+            ||  *request_data == ID_DAP_Connect
+            ||  *request_data == ID_DAP_Disconnect
+            ||  *request_data == ID_DAP_SWJ_Clock;          // this is not true, but unfortunately pyOCD does it
+}   // DAP_OfflineCommand

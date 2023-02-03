@@ -33,6 +33,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "event_groups.h"
+#include "stream_buffer.h"
 
 #include "tusb.h"
 
@@ -42,11 +43,16 @@
 
 
 
-#define EV_RX   0x01
-#define EV_TX   0x02
+#define STREAM_SIGROK_SIZE    8192
+#define STREAM_SIGROK_TRIGGER 32
 
-static TaskHandle_t       task_cdc_sigrok;
-static EventGroupHandle_t events;
+#define EV_RX                 0x01
+#define EV_TX                 0x02
+#define EV_STREAM             0x04
+
+static TaskHandle_t           task_cdc_sigrok;
+static EventGroupHandle_t     events;
+static StreamBufferHandle_t   stream_sigrok;
 
 
 
@@ -59,9 +65,8 @@ void cdc_sigrok_tx_complete_cb(void)
 
 void cdc_sigrok_write(const char *buf, int length)
 {
-    int i;
-
 #if 0
+    int i;
     static int bytecnt;
     static int linecnt;
     char cc[128];
@@ -85,23 +90,8 @@ void cdc_sigrok_write(const char *buf, int length)
     }
 #endif
 
-    i = 0;
-    while (i < length  &&  tud_cdc_n_connected(CDC_SIGROK_N)) {
-        int n = length - i;
-        int avail = (int)tud_cdc_n_write_available(CDC_SIGROK_N);
-        if (n > avail)
-            n = avail;
-        if (n != 0) {
-            int n2 = (int)tud_cdc_n_write(CDC_SIGROK_N, buf + i, (uint32_t)n);
-            tud_cdc_n_write_flush(CDC_SIGROK_N);
-            i += n2;
-        }
-        else {
-//            Dprintf("xxxxxxxxxxxxxxxxxx\n");
-            tud_cdc_n_write_flush(CDC_SIGROK_N);
-            xEventGroupWaitBits(events, EV_TX, pdTRUE, pdFALSE, portMAX_DELAY);
-        }
-    }
+    xStreamBufferSend(stream_sigrok, buf, length, portMAX_DELAY);
+    xEventGroupSetBits(events, EV_STREAM);
 }   // cdc_sigrok_write
 
 
@@ -305,37 +295,77 @@ void cdc_sigrok_rx_cb(void)
 
 void cdc_sigrok_thread()
 {
+    static uint8_t cdc_tx_buf[CFG_TUD_CDC_TX_BUFSIZE];
+    EventBits_t ev = EV_RX | EV_TX | EV_STREAM;
+
     for (;;) {
-        xEventGroupWaitBits(events, EV_RX, pdTRUE, pdFALSE, portMAX_DELAY);
+        size_t cdc_rx_chars;
 
-        for (;;) {
-            uint32_t n;
-            uint8_t  ch;
-
-            n = tud_cdc_n_available(CDC_SIGROK_N);
-            if (n == 0) {
-                break;
-            }
-
-            n = tud_cdc_n_read(CDC_SIGROK_N, &ch, sizeof(ch));
-            if (n == 0) {
-                break;
-            }
-
-            // The '+' is the only character we track during normal sampling because it can end
-            // a continuous trace.  A reset '*' should only be seen after we have completed normally
-            // or hit an error condition.
-            if (ch == '+') {
-                sr_dev.sample_and_send = false;
-                sr_dev.aborted         = false;        // clear the abort so we stop sending !!
-            }
-            else {
-                if (process_char(&sr_dev, (char)ch)) {
-                    sr_dev.send_resp = true;
-                }
-            }
-            sigrok_notify();
+        cdc_rx_chars = tud_cdc_n_available(CDC_SIGROK_N);
+        if (cdc_rx_chars == 0  &&  xStreamBufferIsEmpty(stream_sigrok)) {
+            // -> nothing left to do: sleep for a long time
+            tud_cdc_n_write_flush(CDC_SIGROK_N);
+            ev = xEventGroupWaitBits(events, EV_RX | EV_TX | EV_STREAM | EV_RX, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
         }
+        else if (cdc_rx_chars != 0) {
+            // wait a short period if there are characters host -> probe -> target
+            ev = xEventGroupWaitBits(events, EV_RX | EV_TX | EV_STREAM | EV_RX, pdTRUE, pdFALSE, pdMS_TO_TICKS(1));
+        }
+        else {
+            // wait until transmission via USB has finished
+            ev = xEventGroupWaitBits(events, EV_RX | EV_TX | EV_STREAM | EV_RX, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
+        }
+
+        if (ev & EV_RX) {
+            for (;;) {
+                uint32_t n;
+                uint8_t  ch;
+
+                n = tud_cdc_n_available(CDC_SIGROK_N);
+                if (n == 0) {
+                    break;
+                }
+
+                n = tud_cdc_n_read(CDC_SIGROK_N, &ch, sizeof(ch));
+                if (n == 0) {
+                    break;
+                }
+
+                // The '+' is the only character we track during normal sampling because it can end
+                // a continuous trace.  A reset '*' should only be seen after we have completed normally
+                // or hit an error condition.
+                if (ch == '+') {
+                    sr_dev.sample_and_send = false;
+                    sr_dev.aborted         = false;        // clear the abort so we stop sending !!
+                }
+                else {
+                    if (process_char(&sr_dev, (char)ch)) {
+                        sr_dev.send_resp = true;
+                    }
+                }
+                sigrok_notify();
+            }
+        }
+
+        while ( !xStreamBufferIsEmpty(stream_sigrok)) {
+            //
+            // transmit characters target -> picoprobe -> host
+            //
+            size_t cnt;
+            size_t max_cnt;
+
+            max_cnt = tud_cdc_n_write_available(CDC_SIGROK_N);
+            if (max_cnt == 0) {
+                break;
+            }
+
+            max_cnt = MIN(sizeof(cdc_tx_buf), max_cnt);
+            cnt = xStreamBufferReceive(stream_sigrok, cdc_tx_buf, max_cnt, pdMS_TO_TICKS(500));
+            if (cnt != 0) {
+                tud_cdc_n_write(CDC_SIGROK_N, cdc_tx_buf, cnt);
+            }
+        }
+        tud_cdc_n_write_flush(CDC_SIGROK_N);
     }
 }   // cdc_sigrok_thread
 
@@ -344,5 +374,6 @@ void cdc_sigrok_thread()
 void cdc_sigrok_init(uint32_t task_prio)
 {
     events = xEventGroupCreate();
-    xTaskCreate(cdc_sigrok_thread, "CDC_SIGROK", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_cdc_sigrok);
+    stream_sigrok = xStreamBufferCreate(STREAM_SIGROK_SIZE, STREAM_SIGROK_TRIGGER);
+    xTaskCreateAffinitySet(cdc_sigrok_thread, "CDC_SIGROK", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_cdc_sigrok);
 }   // cdc_sigrok_init

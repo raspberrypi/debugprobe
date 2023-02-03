@@ -4,7 +4,7 @@ These are more or less unmodified (but selected) files from
 https://github.com/ARMmbed/DAPLink[DAPLink].
 
 If the files should be refreshed due to changes in DAPLink, some care has to be taken
-not to revert thos changes unintentionally.
+not to revert those changes unintentionally.
 
 Extendening YAPicoprobes capabilites with new targets (aka DAPLink files) should be
 straight forward.  Check the nRF52 files in the DAPLink source tree. +

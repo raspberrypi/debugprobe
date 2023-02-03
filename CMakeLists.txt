@@ -28,9 +28,6 @@ else()
     add_definitions(-DPICOPROBE_VERSION_STRING="${PICOPROBE_VERSION_MAJOR}.${PICOPROBE_VERSION_MINOR}")
 endif()
 
-if (OPTIMIZE_FOR_OPENOCD)
-    add_definitions(-DOPTIMIZE_FOR_OPENOCD=${OPTIMIZE_FOR_OPENOCD})
-endif()
 if (GIT_HASH)
     add_definitions(-DGIT_HASH="${GIT_HASH}")
 endif()
@@ -42,6 +39,7 @@ add_executable(picoprobe
         src/get_serial.c
         src/led.c
         src/main.c
+        src/misc_utils.c
         src/probe.c
         src/rtt_console.c
         src/sw_dp_pio.c
@@ -104,14 +102,15 @@ target_include_directories(picoprobe PRIVATE
         $ENV{PICO_SDK_PATH}/src/common/boot_uf2/include
         )
 
-# both are actually dummies, because picoprobes structure is different
+# Both are actually dummies to prevent the DAPLink files from throwing errors
+# Actually not required because picoprobes structure is different
 add_compile_definitions(INTERFACE_RP2040=1
                         DAPLINK_IF=1)
 
-# one more dummy
+# not sure if this is still required, but this equals to DAPLINK_HIC_ID_RP2040 in daplink.h
 add_compile_definitions(DAPLINK_HIC_ID=0x08154711)
 
-# required to get the DAPLink functions required
+# required to get required DAPLink functions
 add_compile_definitions(DRAG_N_DROP_SUPPORT=1)
 
 #--------------------------------------------------------------------------------------------------
@@ -148,6 +147,8 @@ target_include_directories(picoprobe PRIVATE src)
 
 target_compile_definitions (picoprobe PRIVATE
 	PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
+# TODO this is for newer SDK!?
+#	PICO_RP2040_USB_DEVICE_UFRAME_FIX=1
 )
 
 target_link_libraries(picoprobe PRIVATE
@@ -158,7 +159,7 @@ target_link_libraries(picoprobe PRIVATE
         tinyusb_board
         hardware_pio
         FreeRTOS-Kernel
-        FreeRTOS-Kernel-Heap1
+        FreeRTOS-Kernel-Heap4
 )
 
 #

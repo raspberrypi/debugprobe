@@ -33,13 +33,16 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include "hardware/vreg.h"
 
 #include "bsp/board.h"
 #include "tusb.h"
 
 #include "picoprobe_config.h"
 #include "probe.h"
-#include "cdc_debug.h"
+#ifndef NDEBUG
+    #include "cdc_debug.h"
+#endif
 #include "cdc_uart.h"
 #include "dap_util.h"
 #include "get_serial.h"
@@ -49,7 +52,6 @@
 #include "sw_lock.h"
 
 #include "target_board.h"    // DAPLink
-
 
 #if CFG_TUD_MSC
     #include "msc/msc_utils.h"
@@ -62,6 +64,7 @@
     #include "pico-sigrok/sigrok.h"
 #endif
 
+
 /*
  * The following is part of a hack to make DAP_PACKET_COUNT a variable.
  * CMSIS-DAPv2 has better performance with 2 packets while
@@ -69,23 +72,22 @@
  *     "CMSIS-DAP transfer count mismatch: expected 12, got 8" on flashing.
  * The correct packet count has to be set on connection.
  */
-#define _DAP_PACKET_COUNT       2
-#if OPTIMIZE_FOR_OPENOCD
-    #define _DAP_PACKET_SIZE    CFG_TUD_VENDOR_RX_BUFSIZE
-#else
-    // pyocd does not like packets > 128
-    #define _DAP_PACKET_SIZE    MIN(CFG_TUD_VENDOR_RX_BUFSIZE, 128)
-#endif
+#define _DAP_PACKET_COUNT           2
+#define _DAP_PACKET_SIZE_OPENOCD    CFG_TUD_VENDOR_RX_BUFSIZE
+#define _DAP_PACKET_SIZE_PYOCD      128                                   // pyocd does not like packets > 128
+
+#define _DAP_PACKET_COUNT_HID       1
+#define _DAP_PACKET_SIZE_HID        64
 
 uint8_t  dap_packet_count = _DAP_PACKET_COUNT;
-uint16_t dap_packet_size  = _DAP_PACKET_SIZE;
+uint16_t dap_packet_size  = _DAP_PACKET_SIZE_PYOCD;
 
-static uint8_t TxDataBuffer[_DAP_PACKET_COUNT * _DAP_PACKET_SIZE];
-static uint8_t RxDataBuffer[_DAP_PACKET_COUNT * _DAP_PACKET_SIZE];
+static uint8_t TxDataBuffer[_DAP_PACKET_COUNT * CFG_TUD_VENDOR_RX_BUFSIZE];     // maximum required size
+static uint8_t RxDataBuffer[_DAP_PACKET_COUNT * CFG_TUD_VENDOR_RX_BUFSIZE];     // maximum required size
 
 
 // prios are critical and determine throughput
-#define TUD_TASK_PRIO               (tskIDLE_PRIORITY + 20)       // uses one core continuously
+#define TUD_TASK_PRIO               (tskIDLE_PRIORITY + 20)       // uses one core continuously (no longer valid with FreeRTOS usage)
 #define LED_TASK_PRIO               (tskIDLE_PRIORITY + 12)       // simple task which may interrupt everything else for periodic blinking
 #define SIGROK_TASK_PRIO            (tskIDLE_PRIORITY + 9)        // Sigrok digital/analog signals (does nothing at the moment)
 #define MSC_WRITER_THREAD_PRIO      (tskIDLE_PRIORITY + 8)        // this is only running on writing UF2 files
@@ -105,9 +107,11 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
     if (itf == CDC_UART_N) {
         cdc_uart_line_state_cb(dtr, rts);
     }
+#ifndef NDEBUG
     else if (itf == CDC_DEBUG_N) {
         cdc_debug_line_state_cb(dtr, rts);
     }
+#endif
 }   // tud_cdc_line_state_cb
 
 
@@ -132,9 +136,11 @@ void tud_cdc_tx_complete_cb(uint8_t itf)
     else if (itf == CDC_UART_N) {
         cdc_uart_tx_complete_cb();
     }
+#ifndef NDEBUG
     else if (itf == CDC_DEBUG_N) {
         cdc_debug_tx_complete_cb();
     }
+#endif
 }   // tud_cdc_tx_complete_cb
 
 
@@ -148,71 +154,244 @@ void tud_vendor_rx_cb(uint8_t itf)
 
 
 
+/**
+ * CMSIS-DAP task.
+ * Receive DAP requests, execute them via DAP_ExecuteCommand() and transmit the response.
+ *
+ * Problem zones:
+ * - connect / disconnect: pyOCD does not send permanently requests if in gdbserver mode, OpenOCD does.
+ *   As a consequence "disconnect" has to be detected via the command stream.  If the tool on host side
+ *   fails without a disconnect, the SWD connection is not freed (for MSC or RTT).  To recover from this
+ *   situation either reset the probe or issue something like "pyocd reset -t rp2040"
+ * - fingerprinting the host tool: this is for optimization of the OpenOCD connection, because OpenOCD
+ *   can handle big DAP packets and thus transfer is faster.
+ * - ID_DAP_Disconnect / ID_DAP_Info / ID_DAP_HostStatus leads to an SWD disconnect if there is no other
+ *   command following within 1s.  This is required, because "pyocd list" leads to tool detection without
+ *   connect/disconnect and thus otherwise tool detection would be stuck to "pyocd" for the next connection.
+ */
 void dap_task(void *ptr)
 {
-    bool mounted = false;
-    uint32_t used_us = 0;
+    bool swd_connected = false;
+    bool swd_disconnect_requested = false;
+    uint32_t last_request_us = 0;
     uint32_t rx_len = 0;
+    daptool_t tool = E_DAPTOOL_UNKNOWN;
 
+    dap_packet_count = _DAP_PACKET_COUNT;
+    dap_packet_size  = _DAP_PACKET_SIZE_PYOCD;
     for (;;) {
         // disconnect after 1s without data
-        if (mounted  &&  time_us_32() - used_us > 1000000) {
-            mounted = false;
-            picoprobe_info("=================================== DAPv2 disconnect target\n");
-            led_state(LS_DAPV2_DISCONNECTED);
-            sw_unlock("DAPv2");
+        if (swd_disconnect_requested  &&  time_us_32() - last_request_us > 1000000) {
+            if (swd_connected) {
+                swd_connected = false;
+                picoprobe_info("=================================== DAPv2 disconnect target\n");
+                led_state(LS_DAPV2_DISCONNECTED);
+                sw_unlock("DAPv2");
+            }
+            swd_disconnect_requested = false;
+            dap_packet_count = _DAP_PACKET_COUNT;
+            dap_packet_size  = _DAP_PACKET_SIZE_PYOCD;
+            tool = DAP_FingerprintTool(NULL, 0);
         }
 
         xEventGroupWaitBits(events, 0x01, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));  // TODO "pyocd reset -f 500000" does otherwise not disconnect
 
-        if ( !mounted  &&  tud_vendor_available()) {
-            if (sw_lock("DAPv2", true)) {
-                mounted = true;
-                dap_packet_count = _DAP_PACKET_COUNT;
-                dap_packet_size  = _DAP_PACKET_SIZE;
-                picoprobe_info("=================================== DAPv2 connect target\n");
-                led_state(LS_DAPV2_CONNECTED);
-            }
-        }
-
-        if (mounted) {
+        if (tud_vendor_available())
+        {
             rx_len += tud_vendor_read(RxDataBuffer + rx_len, sizeof(RxDataBuffer));
 
             if (rx_len != 0)
             {
                 uint32_t request_len;
 
-                used_us = time_us_32();
                 request_len = DAP_GetCommandLength(RxDataBuffer, rx_len);
                 if (rx_len >= request_len)
                 {
-                    uint32_t resp_len;
+                    last_request_us = time_us_32();
+//                    picoprobe_info("<<<(%lx) %d %d\n", request_len, RxDataBuffer[0], RxDataBuffer[1]);
 
-                    resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
-                    tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
-                    tud_vendor_flush();
-
-                    if (request_len != (resp_len >> 16))
-                    {
-                        // there is a bug in CMSIS-DAP, see https://github.com/ARM-software/CMSIS_5/pull/1503
-                        // but we trust our own length calculation
-                        picoprobe_error("   !!!!!!!! request (%lu) and executed length (%lu) differ\n", request_len, resp_len >> 16);
+                    //
+                    // try to find out which tool is connecting
+                    //
+                    if (tool == E_DAPTOOL_UNKNOWN) {
+                        tool = DAP_FingerprintTool(RxDataBuffer, request_len);
+                        if (tool == E_DAPTOOL_OPENOCD) {
+                            dap_packet_count = _DAP_PACKET_COUNT;
+                            dap_packet_size  = _DAP_PACKET_SIZE_OPENOCD;
+                        }
                     }
 
-                    if (rx_len == request_len)
-                    {
-                        rx_len = 0;
+                    //
+                    // initiate SWD connect / disconnect
+                    //
+                    if ( !swd_connected  &&  RxDataBuffer[0] == ID_DAP_Connect) {
+                        if (sw_lock("DAPv2", true)) {
+                            swd_connected = true;
+                            picoprobe_info("=================================== DAPv2 connect target, host %s\n",
+                                    (tool == E_DAPTOOL_OPENOCD) ? "OpenOCD with big buffers" :
+                                     ((tool == E_DAPTOOL_PYOCD) ? "pyOCD" : "UNKNOWN"));
+                            led_state(LS_DAPV2_CONNECTED);
+                        }
                     }
-                    else
+                    if (RxDataBuffer[0] == ID_DAP_Disconnect  ||  RxDataBuffer[0] == ID_DAP_Info  ||  RxDataBuffer[0] == ID_DAP_HostStatus) {
+                        swd_disconnect_requested = true;
+                    }
+                    else {
+                        swd_disconnect_requested = false;
+                    }
+
+                    //
+                    // execute request and send back response
+                    //
+                    if (swd_connected  ||  DAP_OfflineCommand(RxDataBuffer))
                     {
-                        memmove(RxDataBuffer, RxDataBuffer + request_len, rx_len - request_len);
-                        rx_len -= request_len;
+                        uint32_t resp_len;
+
+                        resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
+//                        picoprobe_info(">>>(%lx) %d %d %d %d\n", resp_len, TxDataBuffer[0], TxDataBuffer[1], TxDataBuffer[2], TxDataBuffer[3]);
+
+                        tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
+                        tud_vendor_flush();
+
+                        if (request_len != (resp_len >> 16))
+                        {
+                            // there is a bug in CMSIS-DAP, see https://github.com/ARM-software/CMSIS_5/pull/1503
+                            // but we trust our own length calculation
+                            picoprobe_error("   !!!!!!!! request (%lu) and executed length (%lu) differ\n", request_len, resp_len >> 16);
+                        }
+
+                        if (rx_len == request_len)
+                        {
+                            rx_len = 0;
+                        }
+                        else
+                        {
+                            memmove(RxDataBuffer, RxDataBuffer + request_len, rx_len - request_len);
+                            rx_len -= request_len;
+                        }
                     }
                 }
             }
         }
     }
 }   // dap_task
+
+
+
+#if configUSE_TRACE_FACILITY
+char task_state(eTaskState state)
+{
+    static const char state_ch[] = "RrBSDI";
+    return state_ch[state];
+}   // task_state
+
+
+
+void print_task_stat(void)
+{
+    static uint32_t prev_s = (uint32_t)-8;
+    static bool initialized;
+    uint32_t curr_s;
+
+    curr_s = (uint32_t)(time_us_64() / 1000000);
+    if (curr_s - prev_s >= 10) {
+        #define NUM_ENTRY 15
+        HeapStats_t heap_status;
+        static TaskStatus_t task_status[NUM_ENTRY];
+        uint32_t total_run_time;
+
+        picoprobe_info("---------------------------------------\n");
+        if ( !initialized) {
+            uint32_t cnt;
+
+            initialized = true;
+            picoprobe_info("fix IDLE tasks to certain core\n");
+            cnt = uxTaskGetSystemState(task_status, NUM_ENTRY, &total_run_time);
+            for (uint32_t n = 0;  n < cnt;  ++n) {
+                if (strcmp(task_status[n].pcTaskName, "IDLE0") == 0) {
+                    vTaskCoreAffinitySet(task_status[n].xHandle, 1 << 0);
+                }
+                else if (strcmp(task_status[n].pcTaskName, "IDLE1") == 0) {
+                    vTaskCoreAffinitySet(task_status[n].xHandle, 1 << 1);
+                }
+            }
+        }
+
+        vPortGetHeapStats( &heap_status);
+        //picoprobe_info("curr heap free: %d\n", heap_status.xAvailableHeapSpaceInBytes);
+        picoprobe_info("min  heap free: %d\n", heap_status.xMinimumEverFreeBytesRemaining);
+
+        picoprobe_info("number of tasks: %lu\n", uxTaskGetNumberOfTasks());
+        if (uxTaskGetNumberOfTasks() > NUM_ENTRY) {
+            picoprobe_info("!!!!!!!!!!!!!!! redefine NUM_ENTRY to see task state\n");
+        }
+        else {
+            // this part is critical concerning overflow because the numbers are getting quickly very big (us timer resolution)
+            static uint32_t prev_tick[NUM_ENTRY+1];
+            uint32_t cnt;
+            uint32_t curr_tick_sum;
+            uint32_t delta_tick_sum;
+            uint32_t percent_sum;
+            uint32_t percent_total_sum;
+
+            picoprobe_info("NUM PRI  S/AM  CPU  TOT STACK  NAME\n");
+            picoprobe_info("---------------------------------------\n");
+            cnt = uxTaskGetSystemState(task_status, NUM_ENTRY, &total_run_time);
+            curr_tick_sum = 0;
+            delta_tick_sum = 0;
+            for (uint32_t n = 0;  n < cnt;  ++n) {
+                uint32_t prev_ndx = task_status[n].xTaskNumber;
+                assert(prev_ndx < NUM_ENTRY + 1);
+
+#if 0
+                if (task_status[n].ulRunTimeCounter < prev_tick[prev_ndx]) {
+                    // this happens from time to time
+                    prev_tick[prev_ndx] = task_status[n].ulRunTimeCounter;
+                }
+#endif
+                curr_tick_sum += task_status[n].ulRunTimeCounter;
+                delta_tick_sum += task_status[n].ulRunTimeCounter - prev_tick[prev_ndx];
+            }
+            picoprobe_info("sum: %lu %lu\n", delta_tick_sum, curr_tick_sum);
+
+            curr_tick_sum /= configNUM_CORES;
+            delta_tick_sum /= configNUM_CORES;
+            percent_sum = 0;
+            percent_total_sum = 0;
+            for (uint32_t n = 0;  n < cnt;  ++n) {
+                uint32_t percent;
+                uint32_t percent_total;
+                uint32_t curr_tick;
+                uint32_t delta_tick;
+                uint32_t prev_ndx = task_status[n].xTaskNumber;
+
+                curr_tick = task_status[n].ulRunTimeCounter;
+                delta_tick = curr_tick - prev_tick[prev_ndx];
+
+                percent = (delta_tick + delta_tick_sum / 2000) / (delta_tick_sum / 1000);
+                percent_total = (curr_tick + curr_tick_sum / 2000) / (curr_tick_sum / 1000);
+                percent_sum += percent;
+                percent_total_sum += percent_total;
+
+                picoprobe_info("%3lu  %2lu  %c/%2d %4lu %4lu %5lu  %s\n",
+                               task_status[n].xTaskNumber,
+                               task_status[n].uxCurrentPriority,
+                               task_state(task_status[n].eCurrentState), (int)task_status[n].uxCoreAffinityMask,
+                               percent, percent_total,
+                               task_status[n].usStackHighWaterMark,
+                               task_status[n].pcTaskName);
+
+                prev_tick[prev_ndx] = curr_tick;
+            }
+            picoprobe_info("---------------------------------------\n");
+            picoprobe_info("              %3lu %3lu\n", percent_sum, percent_total_sum);
+        }
+        picoprobe_info("---------------------------------------\n");
+
+        prev_s = curr_s;
+    }
+}   // print_task_stat
+#endif
 
 
 
@@ -253,12 +432,15 @@ void usb_thread(void *ptr)
     sigrok_init(SIGROK_TASK_PRIO);
 #endif
 
-    xTaskCreate(dap_task, "DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);
+    xTaskCreateAffinitySet(dap_task, "CMSIS-DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, 2, &dap_taskhandle);
 
     tusb_init();
     for (;;) {
-        tud_task();
-        taskYIELD();    // not sure, if this triggers the scheduler
+        tud_task();             // the FreeRTOS version goes into blocking state if its event queue is empty
+
+#if configUSE_TRACE_FACILITY
+        print_task_stat();
+#endif
     }
 }   // usb_thread
 
@@ -268,6 +450,10 @@ int main(void)
 {
     board_init();
     set_sys_clock_khz(PROBE_CPU_CLOCK_KHZ, true);
+#if (PROBE_CPU_CLOCK_KHZ >= 150*1000)
+    // increase voltage on higher frequencies
+    vreg_set_voltage(VREG_VOLTAGE_1_20);
+#endif
 
     usb_serial_init();
 
@@ -285,14 +471,11 @@ int main(void)
     // now we can "print"
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
     picoprobe_info("                     Welcome to Yet Another Picoprobe v" PICOPROBE_VERSION_STRING "-" GIT_HASH "\n");
-#if OPTIMIZE_FOR_OPENOCD
-    picoprobe_info("                               OpenOCD optimized version\n");
-#endif
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
     events = xEventGroupCreate();
 
-    xTaskCreate(usb_thread, "TUD", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, &tud_taskhandle);
+    xTaskCreateAffinitySet(usb_thread, "TinyUSB Main", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, 1, &tud_taskhandle);
     vTaskStartScheduler();
 
     return 0;
@@ -300,15 +483,16 @@ int main(void)
 
 
 
-static bool hid_mounted;
+static bool hid_swd_connected;
+static bool hid_swd_disconnect_requested;
 static TimerHandle_t     timer_hid_disconnect = NULL;
 static void             *timer_hid_disconnect_id;
 
 
 static void hid_disconnect(TimerHandle_t xTimer)
 {
-    if (hid_mounted) {
-        hid_mounted = false;
+    if (hid_swd_disconnect_requested  &&  hid_swd_connected) {
+        hid_swd_connected = false;
         picoprobe_info("=================================== DAPv1 disconnect target\n");
         led_state(LS_DAPV1_DISCONNECTED);
         sw_unlock("DAPv1");
@@ -353,19 +537,31 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
         xTimerReset(timer_hid_disconnect, pdMS_TO_TICKS(1000));
     }
 
-    if ( !hid_mounted) {
+    //
+    // initiate SWD connect / disconnect
+    //
+    if ( !hid_swd_connected  &&  RxDataBuffer[0] == ID_DAP_Connect) {
         if (sw_lock("DAPv1", true)) {
-            // this is the minimum version which should always work
-            dap_packet_count = 1;
-            dap_packet_size  = 64;
-
-            hid_mounted = true;
+            hid_swd_connected = true;
             picoprobe_info("=================================== DAPv1 connect target\n");
             led_state(LS_DAPV1_CONNECTED);
         }
     }
+    if (RxDataBuffer[0] == ID_DAP_Disconnect  ||  RxDataBuffer[0] == ID_DAP_Info  ||  RxDataBuffer[0] == ID_DAP_HostStatus) {
+        hid_swd_disconnect_requested = true;
 
-    if (hid_mounted) {
+        // this is the minimum version which should always work
+        dap_packet_count = _DAP_PACKET_COUNT_HID;
+        dap_packet_size  = _DAP_PACKET_SIZE_HID;
+    }
+    else {
+        hid_swd_disconnect_requested = false;
+    }
+
+    //
+    // execute request and send back response
+    //
+    if (hid_swd_connected  ||  DAP_OfflineCommand(RxDataBuffer)) {
 #if 0
         // heavy debug output, set dap_packet_count=2 to stumble into the bug
         uint32_t request_len = DAP_GetCommandLength(RxDataBuffer, bufsize);

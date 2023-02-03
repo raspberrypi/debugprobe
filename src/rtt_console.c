@@ -220,5 +220,5 @@ void rtt_console_init(uint32_t task_prio)
 {
     picoprobe_debug("rtt_console_init()\n");
 
-    xTaskCreate(rtt_console_thread, "RTT_CONSOLE", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_rtt_console);
+    xTaskCreateAffinitySet(rtt_console_thread, "RTT_CONSOLE", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_rtt_console);
 }   // rtt_console_init
