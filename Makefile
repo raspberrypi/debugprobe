@@ -52,8 +52,8 @@ flash: all
 	@echo "ok."
 
 
-.PHONY: create-images
-create-images:
+.PHONY: create-image
+create-image:
 	$(MAKE) clean-build
 	$(MAKE) cmake-create-debug
 	$(MAKE) all
