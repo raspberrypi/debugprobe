@@ -388,12 +388,15 @@ uint32_t DAP_GetCommandLength(const uint8_t *request, uint32_t request_len)
 /**
  * Detect the connecting tool via simple fingerprinting of the first requests.
  *
- * pyocd   sends  0/254, 0/4, 0/9
+ * pyocd   sends  0/254, 0/4, 0/255
  * openocd sends  0/240, 0/4, 0/3
  *
  * Actual idea is, to switch to a faster mode if openocd is detected reliably.
  *
  * If any parameter is "0", the logic is reset.
+ *
+ * \note
+ *    Sequence is different for pyocd, if CMSIS > 5.7.0 is used in the probe.
  */
 daptool_t DAP_FingerprintTool(const uint8_t *request, uint32_t request_len)
 {
@@ -416,12 +419,13 @@ daptool_t DAP_FingerprintTool(const uint8_t *request, uint32_t request_len)
             }
         }
         else if (cnt == 2) {
-            if (request[0] != ID_DAP_Info  ||  request[1] != DAP_ID_DAP_FW_VER) {
+            if (request[0] != ID_DAP_Info  ||  request[1] != DAP_ID_FW_VER)
+            {
                 tool = E_DAPTOOL_UNKNOWN;
             }
         }
         else if (cnt == 3) {
-            if (tool == E_DAPTOOL_PYOCD  &&  (request[0] != ID_DAP_Info  ||  request[1] != DAP_ID_PRODUCT_FW_VER)) {
+            if (tool == E_DAPTOOL_PYOCD  &&  (request[0] != ID_DAP_Info  ||  request[1] != DAP_ID_PACKET_SIZE)) {
                 tool = E_DAPTOOL_UNKNOWN;
             }
             else if (tool == E_DAPTOOL_OPENOCD  &&  (request[0] != ID_DAP_Info  ||  request[1] != DAP_ID_SER_NUM)) {
