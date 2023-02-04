@@ -523,7 +523,5 @@ uses other voltage levels than the probe.
 ### Internals
 
 * parts of the code (at the moment just few) are in a somewhat transition to WiFi.
-  These parts are surrounded often by `CYW43_LWIP`, so easy identifiable
-
-  
-
+  These parts are surrounded often by `CYW43_LWIP`, so easy identifiable.
+  Image for PicoW can be build by setting the board in CMakeLists.txt
