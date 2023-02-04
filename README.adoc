@@ -108,17 +108,17 @@ does not add any features, instead the LED indicator does not work there.
 .Other Pin Assigments RP2040
 [%header]
 |===
-| Pin | Description
+| Pin | Description | Pico W
 
-| GPIO0       | spare
-| GPIO7..9    | spare
-| GPIO18      | spare
-| GPIO19..21  | debug pins (for probe debugging)
-| GPIO22      | spare
-| GPIO23      | power supply control
-| GPIO24      | USB sense
-| GPIO25      | LED
-| GPIO29/ADC3 | VSYS/3
+| GPIO0       | spare                            |
+| GPIO7..9    | spare                            |
+| GPIO18      | spare                            |
+| GPIO19..21  | debug pins (for probe debugging) |
+| GPIO22      | spare                            |
+| GPIO23      | power supply control             | WL_ON
+| GPIO24      | USB sense                        | WL_D
+| GPIO25      | LED                              | WL_CS
+| GPIO29/ADC3 | VSYS/3                           | WL_CLK
 |===
 
 
@@ -129,15 +129,17 @@ does not add any features, instead the LED indicator does not work there.
 |===
 |Tool | Linux | Windows (10) | Command line
 
-|openocd
+|openocd +
+0.11 & 0.12
 |yes 
 |yes 
 |`openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c "adapter speed 25000"    -c "program {firmware.elf}  verify reset; shutdown;"`
 
-|pyocd
+|pyocd +
+0.34.x
 |yes
 |no
-|`pyocd flash -f 2500000 -firmware.elf`
+|`pyocd flash -f 2500000 -t rp2040 firmware.elf`
 
 |cp / copy
 |yes
@@ -508,7 +510,7 @@ uses other voltage levels than the probe.
 ** semihosting?
 * Bugs
 ** check the benchmark "miracle" with the NDEBUG version 
-** if `configTICK_RATE_HZ` is around 100, the SWD IF no longer works
+** if `configTICK_RATE_HZ` is around 100, SWD IF no longer works
 * TODO
 ** voltage of SWD IF is VDD
 ** DAP_PACKET_SIZE: how to increase?
@@ -518,3 +520,8 @@ uses other voltage levels than the probe.
 ** Reset line between probe and target have to be reviewed
 ** Win10 (tools) compatibility
 
+### Internals
+
+* parts of the code (at the moment just few) are in a somewhat transition to WiFi.
+  These parts are surrounded often by `CYW43_LWIP`, so easy identifiable.
+  Image for PicoW can be build by setting the board in CMakeLists.txt

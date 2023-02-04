@@ -32,35 +32,31 @@
 
 
 #if !defined(NDEBUG)
-    int cdc_debug_printf(const char* format, ...) __attribute__ ((format (printf, 1, 2)));
-#endif
-
-#if !defined(NDEBUG)
-    #define picoprobe_out(format,args...) cdc_debug_printf(format, ## args)
+    #define picoprobe_out(format,args...) printf(format, ## args)
 #else
     #define picoprobe_out(format,...) ((void)0)
 #endif
 
 #if 1  &&  !defined(NDEBUG)
-    #define picoprobe_info(format,args...) cdc_debug_printf("(II) " format, ## args)
+    #define picoprobe_info(format,args...) printf("(II) " format, ## args)
 #else
     #define picoprobe_info(format,...) ((void)0)
 #endif
 
 #if 0  &&  !defined(NDEBUG)
-    #define picoprobe_debug(format,args...) cdc_debug_printf("(DD) " format, ## args)
+    #define picoprobe_debug(format,args...) printf("(DD) " format, ## args)
 #else
     #define picoprobe_debug(format,...) ((void)0)
 #endif
 
 #if 0  &&  !defined(NDEBUG)
-    #define picoprobe_dump(format,args...) cdc_debug_printf("(..) " format, ## args)
+    #define picoprobe_dump(format,args...) printf("(..) " format, ## args)
 #else
     #define picoprobe_dump(format,...) ((void)0)
 #endif
 
 #if 1  &&  !defined(NDEBUG)
-    #define picoprobe_error(format,args...) cdc_debug_printf("(EE) " format, ## args)
+    #define picoprobe_error(format,args...) printf("(EE) " format, ## args)
 #else
     #define picoprobe_error(format,...) ((void)0)
 #endif
@@ -88,16 +84,12 @@
 #define PICOPROBE_UART_INTERFACE uart1
 #define PICOPROBE_UART_BAUDRATE  115200
 
-// LED config
-#ifndef PICOPROBE_LED
-    #ifndef PICO_DEFAULT_LED_PIN
-        #error PICO_DEFAULT_LED_PIN is not defined, run PICOPROBE_LED=<led_pin> cmake
-    #elif PICO_DEFAULT_LED_PIN == -1
-        #error PICO_DEFAULT_LED_PIN is defined as -1, run PICOPROBE_LED=<led_pin> cmake
-    #else
-        #define PICOPROBE_LED PICO_DEFAULT_LED_PIN
-    #endif
-#endif
+//
+// Other pin definitions
+// - LED     actual handling is done in led.c, pin definition is PICOPROBE_LED / PICO_DEFAULT_LED_PIN
+// - sigrok  defines are in pico-sigrok/sigrok-int.h
+// - Debug   used in probe.c
+//
 
 
 // sigrok config

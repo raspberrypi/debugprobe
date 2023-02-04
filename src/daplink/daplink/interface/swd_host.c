@@ -22,6 +22,7 @@
  */
 
 #ifndef TARGET_MCU_CORTEX_A
+#include <stdio.h>
 #include "device.h"
 #include "cmsis_os2.h"
 #include "target_config.h"
@@ -801,7 +802,7 @@ static uint8_t swd_read_idcode(uint32_t *id)
     }
 
     *id = (tmp_out[3] << 24) | (tmp_out[2] << 16) | (tmp_out[1] << 8) | tmp_out[0];
-//    cdc_debug_printf("swd_read_idcode: 0x%08lx\n", *id);   // TODO wieder raus 0x2ba01477=nRF52840, 0x0bc12477=RP2040
+//    printf("swd_read_idcode: 0x%08lx\n", *id);   // TODO wieder raus 0x2ba01477=nRF52840, 0x0bc12477=RP2040
     return 1;
 }
 
@@ -926,7 +927,7 @@ uint8_t swd_set_target_state_hw(target_state_t state)
     uint32_t val;
     int8_t ap_retries = 2;
 
-//    cdc_debug_printf("swd_set_target_state_hw(%d)\n", state);
+//    printf("swd_set_target_state_hw(%d)\n", state);
 
    /* Calling swd_init prior to entering RUN state causes operations to fail. */
     if (state != RUN) {
@@ -1077,7 +1078,7 @@ uint8_t swd_set_target_state_sw(target_state_t state)
     uint32_t val;
     int8_t ap_retries = 2;
 
-//    cdc_debug_printf("swd_set_target_state_sw(%d)\n", state);
+//    printf("swd_set_target_state_sw(%d)\n", state);
 
     /* Calling swd_init prior to enterring RUN state causes operations to fail. */
     if (state != RUN) {

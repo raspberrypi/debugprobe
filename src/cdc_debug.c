@@ -26,6 +26,7 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include "pico/stdlib.h"
+#include "pico/stdio/driver.h"
 
 #include "FreeRTOS.h"
 #include "semphr.h"
@@ -145,41 +146,17 @@ static void cdc_debug_put_into_stream(const void *data, size_t len)
 
 
 
-int cdc_debug_printf(const char* format, ...)
-/**
- * Debug printf()
- * At the beginning of each output line a timestamp is inserted.
- */
+static void cdc_debug_write(const uint8_t *buf, const size_t total_cnt)
 {
     static uint32_t prev_ms;
     static uint32_t base_ms;
     static bool newline = true;
-    static char buf[128];            // buffers can be put into static so that it does not stress the task stack
     static char tbuf[30];
     int ndx = 0;
 
-    if (task_printf == NULL)
-        return -1;
-
-    if (portCHECK_IF_IN_ISR()) {
-        // we suppress those messages silently
-        return -1;
-    }
-
-    xSemaphoreTake(sema_printf, portMAX_DELAY);
-
-    //
-    // print formatted text into buffer
-    //
-    va_list va;
-    va_start(va, format);
-    const int total_cnt = vsnprintf((char*)buf, sizeof(buf), format, va);
-    va_end(va);
-
     tbuf[0] = 0;
-
     while (ndx < total_cnt) {
-        const char *p;
+        const uint8_t *p;
         int cnt;
 
         if (newline) {
@@ -220,12 +197,34 @@ int cdc_debug_printf(const char* format, ...)
 
         ndx += cnt;
     }
+}   // cdc_debug_write
+
+
+
+static void stdio_cdc_out_chars(const char *buf, int length)
+{
+    if (task_printf == NULL)
+        return;
+
+    if (portCHECK_IF_IN_ISR()) {
+        // we suppress those messages silently
+        return;
+    }
+
+    xSemaphoreTake(sema_printf, portMAX_DELAY);
+    cdc_debug_write((const uint8_t *)buf, length);
     xSemaphoreGive(sema_printf);
-
     xEventGroupSetBits(events, EV_STREAM);
+}   // stdio_cdc_out_chars
 
-    return total_cnt;
-} // cdc_debug_printf
+
+
+stdio_driver_t stdio_cdc = {
+    .out_chars = stdio_cdc_out_chars,
+#if PICO_STDIO_ENABLE_CRLF_SUPPORT
+    .crlf_enabled = false
+#endif
+};
 
 
 
@@ -245,4 +244,6 @@ void cdc_debug_init(uint32_t task_prio)
 
     xTaskCreateAffinitySet(cdc_debug_thread, "CDC_DEBUG", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_printf);
     cdc_debug_line_state_cb(false, false);
+
+    stdio_set_driver_enabled(&stdio_cdc, true);
 }   // cdc_debug_init

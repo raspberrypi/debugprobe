@@ -25,6 +25,11 @@
 
 #include <pico/stdlib.h>
 #include <stdint.h>
+#include <stdio.h>
+
+#ifdef CYW43_LWIP
+    #include "pico/cyw43_arch.h"
+#endif
 
 #include "FreeRTOS.h"
 #include "task.h"
@@ -47,68 +52,94 @@ static uint64_t     rtt_data_trigger;
 
 
 
+#ifndef PICOPROBE_LED
+    #ifdef PICO_DEFAULT_LED_PIN
+        #define PICOPROBE_LED PICO_DEFAULT_LED_PIN
+    #endif
+#endif
+
+
+
+static void led(uint8_t state)
+{
+#ifdef CYW43_LWIP
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, state);
+#elif defined(PICOPROBE_LED)
+    static bool initialized;
+
+    if ( !initialized) {
+        initialized = true;
+        gpio_init(PICOPROBE_LED);
+        gpio_set_dir(PICOPROBE_LED, GPIO_OUT);
+    }
+    gpio_put(PICOPROBE_LED, state);
+#endif
+}   // led
+
+
+
 void led_thread(void *ptr)
 {
     for (;;) {
         if (sigrok_state == LS_SIGROK_WAIT) {
             // -> 10Hz negative flashing (flicker)
-            gpio_put(PICOPROBE_LED, 1);
+            led(1);
             vTaskDelay(pdMS_TO_TICKS(80));
-            gpio_put(PICOPROBE_LED, 0);
+            led(0);
             vTaskDelay(pdMS_TO_TICKS(20));
         }
         else if (sigrok_state == LS_SIGROK_RUNNING) {
             // -> 10Hz flashing
-            gpio_put(PICOPROBE_LED, 1);
+            led(1);
             vTaskDelay(pdMS_TO_TICKS(20));
-            gpio_put(PICOPROBE_LED, 0);
+            led(0);
             vTaskDelay(pdMS_TO_TICKS(80));
         }
         else if (dapv1_connected) {
             // -> LED on, off for 100ms once per second
-            gpio_put(PICOPROBE_LED, 0);
+            led(0);
             vTaskDelay(pdMS_TO_TICKS(100));
-            gpio_put(PICOPROBE_LED, 1);
+            led(1);
             vTaskDelay(pdMS_TO_TICKS(900));
         }
         else if (dapv2_connected) {
             // -> LED on, off for 100ms twice per second
-            gpio_put(PICOPROBE_LED, 0);
+            led(0);
             vTaskDelay(pdMS_TO_TICKS(100));
-            gpio_put(PICOPROBE_LED, 1);
+            led(1);
             vTaskDelay(pdMS_TO_TICKS(100));
-            gpio_put(PICOPROBE_LED, 0);
+            led(0);
             vTaskDelay(pdMS_TO_TICKS(100));
-            gpio_put(PICOPROBE_LED, 1);
+            led(1);
             vTaskDelay(pdMS_TO_TICKS(700));
         }
         else if ( !target_found) {
             // -> 5Hz blinking
-            gpio_put(PICOPROBE_LED, 0);
+            led(0);
             vTaskDelay(pdMS_TO_TICKS(100));
-            gpio_put(PICOPROBE_LED, 1);
+            led(1);
             vTaskDelay(pdMS_TO_TICKS(100));
         }
         else if (msc_connected) {
             // -> LED on, off for 100ms thrice per second
-            gpio_put(PICOPROBE_LED, 0);
+            led(0);
             vTaskDelay(pdMS_TO_TICKS(100));
-            gpio_put(PICOPROBE_LED, 1);
+            led(1);
             vTaskDelay(pdMS_TO_TICKS(100));
-            gpio_put(PICOPROBE_LED, 0);
+            led(0);
             vTaskDelay(pdMS_TO_TICKS(100));
-            gpio_put(PICOPROBE_LED, 1);
+            led(1);
             vTaskDelay(pdMS_TO_TICKS(100));
-            gpio_put(PICOPROBE_LED, 0);
+            led(0);
             vTaskDelay(pdMS_TO_TICKS(100));
-            gpio_put(PICOPROBE_LED, 1);
+            led(1);
             vTaskDelay(pdMS_TO_TICKS(500));
         }
         else if (time_us_64() - uart_data_trigger < 5000000) {
             // -> slow flashing
-            gpio_put(PICOPROBE_LED, 1);
+            led(1);
             vTaskDelay(pdMS_TO_TICKS(300));
-            gpio_put(PICOPROBE_LED, 0);
+            led(0);
             vTaskDelay(pdMS_TO_TICKS(700));
         }
         else {
@@ -120,12 +151,12 @@ void led_thread(void *ptr)
                 flash_cnt = 3;
             }
             for (unsigned u = 0;  u < flash_cnt;  ++u) {
-                gpio_put(PICOPROBE_LED, 1);
+                led(1);
                 vTaskDelay(pdMS_TO_TICKS(20));
-                gpio_put(PICOPROBE_LED, 0);
+                led(0);
                 vTaskDelay(pdMS_TO_TICKS(200));
             }
-            gpio_put(PICOPROBE_LED, 0);
+            led(0);
             vTaskDelay(pdMS_TO_TICKS(1000 - rtt_flash_cnt * 220));
         }
     }
@@ -210,9 +241,7 @@ void led_init(uint32_t task_prio)
 {
     picoprobe_debug("led_init()\n");
 
-    gpio_init(PICOPROBE_LED);
-    gpio_set_dir(PICOPROBE_LED, GPIO_OUT);
-    gpio_put(PICOPROBE_LED, 1);
+    led(1);
 
     xTaskCreateAffinitySet(led_thread, "LED", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_led);
 }   // led_init

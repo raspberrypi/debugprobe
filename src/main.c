@@ -30,6 +30,10 @@
 #include "event_groups.h"
 
 #include <pico/stdlib.h>
+#ifdef CYW43_LWIP
+    #include <pico/cyw43_arch.h>
+#endif
+
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
@@ -305,7 +309,7 @@ void print_task_stat(void)
             uint32_t cnt;
 
             initialized = true;
-            picoprobe_info("fix IDLE tasks to certain core\n");
+            picoprobe_info("assign IDLE tasks to certain core\n");
             cnt = uxTaskGetSystemState(task_status, NUM_ENTRY, &total_run_time);
             for (uint32_t n = 0;  n < cnt;  ++n) {
                 if (strcmp(task_status[n].pcTaskName, "IDLE0") == 0) {
@@ -319,9 +323,9 @@ void print_task_stat(void)
 
         vPortGetHeapStats( &heap_status);
         //picoprobe_info("curr heap free: %d\n", heap_status.xAvailableHeapSpaceInBytes);
-        picoprobe_info("min  heap free: %d\n", heap_status.xMinimumEverFreeBytesRemaining);
+        picoprobe_info("min heap free   : %d\n", heap_status.xMinimumEverFreeBytesRemaining);
 
-        picoprobe_info("number of tasks: %lu\n", uxTaskGetNumberOfTasks());
+        picoprobe_info("number of tasks : %lu\n", uxTaskGetNumberOfTasks());
         if (uxTaskGetNumberOfTasks() > NUM_ENTRY) {
             picoprobe_info("!!!!!!!!!!!!!!! redefine NUM_ENTRY to see task state\n");
         }
@@ -334,25 +338,19 @@ void print_task_stat(void)
             uint32_t percent_sum;
             uint32_t percent_total_sum;
 
-            picoprobe_info("NUM PRI  S/AM  CPU  TOT STACK  NAME\n");
-            picoprobe_info("---------------------------------------\n");
             cnt = uxTaskGetSystemState(task_status, NUM_ENTRY, &total_run_time);
             curr_tick_sum = 0;
             delta_tick_sum = 0;
             for (uint32_t n = 0;  n < cnt;  ++n) {
                 uint32_t prev_ndx = task_status[n].xTaskNumber;
                 assert(prev_ndx < NUM_ENTRY + 1);
-
-#if 0
-                if (task_status[n].ulRunTimeCounter < prev_tick[prev_ndx]) {
-                    // this happens from time to time
-                    prev_tick[prev_ndx] = task_status[n].ulRunTimeCounter;
-                }
-#endif
                 curr_tick_sum += task_status[n].ulRunTimeCounter;
                 delta_tick_sum += task_status[n].ulRunTimeCounter - prev_tick[prev_ndx];
             }
-            picoprobe_info("sum: %lu %lu\n", delta_tick_sum, curr_tick_sum);
+            picoprobe_info("delta tick sum  : %lu\n", delta_tick_sum);
+
+            picoprobe_info("NUM PRI  S/AM  CPU  TOT STACK  NAME\n");
+            picoprobe_info("---------------------------------------\n");
 
             curr_tick_sum /= configNUM_CORES;
             delta_tick_sum /= configNUM_CORES;
@@ -397,7 +395,16 @@ void print_task_stat(void)
 
 void usb_thread(void *ptr)
 {
-    // init DAPLink
+#ifdef CYW43_LWIP
+    if (cyw43_arch_init()) {
+        printf("failed to initialize WiFi\n");
+    }
+#endif
+
+    led_init(LED_TASK_PRIO);
+
+    vTaskCoreAffinitySet(tud_taskhandle, 1);
+
     {
         if (g_board_info.prerun_board_config != NULL) {
             g_board_info.prerun_board_config();
@@ -449,22 +456,20 @@ void usb_thread(void *ptr)
 int main(void)
 {
     board_init();
-    set_sys_clock_khz(PROBE_CPU_CLOCK_KHZ, true);
 #if (PROBE_CPU_CLOCK_KHZ >= 150*1000)
     // increase voltage on higher frequencies
     vreg_set_voltage(VREG_VOLTAGE_1_20);
 #endif
+    set_sys_clock_khz(PROBE_CPU_CLOCK_KHZ, true);
 
     usb_serial_init();
 
-    // should be done before anything else (that does cdc_debug_printf())
+    // initialize stdio and should be done before anything else (that does printf())
 #if !defined(NDEBUG)
     cdc_debug_init(CDC_DEBUG_TASK_PRIO);
 #endif
 
     sw_lock_init();
-
-    led_init(LED_TASK_PRIO);
 
     DAP_Setup();
 
@@ -475,7 +480,8 @@ int main(void)
 
     events = xEventGroupCreate();
 
-    xTaskCreateAffinitySet(usb_thread, "TinyUSB Main", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, 1, &tud_taskhandle);
+    // it seems that lwip does not like affinity setting in its thread, so the affinity of the USB thread is corrected in the task itself
+    xTaskCreateAffinitySet(usb_thread, "TinyUSB Main", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, -1, &tud_taskhandle);
     vTaskStartScheduler();
 
     return 0;

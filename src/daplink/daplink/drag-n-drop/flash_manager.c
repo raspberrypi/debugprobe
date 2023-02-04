@@ -21,6 +21,7 @@
  * limitations under the License.
  */
 
+#include <stdio.h>
 #include "flash_manager.h"
 #include "util.h"
 #include "error.h"
@@ -31,7 +32,7 @@
 
 #if DEBUG_FLASH_MANAGER
     #include "cmsis_os2.h"
-    #define flash_manager_printf cdc_debug_printf
+    #define flash_manager_printf printf
 #else
     #define flash_manager_printf(...)
 #endif
