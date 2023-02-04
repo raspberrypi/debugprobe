@@ -309,7 +309,7 @@ void print_task_stat(void)
             uint32_t cnt;
 
             initialized = true;
-            picoprobe_info("fix IDLE tasks to certain core\n");
+            picoprobe_info("assign IDLE tasks to certain core\n");
             cnt = uxTaskGetSystemState(task_status, NUM_ENTRY, &total_run_time);
             for (uint32_t n = 0;  n < cnt;  ++n) {
                 if (strcmp(task_status[n].pcTaskName, "IDLE0") == 0) {
@@ -323,9 +323,9 @@ void print_task_stat(void)
 
         vPortGetHeapStats( &heap_status);
         //picoprobe_info("curr heap free: %d\n", heap_status.xAvailableHeapSpaceInBytes);
-        picoprobe_info("min  heap free: %d\n", heap_status.xMinimumEverFreeBytesRemaining);
+        picoprobe_info("min heap free   : %d\n", heap_status.xMinimumEverFreeBytesRemaining);
 
-        picoprobe_info("number of tasks: %lu\n", uxTaskGetNumberOfTasks());
+        picoprobe_info("number of tasks : %lu\n", uxTaskGetNumberOfTasks());
         if (uxTaskGetNumberOfTasks() > NUM_ENTRY) {
             picoprobe_info("!!!!!!!!!!!!!!! redefine NUM_ENTRY to see task state\n");
         }
@@ -338,25 +338,19 @@ void print_task_stat(void)
             uint32_t percent_sum;
             uint32_t percent_total_sum;
 
-            picoprobe_info("NUM PRI  S/AM  CPU  TOT STACK  NAME\n");
-            picoprobe_info("---------------------------------------\n");
             cnt = uxTaskGetSystemState(task_status, NUM_ENTRY, &total_run_time);
             curr_tick_sum = 0;
             delta_tick_sum = 0;
             for (uint32_t n = 0;  n < cnt;  ++n) {
                 uint32_t prev_ndx = task_status[n].xTaskNumber;
                 assert(prev_ndx < NUM_ENTRY + 1);
-
-#if 0
-                if (task_status[n].ulRunTimeCounter < prev_tick[prev_ndx]) {
-                    // this happens from time to time
-                    prev_tick[prev_ndx] = task_status[n].ulRunTimeCounter;
-                }
-#endif
                 curr_tick_sum += task_status[n].ulRunTimeCounter;
                 delta_tick_sum += task_status[n].ulRunTimeCounter - prev_tick[prev_ndx];
             }
-            picoprobe_info("sum: %lu %lu\n", delta_tick_sum, curr_tick_sum);
+            picoprobe_info("delta tick sum  : %lu\n", delta_tick_sum);
+
+            picoprobe_info("NUM PRI  S/AM  CPU  TOT STACK  NAME\n");
+            picoprobe_info("---------------------------------------\n");
 
             curr_tick_sum /= configNUM_CORES;
             delta_tick_sum /= configNUM_CORES;
