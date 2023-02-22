@@ -74,6 +74,10 @@
 #define CFG_TUD_VENDOR_RX_BUFSIZE 8192
 #define CFG_TUD_VENDOR_TX_BUFSIZE 8192
 
+#ifndef TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX
+#define TUD_OPT_RP2040_USB_DEVICE_UFRAME_FIX 1
+#endif
+
 #ifdef __cplusplus
  }
 #endif
