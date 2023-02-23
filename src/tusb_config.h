@@ -35,9 +35,10 @@
 //--------------------------------------------------------------------
 
 // defined by compiler flags for flexibility
-#ifndef CFG_TUSB_MCU
-  #error CFG_TUSB_MCU must be defined
-#endif
+// PERSONAL CHANGES
+//#ifndef CFG_TUSB_MCU
+//  #error CFG_TUSB_MCU must be defined
+//#endif
 
 #define CFG_TUSB_RHPORT0_MODE     OPT_MODE_DEVICE
 
