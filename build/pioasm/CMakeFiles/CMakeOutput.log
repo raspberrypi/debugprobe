@@ -1,0 +1,74 @@
+The system is: Windows - 10.0.22621 - AMD64
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" succeeded.
+Compiler: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/MSVC/14.34.31933/bin/Hostx86/x86/cl.exe 
+Build flags: 
+Id flags:  
+
+The output was:
+0
+Microsoft (R) C/C++ Optimizing Compiler Version 19.34.31937 for x86
+Copyright (C) Microsoft Corporation.  All rights reserved.
+
+CMakeCXXCompilerId.cpp
+Microsoft (R) Incremental Linker Version 14.34.31937.0
+Copyright (C) Microsoft Corporation.  All rights reserved.
+
+/out:CMakeCXXCompilerId.exe 
+CMakeCXXCompilerId.obj 
+
+
+Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "CMakeCXXCompilerId.exe"
+
+Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "CMakeCXXCompilerId.obj"
+
+The CXX compiler identification is MSVC, found in "C:/Users/Manab Kumar Biswas/pico-apps/tools/picoprobe/build/pioasm/CMakeFiles/3.24.202208181-MSVC_2/CompilerIdCXX/CMakeCXXCompilerId.exe"
+
+Detecting CXX compiler ABI info compiled with the following output:
+Change Dir: C:/Users/Manab Kumar Biswas/pico-apps/tools/picoprobe/build/pioasm/CMakeFiles/CMakeTmp
+
+Run Build Command(s):nmake -f Makefile /nologo cmTC_2ed00\fast && 	"C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.34.31933\bin\HostX86\x86\nmake.exe"  -f CMakeFiles\cmTC_2ed00.dir\build.make /nologo -L                  CMakeFiles\cmTC_2ed00.dir\build
+Building CXX object CMakeFiles/cmTC_2ed00.dir/CMakeCXXCompilerABI.cpp.obj
+	"C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -E cmake_cl_compile_depends --dep-file=CMakeFiles\cmTC_2ed00.dir\CMakeCXXCompilerABI.cpp.obj.d --working-dir="C:\Users\Manab Kumar Biswas\pico-apps\tools\picoprobe\build\pioasm\CMakeFiles\CMakeTmp" --filter-prefix="Note: including file: " -- C:\PROGRA~1\MICROS~4\2022\ENTERP~1\VC\Tools\MSVC\1434~1.319\bin\Hostx86\x86\cl.exe @C:\Users\MANABK~1\AppData\Local\Temp\nm65C1.tmp
+CMakeCXXCompilerABI.cpp
+Linking CXX executable cmTC_2ed00.exe
+	"C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -E vs_link_exe --intdir=CMakeFiles\cmTC_2ed00.dir --rc=C:\PROGRA~2\WI3CF2~1\10\bin\100220~1.0\x86\rc.exe --mt=C:\PROGRA~2\WI3CF2~1\10\bin\100220~1.0\x86\mt.exe --manifests -- C:\PROGRA~1\MICROS~4\2022\ENTERP~1\VC\Tools\MSVC\1434~1.319\bin\Hostx86\x86\link.exe /nologo @CMakeFiles\cmTC_2ed00.dir\objects1.rsp @C:\Users\MANABK~1\AppData\Local\Temp\nm67A6.tmp
+
+
+
+The system is: Windows - 10.0.22621 - AMD64
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" succeeded.
+Compiler: C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/MSVC/14.34.31933/bin/Hostx86/x86/cl.exe 
+Build flags: /DWIN32;/D_WINDOWS;/W3;/GR;/EHsc
+Id flags:  
+
+The output was:
+0
+Microsoft (R) C/C++ Optimizing Compiler Version 19.34.31937 for x86
+Copyright (C) Microsoft Corporation.  All rights reserved.
+
+CMakeCXXCompilerId.cpp
+Microsoft (R) Incremental Linker Version 14.34.31937.0
+Copyright (C) Microsoft Corporation.  All rights reserved.
+
+/out:CMakeCXXCompilerId.exe 
+CMakeCXXCompilerId.obj 
+
+
+Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "CMakeCXXCompilerId.exe"
+
+Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "CMakeCXXCompilerId.obj"
+
+The CXX compiler identification is MSVC, found in "C:/Users/Manab Kumar Biswas/pico-apps/tools/picoprobe/build/pioasm/CMakeFiles/3.25.2/CompilerIdCXX/CMakeCXXCompilerId.exe"
+
+Detecting CXX compiler ABI info compiled with the following output:
+Change Dir: C:/Users/Manab Kumar Biswas/pico-apps/tools/picoprobe/build/pioasm/CMakeFiles/CMakeScratch/TryCompile-b3z9f8
+
+Run Build Command(s):nmake -f Makefile /nologo cmTC_7b1d2\fast && 	"C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.34.31933\bin\HostX86\x86\nmake.exe"  -f CMakeFiles\cmTC_7b1d2.dir\build.make /nologo -L                  CMakeFiles\cmTC_7b1d2.dir\build
+Building CXX object CMakeFiles/cmTC_7b1d2.dir/CMakeCXXCompilerABI.cpp.obj
+	"C:\Program Files\CMake\bin\cmake.exe" -E cmake_cl_compile_depends --dep-file=CMakeFiles\cmTC_7b1d2.dir\CMakeCXXCompilerABI.cpp.obj.d --working-dir="C:\Users\Manab Kumar Biswas\pico-apps\tools\picoprobe\build\pioasm\CMakeFiles\CMakeScratch\TryCompile-b3z9f8" --filter-prefix="Note: including file: " -- C:\PROGRA~1\MICROS~4\2022\ENTERP~1\VC\Tools\MSVC\1434~1.319\bin\Hostx86\x86\cl.exe @C:\Users\MANABK~1\AppData\Local\Temp\nm493C.tmp
+CMakeCXXCompilerABI.cpp
+Linking CXX executable cmTC_7b1d2.exe
+	"C:\Program Files\CMake\bin\cmake.exe" -E vs_link_exe --intdir=CMakeFiles\cmTC_7b1d2.dir --rc=C:\PROGRA~2\WI3CF2~1\10\bin\100220~1.0\x86\rc.exe --mt=C:\PROGRA~2\WI3CF2~1\10\bin\100220~1.0\x86\mt.exe --manifests -- C:\PROGRA~1\MICROS~4\2022\ENTERP~1\VC\Tools\MSVC\1434~1.319\bin\Hostx86\x86\link.exe /nologo @CMakeFiles\cmTC_7b1d2.dir\objects1 @C:\Users\MANABK~1\AppData\Local\Temp\nm49E9.tmp
+
+
+
