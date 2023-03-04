@@ -122,6 +122,7 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 
 
 
+#if CFG_TUD_CDC
 void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding)
 {
 #if CFG_TUD_CDC_UART
@@ -130,6 +131,7 @@ void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding)
     }
 #endif
 }   // tud_cdc_line_coding_cb
+#endif
 
 
 

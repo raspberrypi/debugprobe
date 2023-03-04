@@ -123,19 +123,19 @@ void cdc_thread(void *ptr)
 
 
 
-//
-// CDC bitrate updates are reflected on \a PICOPROBE_UART_INTERFACE
-//
+#if CFG_TUD_CDC_UART
 void cdc_uart_line_coding_cb(cdc_line_coding_t const* line_coding)
+/**
+ * CDC bitrate updates are reflected on \a PICOPROBE_UART_INTERFACE
+ */
 {
     vTaskSuspend(task_uart);
-#if CFG_TUD_CDC_UART
     tud_cdc_n_write_clear(CDC_UART_N);
     tud_cdc_n_read_flush(CDC_UART_N);
-#endif
     uart_set_baudrate(PICOPROBE_UART_INTERFACE, line_coding->bit_rate);
     vTaskResume(task_uart);
 }   // cdc_uart_line_coding_cb
+#endif
 
 
 
