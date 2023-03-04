@@ -59,19 +59,38 @@
 //--------------------------------------------------------------------
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
-  #define CFG_TUD_ENDPOINT0_SIZE      64
+    #define CFG_TUD_ENDPOINT0_SIZE    64
 #endif
 
 //------------- CLASS -------------//
-#define CFG_TUD_HID                   1
+
+//**********************************************
+// Functionality can be enabled/disabled here.
+// Note that still all modules are compiled.
+// This will change in the future.
+//**********************************************
+
+#define CFG_TUD_CDC_UART              1            // CDC for target UART IO
+#define CFG_TUD_CDC_SIGROK            1            // CDC for sigrok IO
 #if !defined(NDEBUG)
-    #define CFG_TUD_CDC               3
+   #define CFG_TUD_CDC_DEBUG          1            // CDC for debug output of the probe
 #else
-    #define CFG_TUD_CDC               2
+   #define CFG_TUD_CDC_DEBUG          0
 #endif
-#define CFG_TUD_MSC                   1
-#define CFG_TUD_MIDI                  0
-#define CFG_TUD_VENDOR                1
+
+#define CFG_TUD_HID                   1            // CMSIS-DAPv1
+#define CFG_TUD_CDC                   (CFG_TUD_CDC_UART + CFG_TUD_CDC_SIGROK + CFG_TUD_CDC_DEBUG)
+#define CFG_TUD_MSC                   1            // DAPLink drive
+#define CFG_TUD_VENDOR                1            // CMSIS-DAPv2
+#define CFG_TUD_MIDI                  0            // NOT USED
+
+
+// CDC numbering (must go 0.. consecutive)
+#define CDC_UART_N                    (CFG_TUD_CDC_UART - 1)
+#define CDC_SIGROK_N                  (CFG_TUD_CDC_UART + CFG_TUD_CDC_SIGROK - 1)
+#define CDC_DEBUG_N                   (CFG_TUD_CDC_UART + CFG_TUD_CDC_SIGROK + CFG_TUD_CDC_DEBUG - 1)
+
+//------------- BUFFER SIZES -------------//
 
 #define CFG_TUD_CDC_RX_BUFSIZE        64
 #define CFG_TUD_CDC_TX_BUFSIZE        256
@@ -83,11 +102,6 @@
  // note: this is optimized for DAPLink write speed
 #define CFG_TUD_MSC_EP_BUFSIZE        512
 
-
-// CDC numbering
-#define CDC_UART_N                    0
-#define CDC_SIGROK_N                  1
-#define CDC_DEBUG_N                   2
 
 #ifdef __cplusplus
  }

@@ -28,10 +28,12 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "tusb.h"
 
 void cdc_uart_init(uint32_t task_prio);
 void cdc_uart_write(const uint8_t *buf, uint32_t cnt);
 void cdc_uart_line_state_cb(bool dtr, bool rts);
+void cdc_uart_line_coding_cb(cdc_line_coding_t const* line_coding);
 void cdc_uart_tx_complete_cb(void);
 void cdc_uart_rx_cb(void);
 

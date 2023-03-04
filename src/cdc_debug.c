@@ -64,6 +64,7 @@ void cdc_debug_thread(void *ptr)
  */
 {
     for (;;) {
+#if CFG_TUD_CDC_DEBUG
         if ( !m_connected) {
             // wait here some time (until my terminal program is ready)
             m_connected = true;
@@ -92,6 +93,9 @@ void cdc_debug_thread(void *ptr)
                 }
             }
         }
+#else
+        xStreamBufferReceive(stream_printf, cdc_debug_buf, sizeof(cdc_debug_buf), pdMS_TO_TICKS(500));
+#endif
     }
 }   // cdc_debug_thread
 
@@ -103,7 +107,9 @@ void cdc_debug_line_state_cb(bool dtr, bool rts)
      * Resume our UART polling on activate, stop on deactivate */
     if (!dtr  &&  !rts) {
         vTaskSuspend(task_printf);
+#if CFG_TUD_CDC_DEBUG
         tud_cdc_n_write_clear(CDC_DEBUG_N);
+#endif
         m_connected = false;
     }
     else {
