@@ -147,6 +147,29 @@ does not add any features, instead the LED indicator does not work there.
 |`cp firmware.uf2 /media/picoprobe`
 |===
 
+#### Parameter Optimization
+
+YaPicoprobe tries to identify the connecting tool and sets some internal parameters for best performance.
+Those settings are:
+
+.Parameter Optimization
+[%header]
+|===
+|Tool | Parameter
+
+|pyocd / CMSIS-DAPv2
+|DAP_PACKET_COUNT=2 +
+DAP_PACKET_SIZE=128
+
+|openocd / CMSIS-DAPv2
+|DAP_PACKET_COUNT=2 +
+DAP_PACKET_SIZE=1024
+
+|CMSIS-DAPv1 HID
+|DAP_PACKET_COUNT=1 +
+DAP_PACKET_SIZE=64
+|===
+
 
 ### SWD Adapter Speed
 The tools above allow specification of the adapter speed.  This is the clock frequency between probe and target device.
