@@ -36,7 +36,7 @@ tusb_desc_device_t const desc_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
-    .bcdUSB             = 0x0300, // USB Specification version 2.1 for BOS
+    .bcdUSB             = 0x0210, // USB Specification version 2.1 for BOS
     .bDeviceClass       = 0x00, // Each interface specifies its own
     .bDeviceSubClass    = 0x00, // Each interface specifies its own
     .bDeviceProtocol    = 0x00,
@@ -172,7 +172,7 @@ uint8_t const * tud_hid_descriptor_report_cb(uint8_t itf)
 //
 uint8_t const desc_configuration[] =
 {
-    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 500),
 
 #if CFG_TUD_VENDOR
     // Interface 0: Bulk (named interface), CMSIS-DAPv2
