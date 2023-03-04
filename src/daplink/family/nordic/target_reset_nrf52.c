@@ -29,7 +29,7 @@ static void swd_set_target_reset_nrf(uint8_t asserted)
     uint32_t ap_index_return;
 
     if (asserted) {
-        swd_init_debug();
+        // swd_init_debug();   leads to a recursion
 
         swd_read_ap(0x010000FC, &ap_index_return);
         if (ap_index_return == 0x02880000) {

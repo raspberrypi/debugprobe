@@ -299,7 +299,7 @@ bool msc_target_connect(bool write_mode)
 //            picoprobe_debug("---------------------------------- %d\n", ok);
 
             must_initialize = ok;
-            is_connected = ok;
+            is_connected = true;                   // disconnect must be issued!
             had_write = false;
         }
         last_trigger_us = now_us;
