@@ -1,10 +1,12 @@
 cmake_minimum_required(VERSION 3.12)
 
 #
-# board definition: pico or pico_w
+# board definition: pico or pico_w, default is pico
 #
-set(PICO_BOARD              pico)
-set(PICO_STDIO_UART         0   )
+if(PICO_BOARD STREQUAL "")
+    set(PICO_BOARD pico)
+endif()
+set(PICO_STDIO_UART 0)
 
 #
 # below order is important
@@ -172,8 +174,7 @@ target_include_directories(${PROJECT} PRIVATE src)
 
 target_compile_definitions (${PROJECT} PRIVATE
 	PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
-# TODO this is for newer SDK!?
-#	PICO_RP2040_USB_DEVICE_UFRAME_FIX=1
+	PICO_RP2040_USB_DEVICE_UFRAME_FIX=1
 )
 
 target_link_libraries(${PROJECT} PRIVATE
