@@ -432,25 +432,9 @@ void usb_thread(void *ptr)
 
     vTaskCoreAffinitySet(tud_taskhandle, 1);
 
-    {
-        if (g_board_info.prerun_board_config != NULL) {
-            g_board_info.prerun_board_config();
-        }
-        picoprobe_info("Target family     : 0x%04x\n", g_target_family->family_id);
-        picoprobe_info("Target vendor     : %s\n", g_board_info.target_cfg->target_vendor);
-        picoprobe_info("Target part       : %s\n", g_board_info.target_cfg->target_part_number);
-        picoprobe_info("Board vendor      : %s\n", g_board_info.board_vendor);
-        picoprobe_info("Board name        : %s\n", g_board_info.board_name);
-        picoprobe_info("Flash             : 0x%08lx..0x%08lx (%ldK)\n", g_board_info.target_cfg->flash_regions[0].start,
-                       g_board_info.target_cfg->flash_regions[0].end - 1,
-                       (g_board_info.target_cfg->flash_regions[0].end - g_board_info.target_cfg->flash_regions[0].start) / 1024);
-        picoprobe_info("RAM               : 0x%08lx..0x%08lx (%ldK)\n",
-                       g_board_info.target_cfg->ram_regions[0].start,
-                       g_board_info.target_cfg->ram_regions[0].end - 1,
-                       (g_board_info.target_cfg->ram_regions[0].end - g_board_info.target_cfg->ram_regions[0].start) / 1024);
-        picoprobe_info("SWD frequency     : %ukHz\n", g_board_info.target_cfg->rt_swd_khz);
-        picoprobe_info("SWD max frequency : %ukHz\n", g_board_info.target_cfg->rt_max_swd_khz);
-        picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+    // do a first initialization, dynamic target detection is done in rtt_console
+    if (g_board_info.prerun_board_config != NULL) {
+        g_board_info.prerun_board_config();
     }
 
     cdc_uart_init(UART_TASK_PRIO);
@@ -509,24 +493,24 @@ int main(void)
     picoprobe_info("Features:\n");
     picoprobe_info(" ");
 #if CFG_TUD_VENDOR
-    picoprobe_out(" [CMSIS-DAPv2]");
+    picoprobe_info_out(" [CMSIS-DAPv2]");
 #endif
 #if CFG_TUD_HID
-    picoprobe_out(" [CMSIS-DAPv1]");
+    picoprobe_info_out(" [CMSIS-DAPv1]");
 #endif
 #if CFG_TUD_CDC_UART
-    picoprobe_out(" [UART -> CDC]");
+    picoprobe_info_out(" [UART -> CDC]");
 #endif
 #if CFG_TUD_CDC_SIGROK
-    picoprobe_out(" [sigrok CDC]");
+    picoprobe_info_out(" [sigrok CDC]");
 #endif
 #if CFG_TUD_CDC_DEBUG
-    picoprobe_out(" [probe debug CDC]");
+    picoprobe_info_out(" [probe debug CDC]");
 #endif
 #if CFG_TUD_MSC
-    picoprobe_out(" [DAPLink MSC]");
+    picoprobe_info_out(" [DAPLink MSC]");
 #endif
-    picoprobe_out("\n");
+    picoprobe_info_out("\n");
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
     events = xEventGroupCreate();
@@ -625,12 +609,12 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
         uint32_t request_len = DAP_GetCommandLength(RxDataBuffer, bufsize);
         picoprobe_info("< ");
         for (int i = 0;  i < bufsize;  ++i) {
-            picoprobe_out(" %02x", RxDataBuffer[i]);
+            picoprobe_info_out(" %02x", RxDataBuffer[i]);
             if (i == request_len - 1) {
-                picoprobe_out(" !!!!");
+                picoprobe_info_out(" !!!!");
             }
         }
-        picoprobe_out("\n");
+        picoprobe_info_out("\n");
         vTaskDelay(pdMS_TO_TICKS(30));
         uint32_t res = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
         picoprobe_info("> %lu %lu\n", res >> 16, res & 0xffff);

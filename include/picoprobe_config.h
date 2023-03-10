@@ -32,9 +32,9 @@
 
 
 #if !defined(NDEBUG)
-    #define picoprobe_out(format,args...) printf(format, ## args)
+    #define picoprobe_info_out(format,args...) printf(format, ## args)
 #else
-    #define picoprobe_out(format,...) ((void)0)
+    #define picoprobe_info_out(format,...) ((void)0)
 #endif
 
 #if !defined(NDEBUG)

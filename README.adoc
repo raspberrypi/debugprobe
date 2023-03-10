@@ -5,7 +5,7 @@
 
 # Yet Another Picoprobe
 
-## Summary
+## Overview
 
 YAPicoprobe allows a Pico / RP2040 to be used as USB -> SWD and UART bridge. This means
 it can be used as a debugger and serial console for another Pico or any other SWD compatible controller.

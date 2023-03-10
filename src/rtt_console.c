@@ -111,7 +111,6 @@ static uint32_t search_for_rtt_cb(void)
 
     if (rtt_cb != 0) {
         picoprobe_info("RTT_CB found at 0x%lx\n", rtt_cb);
-        led_state(LS_RTT_CB_FOUND);
     }
     else {
         picoprobe_debug("no RTT_CB found\n");
@@ -169,17 +168,18 @@ static void do_rtt_console(uint32_t rtt_cb)
 
 /**
  * Connect to the target, but let the target run
+ * \return true -> connected to target
  */
-static void target_connect(void)
+static bool target_connect(void)
 {
+    bool r = false;
+
 //    picoprobe_debug("=================================== RTT connect target\n");
 //    target_set_state(RESET_PROGRAM);
     if (target_set_state(ATTACH)) {
-        led_state(LS_TARGET_FOUND);
+        r = true;
     }
-    else {
-        led_state(LS_NO_TARGET);
-    }
+    return r;
 }   // target_connect
 
 
@@ -195,23 +195,58 @@ static void target_disconnect(void)
 void rtt_console_thread(void *ptr)
 {
     uint32_t rtt_cb;
+    bool target_online = false;
 
     for (;;) {
         sw_lock("RTT", false);
         // post: we have the interface
 
+        if ( !target_online) {
+            if (g_board_info.prerun_board_config != NULL) {
+                g_board_info.prerun_board_config();
+            }
+            if (g_board_info.target_cfg->rt_board_id != NULL) {
+                picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+                //picoprobe_info("Target family     : 0x%04x\n", g_target_family->family_id);
+                picoprobe_info("Target vendor     : %s\n", g_board_info.target_cfg->target_vendor);
+                picoprobe_info("Target part       : %s\n", g_board_info.target_cfg->target_part_number);
+                //picoprobe_info("Board vendor      : %s\n", g_board_info.board_vendor);
+                //picoprobe_info("Board name        : %s\n", g_board_info.board_name);
+                picoprobe_info("Flash             : 0x%08lx..0x%08lx (%ldK)\n", g_board_info.target_cfg->flash_regions[0].start,
+                               g_board_info.target_cfg->flash_regions[0].end - 1,
+                               (g_board_info.target_cfg->flash_regions[0].end - g_board_info.target_cfg->flash_regions[0].start) / 1024);
+                picoprobe_info("RAM               : 0x%08lx..0x%08lx (%ldK)\n",
+                               g_board_info.target_cfg->ram_regions[0].start,
+                               g_board_info.target_cfg->ram_regions[0].end - 1,
+                               (g_board_info.target_cfg->ram_regions[0].end - g_board_info.target_cfg->ram_regions[0].start) / 1024);
+                picoprobe_info("SWD frequency     : %ukHz\n", g_board_info.target_cfg->rt_swd_khz);
+                picoprobe_info("SWD max frequency : %ukHz\n", g_board_info.target_cfg->rt_max_swd_khz);
+                picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+            }
+        }
+
         vTaskDelay(pdMS_TO_TICKS(100));
-        target_connect();
+        if ( !target_connect()) {
+            led_state(LS_NO_TARGET);
+            target_online = false;
 
-        rtt_cb = search_for_rtt_cb();
-        do_rtt_console(rtt_cb);
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+        else {
+            led_state(LS_TARGET_FOUND);
+            target_online = true;
 
-        target_disconnect();
-        vTaskDelay(pdMS_TO_TICKS(200));        // TODO after disconnect some guard time seems to be required??
+            rtt_cb = search_for_rtt_cb();
+            if (rtt_cb != 0) {
+                led_state(LS_RTT_CB_FOUND);
+                do_rtt_console(rtt_cb);
+            }
 
+            target_disconnect();
+            vTaskDelay(pdMS_TO_TICKS(200));        // some guard time after disconnect
+        }
         sw_unlock("RTT");
-
-        vTaskDelay(pdMS_TO_TICKS(300));        // give the other task the opportunity to catch sw_lock();
+        vTaskDelay(pdMS_TO_TICKS(300));            // give the other task the opportunity to catch sw_lock();
     }
 }   // rtt_console_thread
 

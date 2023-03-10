@@ -122,6 +122,28 @@ target_cfg_t target_device_generic = {
 };
 
 
+// target information for SWD not connected
+target_cfg_t target_device_disconnected = {
+    .version                        = kTargetConfigVersion,
+    .sectors_info                   = NULL,
+    .sector_info_length             = 0,
+    .flash_regions[0].start         = 0x00000000,
+    .flash_regions[0].end           = 0x00000000 + MB(1),
+    .flash_regions[0].flags         = kRegionIsDefault,
+    .flash_regions[0].flash_algo    = NULL,
+    .ram_regions[0].start           = 0x20000000,
+    .ram_regions[0].end             = 0x20000000 + KB(256),
+    .erase_reset                    = 1,
+    .target_vendor                  = "Disconnected",
+    .target_part_number             = "Disconnected",
+    .rt_family_id                   = kStub_SWSysReset_FamilyID,
+    .rt_board_id                    = NULL,                            // indicates not connected
+    .rt_uf2_id                      = 0,                               // this also implies no write operation
+    .rt_max_swd_khz                 = 10000,
+    .rt_swd_khz                     = 2000,
+};
+
+
 
 extern target_cfg_t target_device_nrf52;
 extern target_cfg_t target_device_nrf52833;
@@ -238,11 +260,22 @@ void pico_prerun_board_config(void)
     }
 
     if ( !target_found) {
-        // set generic device even if nothing connected
-        target_device = target_device_generic;         // holds already all values
-        search_family();
-        strcpy(board_vendor, "Generic");
-        strcpy(board_name, "Generic");
+        if (target_set_state(ATTACH)) {
+            // set generic device
+            target_device = target_device_generic;         // holds already all values
+            search_family();
+            strcpy(board_vendor, "Generic");
+            strcpy(board_name, "Generic");
+        }
+        else {
+            // Disconnected!
+            // Note that .rt_board_id is set to NULL to show the disconnect state.
+            // This is actually a hack to provide other layers with some dummy g_board_info.target_cfg
+            target_device = target_device_disconnected;    // holds already all values
+            search_family();
+            strcpy(board_vendor, "Disconnected");
+            strcpy(board_name, "Disconnected");
+        }
     }
 
     probe_set_swclk_freq(target_device.rt_swd_khz);
