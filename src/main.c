@@ -436,19 +436,20 @@ void usb_thread(void *ptr)
         if (g_board_info.prerun_board_config != NULL) {
             g_board_info.prerun_board_config();
         }
-        picoprobe_info("Target family : 0x%04x\n", g_target_family->family_id);
-        picoprobe_info("Target vendor : %s\n", g_board_info.target_cfg->target_vendor);
-        picoprobe_info("Target part   : %s\n", g_board_info.target_cfg->target_part_number);
-        picoprobe_info("Board vendor  : %s\n", g_board_info.board_vendor);
-        picoprobe_info("Board name    : %s\n", g_board_info.board_name);
-        picoprobe_info("Flash         : 0x%08lx..0x%08lx (%ldK)\n", g_board_info.target_cfg->flash_regions[0].start,
+        picoprobe_info("Target family     : 0x%04x\n", g_target_family->family_id);
+        picoprobe_info("Target vendor     : %s\n", g_board_info.target_cfg->target_vendor);
+        picoprobe_info("Target part       : %s\n", g_board_info.target_cfg->target_part_number);
+        picoprobe_info("Board vendor      : %s\n", g_board_info.board_vendor);
+        picoprobe_info("Board name        : %s\n", g_board_info.board_name);
+        picoprobe_info("Flash             : 0x%08lx..0x%08lx (%ldK)\n", g_board_info.target_cfg->flash_regions[0].start,
                        g_board_info.target_cfg->flash_regions[0].end - 1,
                        (g_board_info.target_cfg->flash_regions[0].end - g_board_info.target_cfg->flash_regions[0].start) / 1024);
-        picoprobe_info("RAM           : 0x%08lx..0x%08lx (%ldK)\n",
+        picoprobe_info("RAM               : 0x%08lx..0x%08lx (%ldK)\n",
                        g_board_info.target_cfg->ram_regions[0].start,
                        g_board_info.target_cfg->ram_regions[0].end - 1,
                        (g_board_info.target_cfg->ram_regions[0].end - g_board_info.target_cfg->ram_regions[0].start) / 1024);
-        picoprobe_info("SWD frequency : %lukHz\n", DAP_DEFAULT_SWJ_CLOCK / 1000);
+        picoprobe_info("SWD frequency     : %ukHz\n", g_board_info.target_cfg->rt_swd_khz);
+        picoprobe_info("SWD max frequency : %ukHz\n", g_board_info.target_cfg->rt_max_swd_khz);
         picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
     }
 
@@ -505,7 +506,7 @@ int main(void)
     // now we can "print"
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
     picoprobe_info("                     Welcome to Yet Another Picoprobe v" PICOPROBE_VERSION_STRING "-" GIT_HASH "\n");
-    picoprobe_info("  Features:\n");
+    picoprobe_info("Features:\n");
     picoprobe_info(" ");
 #if CFG_TUD_VENDOR
     picoprobe_out(" [CMSIS-DAPv2]");

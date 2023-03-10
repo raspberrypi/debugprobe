@@ -37,7 +37,7 @@
     #define picoprobe_out(format,...) ((void)0)
 #endif
 
-#if 1  &&  !defined(NDEBUG)
+#if !defined(NDEBUG)
     #define picoprobe_info(format,args...) printf("(II) " format, ## args)
 #else
     #define picoprobe_info(format,...) ((void)0)
@@ -75,8 +75,7 @@
 #define PROBE_PIN_SWCLK          (PROBE_PIN_OFFSET + 1) // 2
 #define PROBE_PIN_SWDIO          (PROBE_PIN_OFFSET + 2) // 3
 #define PROBE_PIN_RESET          6                      // Target reset config
-#define PROBE_MAX_KHZ            25000U                 // overclocked: according to RP2040 datasheet 24MHz
-#define PROBE_DEFAULT_KHZ        15000
+// #define PROBE_MAX_KHZ         now in g_board_info.target_cfg->rt_max_swd_kHz, setup in pico::pico_prerun_board_config()
 
 // UART config (UART target -> probe)
 #define PICOPROBE_UART_TX        4
