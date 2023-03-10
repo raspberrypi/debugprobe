@@ -108,11 +108,13 @@ static EventGroupHandle_t events;
 
 void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 {
+#if CFG_TUD_CDC_UART
     if (itf == CDC_UART_N) {
         cdc_uart_line_state_cb(dtr, rts);
     }
-#ifndef NDEBUG
-    else if (itf == CDC_DEBUG_N) {
+#endif
+#if CFG_TUD_CDC_DEBUG
+    if (itf == CDC_DEBUG_N) {
         cdc_debug_line_state_cb(dtr, rts);
     }
 #endif
@@ -120,28 +122,49 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 
 
 
+#if CFG_TUD_CDC
+void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding)
+{
+#if CFG_TUD_CDC_UART
+    if (itf == CDC_UART_N) {
+        cdc_uart_line_coding_cb(line_coding);
+    }
+#endif
+}   // tud_cdc_line_coding_cb
+#endif
+
+
+
 void tud_cdc_rx_cb(uint8_t itf)
 {
+#if CFG_TUD_CDC_SIGROK
     if (itf == CDC_SIGROK_N) {
         cdc_sigrok_rx_cb();
     }
-    else if (itf == CDC_UART_N) {
+#endif
+#if CFG_TUD_CDC_UART
+    if (itf == CDC_UART_N) {
         cdc_uart_rx_cb();
     }
+#endif
 }   // tud_cdc_rx_cb
 
 
 
 void tud_cdc_tx_complete_cb(uint8_t itf)
 {
+#if CFG_TUD_CDC_SIGROK
     if (itf == CDC_SIGROK_N) {
         cdc_sigrok_tx_complete_cb();
     }
-    else if (itf == CDC_UART_N) {
+#endif
+#if CFG_TUD_CDC_UART
+    if (itf == CDC_UART_N) {
         cdc_uart_tx_complete_cb();
     }
-#ifndef NDEBUG
-    else if (itf == CDC_DEBUG_N) {
+#endif
+#if CFG_TUD_CDC_DEBUG
+    if (itf == CDC_DEBUG_N) {
         cdc_debug_tx_complete_cb();
     }
 #endif
@@ -149,15 +172,18 @@ void tud_cdc_tx_complete_cb(uint8_t itf)
 
 
 
+#if CFG_TUD_VENDOR
 void tud_vendor_rx_cb(uint8_t itf)
 {
     if (itf == 0) {
         xEventGroupSetBits(events, 0x01);
     }
 }   // tud_vendor_rx_cb
+#endif
 
 
 
+#if CFG_TUD_VENDOR
 /**
  * CMSIS-DAP task.
  * Receive DAP requests, execute them via DAP_ExecuteCommand() and transmit the response.
@@ -279,6 +305,7 @@ void dap_task(void *ptr)
         }
     }
 }   // dap_task
+#endif
 
 
 
@@ -405,24 +432,9 @@ void usb_thread(void *ptr)
 
     vTaskCoreAffinitySet(tud_taskhandle, 1);
 
-    {
-        if (g_board_info.prerun_board_config != NULL) {
-            g_board_info.prerun_board_config();
-        }
-        picoprobe_info("Target family : 0x%04x\n", g_target_family->family_id);
-        picoprobe_info("Target vendor : %s\n", g_board_info.target_cfg->target_vendor);
-        picoprobe_info("Target part   : %s\n", g_board_info.target_cfg->target_part_number);
-        picoprobe_info("Board vendor  : %s\n", g_board_info.board_vendor);
-        picoprobe_info("Board name    : %s\n", g_board_info.board_name);
-        picoprobe_info("Flash         : 0x%08lx..0x%08lx (%ldK)\n", g_board_info.target_cfg->flash_regions[0].start,
-                       g_board_info.target_cfg->flash_regions[0].end - 1,
-                       (g_board_info.target_cfg->flash_regions[0].end - g_board_info.target_cfg->flash_regions[0].start) / 1024);
-        picoprobe_info("RAM           : 0x%08lx..0x%08lx (%ldK)\n",
-                       g_board_info.target_cfg->ram_regions[0].start,
-                       g_board_info.target_cfg->ram_regions[0].end - 1,
-                       (g_board_info.target_cfg->ram_regions[0].end - g_board_info.target_cfg->ram_regions[0].start) / 1024);
-        picoprobe_info("SWD frequency : %lukHz\n", DAP_DEFAULT_SWJ_CLOCK / 1000);
-        picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+    // do a first initialization, dynamic target detection is done in rtt_console
+    if (g_board_info.prerun_board_config != NULL) {
+        g_board_info.prerun_board_config();
     }
 
     cdc_uart_init(UART_TASK_PRIO);
@@ -439,7 +451,9 @@ void usb_thread(void *ptr)
     sigrok_init(SIGROK_TASK_PRIO);
 #endif
 
+#if CFG_TUD_VENDOR
     xTaskCreateAffinitySet(dap_task, "CMSIS-DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, 2, &dap_taskhandle);
+#endif
 
     tusb_init();
     for (;;) {
@@ -476,6 +490,27 @@ int main(void)
     // now we can "print"
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
     picoprobe_info("                     Welcome to Yet Another Picoprobe v" PICOPROBE_VERSION_STRING "-" GIT_HASH "\n");
+    picoprobe_info("Features:\n");
+    picoprobe_info(" ");
+#if CFG_TUD_VENDOR
+    picoprobe_info_out(" [CMSIS-DAPv2]");
+#endif
+#if CFG_TUD_HID
+    picoprobe_info_out(" [CMSIS-DAPv1]");
+#endif
+#if CFG_TUD_CDC_UART
+    picoprobe_info_out(" [UART -> CDC]");
+#endif
+#if CFG_TUD_CDC_SIGROK
+    picoprobe_info_out(" [sigrok CDC]");
+#endif
+#if CFG_TUD_CDC_DEBUG
+    picoprobe_info_out(" [probe debug CDC]");
+#endif
+#if CFG_TUD_MSC
+    picoprobe_info_out(" [DAPLink MSC]");
+#endif
+    picoprobe_info_out("\n");
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
     events = xEventGroupCreate();
@@ -489,6 +524,7 @@ int main(void)
 
 
 
+#if CFG_TUD_HID
 static bool hid_swd_connected;
 static bool hid_swd_disconnect_requested;
 static TimerHandle_t     timer_hid_disconnect = NULL;
@@ -573,12 +609,12 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
         uint32_t request_len = DAP_GetCommandLength(RxDataBuffer, bufsize);
         picoprobe_info("< ");
         for (int i = 0;  i < bufsize;  ++i) {
-            picoprobe_out(" %02x", RxDataBuffer[i]);
+            picoprobe_info_out(" %02x", RxDataBuffer[i]);
             if (i == request_len - 1) {
-                picoprobe_out(" !!!!");
+                picoprobe_info_out(" !!!!");
             }
         }
-        picoprobe_out("\n");
+        picoprobe_info_out("\n");
         vTaskDelay(pdMS_TO_TICKS(30));
         uint32_t res = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
         picoprobe_info("> %lu %lu\n", res >> 16, res & 0xffff);
@@ -588,9 +624,11 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
         tud_hid_report(0, TxDataBuffer, response_size);
     }
 }   // tud_hid_set_report_cb
+#endif
 
 
 
+#if CFG_TUD_VENDOR
 extern uint8_t const desc_ms_os_20[];
 
 bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
@@ -625,7 +663,8 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 
     // stall unknown request
     return false;
-}
+}   // tud_vendor_control_xfer_cb
+#endif
 
 
 

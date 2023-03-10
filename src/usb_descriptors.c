@@ -36,7 +36,7 @@ tusb_desc_device_t const desc_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
-    .bcdUSB             = 0x0300, // USB Specification version 2.1 for BOS
+    .bcdUSB             = 0x0210, // USB Specification version 2.1 for BOS
     .bDeviceClass       = 0x00, // Each interface specifies its own
     .bDeviceSubClass    = 0x00, // Each interface specifies its own
     .bDeviceProtocol    = 0x00,
@@ -44,7 +44,7 @@ tusb_desc_device_t const desc_device =
 
     .idVendor           = 0x2E8A, // Pi
     .idProduct          = 0x000c, // CMSIS-DAP adapter
-    .bcdDevice          = (PICOPROBE_VERSION_MAJOR << 8) + PICOPROBE_VERSION_MINOR,
+    .bcdDevice          = (PICOPROBE_VERSION_MAJOR << 8) + (16*(PICOPROBE_VERSION_MINOR / 10)) + PICOPROBE_VERSION_MINOR % 10,
     .iManufacturer      = 0x01,
     .iProduct           = 0x02,
     .iSerialNumber      = 0x03,
@@ -64,45 +64,96 @@ uint8_t const * tud_descriptor_device_cb(void)
 
 enum
 {
+#if CFG_TUD_VENDOR
     ITF_NUM_PROBE_VENDOR,               // Old versions of Keil MDK only look at interface 0
+#endif
+#if CFG_TUD_HID
     ITF_NUM_PROBE_HID,
+#endif
+#if CFG_TUD_CDC_UART
     ITF_NUM_CDC_COM,
     ITF_NUM_CDC_DATA,
+#endif
+#if CFG_TUD_CDC_SIGROK
     ITF_NUM_CDC_SIGROK_COM,
     ITF_NUM_CDC_SIGROK_DATA,
+#endif
 #if CFG_TUD_MSC
     ITF_NUM_MSC,
 #endif
-#if !defined(NDEBUG)
+#if CFG_TUD_CDC_DEBUG
     ITF_NUM_CDC_DEBUG_COM,
     ITF_NUM_CDC_DEBUG_DATA,
 #endif
     ITF_NUM_TOTAL
 };
 
-#define PROBE_VENDOR_OUT_EP_NUM             0x01
-#define PROBE_VENDOR_IN_EP_NUM              0x82
-#define PROBE_HID_OUT_EP_NUM                0x03
-#define PROBE_HID_IN_EP_NUM                 0x84
-#define CDC_NOTIFICATION_EP_NUM             0x85
-#define CDC_DATA_OUT_EP_NUM                 0x06
-#define CDC_DATA_IN_EP_NUM                  0x87
-#define CDC_SIGROK_NOTIFICATION_EP_NUM      0x88
-#define CDC_SIGROK_DATA_OUT_EP_NUM          0x09
-#define CDC_SIGROK_DATA_IN_EP_NUM           0x8a
+
+// don't know if consecutive numbering is required.  Let's do it anyway
+enum
+{
+    DUMMY_CNT = 0,
+#if CFG_TUD_VENDOR
+    PROBE_VENDOR_OUT_EP_CNT,
+    PROBE_VENDOR_IN_EP_CNT,
+#endif
+#if CFG_TUD_HID
+    PROBE_HID_OUT_EP_CNT,
+    PROBE_HID_IN_EP_CNT,
+#endif
+#if CFG_TUD_CDC_UART
+    CDC_NOTIFICATION_EP_CNT,
+    CDC_DATA_OUT_EP_CNT,
+    CDC_DATA_IN_EP_CNT,
+#endif
+#if CFG_TUD_CDC_SIGROK
+    CDC_SIGROK_NOTIFICATION_EP_CNT,
+    CDC_SIGROK_DATA_OUT_EP_CNT,
+    CDC_SIGROK_DATA_IN_EP_CNT,
+#endif
 #if CFG_TUD_MSC
-    #define MSC_OUT_EP_NUM                  0x0b
-    #define MSC_IN_EP_NUM                   0x8c
+    MSC_OUT_EP_CNT,
+    MSC_IN_EP_CNT,
 #endif
-#if !defined(NDEBUG)
-    #define CDC_DEBUG_NOTIFICATION_EP_NUM   0x8d
-    #define CDC_DEBUG_DATA_OUT_EP_NUM       0x0e
-    #define CDC_DEBUG_DATA_IN_EP_NUM        0x8f
+#if CFG_TUD_CDC_DEBUG
+    CDC_DEBUG_NOTIFICATION_EP_CNT,
+    CDC_DEBUG_DATA_OUT_EP_CNT,
+    CDC_DEBUG_DATA_IN_EP_CNT,
+#endif
+};
+
+#if CFG_TUD_VENDOR
+    #define PROBE_VENDOR_OUT_EP_NUM         (PROBE_VENDOR_OUT_EP_CNT + 0x00)
+    #define PROBE_VENDOR_IN_EP_NUM          (PROBE_VENDOR_IN_EP_CNT + 0x80)
+#endif
+#if CFG_TUD_HID
+    #define PROBE_HID_OUT_EP_NUM            (PROBE_HID_OUT_EP_CNT + 0x00)
+    #define PROBE_HID_IN_EP_NUM             (PROBE_HID_IN_EP_CNT + 0x80)
+#endif
+#if CFG_TUD_CDC_UART
+    #define CDC_NOTIFICATION_EP_NUM         (CDC_NOTIFICATION_EP_CNT + 0x80)
+    #define CDC_DATA_OUT_EP_NUM             (CDC_DATA_OUT_EP_CNT + 0x00)
+    #define CDC_DATA_IN_EP_NUM              (CDC_DATA_IN_EP_CNT + 0x80)
+#endif
+#if CFG_TUD_CDC_SIGROK
+    #define CDC_SIGROK_NOTIFICATION_EP_NUM  (CDC_SIGROK_NOTIFICATION_EP_CNT + 0x80)
+    #define CDC_SIGROK_DATA_OUT_EP_NUM      (CDC_SIGROK_DATA_OUT_EP_CNT + 0x00)
+    #define CDC_SIGROK_DATA_IN_EP_NUM       (CDC_SIGROK_DATA_IN_EP_CNT + 0x80)
+#endif
+#if CFG_TUD_MSC
+    #define MSC_OUT_EP_NUM                  (MSC_OUT_EP_CNT + 0x00)
+    #define MSC_IN_EP_NUM                   (MSC_IN_EP_CNT + 0x80)
+#endif
+#if CFG_TUD_CDC_DEBUG
+    #define CDC_DEBUG_NOTIFICATION_EP_NUM   (CDC_DEBUG_NOTIFICATION_EP_CNT + 0x80)
+    #define CDC_DEBUG_DATA_OUT_EP_NUM       (CDC_DEBUG_DATA_OUT_EP_CNT + 0x00)
+    #define CDC_DEBUG_DATA_IN_EP_NUM        (CDC_DEBUG_DATA_IN_EP_CNT + 0x80)
 #endif
 
-#define CONFIG_TOTAL_LEN   (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + TUD_VENDOR_DESC_LEN + TUD_HID_INOUT_DESC_LEN + CFG_TUD_MSC*TUD_MSC_DESC_LEN)
+#define CONFIG_TOTAL_LEN   (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + CFG_TUD_VENDOR*TUD_VENDOR_DESC_LEN + CFG_TUD_HID*TUD_HID_INOUT_DESC_LEN + CFG_TUD_MSC*TUD_MSC_DESC_LEN)
 
 
+#if CFG_TUD_HID
 static uint8_t const desc_hid_report[] =
 {
     TUD_HID_REPORT_DESC_GENERIC_INOUT(CFG_TUD_HID_EP_BUFSIZE)
@@ -113,6 +164,7 @@ uint8_t const * tud_hid_descriptor_report_cb(uint8_t itf)
     (void)itf;
     return desc_hid_report;
 }
+#endif
 
 
 //
@@ -120,26 +172,34 @@ uint8_t const * tud_hid_descriptor_report_cb(uint8_t itf)
 //
 uint8_t const desc_configuration[] =
 {
-    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 500),
 
+#if CFG_TUD_VENDOR
     // Interface 0: Bulk (named interface), CMSIS-DAPv2
     TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE_VENDOR, 4, PROBE_VENDOR_OUT_EP_NUM, PROBE_VENDOR_IN_EP_NUM, 64),
+#endif
 
+#if CFG_TUD_HID
     // Interface 1: HID (named interface), CMSIS-DAP v1
     TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_PROBE_HID, 5, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), PROBE_HID_OUT_EP_NUM, PROBE_HID_IN_EP_NUM, CFG_TUD_HID_EP_BUFSIZE, 1),
+#endif
 
+#if CFG_TUD_CDC_UART
     // Interface 2 + 3: CDC UART (target)
     TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_COM, 7, CDC_NOTIFICATION_EP_NUM, 64, CDC_DATA_OUT_EP_NUM, CDC_DATA_IN_EP_NUM, 64),
+#endif
 
+#if CFG_TUD_CDC_SIGROK
     // Interface 4 + 5: CDC SIGROK
     TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_SIGROK_COM, 8, CDC_SIGROK_NOTIFICATION_EP_NUM, 64, CDC_SIGROK_DATA_OUT_EP_NUM, CDC_SIGROK_DATA_IN_EP_NUM, 64),
+#endif
 
     // Interface 6: MSC
 #if CFG_TUD_MSC
     TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 6, MSC_OUT_EP_NUM, MSC_IN_EP_NUM, 64),
 #endif
 
-#if !defined(NDEBUG)
+#if CFG_TUD_CDC_DEBUG
     // Interface 7 + 8: CDC DEBUG (internal)
     TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_DEBUG_COM, 9, CDC_DEBUG_NOTIFICATION_EP_NUM, 64, CDC_DEBUG_DATA_OUT_EP_NUM, CDC_DEBUG_DATA_IN_EP_NUM, 64),
 #endif
@@ -211,6 +271,8 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
     return _desc_str;
 }
 
+
+#if CFG_TUD_VENDOR
 /* [incoherent gibbering to make Windows happy] */
 
 //--------------------------------------------------------------------+
@@ -274,3 +336,4 @@ uint8_t const * tud_descriptor_bos_cb(void)
 {
     return desc_bos;
 }
+#endif

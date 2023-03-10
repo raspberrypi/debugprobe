@@ -39,6 +39,9 @@
 #include "DAP_config.h"
 #include "DAP.h"
 
+#include "target_board.h"    // DAPLink
+
+
 
 #define CTRL_WORD_WRITE(CNT, DATA)    (((DATA) << 13) + ((CNT) << 8) + (probe.offset + probe_offset_short_output))
 #define CTRL_WORD_READ(CNT)           (                 ((CNT) << 8) + (probe.offset + probe_offset_input))
@@ -59,7 +62,7 @@ CU_REGISTER_DEBUG_PINS(probe_timing)
 //CU_SELECT_DEBUG_PINS(probe_timing)
 
 
-uint32_t probe_freq_khz = PROBE_DEFAULT_KHZ;
+uint32_t probe_freq_khz = 0;
 
 
 struct _probe {
@@ -88,19 +91,29 @@ void probe_set_swclk_freq(uint32_t freq_khz)
     uint32_t div_frac;
 
 #ifdef SPECIAL_CLK_FOR_PIO
-    // This very defensive setting was introduced by either Max or Earle.  We prefer higher clock rates.
-    // Clock rate can be set via tool, e.g. "pyocd reset -f 50000000" to get maximum frequency.
-    if (freq_khz == 1000) {
+    // This very defensive frequency setting was introduced by either Max or Earle.  We prefer higher clock rates.
+    // Clock rate can be set via tool, e.g. "pyocd reset -f 50000000" to get maximum target SWD frequency.
+    if (freq_khz == 1000)
+    {
         freq_khz = probe_freq_khz;
+        if (freq_khz >= g_board_info.target_cfg->rt_max_swd_khz  ||  freq_khz == 0)
+        {
+            freq_khz = g_board_info.target_cfg->rt_swd_khz;                  // take a fair frequency
+        }
     }
 #endif
 
-    if (freq_khz > PROBE_MAX_KHZ) {
-        freq_khz = PROBE_MAX_KHZ;
+    if (freq_khz > g_board_info.target_cfg->rt_max_swd_khz)
+    {
+        freq_khz = g_board_info.target_cfg->rt_max_swd_khz;
+    }
+    else if (freq_khz < 100)
+    {
+        freq_khz = g_board_info.target_cfg->rt_swd_khz;
     }
     probe_freq_khz = freq_khz;
 
-    div_256 = (256 * clk_sys_freq_khz + freq_khz / 2) / (6 * freq_khz);      // SWDCLK goes with PIOCLK / 6
+    div_256 = (256 * clk_sys_freq_khz + 3 * freq_khz) / (6 * freq_khz);      // SWDCLK goes with PIOCLK / 6
     div_int  = div_256 >> 8;
     div_frac = div_256 & 0xff;
 

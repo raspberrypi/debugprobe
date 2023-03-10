@@ -299,6 +299,7 @@ void cdc_sigrok_thread()
     EventBits_t ev = EV_RX | EV_TX | EV_STREAM;
 
     for (;;) {
+#if CFG_TUD_CDC_SIGROK
         size_t cdc_rx_chars;
 
         cdc_rx_chars = tud_cdc_n_available(CDC_SIGROK_N);
@@ -366,6 +367,9 @@ void cdc_sigrok_thread()
             }
         }
         tud_cdc_n_write_flush(CDC_SIGROK_N);
+#else
+        xEventGroupWaitBits(events, EV_RX | EV_TX | EV_STREAM | EV_RX, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
+#endif
     }
 }   // cdc_sigrok_thread
 

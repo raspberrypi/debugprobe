@@ -58,6 +58,7 @@ void cdc_thread(void *ptr)
     static uint8_t cdc_tx_buf[CFG_TUD_CDC_TX_BUFSIZE];
 
     for (;;) {
+#if CFG_TUD_CDC_UART
         size_t cdc_rx_chars;
 
         if ( !m_connected) {
@@ -114,24 +115,27 @@ void cdc_thread(void *ptr)
             tx_len = tud_cdc_n_read(CDC_UART_N, &ch, 1);
             uart_write_blocking(PICOPROBE_UART_INTERFACE, &ch, tx_len);
         }
+#else
+        xStreamBufferReceive(stream_uart, cdc_tx_buf, sizeof(cdc_tx_buf), pdMS_TO_TICKS(500));
+#endif
     }
 }   // cdc_thread
 
 
 
-//
-// CDC bitrate updates are reflected on \a PICOPROBE_UART_INTERFACE
-//
-void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding)
+#if CFG_TUD_CDC_UART
+void cdc_uart_line_coding_cb(cdc_line_coding_t const* line_coding)
+/**
+ * CDC bitrate updates are reflected on \a PICOPROBE_UART_INTERFACE
+ */
 {
-    if (itf == CDC_UART_N) {
-        vTaskSuspend(task_uart);
-        tud_cdc_n_write_clear(CDC_UART_N);
-        tud_cdc_n_read_flush(CDC_UART_N);
-        uart_set_baudrate(PICOPROBE_UART_INTERFACE, line_coding->bit_rate);
-        vTaskResume(task_uart);
-    }
-}   // tud_cdc_line_coding_cb
+    vTaskSuspend(task_uart);
+    tud_cdc_n_write_clear(CDC_UART_N);
+    tud_cdc_n_read_flush(CDC_UART_N);
+    uart_set_baudrate(PICOPROBE_UART_INTERFACE, line_coding->bit_rate);
+    vTaskResume(task_uart);
+}   // cdc_uart_line_coding_cb
+#endif
 
 
 
@@ -141,7 +145,9 @@ void cdc_uart_line_state_cb(bool dtr, bool rts)
      * Resume our UART polling on activate, stop on deactivate */
     if (!dtr  &&  !rts) {
         vTaskSuspend(task_uart);
+#if CFG_TUD_CDC_UART
         tud_cdc_n_write_clear(CDC_UART_N);
+#endif
         m_connected = false;
     }
     else {
