@@ -75,19 +75,23 @@
  * CMSIS-DAPv1 only works with one packet, at least with openocd which throws a
  *     "CMSIS-DAP transfer count mismatch: expected 12, got 8" on flashing.
  * The correct packet count has to be set on connection.
+ *
+ * More notes: pyocd works with large packets only, if the packet count is one.
+ * Additionally pyocd is instable if packet count > 1.  Valid for pyocd 0.34.3.
  */
-#define _DAP_PACKET_COUNT           2
+#define _DAP_PACKET_COUNT_OPENOCD   2
 #define _DAP_PACKET_SIZE_OPENOCD    CFG_TUD_VENDOR_RX_BUFSIZE
-#define _DAP_PACKET_SIZE_PYOCD      128                                   // pyocd does not like packets > 128
+#define _DAP_PACKET_COUNT_PYOCD     1
+#define _DAP_PACKET_SIZE_PYOCD      1024                                   // pyocd does not like packets > 128 i
 
 #define _DAP_PACKET_COUNT_HID       1
 #define _DAP_PACKET_SIZE_HID        64
 
-uint8_t  dap_packet_count = _DAP_PACKET_COUNT;
+uint8_t  dap_packet_count = _DAP_PACKET_COUNT_PYOCD;
 uint16_t dap_packet_size  = _DAP_PACKET_SIZE_PYOCD;
 
-static uint8_t TxDataBuffer[_DAP_PACKET_COUNT * CFG_TUD_VENDOR_RX_BUFSIZE];     // maximum required size
-static uint8_t RxDataBuffer[_DAP_PACKET_COUNT * CFG_TUD_VENDOR_RX_BUFSIZE];     // maximum required size
+static uint8_t TxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZE];     // maximum required size
+static uint8_t RxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZE];     // maximum required size
 
 
 // prios are critical and determine throughput
@@ -207,7 +211,7 @@ void dap_task(void *ptr)
     uint32_t rx_len = 0;
     daptool_t tool = E_DAPTOOL_UNKNOWN;
 
-    dap_packet_count = _DAP_PACKET_COUNT;
+    dap_packet_count = _DAP_PACKET_COUNT_PYOCD;
     dap_packet_size  = _DAP_PACKET_SIZE_PYOCD;
     for (;;) {
         // disconnect after 1s without data
@@ -219,7 +223,7 @@ void dap_task(void *ptr)
                 sw_unlock("DAPv2");
             }
             swd_disconnect_requested = false;
-            dap_packet_count = _DAP_PACKET_COUNT;
+            dap_packet_count = _DAP_PACKET_COUNT_PYOCD;
             dap_packet_size  = _DAP_PACKET_SIZE_PYOCD;
             tool = DAP_FingerprintTool(NULL, 0);
         }
@@ -246,7 +250,7 @@ void dap_task(void *ptr)
                     if (tool == E_DAPTOOL_UNKNOWN) {
                         tool = DAP_FingerprintTool(RxDataBuffer, request_len);
                         if (tool == E_DAPTOOL_OPENOCD) {
-                            dap_packet_count = _DAP_PACKET_COUNT;
+                            dap_packet_count = _DAP_PACKET_COUNT_OPENOCD;
                             dap_packet_size  = _DAP_PACKET_SIZE_OPENOCD;
                         }
                     }
