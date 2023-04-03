@@ -54,6 +54,17 @@ void cdc_uart_init(void) {
     gpio_set_pulls(PICOPROBE_UART_TX, 1, 0);
     gpio_set_pulls(PICOPROBE_UART_RX, 1, 0);
     uart_init(PICOPROBE_UART_INTERFACE, PICOPROBE_UART_BAUDRATE);
+
+#ifdef PICOPROBE_UART_RTS
+    gpio_init(PICOPROBE_UART_RTS);
+    gpio_set_dir(PICOPROBE_UART_RTS, GPIO_OUT);
+    gpio_put(PICOPROBE_UART_RTS, 1);
+#endif
+#ifdef PICOPROBE_UART_DTR
+    gpio_init(PICOPROBE_UART_DTR);
+    gpio_set_dir(PICOPROBE_UART_DTR, GPIO_OUT);
+    gpio_put(PICOPROBE_UART_DTR, 1);
+#endif
 }
 
 void cdc_task(void)
@@ -150,6 +161,13 @@ void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding)
 
 void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 {
+#ifdef PICOPROBE_UART_RTS
+  gpio_put(PICOPROBE_UART_RTS, !rts);
+#endif
+#ifdef PICOPROBE_UART_DTR
+  gpio_put(PICOPROBE_UART_DTR, !dtr);
+#endif
+
   /* CDC drivers use linestate as a bodge to activate/deactivate the interface.
    * Resume our UART polling on activate, stop on deactivate */
   if (!dtr && !rts) {

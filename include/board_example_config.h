@@ -68,6 +68,9 @@
 #define PICOPROBE_UART_RX 5
 #define PICOPROBE_UART_INTERFACE uart1
 #define PICOPROBE_UART_BAUDRATE 115200
+/* Flow control - some or all of these can be omitted if not used */
+#define PICOPROBE_UART_RTS 9
+#define PICOPROBE_UART_DTR 10
 #endif
 
 /* LED config - some or all of these can be omitted if not used */
