@@ -4,7 +4,7 @@
 #
 
 VERSION_MAJOR        := 1
-VERSION_MINOR        := 11
+VERSION_MINOR        := 12
 
 BUILD_DIR            := build
 PROJECT              := picoprobe
@@ -17,6 +17,12 @@ CMAKE_FLAGS += -DPICOPROBE_VERSION_MINOR=$(VERSION_MINOR)
 CMAKE_FLAGS += -DPROJECT=$(PROJECT)
 CMAKE_FLAGS += -DGIT_HASH=$(GIT_HASH)
 CMAKE_FLAGS += -DCMAKE_EXPORT_COMPILE_COMMANDS=True
+
+ifeq ($(PICO_BOARD),)
+    # pico|pico_w|pico_debug_probe
+    PICO_BOARD := pico_w
+endif
+
 
 
 .PHONY: clean
@@ -75,6 +81,10 @@ create-image:
 	$(MAKE) cmake-create-debug PICO_BOARD=pico_w
 	$(MAKE) all
 	cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-picow-$(GIT_HASH).uf2
+	#
+	$(MAKE) cmake-create-debug PICO_BOARD=pico_debug_probe
+	$(MAKE) all
+	cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-picodebugprobe-$(GIT_HASH).uf2
 
 
 .PHONY: check-clang

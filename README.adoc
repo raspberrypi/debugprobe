@@ -312,6 +312,12 @@ Drawbacks:
 | 10Hz negative flashing (flicker)
 |===
 
+[NOTE]
+====
+pyocd does not disconnect correctly at an end of a gdb debug session so the LED still shows a connection.
+To get out of this situation issue `pyocd reset -t rp2040` or similar.
+====
+
 
 ### Configuration
 
@@ -461,15 +467,59 @@ and YAPicoprobe shows the following picture:
 .Benchmarking with automated_test.py
 [%header]
 |===
-| Probe |  2MHz |  4MHz |  6MHz |  8MHz
+| Probe HW | Probe FW | Target |  1.1MHz |  2MHz |  4MHz |  6MHz |  8MHz
 
-| picoprobe on Debug Probe HW
-| 384s
-| 380s
-| 380s
+| Debug Probe
+| Original Picoprobe (https://github.com/raspberrypi/picoprobe/releases/latest/download/debugprobe.uf2[download])
+| nRF52840 dongle
+| 586s
+| 583s
+| 580s
+| 581s
 | (-)
 
-| YAPicoprobe on Pi Pico
+| Debug Probe
+| YAPicoprobe
+| nRF52840 dongle
+| 327s
+| 236s
+| 192s
+| 171s (*)
+| (-)
+
+| Pi Pico W
+| YAPicoprobe
+| nRF52840 dongle
+| 332s
+| 234s
+| 192s
+| 177s
+| (-)
+
+||||||||
+
+| Debug Probe
+| Original Picoprobe (https://github.com/raspberrypi/picoprobe/releases/latest/download/debugprobe.uf2[download])
+| PCA10056
+| 586s
+| 582s
+| 581s
+| 580s
+| 580s
+
+| Debug Probe
+| YAPicoprobe
+| PCA10056
+| 322s
+| 233s
+| 189s
+| 183s
+| 244s
+
+| Pi Pico W
+| YAPicoprobe
+| PCA10056
+|
 | 237s
 | 193s
 | 178s
@@ -477,18 +527,33 @@ and YAPicoprobe shows the following picture:
 
 |===
 
-That was tested with the following configuration:
+(*) unexpected error only observed in conjuntion with the nRF52840 dongle.
+
+
+Tests were performed with the following configuration:
 
 ```yaml
 probes:
   <probe-unid>:
-    frequency:       [2468]000000
+    frequency:       [12468]000000
     target_override: nrf52840
     test_binary:     l1_nrf52840-dk.bin
 ```
 
-So `picoprobe` does have a problem.  Don't know if this is caused by the hardware
-or by the firmware.  Will port yapicoprobe to the hardware soon.
+Findings are not completely clear:
+
+* the original probe firmware is very slow, no clue about the actual reason.  Weird is that runtime with the
+  original firmware is not frequency dependant
+
+* there seems to be a frequency limit of the debug probe HW
+  at around 6MHz due to its in-series resistors (runtime increase from 6 to 8MHz)
+
+* the nRF52840 dongle has problems with >=6MHz as well.  Either a PCB or a nRF52840 part problem.
+  Max frequency of 4MHz should be used
+  
+* good setups are
+** YAPicoprobe + PCA10056 @ 6MHz
+** YAPicoprobe + nRF52840 dongle @ 4MHz
 
 
 ### SWD / PIO
