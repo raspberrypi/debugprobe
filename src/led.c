@@ -27,7 +27,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#ifdef CYW43_LWIP
+#ifdef TARGET_BOARD_PICO_W
     #include "pico/cyw43_arch.h"
 #endif
 
@@ -62,7 +62,7 @@ static uint64_t     rtt_data_trigger;
 
 static void led(uint8_t state)
 {
-#ifdef CYW43_LWIP
+#ifdef TARGET_BOARD_PICO_W
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, state);
 #elif defined(PICOPROBE_LED)
     static bool initialized;

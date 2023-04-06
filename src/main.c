@@ -30,7 +30,7 @@
 #include "event_groups.h"
 
 #include <pico/stdlib.h>
-#ifdef CYW43_LWIP
+#ifdef TARGET_BOARD_PICO_W
     #include <pico/cyw43_arch.h>
 #endif
 
@@ -426,7 +426,7 @@ void print_task_stat(void)
 
 void usb_thread(void *ptr)
 {
-#ifdef CYW43_LWIP
+#ifdef TARGET_BOARD_PICO_W
     if (cyw43_arch_init()) {
         printf("failed to initialize WiFi\n");
     }

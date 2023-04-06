@@ -52,7 +52,7 @@
     // Storage size of the DMA buffer.  The buffer is split into two halves so that when the first
     // buffer fills we can send the trace data serially while the other buffer is DMA'd into.
     // 102000 buffer size allows 200000 of D4 samples.
-    #ifdef CYW43_LWIP
+    #ifdef TARGET_BOARD_PICO_W
         #define SR_DMA_BUF_SIZE 62000
     #else
         #define SR_DMA_BUF_SIZE 102000
