@@ -464,6 +464,9 @@ It is recommended to provide the following LEDs for status indication:
 */
 __STATIC_INLINE void LED_CONNECTED_OUT (uint32_t bit)
 {
+#ifdef PICOPROBE_LED_CONNECTED
+    gpio_put(PICOPROBE_LED_CONNECTED, bit);
+#endif
 }
 
 /** Debug Unit: Set status Target Running LED.
@@ -473,6 +476,9 @@ __STATIC_INLINE void LED_CONNECTED_OUT (uint32_t bit)
 */
 __STATIC_INLINE void LED_RUNNING_OUT (uint32_t bit)
 {
+#ifdef PICOPROBE_LED_RUNNING
+    gpio_put(PICOPROBE_LED_RUNNING, bit);
+#endif
 }
 
 ///@}

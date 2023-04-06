@@ -45,6 +45,8 @@
 // --- Definitions for YAPicoprobe
 
 #define PICOPROBE_LED            PICO_DEFAULT_LED_PIN
+#define PICOPROBE_LED_CONNECTED  15                     // hmmm, does not work!?
+#define PICOPROBE_LED_RUNNING    16                     // ...either
 
 // PIO config
 #define PROBE_PIO                pio0
@@ -59,7 +61,7 @@
 
 // UART config (UART target -> probe)
 #define PICOPROBE_UART_TX        4
-#define PICOPROBE_UART_RX        5                  // or 6
+#define PICOPROBE_UART_RX        5                      // or 6
 #define PICOPROBE_UART_INTERFACE uart1
 #define PICOPROBE_UART_BAUDRATE  115200
 
@@ -84,15 +86,15 @@
 // GP26-28 are ADC.
 
 // number of analog channels
-#define SR_NUM_A_CHAN   2
+#define SR_NUM_A_CHAN            2
 // first digital channel port
-#define SR_BASE_D_CHAN  18
+#define SR_BASE_D_CHAN           18
 // number of digital channels
-#define SR_NUM_D_CHAN   8
+#define SR_NUM_D_CHAN            8
 // Storage size of the DMA buffer.  The buffer is split into two halves so that when the first
 // buffer fills we can send the trace data serially while the other buffer is DMA'd into.
 // 102000 buffer size allows 200000 of D4 samples.
-#define SR_DMA_BUF_SIZE 10000
+#define SR_DMA_BUF_SIZE          10000
 
 
 #endif

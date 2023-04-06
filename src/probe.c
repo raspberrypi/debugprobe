@@ -215,6 +215,16 @@ void probe_gpio_init()
 		gpio_pull_up(PROBE_PIN_SWDIO);
 
 		gpio_debug_pins_init();
+#ifdef PICOPROBE_LED_CONNECTED
+        gpio_init(PICOPROBE_LED_CONNECTED);
+        gpio_set_dir(PICOPROBE_LED_CONNECTED, GPIO_OUT);
+        gpio_put(PICOPROBE_LED_CONNECTED, 0);
+#endif
+#ifdef PICOPROBE_LED_RUNNING
+        gpio_init(PICOPROBE_LED_RUNNING);
+        gpio_set_dir(PICOPROBE_LED_RUNNING, GPIO_OUT);
+        gpio_put(PICOPROBE_LED_RUNNING, 0);
+#endif
 	}
 }   // probe_gpio_init
 
