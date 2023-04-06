@@ -27,6 +27,7 @@
 #define SIGROK_INT_H
 
 
+#include <pico/stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -42,22 +43,8 @@
 //GP23 controls power supply modes and is not a board input
 //GP24-25 are not on the board and not used
 //GP26-28 are ADC.
-#if 1
-    // number of analog channels
-    #define SR_NUM_A_CHAN   3
-    // first digital channel port
-    #define SR_BASE_D_CHAN  10
-    // number of digital channels
-    #define SR_NUM_D_CHAN   8
-    // Storage size of the DMA buffer.  The buffer is split into two halves so that when the first
-    // buffer fills we can send the trace data serially while the other buffer is DMA'd into.
-    // 102000 buffer size allows 200000 of D4 samples.
-    #ifdef TARGET_BOARD_PICO_W
-        #define SR_DMA_BUF_SIZE 62000
-    #else
-        #define SR_DMA_BUF_SIZE 102000
-    #endif
-#else
+#if !defined(SR_NUM_A_CHAN)
+    #warning "sigrok: reverting to a default configuration"
     #define SR_NUM_A_CHAN   3
     // first digital channel port
     #define SR_BASE_D_CHAN  2

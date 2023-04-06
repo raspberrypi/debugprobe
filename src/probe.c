@@ -244,7 +244,7 @@ void probe_init()
         sm_config_set_in_pins(&sm_config, PROBE_PIN_SWDIO);
 
         // Set SWDIR, SWCLK and SWDIO pins as output to start. This will be set in the sm
-        pio_sm_set_consecutive_pindirs(PROBE_PIO, PROBE_SM, PROBE_PIN_OFFSET, 3, true);
+        pio_sm_set_consecutive_pindirs(PROBE_PIO, PROBE_SM, PROBE_PIN_OFFSET, PROBE_PIN_COUNT, true);
 
         // shift output right, autopull on, autopull threshold
         sm_config_set_out_shift(&sm_config, true, true, 32);

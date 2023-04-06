@@ -52,14 +52,6 @@ static uint64_t     rtt_data_trigger;
 
 
 
-#ifndef PICOPROBE_LED
-    #ifdef PICO_DEFAULT_LED_PIN
-        #define PICOPROBE_LED PICO_DEFAULT_LED_PIN
-    #endif
-#endif
-
-
-
 static void led(uint8_t state)
 {
 #ifdef TARGET_BOARD_PICO_W
