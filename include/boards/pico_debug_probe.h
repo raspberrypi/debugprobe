@@ -45,8 +45,8 @@
 // --- Definitions for YAPicoprobe
 
 #define PICOPROBE_LED            PICO_DEFAULT_LED_PIN
-#define PICOPROBE_LED_CONNECTED  15                     // hmmm, does not work!?
-#define PICOPROBE_LED_RUNNING    16                     // ...either
+#define PICOPROBE_LED_CONNECTED  15
+#define PICOPROBE_LED_RUNNING    16
 
 // PIO config
 #define PROBE_PIO                pio0
@@ -55,7 +55,8 @@
 #define PROBE_PIN_COUNT          4
 #define PROBE_PIN_SWDIR          11                     // not used
 #define PROBE_PIN_SWCLK          12
-#define PROBE_PIN_SWDIO          14                     // not consecutive!
+#define PROBE_PIN_SWDIN          13                     // dedicated input
+#define PROBE_PIN_SWDIO          14                     // used as output
 #define PROBE_PIN_RESET          17                     // Target reset config (not connected)
 // #define PROBE_MAX_KHZ         now in g_board_info.target_cfg->rt_max_swd_kHz, setup in pico::pico_prerun_board_config()
 

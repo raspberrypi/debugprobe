@@ -212,7 +212,11 @@ void probe_gpio_init()
 		pio_gpio_init(PROBE_PIO, PROBE_PIN_SWCLK);
 		pio_gpio_init(PROBE_PIO, PROBE_PIN_SWDIO);
 		// Make sure SWDIO has a pullup on it. Idle state is high
+		gpio_set_slew_rate(PROBE_PIN_SWCLK, GPIO_SLEW_RATE_FAST);
+		gpio_set_drive_strength(PROBE_PIN_SWCLK, GPIO_DRIVE_STRENGTH_12MA);
 		gpio_pull_up(PROBE_PIN_SWDIO);
+        gpio_set_slew_rate(PROBE_PIN_SWDIO, GPIO_SLEW_RATE_FAST);
+        gpio_set_drive_strength(PROBE_PIN_SWDIO, GPIO_DRIVE_STRENGTH_12MA);
 
 		gpio_debug_pins_init();
 #ifdef PICOPROBE_LED_CONNECTED
@@ -245,13 +249,17 @@ void probe_init()
 
         pio_sm_config sm_config = probe_program_get_default_config(offset);
 
-        // Set SWCLK as a sideset pin
+        // SWDIR and SWCLK are sideset pins
         sm_config_set_sideset_pins(&sm_config, PROBE_PIN_SWDIR);
 
         // Set SWDIO offset
         sm_config_set_out_pins(&sm_config, PROBE_PIN_SWDIO, 1);
         sm_config_set_set_pins(&sm_config, PROBE_PIN_SWDIO, 1);
+#ifdef PROBE_PIN_SWDIN
+        sm_config_set_in_pins(&sm_config, PROBE_PIN_SWDIN);
+#else
         sm_config_set_in_pins(&sm_config, PROBE_PIN_SWDIO);
+#endif
 
         // Set SWDIR, SWCLK and SWDIO pins as output to start. This will be set in the sm
         pio_sm_set_consecutive_pindirs(PROBE_PIO, PROBE_SM, PROBE_PIN_OFFSET, PROBE_PIN_COUNT, true);
