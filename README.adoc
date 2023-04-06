@@ -312,6 +312,12 @@ Drawbacks:
 | 10Hz negative flashing (flicker)
 |===
 
+[NOTE]
+====
+pyocd does not disconnect correctly at an end of a gdb debug session so the LED still shows a connection.
+To get out of this situation issue `pyocd reset -t rp2040` or similar.
+====
+
 
 ### Configuration
 
@@ -450,6 +456,105 @@ DAPv2 is always used, because DAPv1 does not run under Linux(?).
 | - same but optimized for openocd | 4.1s | 28.6s | 5.7s | - | pyocd crashes
 |===
 
+### Comparison with picoprobe and automated_test.py of pyocd
+
+There is a good benchmark (actually the functional tests) in pyocd: 
+`automated_test.py`.  For configuration check https://github.com/pyocd/pyOCD/blob/main/docs/automated_tests.md
+
+Comparing the original picoprobe firmware (running on the official Raspi Pico Debug Probe)
+and YAPicoprobe shows the following picture:
+
+.Benchmarking with automated_test.py
+[%header]
+|===
+| Probe HW | Probe FW | Target |  1.1MHz |  2MHz |  4MHz |  6MHz |  8MHz
+
+| Debug Probe
+| Original Picoprobe (https://github.com/raspberrypi/picoprobe/releases/latest/download/debugprobe.uf2[download])
+| nRF52840 dongle
+| 586s
+| 583s
+| 580s
+| 581s
+| (-)
+
+| Debug Probe
+| YAPicoprobe
+| nRF52840 dongle
+| 327s
+| 236s
+| 192s
+| 171s (*)
+| (-)
+
+| Pi Pico W
+| YAPicoprobe
+| nRF52840 dongle
+| 332s
+| 234s
+| 192s
+| 177s
+| (-)
+
+||||||||
+
+| Debug Probe
+| Original Picoprobe (https://github.com/raspberrypi/picoprobe/releases/latest/download/debugprobe.uf2[download])
+| PCA10056
+| 586s
+| 582s
+| 581s
+| 580s
+| 580s
+
+| Debug Probe
+| YAPicoprobe
+| PCA10056
+| 322s
+| 233s
+| 189s
+| 183s
+| 244s
+
+| Pi Pico W
+| YAPicoprobe
+| PCA10056
+|
+| 237s
+| 193s
+| 178s
+| 173s
+
+|===
+
+(*) unexpected error only observed in conjuntion with the nRF52840 dongle.
+
+
+Tests were performed with the following configuration:
+
+```yaml
+probes:
+  <probe-unid>:
+    frequency:       [12468]000000
+    target_override: nrf52840
+    test_binary:     l1_nrf52840-dk.bin
+```
+
+Findings are not completely clear:
+
+* the original probe firmware is very slow, no clue about the actual reason.  Weird is that runtime with the
+  original firmware is not frequency dependant
+
+* there seems to be a frequency limit of the debug probe HW
+  at around 6MHz due to its in-series resistors (runtime increase from 6 to 8MHz)
+
+* the nRF52840 dongle has problems with >=6MHz as well.  Either a PCB or a nRF52840 part problem.
+  Max frequency of 4MHz should be used
+  
+* good setups are
+** YAPicoprobe + PCA10056 @ 6MHz
+** YAPicoprobe + nRF52840 dongle @ 4MHz
+
 
 ### SWD / PIO
 Several PIO optimizations has been implemented.  Main idea of PIO control has
@@ -520,33 +625,3 @@ uses other voltage levels than the probe.
 * 7803 for power supply of target
 * https://www.ti.com/product/SN74LVC8T245[74LVC8T245] level shifter for sigrok input,
   24 pin SOIC / _SOP_ packages are visible for soldering
-
-
-
-### TODO / Known Bugs
-
-* Features
-** Wireless with PicoW
-*** USBIP
-**** https://usbip.sourceforge.net/
-**** https://github.com/thevoidnn/esp8266-wifi-cmsis-dap
-**** https://github.com/windowsair/wireless-esp8266-dap
-*** https://arm-software.github.io/CMSIS_5/Driver/html/group__wifi__interface__gr.html[CMSIS WiFi interface]
-** semihosting?
-* Bugs
-** check the benchmark "miracle" with the NDEBUG version 
-** if `configTICK_RATE_HZ` is around 100, SWD IF no longer works
-* TODO
-** voltage of SWD IF is VDD
-** DAP_PACKET_SIZE: how to increase?
-** description of the several COM ports
-** MSD/MSC commands just like in DAPLink
-* tests
-** Reset line between probe and target have to be reviewed
-** Win10 (tools) compatibility
-
-### Internals
-
-* parts of the code (at the moment just few) are in a somewhat transition to WiFi.
-  These parts are surrounded often by `CYW43_LWIP`, so easy identifiable.
-  Image for PicoW can be build by setting the board in CMakeLists.txt

@@ -16,10 +16,13 @@ include(pico_sdk_import.cmake)
 set(FREERTOS_KERNEL_PATH ${CMAKE_CURRENT_LIST_DIR}/freertos)
 include(FreeRTOS_Kernel_import.cmake)
 
+set(PICO_BOARD_HEADER_DIRS  ${CMAKE_CURRENT_LIST_DIR}/include/boards)
 pico_sdk_init()
 
 
 project(${PROJECT})
+
+string(TOUPPER ${PICO_BOARD} PICO_BOARD_UPPER)
 
 #
 # set some project specifica
@@ -28,6 +31,7 @@ add_definitions(
         -DPICO_CORE1_STACK_SIZE=0x400
         -DPICO_HEAP_SIZE=0x0
         -DPICO_STACK_SIZE=0x400
+        -DTARGET_BOARD_${PICO_BOARD_UPPER}
 )
 
 #

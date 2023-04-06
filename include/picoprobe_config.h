@@ -67,33 +67,7 @@
 #define PROBE_CPU_CLOCK_KHZ      ((120 + 2*24) * 1000)             // overclocked, even 264MHz seems to be no problem
 
 
-// PIO config
-#define PROBE_PIO                pio0
-#define PROBE_SM                 0
-#define PROBE_PIN_OFFSET         1
-#define PROBE_PIN_SWDIR          (PROBE_PIN_OFFSET + 0) // 1
-#define PROBE_PIN_SWCLK          (PROBE_PIN_OFFSET + 1) // 2
-#define PROBE_PIN_SWDIO          (PROBE_PIN_OFFSET + 2) // 3
-#define PROBE_PIN_RESET          6                      // Target reset config
-// #define PROBE_MAX_KHZ         now in g_board_info.target_cfg->rt_max_swd_kHz, setup in pico::pico_prerun_board_config()
-
-// UART config (UART target -> probe)
-#define PICOPROBE_UART_TX        4
-#define PICOPROBE_UART_RX        5
-#define PICOPROBE_UART_INTERFACE uart1
-#define PICOPROBE_UART_BAUDRATE  115200
-
-//
-// Other pin definitions
-// - LED     actual handling is done in led.c, pin definition is PICOPROBE_LED / PICO_DEFAULT_LED_PIN
-// - sigrok  defines are in pico-sigrok/sigrok-int.h
-// - Debug   used in probe.c
-//
-
-
-// sigrok config
-#define SIGROK_PIO               pio1
-#define SIGROK_SM                0                      // often hard coded
+// pin configurations can be found in include/boards/*.h
 
 
 // optimize a single function

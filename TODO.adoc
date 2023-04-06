@@ -1,0 +1,35 @@
+:imagesdir: doc/png
+:source-highlighter: rouge
+:toc:
+:toclevels: 5
+
+
+
+
+### TODO / Known Bugs
+
+* Features
+** Wireless with PicoW
+*** USBIP
+**** https://usbip.sourceforge.net/
+**** https://github.com/thevoidnn/esp8266-wifi-cmsis-dap
+**** https://github.com/windowsair/wireless-esp8266-dap
+*** https://arm-software.github.io/CMSIS_5/Driver/html/group__wifi__interface__gr.html[CMSIS WiFi interface]
+** semihosting?
+* Bugs
+** check the benchmark "miracle" with the NDEBUG version 
+** if `configTICK_RATE_HZ` is around 100, SWD IF no longer works
+* TODO
+** voltage of SWD IF is VDD
+** DAP_PACKET_SIZE: how to increase?
+** description of the several COM ports
+** MSD/MSC commands just like in DAPLink
+* tests
+** Reset line between probe and target have to be reviewed
+** Win10 (tools) compatibility
+
+### Internals
+
+* parts of the code (at the moment just few) are in a somewhat transition to WiFi.
+  These parts are surrounded often by `TARGET_BOARD_PICO_W`, so easy identifiable.
+  Image for PicoW can be build by setting the board in CMakeLists.txt

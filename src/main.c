@@ -30,7 +30,7 @@
 #include "event_groups.h"
 
 #include <pico/stdlib.h>
-#ifdef CYW43_LWIP
+#ifdef TARGET_BOARD_PICO_W
     #include <pico/cyw43_arch.h>
 #endif
 
@@ -82,7 +82,7 @@
 #define _DAP_PACKET_COUNT_OPENOCD   2
 #define _DAP_PACKET_SIZE_OPENOCD    CFG_TUD_VENDOR_RX_BUFSIZE
 #define _DAP_PACKET_COUNT_PYOCD     1
-#define _DAP_PACKET_SIZE_PYOCD      1024                                   // pyocd does not like packets > 128 i
+#define _DAP_PACKET_SIZE_PYOCD      1024                                   // pyocd does not like packets > 128 if COUNT != 1
 
 #define _DAP_PACKET_COUNT_HID       1
 #define _DAP_PACKET_SIZE_HID        64
@@ -262,8 +262,8 @@ void dap_task(void *ptr)
                         if (sw_lock("DAPv2", true)) {
                             swd_connected = true;
                             picoprobe_info("=================================== DAPv2 connect target, host %s\n",
-                                    (tool == E_DAPTOOL_OPENOCD) ? "OpenOCD with big buffers" :
-                                     ((tool == E_DAPTOOL_PYOCD) ? "pyOCD" : "UNKNOWN"));
+                                    (tool == E_DAPTOOL_OPENOCD) ? "OpenOCD with two big buffers" :
+                                     ((tool == E_DAPTOOL_PYOCD) ? "pyOCD with single big buffer" : "UNKNOWN"));
                             led_state(LS_DAPV2_CONNECTED);
                         }
                     }
@@ -426,7 +426,7 @@ void print_task_stat(void)
 
 void usb_thread(void *ptr)
 {
-#ifdef CYW43_LWIP
+#ifdef TARGET_BOARD_PICO_W
     if (cyw43_arch_init()) {
         printf("failed to initialize WiFi\n");
     }
