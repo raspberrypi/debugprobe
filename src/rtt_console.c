@@ -159,7 +159,7 @@ static void do_rtt_console(uint32_t rtt_cb)
             // put received data into CDC UART
             cdc_uart_write(buf, cnt);
 
-            led_state(LS_RTT_DATA);
+            led_state(LS_RTT_RX_DATA);
         }
     }
 }   // do_rtt_console

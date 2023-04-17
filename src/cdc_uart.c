@@ -222,7 +222,7 @@ void on_uart_rx(void)
     }
 
     if (cnt != 0) {
-        led_state(LS_UART_DATA);
+        led_state(LS_UART_RX_DATA);
         cdc_uart_put_into_stream(buf, cnt, true);
     }
 

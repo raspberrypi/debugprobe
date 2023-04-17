@@ -9,7 +9,8 @@
 //       SHOULD ONLY CONSIST OF PREPROCESSOR DIRECTIVES
 // -----------------------------------------------------
 
-// This header may be included by other board headers as "boards/pico_debug_probe.h"
+// This header may be included by other board headers as "boards/pico_debug_probe.h".
+// But normally this is included via "#include <pico/stdlib.h>" if PICO_BOARD is set accordingly.
 // Schematic: https://datasheets.raspberrypi.com/debug/raspberry-pi-debug-probe-schematics.pdf
 
 #ifndef _BOARDS_PICO_DEBUG_PROBE_H
@@ -47,6 +48,8 @@
 #define PICOPROBE_LED            PICO_DEFAULT_LED_PIN
 #define PICOPROBE_LED_CONNECTED  15
 #define PICOPROBE_LED_RUNNING    16
+#define PICOPROBE_LED_TARGET_RX  7                      // host -> probe -> target UART / RTT data, i.e. target is receiving
+#define PICOPROBE_LED_TARGET_TX  8                      // target -> probe -> host UART / RTT data, i.e. target is transmitting
 
 // PIO config
 #define PROBE_PIO                pio0

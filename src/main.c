@@ -515,6 +515,15 @@ int main(void)
     picoprobe_info_out(" [DAPLink MSC]");
 #endif
     picoprobe_info_out("\n");
+#if defined(TARGET_BOARD_PICO)
+    picoprobe_info("  Probe HW: Pico\n");
+#elif defined(TARGET_BOARD_PICO_W)
+    picoprobe_info("  Probe HW: Pico_W\n");
+#elif defined(TARGET_BOARD_PICO_DEBUG_PROBE)
+    picoprobe_info("  Probe HW: Pico Debug Probe\n");
+#else
+    picoprobe_info("  Running on UNKNOWN board\n");
+#endif
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
     events = xEventGroupCreate();
