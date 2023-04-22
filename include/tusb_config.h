@@ -71,11 +71,15 @@
 //**********************************************
 
 #define CFG_TUD_CDC_UART              1            // CDC for target UART IO
-#define CFG_TUD_CDC_SIGROK            1            // CDC for sigrok IO
+#if !defined(TARGET_BOARD_PICO_DEBUG_PROBE)
+    #define CFG_TUD_CDC_SIGROK        1            // CDC for sigrok IO
+#else
+    #define CFG_TUD_CDC_SIGROK        0            // no sigrok for debug probe
+#endif
 #if !defined(NDEBUG)
    #define CFG_TUD_CDC_DEBUG          1            // CDC for debug output of the probe
 #else
-   #define CFG_TUD_CDC_DEBUG          0
+    #define CFG_TUD_CDC_DEBUG         0
 #endif
 
 #define CFG_TUD_HID                   1            // CMSIS-DAPv1
