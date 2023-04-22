@@ -1,0 +1,33 @@
+:imagesdir: png
+:source-highlighter: rouge
+:toc:
+:toclevels: 5
+
+
+
+
+## Optimizations
+
+### SWD / PIO
+Several PIO optimizations has been implemented.  Main idea of PIO control has
+been taken from https://github.com/essele/pico_debug/blob/main/swd.pio[pico_debug].
+
+To monitor the progress between the several versions,
+https://sigrok.org/wiki/PulseView[PulseView] has been used. LA probe was
+https://github.com/pico-coder/sigrok-pico[sigrok-pico].
+
+#### First Version (03.01.2023 - e2b4a67)
+image::Screenshot_20230103_074404.png[First Version]
+
+#### (Currently) Final Version (06.01.2023 - 28fd8db)
+image::Screenshot_20230106_153629.png[06.01.2023]
+
+#### Explanation / Conclusion
+The plots above were taken at SWCLK=15MHz.  Absolute time of the four command sequences
+shrunk from ~25us to 18us.  Not bad.
+
+Nevertheless there are still gaps which may give more optimization opportunities.
+Switching times between read / write and the gap between two commands are
+candidates.  Note that moving code into RAM did not really help (and
+optimization is still a non/slow-working mystery).
+

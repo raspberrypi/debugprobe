@@ -6,17 +6,19 @@
 
 
 
-### TODO / Known Bugs
+## TODOs
 
-* Features
-** Wireless with PicoW
-*** USBIP
-**** https://usbip.sourceforge.net/
-**** https://github.com/thevoidnn/esp8266-wifi-cmsis-dap
-**** https://github.com/windowsair/wireless-esp8266-dap
-*** https://arm-software.github.io/CMSIS_5/Driver/html/group__wifi__interface__gr.html[CMSIS WiFi interface]
-** semihosting?
-* Bugs
+### Features
+* Wireless with PicoW
+** USBIP
+*** https://usbip.sourceforge.net/
+*** https://github.com/thevoidnn/esp8266-wifi-cmsis-dap
+*** https://github.com/windowsair/wireless-esp8266-dap
+** https://arm-software.github.io/CMSIS_5/Driver/html/group__wifi__interface__gr.html[CMSIS WiFi interface]
+* semihosting?  But actually what can the probe do in this case?
+
+
+### Bugs
 ** check the benchmark "miracle" with the NDEBUG version 
 ** if `configTICK_RATE_HZ` is around 100, SWD IF no longer works
 * TODO
