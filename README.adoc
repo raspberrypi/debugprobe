@@ -28,7 +28,7 @@ Finally there is **Y**et **A**nother **Picoprobe** around, the YAPicoprobe.
 ** CMSIS-DAPv1 HID - CMSIS compliant debug channel as a fallback
 * MSC - drag-n-drop support of UF2 firmware image à la https://github.com/ARMmbed/DAPLink[DAPLink]
   for RP2040 Pico / PicoW and nRF52832/833/840 targets
-* CDC - virtual com port for logging of the target
+* CDC - virtual com port for bidirectional communication with target
 ** UART connection between target and probe is redirected
 ** RTT terminal channel is automatically redirected into this CDC (if there is no
    CMSIS-DAPv2/MSC connection)
@@ -193,6 +193,9 @@ allows transfer from the target to the host in "realtime".  YAPicoprobe currentl
 channel 0 of the targets RTT and sends it into the CDC of the target.  Effectively this
 allows RTT debug output into a terminal.
 
+If an RTT control block has been detected, characters received via the target CDC are transmitted
+with RTT to the target.
+
 [NOTE]
 ====
 * only the devices RAM is scanned for an RTT control block, for unknown devices
@@ -301,7 +304,7 @@ The Pico Debug Probe has four additional LEDs.  Assignment is as follows:
 
 | UART_TX
 | yellow
-| 5ms flash, if target does UART_TX
+| 5ms flash, if target sends data
 
 | UART_RX
 | green
@@ -309,11 +312,11 @@ The Pico Debug Probe has four additional LEDs.  Assignment is as follows:
 
 | DAP_TARGET_RUNNING
 | yellow
-| set by tool
+| set by host tool
 
 | DAP_CONNECTED
 | green
-| set by tool
+| set by host tool
 
 |===
 
