@@ -83,12 +83,14 @@
 #define _DAP_PACKET_SIZE_OPENOCD    CFG_TUD_VENDOR_RX_BUFSIZE
 #define _DAP_PACKET_COUNT_PYOCD     1
 #define _DAP_PACKET_SIZE_PYOCD      1024                                   // pyocd does not like packets > 128 if COUNT != 1
+#define _DAP_PACKET_COUNT_UNKNOWN   1
+#define _DAP_PACKET_SIZE_UNKNOWN    64
 
 #define _DAP_PACKET_COUNT_HID       1
 #define _DAP_PACKET_SIZE_HID        64
 
-uint8_t  dap_packet_count = _DAP_PACKET_COUNT_PYOCD;
-uint16_t dap_packet_size  = _DAP_PACKET_SIZE_PYOCD;
+uint8_t  dap_packet_count = _DAP_PACKET_COUNT_UNKNOWN;
+uint16_t dap_packet_size  = _DAP_PACKET_SIZE_UNKNOWN;
 
 static uint8_t TxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZE];     // maximum required size
 static uint8_t RxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZE];     // maximum required size
@@ -211,8 +213,8 @@ void dap_task(void *ptr)
     uint32_t rx_len = 0;
     daptool_t tool = E_DAPTOOL_UNKNOWN;
 
-    dap_packet_count = _DAP_PACKET_COUNT_PYOCD;
-    dap_packet_size  = _DAP_PACKET_SIZE_PYOCD;
+    dap_packet_count = _DAP_PACKET_COUNT_UNKNOWN;
+    dap_packet_size  = _DAP_PACKET_SIZE_UNKNOWN;
     for (;;) {
         // disconnect after 1s without data
         if (swd_disconnect_requested  &&  time_us_32() - last_request_us > 1000000) {
@@ -223,8 +225,8 @@ void dap_task(void *ptr)
                 sw_unlock("DAPv2");
             }
             swd_disconnect_requested = false;
-            dap_packet_count = _DAP_PACKET_COUNT_PYOCD;
-            dap_packet_size  = _DAP_PACKET_SIZE_PYOCD;
+            dap_packet_count = _DAP_PACKET_COUNT_UNKNOWN;
+            dap_packet_size  = _DAP_PACKET_SIZE_UNKNOWN;
             tool = DAP_FingerprintTool(NULL, 0);
         }
 
@@ -252,6 +254,10 @@ void dap_task(void *ptr)
                         if (tool == E_DAPTOOL_OPENOCD) {
                             dap_packet_count = _DAP_PACKET_COUNT_OPENOCD;
                             dap_packet_size  = _DAP_PACKET_SIZE_OPENOCD;
+                        }
+                        else if (tool == E_DAPTOOL_PYOCD) {
+                            dap_packet_count = _DAP_PACKET_COUNT_PYOCD;
+                            dap_packet_size  = _DAP_PACKET_SIZE_PYOCD;
                         }
                     }
 
@@ -515,6 +521,15 @@ int main(void)
     picoprobe_info_out(" [DAPLink MSC]");
 #endif
     picoprobe_info_out("\n");
+#if defined(TARGET_BOARD_PICO)
+    picoprobe_info("  Probe HW: Pico\n");
+#elif defined(TARGET_BOARD_PICO_W)
+    picoprobe_info("  Probe HW: Pico_W\n");
+#elif defined(TARGET_BOARD_PICO_DEBUG_PROBE)
+    picoprobe_info("  Probe HW: Pico Debug Probe\n");
+#else
+    picoprobe_info("  Running on UNKNOWN board\n");
+#endif
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
     events = xEventGroupCreate();

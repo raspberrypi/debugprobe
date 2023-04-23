@@ -1,0 +1,92 @@
+:imagesdir: png
+:source-highlighter: rouge
+:toc:
+:toclevels: 5
+
+
+
+
+## Hardware
+
+### Pin Assignments
+
+.Pins Assignments Rasberry Pi Pico
+[%header]
+|===
+| Pin | Description
+
+| GP1       | SWDIR
+| GP2       | target SWCLK
+| GP3       | target SWDIO
+| GP4       | target UART-RX
+| GP5       | target UART-TX
+| GP6       | target /RESET (RUN)
+| GP10..17  | sigrok digital inputs
+| GP26/ADC0 | sigrok ADC0
+| GP27/ADC1 | sigrok ADC1
+| GP28/ADC2 | sigrok ADC2
+
+|===
+
+.Other Pin Assigments Raspberry Pi Pico
+[%header]
+|===
+| Pin | Description | Pico W
+
+| GPIO0       | spare                            |
+| GPIO7..9    | spare                            |
+| GPIO18      | spare                            |
+| GPIO19..21  | debug pins (for probe debugging) |
+| GPIO22      | spare                            |
+| GPIO23      | power supply control             | WL_ON
+| GPIO24      | USB sense                        | WL_D
+| GPIO25      | LED                              | WL_CS
+| GPIO29/ADC3 | VSYS/3                           | WL_CLK
+|===
+
+
+
+### SWDIR / SWDIO
+
+Level shifter must be used to allow different voltage levels on probe and target.
+There are different switching circuits out there, e.g.
+
+* https://www.ti.com/product/TXS0108E[TXS0108E] (or TXS0102/4E) which
+  allows 3.3V on probe side and up to 5V on target side for up to 8 signals
+* https://www.ti.com/product/SN74LXC1T45[74LXC1T45] which allows the same voltage levels
+  for a single signal (depending of type)
+
+Because SWDIO is a bidirectional signal, the level shifter must
+switch between input and output.  The TXS010xx does this automatically while the 74LXCxT45
+requires an SWDIR signal to control direction.
+
+Drawback of the automatic switching are much lower frequencies (\<=24MHz) which may pass
+the component and the condition Vcca\<=Vccb.  So the TXS0108E is actually not
+recommended for this purpose.
+
+For a clean implementation SWDIR has been provided to allow support of the 74LXCxT45.  The following image
+shows the timing of SWDIR, SWCLK and SWDIO.
+
+image::Screenshot_20230124_140906.png[SWDIR]
+
+
+### sigrok
+
+For the sigrok input signals it's also good practice to use level shifter if the target
+uses other voltage levels than the probe.
+
+
+
+### Ideas
+
+The firmware calls for a new hardware.  To get a really nice probe, some
+level shifters , LEDs and power regulator for target supply would be required.
+
+Following parts could be used:
+
+* use 2x https://www.ti.com/product/SN74LXC1T45[74LXC1T45] for the SWD IF,
+  largest package: 6 pin SOT-23
+* 7803 for power supply of target
+* https://www.ti.com/product/SN74LVC8T245[74LVC8T245] level shifter for sigrok input,
+  24 pin SOIC / _SOP_ packages are visible for soldering
+  

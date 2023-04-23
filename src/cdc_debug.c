@@ -23,6 +23,10 @@
  *
  */
 
+/**
+ * Send probe debug output via CDC to host.
+ */
+
 #include <stdarg.h>
 #include <stdbool.h>
 #include "pico/stdlib.h"
@@ -54,7 +58,7 @@ static EventGroupHandle_t events;
 
 static uint8_t cdc_debug_buf[CFG_TUD_CDC_TX_BUFSIZE];
 
-static bool m_connected = false;
+static volatile bool m_connected = false;
 
 
 
@@ -66,13 +70,15 @@ void cdc_debug_thread(void *ptr)
     for (;;) {
 #if CFG_TUD_CDC_DEBUG
         if ( !m_connected) {
-            // wait here some time (until my terminal program is ready)
-            m_connected = true;
+            // wait here until connected (and until my terminal program is ready)
+            while ( !m_connected) {
+                vTaskDelay(pdMS_TO_TICKS(100));
+            }
             vTaskDelay(pdMS_TO_TICKS(100));
         }
 
         if (xStreamBufferIsEmpty(stream_printf)) {
-            // -> end of transmission: flush and sleep for a long time
+            // -> end of transmission: flush and sleep for a long time (or until new data is available)
             tud_cdc_n_write_flush(CDC_DEBUG_N);
             xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
         }
@@ -103,17 +109,12 @@ void cdc_debug_thread(void *ptr)
 
 void cdc_debug_line_state_cb(bool dtr, bool rts)
 {
-    /* CDC drivers use linestate as a bodge to activate/deactivate the interface.
-     * Resume our UART polling on activate, stop on deactivate */
-    if (!dtr  &&  !rts) {
-        vTaskSuspend(task_printf);
-#if CFG_TUD_CDC_DEBUG
-        tud_cdc_n_write_clear(CDC_DEBUG_N);
-#endif
+    // CDC drivers use linestate as a bodge to activate/deactivate the interface.
+    if ( !dtr  &&  !rts) {
         m_connected = false;
     }
     else {
-        vTaskResume(task_printf);
+        m_connected = true;
     }
 }   // cdc_debug_line_state_cb
 

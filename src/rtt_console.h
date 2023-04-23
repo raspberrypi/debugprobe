@@ -36,6 +36,8 @@
 
 
 void rtt_console_init(uint32_t task_prio);
+void rtt_console_send_byte(uint8_t ch);
+bool rtt_console_cb_exists(void);
 
 
 #ifdef __cplusplus

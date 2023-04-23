@@ -33,6 +33,7 @@
 
 #include "FreeRTOS.h"
 #include "task.h"
+#include "timers.h"
 
 #include "picoprobe_config.h"
 #include "led.h"
@@ -41,14 +42,86 @@
 
 static TaskHandle_t task_led;
 
-static bool         msc_connected;
-static bool         dapv1_connected;
-static bool         dapv2_connected;
-static led_state_t  sigrok_state;
-static bool         target_found;
-static unsigned     rtt_flash_cnt;
-static uint64_t     uart_data_trigger;
-static uint64_t     rtt_data_trigger;
+static bool           msc_connected;
+static bool           dapv1_connected;
+static bool           dapv2_connected;
+static led_state_t    sigrok_state;
+static bool           target_found;
+static unsigned       rtt_flash_cnt;
+static uint64_t       uart_data_trigger;
+static uint64_t       rtt_data_trigger;
+
+
+
+#ifdef PICOPROBE_LED_TARGET_TX
+    static TimerHandle_t  timer_led_tx_off;
+    static void          *timer_led_tx_off_id;
+
+
+    static void led_tx_off(TimerHandle_t xTimer)
+    {
+        gpio_put(PICOPROBE_LED_TARGET_TX, false);
+    }
+
+
+    static void rx_data_from_target(void)
+    {
+        static bool initialized;
+
+        if ( !initialized) {
+            initialized = true;
+            gpio_init(PICOPROBE_LED_TARGET_TX);
+            gpio_set_dir(PICOPROBE_LED_TARGET_TX, GPIO_OUT);
+        }
+        gpio_put(PICOPROBE_LED_TARGET_TX, true);
+        xTimerReset(timer_led_tx_off, 10);
+    }   // rx_data_from_target
+
+
+    static void rx_data_from_target_init(void)
+    {
+        timer_led_tx_off = xTimerCreate("led_tx_off", pdMS_TO_TICKS(5), pdFALSE, timer_led_tx_off_id, led_tx_off);
+    }   // rx_data_from_target_init
+#else
+    #define rx_data_from_target()
+    #define rx_data_from_target_init()
+#endif
+
+
+
+#ifdef PICOPROBE_LED_TARGET_RX
+    static TimerHandle_t  timer_led_rx_off;
+    static void          *timer_led_rx_off_id;
+
+
+    static void led_rx_off(TimerHandle_t xTimer)
+    {
+        gpio_put(PICOPROBE_LED_TARGET_RX, false);
+    }
+
+
+    static void tx_data_to_target(void)
+    {
+        static bool initialized;
+
+        if ( !initialized) {
+            initialized = true;
+            gpio_init(PICOPROBE_LED_TARGET_RX);
+            gpio_set_dir(PICOPROBE_LED_TARGET_RX, GPIO_OUT);
+        }
+        gpio_put(PICOPROBE_LED_TARGET_RX, true);
+        xTimerReset(timer_led_rx_off, 10);
+    }   // tx_data_to_target
+
+
+    static void tx_data_to_target_init(void)
+    {
+        timer_led_rx_off = xTimerCreate("led_rx_off", pdMS_TO_TICKS(20), pdFALSE, timer_led_rx_off_id, led_rx_off);
+    }   // tx_data_to_target_init
+#else
+    #define tx_data_to_target()
+    #define tx_data_to_target_init()
+#endif
 
 
 
@@ -149,7 +222,7 @@ void led_thread(void *ptr)
                 vTaskDelay(pdMS_TO_TICKS(200));
             }
             led(0);
-            vTaskDelay(pdMS_TO_TICKS(1000 - rtt_flash_cnt * 220));
+            vTaskDelay(pdMS_TO_TICKS(1000 - flash_cnt * 220));
         }
     }
 }   // led_thread
@@ -205,12 +278,18 @@ void led_state(led_state_t state)
             rtt_flash_cnt = 2;
             break;
 
-        case LS_RTT_DATA:
+        case LS_RTT_RX_DATA:
             rtt_data_trigger = time_us_64();
+            rx_data_from_target();
             break;
 
-        case LS_UART_DATA:
+        case LS_UART_RX_DATA:
             uart_data_trigger = time_us_64();
+            rx_data_from_target();
+            break;
+
+        case LS_UART_TX_DATA:
+            tx_data_to_target();
             break;
 
         case LS_SIGROK_WAIT:
@@ -234,6 +313,9 @@ void led_init(uint32_t task_prio)
     picoprobe_debug("led_init()\n");
 
     led(1);
+
+    rx_data_from_target_init();
+    tx_data_to_target_init();
 
     xTaskCreateAffinitySet(led_thread, "LED", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_led);
 }   // led_init
