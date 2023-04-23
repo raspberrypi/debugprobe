@@ -74,6 +74,7 @@ void sw_unlock(const char *who)
     BaseType_t r;
 
     r = xSemaphoreGive(sema_lock);
+    (void)r;  // suppress warning from compiler
     picoprobe_debug("sw_unlock('%s') = %ld\n", who, r);
 }   // sw_unlock
 

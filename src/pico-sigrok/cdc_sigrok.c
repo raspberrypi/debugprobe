@@ -96,6 +96,7 @@ void cdc_sigrok_write(const char *buf, int length)
 
 
 
+#if CFG_TUD_CDC_SIGROK
 //Process incoming character stream
 //Return true if the device rspstr has a response to send to host
 //Be sure that rspstr does not have \n  or \r.
@@ -283,6 +284,7 @@ static bool process_char(sr_device_t *d, char charin)
     //default return 0 means to not send any kind of response
     return ret;
 }   // process_char
+#endif
 
 
 
@@ -295,11 +297,11 @@ void cdc_sigrok_rx_cb(void)
 
 void cdc_sigrok_thread()
 {
-    static uint8_t cdc_tx_buf[CFG_TUD_CDC_TX_BUFSIZE];
-    EventBits_t ev = EV_RX | EV_TX | EV_STREAM;
 
     for (;;) {
 #if CFG_TUD_CDC_SIGROK
+        static uint8_t cdc_tx_buf[CFG_TUD_CDC_TX_BUFSIZE];
+        EventBits_t ev = EV_RX | EV_TX | EV_STREAM;
         size_t cdc_rx_chars;
 
         cdc_rx_chars = tud_cdc_n_available(CDC_SIGROK_N);
