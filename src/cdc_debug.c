@@ -23,6 +23,10 @@
  *
  */
 
+/**
+ * Send probe debug output via CDC to host.
+ */
+
 #include <stdarg.h>
 #include <stdbool.h>
 #include "pico/stdlib.h"
@@ -72,7 +76,7 @@ void cdc_debug_thread(void *ptr)
         }
 
         if (xStreamBufferIsEmpty(stream_printf)) {
-            // -> end of transmission: flush and sleep for a long time
+            // -> end of transmission: flush and sleep for a long time (or until new data is available)
             tud_cdc_n_write_flush(CDC_DEBUG_N);
             xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
         }

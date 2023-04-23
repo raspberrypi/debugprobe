@@ -29,6 +29,8 @@
 #include <stdio.h>
 
 #include "FreeRTOS.h"
+#include "event_groups.h"
+#include "stream_buffer.h"
 #include "task.h"
 
 #include "target_board.h"
@@ -43,14 +45,22 @@
 
 
 
-#define TARGET_RAM_START   g_board_info.target_cfg->ram_regions[0].start
-#define TARGET_RAM_END     g_board_info.target_cfg->ram_regions[0].end
+#define TARGET_RAM_START      g_board_info.target_cfg->ram_regions[0].start
+#define TARGET_RAM_END        g_board_info.target_cfg->ram_regions[0].end
 
-static const uint32_t segger_alignment = 4;
-static const uint8_t  seggerRTT[16] = "SEGGER RTT\0\0\0\0\0\0";
-static uint32_t       prev_rtt_cb = 0;
+#define STREAM_RTT_SIZE       128
+#define STREAM_RTT_TRIGGER    1
 
-static TaskHandle_t   task_rtt_console = NULL;
+#define EV_RTT_TO_TARGET      0x01
+
+static const uint32_t         segger_alignment = 4;
+static const uint8_t          seggerRTT[16] = "SEGGER RTT\0\0\0\0\0\0";
+static uint32_t               prev_rtt_cb = 0;
+static bool                   rtt_console_running = false;
+
+static TaskHandle_t           task_rtt_console = NULL;
+static StreamBufferHandle_t   stream_rtt;
+static EventGroupHandle_t     events;
 
 
 
@@ -123,9 +133,12 @@ static uint32_t search_for_rtt_cb(void)
 
 static void do_rtt_console(uint32_t rtt_cb)
 {
-    SEGGER_RTT_BUFFER_UP  aUp;       // Up buffer, transferring information up from target via debug probe to host
-    uint8_t buf[100];
+    SEGGER_RTT_BUFFER_UP   aUp;       // Up buffer, transferring information up from target via debug probe to host
+    SEGGER_RTT_BUFFER_DOWN aDown;     // Down buffer, transferring information from host via debug probe to target
+    uint8_t buf[128];
     bool ok = true;
+
+    static_assert(sizeof(uint32_t) == sizeof(unsigned int));    // why doesn't segger use uint32_t?
 
     if (rtt_cb < TARGET_RAM_START  ||  rtt_cb >= TARGET_RAM_END) {
         return;
@@ -133,15 +146,22 @@ static void do_rtt_console(uint32_t rtt_cb)
 
     ok = ok  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aUp),
                                  (uint8_t *)&aUp, sizeof(aUp));
+    ok = ok  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aDown),
+                                 (uint8_t *)&aDown, sizeof(aDown));
 
     // do operations
+    rtt_console_running = true;
     while (ok  &&  !sw_unlock_requested()) {
-        ok = ok  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[0].WrOff), (uint8_t *)&(aUp.WrOff), 2*sizeof(unsigned));
+        ok = ok  &&  swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[0].WrOff), (uint32_t *)&aUp.WrOff);
 
         if (aUp.WrOff == aUp.RdOff) {
-            vTaskDelay(pdMS_TO_TICKS(10));
+            // -> no characters available
+            xEventGroupWaitBits(events, EV_RTT_TO_TARGET, pdTRUE, pdFALSE, pdMS_TO_TICKS(10));
         }
         else {
+            //
+            // fetch characters from target
+            //
             uint32_t cnt;
 
             if (aUp.WrOff > aUp.RdOff) {
@@ -154,14 +174,45 @@ static void do_rtt_console(uint32_t rtt_cb)
 
             memset(buf, 0, sizeof(buf));
             ok = ok  &&  swd_read_memory((uint32_t)aUp.pBuffer + aUp.RdOff, buf, cnt);
-            ok = ok  &&  swd_write_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[0].RdOff), (aUp.RdOff + cnt) % aUp.SizeOfBuffer);
+            aUp.RdOff = (aUp.RdOff + cnt) % aUp.SizeOfBuffer;
+            ok = ok  &&  swd_write_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[0].RdOff), aUp.RdOff);
 
             // put received data into CDC UART
             cdc_uart_write(buf, cnt);
 
             led_state(LS_RTT_RX_DATA);
         }
+
+        if ( !xStreamBufferIsEmpty(stream_rtt)) {
+            //
+            // send data to target
+            //
+            ok = ok  &&  swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, aDown[0].RdOff), (uint32_t *)&(aDown.RdOff));
+            if ((aDown.WrOff + 1) % aDown.SizeOfBuffer != aDown.RdOff) {
+                // -> space left in RTT buffer on target
+                uint32_t cnt;
+                size_t r;
+
+                if (aDown.WrOff >= aDown.RdOff) {
+                    cnt = aDown.SizeOfBuffer - aDown.WrOff;
+                }
+                else {
+                    cnt = (aDown.RdOff - aDown.WrOff) - 1;
+                }
+                cnt = MIN(cnt, sizeof(buf));
+
+                r = xStreamBufferReceive(stream_rtt, &buf, cnt, 0);
+                if (r > 0) {
+                    ok = ok  &&  swd_write_memory((uint32_t)aDown.pBuffer + aDown.WrOff, buf, r);
+                    aDown.WrOff = (aDown.WrOff + r) % aDown.SizeOfBuffer;
+                    ok = ok  &&  swd_write_word(rtt_cb + offsetof(SEGGER_RTT_CB, aDown[0].WrOff), aDown.WrOff);
+
+                    led_state(LS_UART_TX_DATA);
+                }
+            }
+        }
     }
+    rtt_console_running = false;
 }   // do_rtt_console
 
 
@@ -252,9 +303,50 @@ void rtt_console_thread(void *ptr)
 
 
 
+bool rtt_console_cb_exists(void)
+{
+    return rtt_console_running;
+}   // rtt_console_cb_exists
+
+
+
+void rtt_console_send_byte(uint8_t ch)
+/**
+ * Write a byte into the RTT stream.
+ * If there is no space left in the stream, wait 10ms and then try again.
+ * If there is still no space, then drop a byte from the stream.
+ */
+{
+    size_t available = xStreamBufferSpacesAvailable(stream_rtt);
+    if (available < sizeof(ch)) {
+        vTaskDelay(pdMS_TO_TICKS(10));
+        available = xStreamBufferSpacesAvailable(stream_rtt);
+        if (available < sizeof(ch)) {
+            uint8_t dummy;
+            xStreamBufferReceive(stream_rtt, &dummy, sizeof(dummy), 0);
+            picoprobe_error("rtt_console_send_byte: drop byte\n");
+        }
+    }
+    xStreamBufferSend(stream_rtt, &ch, sizeof(ch), 0);
+    xEventGroupSetBits(events, EV_RTT_TO_TARGET);
+}   // rtt_console_send_byte
+
+
+
 void rtt_console_init(uint32_t task_prio)
 {
     picoprobe_debug("rtt_console_init()\n");
 
+    events = xEventGroupCreate();
+
+    stream_rtt = xStreamBufferCreate(STREAM_RTT_SIZE, STREAM_RTT_TRIGGER);
+    if (stream_rtt == NULL) {
+        picoprobe_error("rtt_console_init: cannot create stream_rtt\n");
+    }
+
     xTaskCreateAffinitySet(rtt_console_thread, "RTT_CONSOLE", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_rtt_console);
+    if (task_rtt_console == NULL)
+    {
+        picoprobe_error("rtt_console_init: cannot create task_rtt_console\n");
+    }
 }   // rtt_console_init

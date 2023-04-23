@@ -23,6 +23,28 @@
  *
  */
 
+/**
+ * Target (debug) input/output via CDC to host.
+ *
+ * Target -> Probe -> Host
+ * -----------------------
+ * * target -> probe
+ *   * UART: interrupt handler on_uart_rx() to cdc_uart_put_into_stream()
+ *   * RTT: (rtt_console) to cdc_uart_write()
+ *   * UART/RTT data is written into \a stream_uart via
+ * * probe -> host: cdc_thread()
+ *   * data is fetched from \a stream_uart and then put into a CDC
+ *     in cdc_thread()
+ *
+ * Host -> Probe -> Target
+ * -----------------------
+ * * host -> probe
+ *   * data is received from CDC in cdc_thread()
+ * * probe -> target
+ *   * data is first tried to be transmitted via RTT
+ *   * if that was not successful (no RTT_CB), data is transmitted via UART to the target
+ */
+
 #include <pico/stdlib.h>
 #include "FreeRTOS.h"
 #include "stream_buffer.h"
@@ -33,6 +55,7 @@
 
 #include "picoprobe_config.h"
 #include "led.h"
+#include "rtt_console.h"
 
 
 #define STREAM_UART_SIZE      4096
@@ -59,7 +82,7 @@ void cdc_thread(void *ptr)
 
     for (;;) {
 #if CFG_TUD_CDC_UART
-        size_t cdc_rx_chars;
+        uint32_t cdc_rx_chars;
 
         if ( !m_connected) {
             // wait here some time (until my terminal program is ready)
@@ -75,13 +98,16 @@ void cdc_thread(void *ptr)
         }
         else if (cdc_rx_chars != 0) {
             // wait a short period if there are characters host -> probe -> target
-            xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM | EV_RX, pdTRUE, pdFALSE, pdMS_TO_TICKS(1));
+            // waiting is done below
         }
         else {
             // wait until transmission via USB has finished
             xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM | EV_RX, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
         }
 
+        //
+        // probe -> host
+        //
         if ( !xStreamBufferIsEmpty(stream_uart)) {
             //
             // transmit characters target -> picoprobe -> host
@@ -103,17 +129,44 @@ void cdc_thread(void *ptr)
         }
 
         //
-        // transmit characters host -> probe -> target
-        // (actually don't know if this works, but note that in worst case this loop is taken just every 50ms.
-        //  So this is not for high throughput)
+        // host -> probe -> target
+        // -----------------------
+        // Characters are transferred bytewise to keep delays into the other direction low.
+        // So this is not a high throughput solution...
         //
         cdc_rx_chars = tud_cdc_n_available(CDC_UART_N);
-        if (cdc_rx_chars > 0  &&  uart_is_writable(PICOPROBE_UART_INTERFACE)) {
-            uint8_t ch;
-            size_t tx_len;
+        if (cdc_rx_chars != 0) {
+            if (rtt_console_cb_exists()) {
+                //
+                // -> data is going thru RTT
+                //
+                uint8_t ch;
+                uint32_t tx_len;
 
-            tx_len = tud_cdc_n_read(CDC_UART_N, &ch, 1);
-            uart_write_blocking(PICOPROBE_UART_INTERFACE, &ch, tx_len);
+                tx_len = tud_cdc_n_read(CDC_UART_N, &ch, sizeof(ch));
+                if (tx_len != 0) {
+                    rtt_console_send_byte(ch);
+                }
+            }
+            else {
+                //
+                // -> data is going thru UART
+                //    assure that the UART has free buffer, otherwise wait (for a short moment)
+                //
+                if ( !uart_is_writable(PICOPROBE_UART_INTERFACE)) {
+                    xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM | EV_RX, pdTRUE, pdFALSE, pdMS_TO_TICKS(1));
+                }
+                else {
+                    uint8_t ch;
+                    uint32_t tx_len;
+
+                    tx_len = tud_cdc_n_read(CDC_UART_N, &ch, sizeof(ch));
+                    if (tx_len != 0) {
+                        led_state(LS_UART_TX_DATA);
+                        uart_write_blocking(PICOPROBE_UART_INTERFACE, &ch, tx_len);
+                    }
+                }
+            }
         }
 #else
         xStreamBufferReceive(stream_uart, cdc_tx_buf, sizeof(cdc_tx_buf), pdMS_TO_TICKS(500));
