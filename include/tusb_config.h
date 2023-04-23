@@ -77,7 +77,7 @@
     #define CFG_TUD_CDC_SIGROK        0            // no sigrok for debug probe
 #endif
 #if !defined(NDEBUG)
-   #define CFG_TUD_CDC_DEBUG          1            // CDC for debug output of the probe
+    #define CFG_TUD_CDC_DEBUG         1            // CDC for debug output of the probe
 #else
     #define CFG_TUD_CDC_DEBUG         0
 #endif

@@ -64,7 +64,7 @@
 static TaskHandle_t           task_uart = NULL;
 static StreamBufferHandle_t   stream_uart;
 
-static bool m_connected = false;
+static volatile bool m_connected = false;
 
 
 #define EV_TX_COMPLETE        0x01
@@ -85,8 +85,10 @@ void cdc_thread(void *ptr)
         uint32_t cdc_rx_chars;
 
         if ( !m_connected) {
-            // wait here some time (until my terminal program is ready)
-            m_connected = true;
+            // wait here until connected (and until my terminal program is ready)
+            while ( !m_connected) {
+                vTaskDelay(pdMS_TO_TICKS(100));
+            }
             vTaskDelay(pdMS_TO_TICKS(100));
         }
 
@@ -182,11 +184,7 @@ void cdc_uart_line_coding_cb(cdc_line_coding_t const* line_coding)
  * CDC bitrate updates are reflected on \a PICOPROBE_UART_INTERFACE
  */
 {
-    vTaskSuspend(task_uart);
-    tud_cdc_n_write_clear(CDC_UART_N);
-    tud_cdc_n_read_flush(CDC_UART_N);
     uart_set_baudrate(PICOPROBE_UART_INTERFACE, line_coding->bit_rate);
-    vTaskResume(task_uart);
 }   // cdc_uart_line_coding_cb
 #endif
 
@@ -194,17 +192,12 @@ void cdc_uart_line_coding_cb(cdc_line_coding_t const* line_coding)
 
 void cdc_uart_line_state_cb(bool dtr, bool rts)
 {
-    /* CDC drivers use linestate as a bodge to activate/deactivate the interface.
-     * Resume our UART polling on activate, stop on deactivate */
-    if (!dtr  &&  !rts) {
-        vTaskSuspend(task_uart);
-#if CFG_TUD_CDC_UART
-        tud_cdc_n_write_clear(CDC_UART_N);
-#endif
+    // CDC drivers use linestate as a bodge to activate/deactivate the interface.
+    if ( !dtr  &&  !rts) {
         m_connected = false;
     }
     else {
-        vTaskResume(task_uart);
+        m_connected = true;
     }
 }   // cdc_uart_line_state_cb
 

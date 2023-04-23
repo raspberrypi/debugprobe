@@ -194,8 +194,9 @@ target_link_libraries(${PROJECT} PRIVATE
 
 if(PICO_BOARD STREQUAL "pico_w")
     target_link_libraries(${PROJECT} PRIVATE
-        pico_cyw43_arch_lwip_sys_freertos
-        pico_lwip_iperf
+        #pico_cyw43_arch_lwip_sys_freertos
+        #pico_lwip_iperf
+        pico_cyw43_arch_none
     )
 endif()
 
