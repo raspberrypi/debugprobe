@@ -427,18 +427,60 @@ rtt.println("sub module");
 
 ## Internals
 
-### Notes
-* Frequencies
-** the CPU is overclocked to 168MHz (=7*24MHz)
-** SWD frequency limits
-*** RP2040: 25MHz, actually allowed are 24MHz; default is 15MHz
-*** nRF528xx: 10MHz, actually allowed are 8MHz; default is 6MHz
-* sigrok
-** PIO is running 7x faster in auto trigger mode than the specified sample rate
+### Building from Source
+
+Building from source is done with the help of a stub Makefile which eases integration into Eclipse (but can be
+used from command line as well).  The Makefile creates via cmake a `build.ninja` which is responsible for
+the actual build process.
+
+To build the project, there must be somewhere a recent https://github.com/raspberrypi/pico-sdk[Pico SDK] and
+the environment variable `PICO_SDK_PATH` must point to it.
+
+Requirements:
+
+* arm-none-eabi-gcc
+* make, cmake, ninja
+* Pico SDK
+
+.Clone yapicoprobe including submodules
+[source,bash]
+----
+git clone https://github.com/rgrr/yapicoprobe.git
+cd yapicoprobe
+git submodule update --init
+----
+
+.General build sequence
+[source,bash]
+----
+# create build/ninja.build for a debug target
+make cmake-create-debug
+
+# build yapicoprobe, output in build/picoprobe.uf2
+make all
+
+# clean build files
+make clean
+----
+
+.Build sequence for a specific board [pico|pico_w|pico_debug_probe]
+[source,bash]
+----
+make clean-build
+make cmake-create-debug PICO_BOARD=pico_debug_probe
+make all
+----
+
+.Build firmware images for supported boards, images can be found in images/yapicoprobe*.uf2
+[source,bash]
+----
+make create-images
+----
 
 
 ### Code Inherited
 
+[%autowidth]
 [%header]
 |===
 | |
@@ -456,6 +498,31 @@ rtt.println("sub module");
 
 |===
 
+
+### Some Links
+
+[%autowidth]
+[%header]
+|===
+| |
+
+| https://documentation-service.arm.com/static/5f900b1af86e16515cdc0642[Debug Interface v5.2 Architecture Specification]
+| if the link does not work, try https://developer.arm.com/documentation/ihi0031/latest/[this]
+
+| https://github.com/raspberrypi/pico-sdk[Raspberry Pi Pico SDK]
+| 
+
+|===
+
+
+### Notes
+* Frequencies
+** the CPU is overclocked to 168MHz (=7*24MHz)
+** SWD frequency limits
+*** RP2040: 25MHz, actually allowed are 24MHz; default is 15MHz
+*** nRF52xxx: 10MHz, actually allowed are 8MHz; default is 6MHz
+* sigrok
+** PIO is running 7x faster in auto trigger mode than the specified sample rate
 
 
 ## More Text

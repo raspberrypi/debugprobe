@@ -70,8 +70,8 @@ flash: all
 	@echo "ok."
 
 
-.PHONY: create-image
-create-image:
+.PHONY: create-images
+create-images:
 	$(MAKE) clean-build
 	$(MAKE) cmake-create-debug PICO_BOARD=pico
 	$(MAKE) all

@@ -120,6 +120,7 @@ static void swd_targetsel(uint8_t core)
 /**
  * @brief Does the basic core select and then reads DP_IDCODE as required
  *
+ * See also ADIv5.2 specification, "B4.3.4 Target selection protocol, SWD protocol version 2"
  * @param _core
  * @return true -> ok
  */
