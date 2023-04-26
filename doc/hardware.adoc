@@ -8,9 +8,32 @@
 
 ## Hardware
 
+### Existing Probe Hardware
+[%autowidth]
+[%header]
+|===
+| Name | Comment
+
+| https://www.raspberrypi.com/products/debug-probe/[Raspberry Pi Debug Probe]
+| the "original"
+
+| https://github.com/tjko/tiny-picoprobe[tiny-picoprobe]
+| small PCB to mount a regular Pico Pi board to work without breadboard
+
+| https://mcuoneclipse.com/2023/04/08/open-source-picolink-raspberry-pi-rp2040-cmsis-dap-debug-probe/[picoLink]
+| Open Source picoLink: Raspberry Pi RP2040 CMSIS-DAP Debug Probe
+
+|===
+
+All unfortunately without level shifters and without the possibility to use
+YaPicoprobes sigrok features.  So there is some space left for other hardware
+(ideas).
+
+
 ### Pin Assignments
 
 .Pins Assignments Rasberry Pi Pico
+[%autowidth]
 [%header]
 |===
 | Pin | Description
@@ -29,6 +52,7 @@
 |===
 
 .Other Pin Assigments Raspberry Pi Pico
+[%autowidth]
 [%header]
 |===
 | Pin | Description | Pico W

@@ -509,8 +509,17 @@ make create-images
 | https://documentation-service.arm.com/static/5f900b1af86e16515cdc0642[Debug Interface v5.2 Architecture Specification]
 | if the link does not work, try https://developer.arm.com/documentation/ihi0031/latest/[this]
 
+| https://github.com/ARM-software/abi-aa/blob/main/semihosting/semihosting.rst[Semihosting Information]
+|
+
 | https://github.com/raspberrypi/pico-sdk[Raspberry Pi Pico SDK]
 | 
+
+| https://github.com/pyocd/pyOCD[pyOCD on github]
+|
+
+| https://github.com/openocd-org/openocd[OpenOCD on github]
+| https://openocd.org/[Official Homepage]
 
 |===
 
