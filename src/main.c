@@ -124,6 +124,11 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
         cdc_debug_line_state_cb(dtr, rts);
     }
 #endif
+#if CFG_TUD_CDC_SIGROK
+    if (itf == CDC_SIGROK_N) {
+        cdc_sigrok_line_state_cb(dtr, rts);
+    }
+#endif
 }   // tud_cdc_line_state_cb
 
 
