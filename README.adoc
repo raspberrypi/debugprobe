@@ -98,7 +98,7 @@ For details about probe pin assignments see the link:doc/hardware.adoc[hardware 
 
 |pyOCD 0.34.x
 |yes
-|no
+|yes
 |`pyocd flash -f 400000 -t nrf52840 firmware.elf`
 
 |cp / copy
