@@ -72,18 +72,10 @@ void cdc_sigrok_line_state_cb(bool dtr, bool rts)
  */
 {
 #if CFG_TUD_CDC_SIGROK
-    // CDC drivers use linestate as a bodge to activate/deactivate the interface.
-    if ( !dtr  &&  !rts) {
-        m_connected = false;
-        tud_cdc_n_write_clear(CDC_SIGROK_N);
-        tud_cdc_n_read_flush(CDC_SIGROK_N);
-    }
-    else {
-        m_connected = true;
-        tud_cdc_n_write_clear(CDC_SIGROK_N);
-        tud_cdc_n_read_flush(CDC_SIGROK_N);
-        xEventGroupSetBits(events, EV_STREAM);
-    }
+    tud_cdc_n_write_clear(CDC_SIGROK_N);
+    tud_cdc_n_read_flush(CDC_SIGROK_N);
+    m_connected = (dtr  ||  rts);;
+    xEventGroupSetBits(events, EV_STREAM);
 #endif
 }   // cdc_uart_line_state_cb
 

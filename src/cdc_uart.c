@@ -197,18 +197,10 @@ void cdc_uart_line_state_cb(bool dtr, bool rts)
  */
 {
 #if CFG_TUD_CDC_UART
-    // CDC drivers use linestate as a bodge to activate/deactivate the interface.
-    if ( !dtr  &&  !rts) {
-        m_connected = false;
-        tud_cdc_n_write_clear(CDC_UART_N);
-        tud_cdc_n_read_flush(CDC_UART_N);
-    }
-    else {
-        tud_cdc_n_write_clear(CDC_UART_N);
-        tud_cdc_n_read_flush(CDC_UART_N);
-        m_connected = true;
-        xEventGroupSetBits(events, EV_TX_COMPLETE);
-    }
+    tud_cdc_n_write_clear(CDC_UART_N);
+    tud_cdc_n_read_flush(CDC_UART_N);
+    m_connected = (dtr  ||  rts);
+    xEventGroupSetBits(events, EV_TX_COMPLETE);
 #endif
 }   // cdc_uart_line_state_cb
 
