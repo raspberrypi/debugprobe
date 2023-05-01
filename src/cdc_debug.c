@@ -72,7 +72,7 @@ void cdc_debug_thread(void *ptr)
         if ( !m_connected) {
             // wait here until connected (and until my terminal program is ready)
             while ( !m_connected) {
-                vTaskDelay(pdMS_TO_TICKS(100));
+                xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM, pdTRUE, pdFALSE, pdMS_TO_TICKS(1000));
             }
             vTaskDelay(pdMS_TO_TICKS(100));
         }
@@ -99,6 +99,16 @@ void cdc_debug_thread(void *ptr)
                 }
             }
         }
+
+        if (tud_cdc_n_available(CDC_UART_N)) {
+            //
+            // eat receive characters (don't know if this has any effects, but who knows)
+            //
+            uint8_t ch;
+
+            tud_cdc_n_read(CDC_UART_N, &ch, sizeof(ch));
+        }
+
 #else
         xStreamBufferReceive(stream_printf, cdc_debug_buf, sizeof(cdc_debug_buf), pdMS_TO_TICKS(500));
 #endif
@@ -108,14 +118,17 @@ void cdc_debug_thread(void *ptr)
 
 
 void cdc_debug_line_state_cb(bool dtr, bool rts)
+/**
+ * Flush tinyusb buffers on connect/disconnect.
+ * This seems to be necessary to survive e.g. a restart of the host (Linux)
+ */
 {
-    // CDC drivers use linestate as a bodge to activate/deactivate the interface.
-    if ( !dtr  &&  !rts) {
-        m_connected = false;
-    }
-    else {
-        m_connected = true;
-    }
+#if CFG_TUD_CDC_DEBUG
+    tud_cdc_n_write_clear(CDC_DEBUG_N);
+    tud_cdc_n_read_flush(CDC_DEBUG_N);
+    m_connected = (dtr  ||  rts);
+    xEventGroupSetBits(events, EV_TX_COMPLETE);
+#endif
 }   // cdc_debug_line_state_cb
 
 

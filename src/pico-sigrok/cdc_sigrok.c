@@ -54,12 +54,30 @@ static TaskHandle_t           task_cdc_sigrok;
 static EventGroupHandle_t     events;
 static StreamBufferHandle_t   stream_sigrok;
 
+static volatile bool m_connected = false;
+
 
 
 void cdc_sigrok_tx_complete_cb(void)
 {
     xEventGroupSetBits(events, EV_TX);
 }   // cdc_sigrok_tx_complete_cb
+
+
+
+void cdc_sigrok_line_state_cb(bool dtr, bool rts)
+/**
+ * Flush tinyusb buffers on connect/disconnect.
+ * This seems to be necessary to survive e.g. a restart of the host (Linux)
+ */
+{
+#if CFG_TUD_CDC_SIGROK
+    tud_cdc_n_write_clear(CDC_SIGROK_N);
+    tud_cdc_n_read_flush(CDC_SIGROK_N);
+    m_connected = (dtr  ||  rts);;
+    xEventGroupSetBits(events, EV_STREAM);
+#endif
+}   // cdc_uart_line_state_cb
 
 
 
@@ -304,19 +322,27 @@ void cdc_sigrok_thread()
         EventBits_t ev = EV_RX | EV_TX | EV_STREAM;
         size_t cdc_rx_chars;
 
+        if ( !m_connected) {
+            // wait here until connected (and until my terminal program is ready)
+            while ( !m_connected) {
+                xEventGroupWaitBits(events, EV_RX | EV_TX | EV_STREAM, pdTRUE, pdFALSE, pdMS_TO_TICKS(1000));
+            }
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+
         cdc_rx_chars = tud_cdc_n_available(CDC_SIGROK_N);
         if (cdc_rx_chars == 0  &&  xStreamBufferIsEmpty(stream_sigrok)) {
             // -> nothing left to do: sleep for a long time
             tud_cdc_n_write_flush(CDC_SIGROK_N);
-            ev = xEventGroupWaitBits(events, EV_RX | EV_TX | EV_STREAM | EV_RX, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
+            ev = xEventGroupWaitBits(events, EV_RX | EV_TX | EV_STREAM, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
         }
         else if (cdc_rx_chars != 0) {
             // wait a short period if there are characters host -> probe -> target
-            ev = xEventGroupWaitBits(events, EV_RX | EV_TX | EV_STREAM | EV_RX, pdTRUE, pdFALSE, pdMS_TO_TICKS(1));
+            ev = xEventGroupWaitBits(events, EV_RX | EV_TX | EV_STREAM, pdTRUE, pdFALSE, pdMS_TO_TICKS(1));
         }
         else {
             // wait until transmission via USB has finished
-            ev = xEventGroupWaitBits(events, EV_RX | EV_TX | EV_STREAM | EV_RX, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
+            ev = xEventGroupWaitBits(events, EV_RX | EV_TX | EV_STREAM, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
         }
 
         if (ev & EV_RX) {

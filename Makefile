@@ -4,7 +4,7 @@
 #
 
 VERSION_MAJOR        := 1
-VERSION_MINOR        := 13
+VERSION_MINOR        := 14
 
 BUILD_DIR            := build
 PROJECT              := picoprobe
@@ -20,7 +20,7 @@ CMAKE_FLAGS += -DCMAKE_EXPORT_COMPILE_COMMANDS=True
 
 ifeq ($(PICO_BOARD),)
     # pico|pico_w|pico_debug_probe
-    PICO_BOARD := pico_debug_probe
+    PICO_BOARD := pico
 endif
 
 

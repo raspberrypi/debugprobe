@@ -8,9 +8,41 @@
 
 ## Hardware
 
+### Existing Probe Hardware
+[%autowidth]
+[%header]
+|===
+| Name | Comment
+
+| https://www.raspberrypi.com/products/debug-probe/[Raspberry Pi Debug Probe]
+| the "original"
+
+| https://mcuoneclipse.com/2023/04/08/open-source-picolink-raspberry-pi-rp2040-cmsis-dap-debug-probe/[picoLink]
+| Open Source picoLink: Raspberry Pi RP2040 CMSIS-DAP Debug Probe
+
+| https://github.com/tjko/tiny-picoprobe[tiny-picoprobe]
+| small PCB to mount a regular Pico Pi board to work without breadboard
+
+| https://github.com/Fabien-Chouteau/picoprobe-pcb[Pimoroni Probe PCB]
+| converts a Pi Pico into a simple probe (with standard SWD connector)
+
+| https://github.com/ene9ba/PicoProbeHolder[Pico Probe Holder]
+| Adapter which also provides 3.3V and 5V to the target
+
+| https://github.com/martijnvwezel/pico-probe-programmer[Pico Probe Programmer]
+| Another PCB adapter
+
+|===
+
+All unfortunately without level shifters and without the possibility to use
+YaPicoprobes sigrok features.  So there is some space left for other hardware
+(ideas).
+
+
 ### Pin Assignments
 
 .Pins Assignments Rasberry Pi Pico
+[%autowidth]
 [%header]
 |===
 | Pin | Description
@@ -29,6 +61,7 @@
 |===
 
 .Other Pin Assigments Raspberry Pi Pico
+[%autowidth]
 [%header]
 |===
 | Pin | Description | Pico W
