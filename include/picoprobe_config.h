@@ -28,7 +28,6 @@
 
 
 #define INCLUDE_RTT_CONSOLE
-#define INCLUDE_SIGROK
 
 
 #if !defined(NDEBUG)

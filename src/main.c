@@ -63,7 +63,7 @@
 #if defined(INCLUDE_RTT_CONSOLE)
     #include "rtt_console.h"
 #endif
-#if defined(INCLUDE_SIGROK)
+#if OPT_SIGROK
     #include "pico-sigrok/cdc_sigrok.h"
     #include "pico-sigrok/sigrok.h"
 #endif
@@ -124,7 +124,7 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
         cdc_debug_line_state_cb(dtr, rts);
     }
 #endif
-#if CFG_TUD_CDC_SIGROK
+#if OPT_SIGROK
     if (itf == CDC_SIGROK_N) {
         cdc_sigrok_line_state_cb(dtr, rts);
     }
@@ -148,7 +148,7 @@ void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding)
 
 void tud_cdc_rx_cb(uint8_t itf)
 {
-#if CFG_TUD_CDC_SIGROK
+#if OPT_SIGROK
     if (itf == CDC_SIGROK_N) {
         cdc_sigrok_rx_cb();
     }
@@ -164,7 +164,7 @@ void tud_cdc_rx_cb(uint8_t itf)
 
 void tud_cdc_tx_complete_cb(uint8_t itf)
 {
-#if CFG_TUD_CDC_SIGROK
+#if OPT_SIGROK
     if (itf == CDC_SIGROK_N) {
         cdc_sigrok_tx_complete_cb();
     }
@@ -462,7 +462,7 @@ void usb_thread(void *ptr)
     rtt_console_init(RTT_CONSOLE_TASK_PRIO);
 #endif
 
-#if defined(INCLUDE_SIGROK)
+#if OPT_SIGROK
     sigrok_init(SIGROK_TASK_PRIO);
 #endif
 
@@ -516,7 +516,7 @@ int main(void)
 #if CFG_TUD_CDC_UART
     picoprobe_info_out(" [UART -> CDC]");
 #endif
-#if CFG_TUD_CDC_SIGROK
+#if OPT_SIGROK
     picoprobe_info_out(" [sigrok CDC]");
 #endif
 #if CFG_TUD_CDC_DEBUG

@@ -71,10 +71,10 @@
 //**********************************************
 
 #define CFG_TUD_CDC_UART              1            // CDC for target UART IO
-#if !defined(TARGET_BOARD_PICO_DEBUG_PROBE)
+#if OPT_SIGROK
     #define CFG_TUD_CDC_SIGROK        1            // CDC for sigrok IO
 #else
-    #define CFG_TUD_CDC_SIGROK        0            // no sigrok for debug probe
+    #define CFG_TUD_CDC_SIGROK        0
 #endif
 #if !defined(NDEBUG)
     #define CFG_TUD_CDC_DEBUG         1            // CDC for debug output of the probe
@@ -90,7 +90,9 @@
 
 // CDC numbering (must go 0.. consecutive)
 #define CDC_UART_N                    (CFG_TUD_CDC_UART - 1)
-#define CDC_SIGROK_N                  (CFG_TUD_CDC_UART + CFG_TUD_CDC_SIGROK - 1)
+#if OPT_SIGROK
+    #define CDC_SIGROK_N              (CFG_TUD_CDC_UART + CFG_TUD_CDC_SIGROK - 1)
+#endif
 #define CDC_DEBUG_N                   (CFG_TUD_CDC_UART + CFG_TUD_CDC_SIGROK + CFG_TUD_CDC_DEBUG - 1)
 
 //------------- BUFFER SIZES -------------//

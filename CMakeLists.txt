@@ -1,15 +1,32 @@
+# CMakeLists.txt for YaPicoprobe
+#
+# Parameters
+# ----------
+# - PICO_BOARD                   pico|pico_w|pico_debug_probe, default "pico"
+# - PICOPROBE_VERSION_MAJOR      major version number
+# - PICOPROBE_VERSION_MINOR      minor version number
+# - OPT_SIGROK                   enable/disable sigrok module, default "1"
+#
+# - GIT_HASH                     short git hash
+# - PROJECT                      project name for cmake
+#
 cmake_minimum_required(VERSION 3.12)
 
 #
-# board definition: pico or pico_w, default is pico
+# Compile options
 #
 if(PICO_BOARD STREQUAL "")
     set(PICO_BOARD pico)
 endif()
-set(PICO_STDIO_UART 0)
+option(OPT_SIGROK "Enable sigrok" 1)
 
 #
-# below order is important
+# SDK options
+#
+set(PICO_STDIO_UART 0)             # disable stdio UART, actually this goes to a CDC
+
+#
+# below (and above) order is important
 #
 include(pico_sdk_import.cmake)
 
@@ -148,18 +165,22 @@ add_compile_definitions(DRAG_N_DROP_SUPPORT=1)
 #
 # this is for SIGROK operation (taken from https://github.com/pico-coder/sigrok-pico)
 #
-target_sources(${PROJECT} PRIVATE
+if(OPT_SIGROK)
+    target_sources(${PROJECT} PRIVATE
         src/pico-sigrok/cdc_sigrok.c
         src/pico-sigrok/sigrok.c
         src/pico-sigrok/sigrok_int.c
-)
+    )
 
-target_link_libraries(${PROJECT} PRIVATE
+    target_link_libraries(${PROJECT} PRIVATE
         hardware_adc
         hardware_dma
-)
+    )
 
-pico_generate_pio_header(${PROJECT} ${CMAKE_CURRENT_LIST_DIR}/src/pico-sigrok/sigrok.pio)
+    pico_generate_pio_header(${PROJECT} ${CMAKE_CURRENT_LIST_DIR}/src/pico-sigrok/sigrok.pio)
+    
+    add_compile_definitions(OPT_SIGROK=1)
+endif()
 
 #--------------------------------------------------------------------------------------------------
 
