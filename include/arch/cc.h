@@ -32,10 +32,10 @@
 #ifndef __CC_H__
 #define __CC_H__
 
-//#include "cpu.h"
 
-//typedef int sys_prot_t;
-
+#if NO_SYS
+    typedef int sys_prot_t;
+#endif
 
 
 /* define compiler specific symbols */

@@ -32,7 +32,7 @@
 
 
 #if OPT_SYSVIEW_RNDIS
-    uint8_t tud_network_mac_address[6] = {0};
+    uint8_t tud_network_mac_address[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
 #endif
 
 
@@ -61,52 +61,6 @@ enum
 };
 
 
-//--------------------------------------------------------------------+
-// Device Descriptors
-//--------------------------------------------------------------------+
-
-tusb_desc_device_t const desc_device =
-{
-    .bLength            = sizeof(tusb_desc_device_t),
-    .bDescriptorType    = TUSB_DESC_DEVICE,
-    .bcdUSB             = 0x0210, // USB Specification version 2.1 for BOS
-    .bDeviceClass       = 0x00, // Each interface specifies its own
-    .bDeviceSubClass    = 0x00, // Each interface specifies its own
-    .bDeviceProtocol    = 0x00,
-    .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
-
-    .idVendor           = 0x2E8A, // Pi
-    .idProduct          = 0x000c, // CMSIS-DAP adapter
-    .bcdDevice          = (PICOPROBE_VERSION_MAJOR << 8) + (16*(PICOPROBE_VERSION_MINOR / 10)) + PICOPROBE_VERSION_MINOR % 10,
-    .iManufacturer      = STRID_MANUFACTURER,
-    .iProduct           = STRID_PRODUCT,
-    .iSerialNumber      = STRID_SERIAL,
-    .bNumConfigurations = 1
-};
-
-// Invoked when received GET DEVICE DESCRIPTOR
-// Application return pointer to descriptor
-uint8_t const * tud_descriptor_device_cb(void)
-{
-#if OPT_SYSVIEW_RNDIS
-    static bool initialized;
-
-    if ( !initialized) {
-        pico_unique_board_id_t id;
-
-        initialized = true;
-        pico_get_unique_board_id( &id);
-        memcpy(tud_network_mac_address, &id, sizeof(tud_network_mac_address));
-    }
-#endif
-    return (uint8_t const *) &desc_device;
-}
-
-
-//--------------------------------------------------------------------+
-// Configuration Descriptor
-//--------------------------------------------------------------------+
-
 enum
 {
 #if CFG_TUD_VENDOR
@@ -116,8 +70,8 @@ enum
     ITF_NUM_PROBE_HID,
 #endif
 #if CFG_TUD_CDC_UART
-    ITF_NUM_CDC_COM,
-    ITF_NUM_CDC_DATA,
+    ITF_NUM_CDC_UART_COM,
+    ITF_NUM_CDC_UART_DATA,
 #endif
 #if OPT_SIGROK
     ITF_NUM_CDC_SIGROK_COM,
@@ -131,12 +85,68 @@ enum
     ITF_NUM_CDC_DEBUG_DATA,
 #endif
 #if OPT_SYSVIEW_RNDIS
-    ITF_NUM_CDC_RNDIS_COM,
-    ITF_NUM_CDC_RNDIS_DATA,
+    #if CFG_TUD_ECM_RNDIS
+        ITF_NUM_CDC_RNDIS_COM,
+        ITF_NUM_CDC_RNDIS_DATA,
+    #else
+        ITF_NUM_CDC_NCM_COM,
+        ITF_NUM_CDC_NCM_DATA,
+    #endif
 #endif
     ITF_NUM_TOTAL
 };
 
+
+//--------------------------------------------------------------------+
+// Device Descriptors
+//--------------------------------------------------------------------+
+
+tusb_desc_device_t const desc_device =
+{
+    .bLength            = sizeof(tusb_desc_device_t),
+    .bDescriptorType    = TUSB_DESC_DEVICE,
+    .bcdUSB             = 0x0210, // USB Specification version 2.1 for BOS
+
+    // Use Interface Association Descriptor (IAD) device class
+    .bDeviceClass       = TUSB_CLASS_MISC,
+    .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
+    .bDeviceProtocol    = MISC_PROTOCOL_IAD,
+
+    .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+
+    .idVendor           = 0x2E8A, // Pi
+    .idProduct          = 0x000c, // CMSIS-DAP adapter
+    .bcdDevice          = (PICOPROBE_VERSION_MAJOR << 8) + (16*(PICOPROBE_VERSION_MINOR / 10)) + PICOPROBE_VERSION_MINOR % 10,
+    .iManufacturer      = STRID_MANUFACTURER,
+    .iProduct           = STRID_PRODUCT,
+    .iSerialNumber      = STRID_SERIAL,
+    .bNumConfigurations = 1,
+};
+
+// Invoked when received GET DEVICE DESCRIPTOR
+// Application return pointer to descriptor
+uint8_t const * tud_descriptor_device_cb(void)
+{
+#if OPT_SYSVIEW_RNDIS
+#if 0
+    static bool initialized;
+
+    if ( !initialized) {
+        pico_unique_board_id_t id;
+
+        initialized = true;
+        pico_get_unique_board_id( &id);
+        memcpy(tud_network_mac_address, &id, sizeof(tud_network_mac_address));
+    }
+#endif
+#endif
+    return (uint8_t const *) &desc_device;
+}
+
+
+//--------------------------------------------------------------------+
+// Configuration Descriptor
+//--------------------------------------------------------------------+
 
 // don't know if consecutive numbering is required.  Let's do it anyway
 enum
@@ -151,9 +161,9 @@ enum
     PROBE_HID_IN_EP_CNT,
 #endif
 #if CFG_TUD_CDC_UART
-    CDC_NOTIFICATION_EP_CNT,
-    CDC_DATA_OUT_EP_CNT,
-    CDC_DATA_IN_EP_CNT,
+    CDC_UART_NOTIFICATION_EP_CNT,
+    CDC_UART_DATA_OUT_EP_CNT,
+    CDC_UART_DATA_IN_EP_CNT,
 #endif
 #if OPT_SIGROK
     CDC_SIGROK_NOTIFICATION_EP_CNT,
@@ -170,11 +180,18 @@ enum
     CDC_DEBUG_DATA_IN_EP_CNT,
 #endif
 #if OPT_SYSVIEW_RNDIS
-    CDC_RNDIS_NOTIFICATION_EP_CNT,
-    CDC_RNDIS_DATA_OUT_EP_CNT,
-    CDC_RNDIS_DATA_IN_EP_CNT,
+    #if CFG_TUD_ECM_RNDIS
+        CDC_RNDIS_NOTIFICATION_EP_CNT,
+        CDC_RNDIS_DATA_OUT_EP_CNT,
+        CDC_RNDIS_DATA_IN_EP_CNT,
+    #else
+        CDC_NCM_NOTIFICATION_EP_CNT,
+        CDC_NCM_DATA_OUT_EP_CNT,
+        CDC_NCM_DATA_IN_EP_CNT,
+    #endif
 #endif
 };
+
 
 #if CFG_TUD_VENDOR
     #define PROBE_VENDOR_OUT_EP_NUM         (PROBE_VENDOR_OUT_EP_CNT + 0x00)
@@ -185,9 +202,9 @@ enum
     #define PROBE_HID_IN_EP_NUM             (PROBE_HID_IN_EP_CNT + 0x80)
 #endif
 #if CFG_TUD_CDC_UART
-    #define CDC_NOTIFICATION_EP_NUM         (CDC_NOTIFICATION_EP_CNT + 0x80)
-    #define CDC_DATA_OUT_EP_NUM             (CDC_DATA_OUT_EP_CNT + 0x00)
-    #define CDC_DATA_IN_EP_NUM              (CDC_DATA_IN_EP_CNT + 0x80)
+    #define CDC_UART_NOTIFICATION_EP_NUM    (CDC_UART_NOTIFICATION_EP_CNT + 0x80)
+    #define CDC_UART_DATA_OUT_EP_NUM        (CDC_UART_DATA_OUT_EP_CNT + 0x00)
+    #define CDC_UART_DATA_IN_EP_NUM         (CDC_UART_DATA_IN_EP_CNT + 0x80)
 #endif
 #if OPT_SIGROK
     #define CDC_SIGROK_NOTIFICATION_EP_NUM  (CDC_SIGROK_NOTIFICATION_EP_CNT + 0x80)
@@ -204,28 +221,22 @@ enum
     #define CDC_DEBUG_DATA_IN_EP_NUM        (CDC_DEBUG_DATA_IN_EP_CNT + 0x80)
 #endif
 #if OPT_SYSVIEW_RNDIS
-    #define CDC_RNDIS_NOTIFICATION_EP_NUM   (CDC_RNDIS_NOTIFICATION_EP_CNT + 0x80)
-    #define CDC_RNDIS_DATA_OUT_EP_NUM       (CDC_RNDIS_DATA_OUT_EP_CNT + 0x00)
-    #define CDC_RNDIS_DATA_IN_EP_NUM        (CDC_RNDIS_DATA_IN_EP_CNT + 0x80)
+    #if CFG_TUD_ECM_RNDIS
+        #define CDC_RNDIS_NOTIFICATION_EP_NUM   (CDC_RNDIS_NOTIFICATION_EP_CNT + 0x80)
+        #define CDC_RNDIS_DATA_OUT_EP_NUM       (CDC_RNDIS_DATA_OUT_EP_CNT + 0x00)
+        #define CDC_RNDIS_DATA_IN_EP_NUM        (CDC_RNDIS_DATA_IN_EP_CNT + 0x80)
+    #else
+        #define CDC_NCM_NOTIFICATION_EP_NUM     (CDC_NCM_NOTIFICATION_EP_CNT + 0x80)
+        #define CDC_NCM_DATA_OUT_EP_NUM         (CDC_NCM_DATA_OUT_EP_CNT + 0x00)
+        #define CDC_NCM_DATA_IN_EP_NUM          (CDC_NCM_DATA_IN_EP_CNT + 0x80)
+    #endif
 #endif
+
 
 #define CONFIG_TOTAL_LEN   (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + CFG_TUD_VENDOR*TUD_VENDOR_DESC_LEN \
                             + CFG_TUD_HID*TUD_HID_INOUT_DESC_LEN + CFG_TUD_MSC*TUD_MSC_DESC_LEN                     \
-                            + CFG_TUD_ECM_RNDIS*TUD_RNDIS_DESC_LEN)
-
-
-enum
-{
-#if CFG_TUD_ECM_RNDIS
-    CONFIG_ID_RNDIS = 0,
-    CONFIG_ID_ECM   = 1,
-#else
-    CONFIG_ID_NCM   = 0,
-#endif
-    CONFIG_ID_COUNT
-};
-
-
+                            + CFG_TUD_ECM_RNDIS*TUD_RNDIS_DESC_LEN                                                  \
+                            + CFG_TUD_NCM*TUD_CDC_NCM_DESC_LEN)
 
 #if CFG_TUD_HID
     static uint8_t const desc_hid_report[] =
@@ -241,51 +252,46 @@ enum
 #endif
 
 
+
 //
 // note that there is a 64byte packet limit for full speed!
 //
+#define CURR_MA 200
+
 static uint8_t const desc_configuration[] =
 {
     // Config number, interface count, string index, total length, attribute, power in mA
     //TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 500),
-    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0, 200),
-
+    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0, CURR_MA),
 #if CFG_TUD_VENDOR
-    // Interface 0: Bulk (named interface), CMSIS-DAPv2
     TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE_VENDOR, STRID_INTERFACE_DAP2, PROBE_VENDOR_OUT_EP_NUM, PROBE_VENDOR_IN_EP_NUM, 64),
 #endif
-
 #if CFG_TUD_HID
-    // Interface 1: HID (named interface), CMSIS-DAP v1
     TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_PROBE_HID, STRID_INTERFACE_DAP1, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), PROBE_HID_OUT_EP_NUM, PROBE_HID_IN_EP_NUM, CFG_TUD_HID_EP_BUFSIZE, 1),
 #endif
-
 #if CFG_TUD_CDC_UART
-    // Interface 2 + 3: CDC UART (target)
-    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_COM, STRID_INTERFACE_CDC_UART, CDC_NOTIFICATION_EP_NUM, 64, CDC_DATA_OUT_EP_NUM, CDC_DATA_IN_EP_NUM, 64),
+    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_UART_COM, STRID_INTERFACE_CDC_UART, CDC_UART_NOTIFICATION_EP_NUM, 64, CDC_UART_DATA_OUT_EP_NUM, CDC_UART_DATA_IN_EP_NUM, 64),
 #endif
-
 #if OPT_SIGROK
-    // Interface 4 + 5: CDC SIGROK
     TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_SIGROK_COM, STRID_INTERFACE_CDC_SIGROK, CDC_SIGROK_NOTIFICATION_EP_NUM, 64, CDC_SIGROK_DATA_OUT_EP_NUM, CDC_SIGROK_DATA_IN_EP_NUM, 64),
 #endif
-
-    // Interface 6: MSC
 #if CFG_TUD_MSC
     TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, STRID_INTERFACE_MSC, MSC_OUT_EP_NUM, MSC_IN_EP_NUM, 64),
 #endif
-
 #if CFG_TUD_CDC_DEBUG
-    // Interface 7 + 8: CDC DEBUG (internal)
     TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_DEBUG_COM, STRID_INTERFACE_CDC_DEBUG, CDC_DEBUG_NOTIFICATION_EP_NUM, 64, CDC_DEBUG_DATA_OUT_EP_NUM, CDC_DEBUG_DATA_IN_EP_NUM, 64),
 #endif
-
 #if OPT_SYSVIEW_RNDIS
-    // Interface 9 + 10: RNDIS for SysView
-    TUD_RNDIS_DESCRIPTOR(ITF_NUM_CDC_RNDIS_COM, STRID_INTERFACE_RNDIS, CDC_RNDIS_NOTIFICATION_EP_NUM, 8, CDC_RNDIS_DATA_OUT_EP_NUM, CDC_RNDIS_DATA_IN_EP_NUM, 64),
-    TUD_CDC_ECM_DESCRIPTOR(ITF_NUM_CDC_RNDIS_COM, STRID_INTERFACE_RNDIS, STRID_MAC, CDC_RNDIS_NOTIFICATION_EP_NUM, 64, CDC_RNDIS_DATA_OUT_EP_NUM, CDC_RNDIS_DATA_IN_EP_NUM, 64, CFG_TUD_NET_MTU)
+    #if CFG_TUD_ECM_RNDIS
+        TUD_RNDIS_DESCRIPTOR(ITF_NUM_CDC_RNDIS_COM, STRID_INTERFACE_RNDIS, CDC_RNDIS_NOTIFICATION_EP_NUM, 8, CDC_RNDIS_DATA_OUT_EP_NUM, CDC_RNDIS_DATA_IN_EP_NUM, 64),
+        // TODO ECM must be an alternative to RNDIS, RNDIS works on Windows, ECM on iOS, Linux can handle both!?
+        // TUD_CDC_ECM_DESCRIPTOR(ITF_NUM_CDC_RNDIS_COM, STRID_INTERFACE_RNDIS, STRID_MAC, CDC_RNDIS_NOTIFICATION_EP_NUM, 64, CDC_RNDIS_DATA_OUT_EP_NUM, CDC_RNDIS_DATA_IN_EP_NUM, 64, CFG_TUD_NET_MTU),
+    #else
+        TUD_CDC_NCM_DESCRIPTOR(ITF_NUM_CDC_NCM_COM, STRID_INTERFACE_RNDIS, STRID_MAC, CDC_NCM_NOTIFICATION_EP_NUM, 64, CDC_NCM_DATA_OUT_EP_NUM, CDC_NCM_DATA_IN_EP_NUM, 64, CFG_TUD_NET_MTU),
+    #endif
 #endif
 };
+
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
 // Application return pointer to descriptor
@@ -294,7 +300,8 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
     (void)index; // for multiple configurations
     return desc_configuration;
-}
+}   // tud_descriptor_configuration_cb
+
 
 //--------------------------------------------------------------------+
 // String Descriptors
@@ -316,7 +323,11 @@ static char const* string_desc_arr[] =
 #endif
     [STRID_INTERFACE_CDC_DEBUG]  = "YAPicoprobe CDC-DEBUG",             // Interface descriptor for CDC DEBUG
 #if OPT_SYSVIEW_RNDIS
-    [STRID_INTERFACE_RNDIS]      = "YaPicoprobe RNDIS SysView",         // Interface descriptor for SysView RNDIS
+    #if CFG_TUD_ECM_RNDIS
+        [STRID_INTERFACE_RNDIS]  = "YaPicoprobe SysView RNDIS",         // Interface descriptor for SysView RNDIS
+    #else
+        [STRID_INTERFACE_RNDIS]  = "YaPicoprobe SysView NCM",           // Interface descriptor for SysView NCM
+    #endif
     [STRID_MAC]                  = "",
 #endif
 };

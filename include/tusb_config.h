@@ -26,6 +26,8 @@
 #ifndef _TUSB_CONFIG_H_
 #define _TUSB_CONFIG_H_
 
+#include <stdint.h>
+
 #ifdef __cplusplus
  extern "C" {
 #endif
@@ -88,6 +90,9 @@
 #define CFG_TUD_CDC                   (CFG_TUD_CDC_UART + CFG_TUD_CDC_SIGROK + CFG_TUD_CDC_DEBUG)
 #if OPT_SYSVIEW_RNDIS
     #define CFG_TUD_ECM_RNDIS         1
+    #define CFG_TUD_NCM               (1 - CFG_TUD_ECM_RNDIS)
+#else
+    #define CFG_TUD_ECM_RNDIS         0
     #define CFG_TUD_NCM               0
 #endif
 
@@ -111,7 +116,9 @@
 #define CFG_TUD_MSC_EP_BUFSIZE        512
 
 #if OPT_SYSVIEW_RNDIS
-    #define CFG_TUD_NET_MTU           800
+    #define CFG_TUD_NET_MTU           1500
+    
+    extern uint8_t tud_network_mac_address[6];
 #endif
 
 #ifdef __cplusplus
