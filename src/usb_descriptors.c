@@ -26,37 +26,14 @@
  */
 
 #include "tusb.h"
+#include "pico/unique_id.h"
 #include "get_serial.h"
 #include "picoprobe_config.h"
 
-//--------------------------------------------------------------------+
-// Device Descriptors
-//--------------------------------------------------------------------+
-tusb_desc_device_t const desc_device =
-{
-    .bLength            = sizeof(tusb_desc_device_t),
-    .bDescriptorType    = TUSB_DESC_DEVICE,
-    .bcdUSB             = 0x0210, // USB Specification version 2.1 for BOS
-    .bDeviceClass       = 0x00, // Each interface specifies its own
-    .bDeviceSubClass    = 0x00, // Each interface specifies its own
-    .bDeviceProtocol    = 0x00,
-    .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
 
-    .idVendor           = 0x2E8A, // Pi
-    .idProduct          = 0x000c, // CMSIS-DAP adapter
-    .bcdDevice          = (PICOPROBE_VERSION_MAJOR << 8) + (16*(PICOPROBE_VERSION_MINOR / 10)) + PICOPROBE_VERSION_MINOR % 10,
-    .iManufacturer      = 0x01,
-    .iProduct           = 0x02,
-    .iSerialNumber      = 0x03,
-    .bNumConfigurations = 0x01
-};
-
-// Invoked when received GET DEVICE DESCRIPTOR
-// Application return pointer to descriptor
-uint8_t const * tud_descriptor_device_cb(void)
-{
-    return (uint8_t const *) &desc_device;
-}
+#if OPT_SYSVIEW_RNDIS
+    uint8_t tud_network_mac_address[6] = {0};
+#endif
 
 
 //--------------------------------------------------------------------+
@@ -73,9 +50,51 @@ enum
     STRID_INTERFACE_DAP1,
     STRID_INTERFACE_MSC,
     STRID_INTERFACE_CDC_UART,
+#if OPT_SIGROK
     STRID_INTERFACE_CDC_SIGROK,
+#endif
     STRID_INTERFACE_CDC_DEBUG,
+#if OPT_SYSVIEW_RNDIS
+    STRID_INTERFACE_RNDIS,
+    STRID_MAC,
+#endif
 };
+
+
+//--------------------------------------------------------------------+
+// Device Descriptors
+//--------------------------------------------------------------------+
+
+tusb_desc_device_t const desc_device =
+{
+    .bLength            = sizeof(tusb_desc_device_t),
+    .bDescriptorType    = TUSB_DESC_DEVICE,
+    .bcdUSB             = 0x0210, // USB Specification version 2.1 for BOS
+    .bDeviceClass       = 0x00, // Each interface specifies its own
+    .bDeviceSubClass    = 0x00, // Each interface specifies its own
+    .bDeviceProtocol    = 0x00,
+    .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
+
+    .idVendor           = 0x2E8A, // Pi
+    .idProduct          = 0x000c, // CMSIS-DAP adapter
+    .bcdDevice          = (PICOPROBE_VERSION_MAJOR << 8) + (16*(PICOPROBE_VERSION_MINOR / 10)) + PICOPROBE_VERSION_MINOR % 10,
+    .iManufacturer      = STRID_MANUFACTURER,
+    .iProduct           = STRID_PRODUCT,
+    .iSerialNumber      = STRID_SERIAL,
+    .bNumConfigurations = 1
+};
+
+// Invoked when received GET DEVICE DESCRIPTOR
+// Application return pointer to descriptor
+uint8_t const * tud_descriptor_device_cb(void)
+{
+#if OPT_SYSVIEW_RNDIS
+    pico_unique_board_id_t id;
+    pico_get_unique_board_id( &id);
+    memcpy(tud_network_mac_address, &id, sizeof(tud_network_mac_address));
+#endif
+    return (uint8_t const *) &desc_device;
+}
 
 
 //--------------------------------------------------------------------+
@@ -104,6 +123,10 @@ enum
 #if CFG_TUD_CDC_DEBUG
     ITF_NUM_CDC_DEBUG_COM,
     ITF_NUM_CDC_DEBUG_DATA,
+#endif
+#if OPT_SYSVIEW_RNDIS
+    ITF_NUM_RNDIS,
+    ITF_NUM_RNDIS_ECM,
 #endif
     ITF_NUM_TOTAL
 };
@@ -140,6 +163,11 @@ enum
     CDC_DEBUG_DATA_OUT_EP_CNT,
     CDC_DEBUG_DATA_IN_EP_CNT,
 #endif
+#if OPT_SYSVIEW_RNDIS
+    RNDIS_NOTIFICATION_EP_CNT,
+    RNDIS_DATA_OUT_EP_CNT,
+    RNDIS_DATA_IN_EP_CNT,
+#endif
 };
 
 #if CFG_TUD_VENDOR
@@ -169,21 +197,28 @@ enum
     #define CDC_DEBUG_DATA_OUT_EP_NUM       (CDC_DEBUG_DATA_OUT_EP_CNT + 0x00)
     #define CDC_DEBUG_DATA_IN_EP_NUM        (CDC_DEBUG_DATA_IN_EP_CNT + 0x80)
 #endif
+#if OPT_SYSVIEW_RNDIS
+    #define RNDIS_NOTIFICATION_EP_NUM       (RNDIS_NOTIFICATION_EP_CNT + 0x80)
+    #define RNDIS_DATA_OUT_EP_NUM           (RNDIS_DATA_OUT_EP_CNT + 0x00)
+    #define RNDIS_DATA_IN_EP_NUM            (RNDIS_DATA_IN_EP_CNT + 0x80)
+#endif
 
-#define CONFIG_TOTAL_LEN   (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + CFG_TUD_VENDOR*TUD_VENDOR_DESC_LEN + CFG_TUD_HID*TUD_HID_INOUT_DESC_LEN + CFG_TUD_MSC*TUD_MSC_DESC_LEN)
+#define CONFIG_TOTAL_LEN   (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + CFG_TUD_VENDOR*TUD_VENDOR_DESC_LEN \
+                            + CFG_TUD_HID*TUD_HID_INOUT_DESC_LEN + CFG_TUD_MSC*TUD_MSC_DESC_LEN                     \
+                            + CFG_TUD_ECM_RNDIS*TUD_RNDIS_DESC_LEN)
 
 
 #if CFG_TUD_HID
-static uint8_t const desc_hid_report[] =
-{
-    TUD_HID_REPORT_DESC_GENERIC_INOUT(CFG_TUD_HID_EP_BUFSIZE)
-};
+    static uint8_t const desc_hid_report[] =
+    {
+        TUD_HID_REPORT_DESC_GENERIC_INOUT(CFG_TUD_HID_EP_BUFSIZE)
+    };
 
-uint8_t const * tud_hid_descriptor_report_cb(uint8_t itf)
-{
-    (void)itf;
-    return desc_hid_report;
-}
+    uint8_t const * tud_hid_descriptor_report_cb(uint8_t itf)
+    {
+        (void)itf;
+        return desc_hid_report;
+    }
 #endif
 
 
@@ -192,7 +227,9 @@ uint8_t const * tud_hid_descriptor_report_cb(uint8_t itf)
 //
 static uint8_t const desc_configuration[] =
 {
-    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 500),
+    // Config number, interface count, string index, total length, attribute, power in mA
+    //TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 500),
+    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0, 200),
 
 #if CFG_TUD_VENDOR
     // Interface 0: Bulk (named interface), CMSIS-DAPv2
@@ -223,6 +260,12 @@ static uint8_t const desc_configuration[] =
     // Interface 7 + 8: CDC DEBUG (internal)
     TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_DEBUG_COM, STRID_INTERFACE_CDC_DEBUG, CDC_DEBUG_NOTIFICATION_EP_NUM, 64, CDC_DEBUG_DATA_OUT_EP_NUM, CDC_DEBUG_DATA_IN_EP_NUM, 64),
 #endif
+
+#if OPT_SYSVIEW_RNDIS
+    // Interface 9 + 10: RNDIS for SysView
+    TUD_RNDIS_DESCRIPTOR(ITF_NUM_RNDIS, STRID_INTERFACE_RNDIS, RNDIS_NOTIFICATION_EP_NUM, 64, RNDIS_DATA_OUT_EP_NUM, RNDIS_DATA_IN_EP_NUM, 64),
+    TUD_CDC_ECM_DESCRIPTOR(ITF_NUM_RNDIS, STRID_INTERFACE_RNDIS, STRID_MAC, RNDIS_NOTIFICATION_EP_NUM, 64, RNDIS_DATA_OUT_EP_NUM, RNDIS_DATA_IN_EP_NUM, 64, 1500)
+#endif
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
@@ -249,8 +292,14 @@ static char const* string_desc_arr[] =
     [STRID_INTERFACE_DAP1]       = "YAPicoprobe CMSIS-DAP v1",          // Interface descriptor for HID transport
     [STRID_INTERFACE_MSC]        = "YAPicoprobe Flash Drive",           // Interface descriptor for MSC interface
     [STRID_INTERFACE_CDC_UART]   = "YAPicoprobe CDC-UART",              // Interface descriptor for CDC UART (from target)
+#if OPT_SIGROK
     [STRID_INTERFACE_CDC_SIGROK] = "YAPicoprobe CDC-SIGROK",            // Interface descriptor for CDC SIGROK
+#endif
     [STRID_INTERFACE_CDC_DEBUG]  = "YAPicoprobe CDC-DEBUG",             // Interface descriptor for CDC DEBUG
+#if OPT_SYSVIEW_RNDIS
+    [STRID_INTERFACE_RNDIS]      = "YaPicoprobe RNDIS SysView",         // Interface descriptor for SysView RNDIS
+    [STRID_MAC]                  = "",
+#endif
 };
 
 static uint16_t _desc_str[32];
@@ -261,11 +310,21 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 {
     (void)langid;
 
-    uint8_t chr_count;
+    uint8_t chr_count = 0;
 
-    if (index == 0) {
-        memcpy(&_desc_str[1], string_desc_arr[0], 2);
+    if (index == STRID_LANGID) {
+        memcpy( &_desc_str[1], string_desc_arr[0], 2);
         chr_count = 1;
+    }
+    else if (index == STRID_MAC) {
+        // take first 6 bytes of serial number
+        memcpy( &_desc_str[1], usb_serial, 12);
+        chr_count = 12;
+        // Convert MAC address into UTF-16
+        for (unsigned i = 0;  i < sizeof(tud_network_mac_address);  ++i) {
+            _desc_str[1+chr_count++] = "0123456789ABCDEF"[(tud_network_mac_address[i] >> 4) & 0xf];
+            _desc_str[1+chr_count++] = "0123456789ABCDEF"[(tud_network_mac_address[i] >> 0) & 0xf];
+        }
     }
     else {
         // Convert ASCII string into UTF-16

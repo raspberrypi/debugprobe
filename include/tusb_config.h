@@ -86,7 +86,10 @@
 #define CFG_TUD_VENDOR                1            // CMSIS-DAPv2
 #define CFG_TUD_MSC                   1            // DAPLink drive
 #define CFG_TUD_CDC                   (CFG_TUD_CDC_UART + CFG_TUD_CDC_SIGROK + CFG_TUD_CDC_DEBUG)
-
+#if OPT_SYSVIEW_RNDIS
+    #define CFG_TUD_ECM_RNDIS         1
+    #define CFG_TUD_NCM               0
+#endif
 
 // CDC numbering (must go 0.. consecutive)
 #define CDC_UART_N                    (CFG_TUD_CDC_UART - 1)

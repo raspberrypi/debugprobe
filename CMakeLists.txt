@@ -6,6 +6,7 @@
 # - PICOPROBE_VERSION_MAJOR      major version number
 # - PICOPROBE_VERSION_MINOR      minor version number
 # - OPT_SIGROK                   enable/disable sigrok module, default "1"
+# - OPT_SYSVIEW_RNDIS            enable/disable sysview via RNDIS, default "0"
 #
 # - GIT_HASH                     short git hash
 # - PROJECT                      project name for cmake
@@ -18,7 +19,8 @@ cmake_minimum_required(VERSION 3.12)
 if(PICO_BOARD STREQUAL "")
     set(PICO_BOARD pico)
 endif()
-option(OPT_SIGROK "Enable sigrok" 1)
+option(OPT_SIGROK        "Enable sigrok"             0)
+option(OPT_SYSVIEW_RNDIS "Enable SysView over RNDIS" 1)
 
 #
 # SDK options
@@ -180,6 +182,23 @@ if(OPT_SIGROK)
     pico_generate_pio_header(${PROJECT} ${CMAKE_CURRENT_LIST_DIR}/src/pico-sigrok/sigrok.pio)
     
     add_compile_definitions(OPT_SIGROK=1)
+endif()
+
+#--------------------------------------------------------------------------------------------------
+#
+# this is for SystemView operation (requires RTT)
+#
+if(OPT_SYSVIEW_RNDIS)
+    add_compile_definitions(OPT_SYSVIEW_RNDIS=1)
+    
+    target_include_directories(${PROJECT} PRIVATE
+        ${PICO_TINYUSB_PATH}/lib/networking
+        ${PICO_TINYUSB_PATH}/lib/lwip/src/include
+    )
+    
+    target_sources(${PROJECT} PRIVATE
+        ${PICO_TINYUSB_PATH}/lib/networking/rndis_reports.c
+    )
 endif()
 
 #--------------------------------------------------------------------------------------------------
