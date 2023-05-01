@@ -89,9 +89,15 @@ tusb_desc_device_t const desc_device =
 uint8_t const * tud_descriptor_device_cb(void)
 {
 #if OPT_SYSVIEW_RNDIS
-    pico_unique_board_id_t id;
-    pico_get_unique_board_id( &id);
-    memcpy(tud_network_mac_address, &id, sizeof(tud_network_mac_address));
+    static bool initialized;
+
+    if ( !initialized) {
+        pico_unique_board_id_t id;
+
+        initialized = true;
+        pico_get_unique_board_id( &id);
+        memcpy(tud_network_mac_address, &id, sizeof(tud_network_mac_address));
+    }
 #endif
     return (uint8_t const *) &desc_device;
 }
@@ -125,8 +131,8 @@ enum
     ITF_NUM_CDC_DEBUG_DATA,
 #endif
 #if OPT_SYSVIEW_RNDIS
-    ITF_NUM_RNDIS,
-    ITF_NUM_RNDIS_ECM,
+    ITF_NUM_CDC_RNDIS_COM,
+    ITF_NUM_CDC_RNDIS_DATA,
 #endif
     ITF_NUM_TOTAL
 };
@@ -164,9 +170,9 @@ enum
     CDC_DEBUG_DATA_IN_EP_CNT,
 #endif
 #if OPT_SYSVIEW_RNDIS
-    RNDIS_NOTIFICATION_EP_CNT,
-    RNDIS_DATA_OUT_EP_CNT,
-    RNDIS_DATA_IN_EP_CNT,
+    CDC_RNDIS_NOTIFICATION_EP_CNT,
+    CDC_RNDIS_DATA_OUT_EP_CNT,
+    CDC_RNDIS_DATA_IN_EP_CNT,
 #endif
 };
 
@@ -198,14 +204,27 @@ enum
     #define CDC_DEBUG_DATA_IN_EP_NUM        (CDC_DEBUG_DATA_IN_EP_CNT + 0x80)
 #endif
 #if OPT_SYSVIEW_RNDIS
-    #define RNDIS_NOTIFICATION_EP_NUM       (RNDIS_NOTIFICATION_EP_CNT + 0x80)
-    #define RNDIS_DATA_OUT_EP_NUM           (RNDIS_DATA_OUT_EP_CNT + 0x00)
-    #define RNDIS_DATA_IN_EP_NUM            (RNDIS_DATA_IN_EP_CNT + 0x80)
+    #define CDC_RNDIS_NOTIFICATION_EP_NUM   (CDC_RNDIS_NOTIFICATION_EP_CNT + 0x80)
+    #define CDC_RNDIS_DATA_OUT_EP_NUM       (CDC_RNDIS_DATA_OUT_EP_CNT + 0x00)
+    #define CDC_RNDIS_DATA_IN_EP_NUM        (CDC_RNDIS_DATA_IN_EP_CNT + 0x80)
 #endif
 
 #define CONFIG_TOTAL_LEN   (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + CFG_TUD_VENDOR*TUD_VENDOR_DESC_LEN \
                             + CFG_TUD_HID*TUD_HID_INOUT_DESC_LEN + CFG_TUD_MSC*TUD_MSC_DESC_LEN                     \
                             + CFG_TUD_ECM_RNDIS*TUD_RNDIS_DESC_LEN)
+
+
+enum
+{
+#if CFG_TUD_ECM_RNDIS
+    CONFIG_ID_RNDIS = 0,
+    CONFIG_ID_ECM   = 1,
+#else
+    CONFIG_ID_NCM   = 0,
+#endif
+    CONFIG_ID_COUNT
+};
+
 
 
 #if CFG_TUD_HID
@@ -263,8 +282,8 @@ static uint8_t const desc_configuration[] =
 
 #if OPT_SYSVIEW_RNDIS
     // Interface 9 + 10: RNDIS for SysView
-    TUD_RNDIS_DESCRIPTOR(ITF_NUM_RNDIS, STRID_INTERFACE_RNDIS, RNDIS_NOTIFICATION_EP_NUM, 64, RNDIS_DATA_OUT_EP_NUM, RNDIS_DATA_IN_EP_NUM, 64),
-    TUD_CDC_ECM_DESCRIPTOR(ITF_NUM_RNDIS, STRID_INTERFACE_RNDIS, STRID_MAC, RNDIS_NOTIFICATION_EP_NUM, 64, RNDIS_DATA_OUT_EP_NUM, RNDIS_DATA_IN_EP_NUM, 64, 1500)
+    TUD_RNDIS_DESCRIPTOR(ITF_NUM_CDC_RNDIS_COM, STRID_INTERFACE_RNDIS, CDC_RNDIS_NOTIFICATION_EP_NUM, 8, CDC_RNDIS_DATA_OUT_EP_NUM, CDC_RNDIS_DATA_IN_EP_NUM, 64),
+    TUD_CDC_ECM_DESCRIPTOR(ITF_NUM_CDC_RNDIS_COM, STRID_INTERFACE_RNDIS, STRID_MAC, CDC_RNDIS_NOTIFICATION_EP_NUM, 64, CDC_RNDIS_DATA_OUT_EP_NUM, CDC_RNDIS_DATA_IN_EP_NUM, 64, CFG_TUD_NET_MTU)
 #endif
 };
 
@@ -316,16 +335,15 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
         memcpy( &_desc_str[1], string_desc_arr[0], 2);
         chr_count = 1;
     }
+#if OPT_SYSVIEW_RNDIS
     else if (index == STRID_MAC) {
-        // take first 6 bytes of serial number
-        memcpy( &_desc_str[1], usb_serial, 12);
-        chr_count = 12;
         // Convert MAC address into UTF-16
         for (unsigned i = 0;  i < sizeof(tud_network_mac_address);  ++i) {
             _desc_str[1+chr_count++] = "0123456789ABCDEF"[(tud_network_mac_address[i] >> 4) & 0xf];
             _desc_str[1+chr_count++] = "0123456789ABCDEF"[(tud_network_mac_address[i] >> 0) & 0xf];
         }
     }
+#endif
     else {
         // Convert ASCII string into UTF-16
 

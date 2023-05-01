@@ -110,6 +110,9 @@
  // note: this is optimized for DAPLink write speed
 #define CFG_TUD_MSC_EP_BUFSIZE        512
 
+#if OPT_SYSVIEW_RNDIS
+    #define CFG_TUD_NET_MTU           800
+#endif
 
 #ifdef __cplusplus
  }

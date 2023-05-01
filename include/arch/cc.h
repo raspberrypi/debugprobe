@@ -34,7 +34,7 @@
 
 //#include "cpu.h"
 
-typedef int sys_prot_t;
+//typedef int sys_prot_t;
 
 
 

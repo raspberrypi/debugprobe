@@ -191,14 +191,30 @@ endif()
 if(OPT_SYSVIEW_RNDIS)
     add_compile_definitions(OPT_SYSVIEW_RNDIS=1)
     
+    target_link_libraries(${PROJECT} PRIVATE
+        pico_lwip_freertos
+    )
+    
     target_include_directories(${PROJECT} PRIVATE
         ${PICO_TINYUSB_PATH}/lib/networking
-        ${PICO_TINYUSB_PATH}/lib/lwip/src/include
+        #${PICO_LWIP_PATH}/contrib/ports/freertos/include
+        #${PICO_TINYUSB_PATH}/lib/lwip/src/include
+        #${PICO_LWIP_PATH}/test/unit
+#        ${PICO_LWIP_PATH}/lib/lwip/src/include
+#        ${PICO_LWIP_PATH}/lib/lwip/src/include/ipv4
+#        ${PICO_LWIP_PATH}/lib/lwip/src/include/lwip/apps
+        
     )
     
     target_sources(${PROJECT} PRIVATE
+        ${PICO_TINYUSB_PATH}/lib/networking/dhserver.c
+        ${PICO_TINYUSB_PATH}/lib/networking/dnserver.c
         ${PICO_TINYUSB_PATH}/lib/networking/rndis_reports.c
     )
+    
+#    message("--------- " ${PICO_LWIP_PATH})
+#    message("--------- " ${PICO_LWIP_CONTRIB_PATH})
+#    message("--------- " ${PICO_TINYUSB_PATH})
 endif()
 
 #--------------------------------------------------------------------------------------------------
