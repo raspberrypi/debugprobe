@@ -58,6 +58,26 @@ uint8_t const * tud_descriptor_device_cb(void)
     return (uint8_t const *) &desc_device;
 }
 
+
+//--------------------------------------------------------------------+
+// String enums
+//--------------------------------------------------------------------+
+
+enum
+{
+    STRID_LANGID = 0,
+    STRID_MANUFACTURER,
+    STRID_PRODUCT,
+    STRID_SERIAL,
+    STRID_INTERFACE_DAP2,
+    STRID_INTERFACE_DAP1,
+    STRID_INTERFACE_MSC,
+    STRID_INTERFACE_CDC_UART,
+    STRID_INTERFACE_CDC_SIGROK,
+    STRID_INTERFACE_CDC_DEBUG,
+};
+
+
 //--------------------------------------------------------------------+
 // Configuration Descriptor
 //--------------------------------------------------------------------+
@@ -170,38 +190,38 @@ uint8_t const * tud_hid_descriptor_report_cb(uint8_t itf)
 //
 // note that there is a 64byte packet limit for full speed!
 //
-uint8_t const desc_configuration[] =
+static uint8_t const desc_configuration[] =
 {
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 500),
 
 #if CFG_TUD_VENDOR
     // Interface 0: Bulk (named interface), CMSIS-DAPv2
-    TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE_VENDOR, 4, PROBE_VENDOR_OUT_EP_NUM, PROBE_VENDOR_IN_EP_NUM, 64),
+    TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE_VENDOR, STRID_INTERFACE_DAP2, PROBE_VENDOR_OUT_EP_NUM, PROBE_VENDOR_IN_EP_NUM, 64),
 #endif
 
 #if CFG_TUD_HID
     // Interface 1: HID (named interface), CMSIS-DAP v1
-    TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_PROBE_HID, 5, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), PROBE_HID_OUT_EP_NUM, PROBE_HID_IN_EP_NUM, CFG_TUD_HID_EP_BUFSIZE, 1),
+    TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_PROBE_HID, STRID_INTERFACE_DAP1, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), PROBE_HID_OUT_EP_NUM, PROBE_HID_IN_EP_NUM, CFG_TUD_HID_EP_BUFSIZE, 1),
 #endif
 
 #if CFG_TUD_CDC_UART
     // Interface 2 + 3: CDC UART (target)
-    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_COM, 7, CDC_NOTIFICATION_EP_NUM, 64, CDC_DATA_OUT_EP_NUM, CDC_DATA_IN_EP_NUM, 64),
+    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_COM, STRID_INTERFACE_CDC_UART, CDC_NOTIFICATION_EP_NUM, 64, CDC_DATA_OUT_EP_NUM, CDC_DATA_IN_EP_NUM, 64),
 #endif
 
 #if OPT_SIGROK
     // Interface 4 + 5: CDC SIGROK
-    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_SIGROK_COM, 8, CDC_SIGROK_NOTIFICATION_EP_NUM, 64, CDC_SIGROK_DATA_OUT_EP_NUM, CDC_SIGROK_DATA_IN_EP_NUM, 64),
+    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_SIGROK_COM, STRID_INTERFACE_CDC_SIGROK, CDC_SIGROK_NOTIFICATION_EP_NUM, 64, CDC_SIGROK_DATA_OUT_EP_NUM, CDC_SIGROK_DATA_IN_EP_NUM, 64),
 #endif
 
     // Interface 6: MSC
 #if CFG_TUD_MSC
-    TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 6, MSC_OUT_EP_NUM, MSC_IN_EP_NUM, 64),
+    TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, STRID_INTERFACE_MSC, MSC_OUT_EP_NUM, MSC_IN_EP_NUM, 64),
 #endif
 
 #if CFG_TUD_CDC_DEBUG
     // Interface 7 + 8: CDC DEBUG (internal)
-    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_DEBUG_COM, 9, CDC_DEBUG_NOTIFICATION_EP_NUM, 64, CDC_DEBUG_DATA_OUT_EP_NUM, CDC_DEBUG_DATA_IN_EP_NUM, 64),
+    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_DEBUG_COM, STRID_INTERFACE_CDC_DEBUG, CDC_DEBUG_NOTIFICATION_EP_NUM, 64, CDC_DEBUG_DATA_OUT_EP_NUM, CDC_DEBUG_DATA_IN_EP_NUM, 64),
 #endif
 };
 
@@ -219,18 +239,18 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 //--------------------------------------------------------------------+
 
 // array of pointer to string descriptors
-char const* string_desc_arr [] =
+static char const* string_desc_arr[] =
 {
-  (const char[]) { 0x09, 0x04 },       // 0: is supported language is English (0x0409)
-  "RaspberryPi",                       // 1: Manufacturer
-  "YAPicoprobe CMSIS-DAP",             // 2: Product,                                 **MUST** contain "CMSIS-DAP" to enable "CMSIS-DAP v1"
-  usb_serial,                          // 3: Serial, uses flash unique ID
-  "YAPicoprobe CMSIS-DAP v2",          // 4: Interface descriptor for Bulk transport, **MUST** contain "CMSIS-DAP" to enable "CMSIS-DAP v2"
-  "YAPicoprobe CMSIS-DAP v1",          // 5: Interface descriptor for HID transport
-  "YAPicoprobe Flash Drive",           // 6: Interface descriptor for MSC interface
-  "YAPicoprobe CDC-UART",              // 7: Interface descriptor for CDC UART (from target)
-  "YAPicoprobe CDC-SIGROK",            // 8: Interface descriptor for CDC SIGROK
-  "YAPicoprobe CDC-DEBUG",             // 9: Interface descriptor for CDC DEBUG
+    [STRID_LANGID]               = (const char[]) { 0x09, 0x04 },       // is supported language is English (0x0409)
+    [STRID_MANUFACTURER]         = "RaspberryPi",                       // Manufacturer
+    [STRID_PRODUCT]              = "YAPicoprobe CMSIS-DAP",             // Product,                                 **MUST** contain "CMSIS-DAP" to enable "CMSIS-DAP v1"
+    [STRID_SERIAL]               = usb_serial,                          // Serial, uses flash unique ID
+    [STRID_INTERFACE_DAP2]       = "YAPicoprobe CMSIS-DAP v2",          // Interface descriptor for Bulk transport, **MUST** contain "CMSIS-DAP" to enable "CMSIS-DAP v2"
+    [STRID_INTERFACE_DAP1]       = "YAPicoprobe CMSIS-DAP v1",          // Interface descriptor for HID transport
+    [STRID_INTERFACE_MSC]        = "YAPicoprobe Flash Drive",           // Interface descriptor for MSC interface
+    [STRID_INTERFACE_CDC_UART]   = "YAPicoprobe CDC-UART",              // Interface descriptor for CDC UART (from target)
+    [STRID_INTERFACE_CDC_SIGROK] = "YAPicoprobe CDC-SIGROK",            // Interface descriptor for CDC SIGROK
+    [STRID_INTERFACE_CDC_DEBUG]  = "YAPicoprobe CDC-DEBUG",             // Interface descriptor for CDC DEBUG
 };
 
 static uint16_t _desc_str[32];
