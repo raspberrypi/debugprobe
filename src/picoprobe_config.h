@@ -47,8 +47,8 @@
 
 // TODO tie this up with PICO_BOARD defines in the main SDK
 
-//#include "board_pico_config.h"
-#include "board_debugprobe_config.h"
+#include "board_pico_config.h"
+//#include "board_debugprobe_config.h"
 //#include "board_example_config.h"
 
 
