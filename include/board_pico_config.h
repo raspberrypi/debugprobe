@@ -45,4 +45,6 @@
 
 #define PICOPROBE_USB_CONNECTED_LED 25
 
+#define PROBE_PRODUCT_STRING "Picoprobe (CMSIS-DAP)"
+
 #endif

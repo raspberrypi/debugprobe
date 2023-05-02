@@ -77,4 +77,6 @@
 #define PICOPROBE_UART_RX_LED 7
 #define PICOPROBE_UART_TX_LED 8
 
+#define PROBE_PRODUCT_STRING "Example Debug Probe"
+
 #endif
