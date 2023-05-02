@@ -80,6 +80,8 @@ For information about cabling between Pico Debug Probe and target refer to the c
 https://www.raspberrypi.com/documentation/microcontrollers/debug-probe.html[documentation].
 
 For details about probe pin assignments see the link:doc/hardware.adoc[hardware section].
+Ochamodev wrote a nice https://github.com/ochamodev/raspberry_pico_setup_guide[setup guide],
+containing the steps from installation until debugging in VSCode. 
 
 
 

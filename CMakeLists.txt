@@ -168,6 +168,8 @@ add_compile_definitions(DRAG_N_DROP_SUPPORT=1)
 # this is for SIGROK operation (taken from https://github.com/pico-coder/sigrok-pico)
 #
 if(OPT_SIGROK)
+    add_compile_definitions(OPT_SIGROK=1)
+    
     target_sources(${PROJECT} PRIVATE
         src/pico-sigrok/cdc_sigrok.c
         src/pico-sigrok/sigrok.c
@@ -180,8 +182,6 @@ if(OPT_SIGROK)
     )
 
     pico_generate_pio_header(${PROJECT} ${CMAKE_CURRENT_LIST_DIR}/src/pico-sigrok/sigrok.pio)
-    
-    add_compile_definitions(OPT_SIGROK=1)
 endif()
 
 #--------------------------------------------------------------------------------------------------
@@ -191,18 +191,20 @@ endif()
 if(OPT_SYSVIEW_RNDIS)
     add_compile_definitions(OPT_SYSVIEW_RNDIS=1)
     
-    target_link_libraries(${PROJECT} PRIVATE
-        pico_lwip_nosys
+    target_sources(${PROJECT} PRIVATE
+        src/net_starter.c
+        
+        ${PICO_TINYUSB_PATH}/lib/networking/dhserver.c
+        ${PICO_TINYUSB_PATH}/lib/networking/dnserver.c
+        ${PICO_TINYUSB_PATH}/lib/networking/rndis_reports.c
     )
-    
+
     target_include_directories(${PROJECT} PRIVATE
         ${PICO_TINYUSB_PATH}/lib/networking
     )
     
-    target_sources(${PROJECT} PRIVATE
-        ${PICO_TINYUSB_PATH}/lib/networking/dhserver.c
-        ${PICO_TINYUSB_PATH}/lib/networking/dnserver.c
-        ${PICO_TINYUSB_PATH}/lib/networking/rndis_reports.c
+    target_link_libraries(${PROJECT} PRIVATE
+        pico_lwip_nosys
     )
     
 #    message("--------- " ${PICO_LWIP_PATH})

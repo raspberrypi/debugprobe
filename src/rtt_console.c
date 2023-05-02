@@ -67,39 +67,6 @@ static EventGroupHandle_t     events;
 
 
 
-#if OPT_SYSVIEW_RNDIS
-
-#include "lwip/init.h"
-#include "lwip/ip.h"
-#include "lwip/etharp.h"
-#include "lwip/timeouts.h"
-#include "dhserver.h"
-#include "dnserver.h"
-
-
-/* lwip context */
-static struct netif netif_data;
-
-/* shared between tud_network_recv_cb() and service_traffic() */
-static struct pbuf *received_frame;
-
-
-static void service_traffic(void)
-{
-    /* handle any packet received by tud_network_recv_cb() */
-    if (received_frame) {
-        ethernet_input(received_frame, &netif_data);
-        pbuf_free(received_frame);
-        received_frame = NULL;
-        tud_network_recv_renew();
-    }
-    sys_check_timeouts();
-}   // service_traffic
-
-#endif
-
-
-
 static uint32_t check_buffer_for_rtt_cb(uint8_t *buf, uint32_t buf_size, uint32_t base_addr)
 {
     uint32_t rtt_cb = 0;
@@ -188,8 +155,6 @@ static void do_rtt_console(uint32_t rtt_cb)
     // do operations
     rtt_console_running = true;
     while (ok  &&  !sw_unlock_requested()) {
-        service_traffic();
-
         ok = ok  &&  swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[RTT_CHANNEL_CONSOLE].WrOff), (uint32_t *)&aUp.WrOff);
 
         if (aUp.WrOff == aUp.RdOff) {
@@ -371,178 +336,6 @@ void rtt_console_send_byte(uint8_t ch)
 
 
 
-//----------------------------------------------------------------------------------------------------------------------
-//
-// TCP server for SystemView
-// - using RNDIS / ECM because it is driver free for Windows / Linux / iOS
-// - we leave the IPv6 stuff outside
-// - TODO this should become its own module, but this is more or less a PoC
-//        but everything required is contained here, including headers / definitions and so on.
-//
-#if OPT_SYSVIEW_RNDIS
-
-
-#define INIT_IP4(a,b,c,d) { PP_HTONL(LWIP_MAKEU32(a,b,c,d)) }
-
-/* network parameters of this MCU */
-static const ip4_addr_t ipaddr  = INIT_IP4(192, 168, 2, 99);
-static const ip4_addr_t netmask = INIT_IP4(255, 255, 255, 0);
-static const ip4_addr_t gateway = INIT_IP4(0, 0, 0, 0);
-
-/* database IP addresses that can be offered to the host; this must be in RAM to store assigned MAC addresses */
-static dhcp_entry_t entries[] =
-{
-    /* mac ip address                          lease time */
-    { {0}, INIT_IP4(192, 168, 0, 2), 24 * 60 * 60 },
-    { {0}, INIT_IP4(192, 168, 0, 3), 24 * 60 * 60 },
-    { {0}, INIT_IP4(192, 168, 0, 4), 24 * 60 * 60 },
-};
-
-static const dhcp_config_t dhcp_config =
-{
-    .router = INIT_IP4(0, 0, 0, 0),            /* router address (if any) */
-    .port = 67,                                /* listen port */
-    .dns = INIT_IP4(192, 168, 0, 5),           /* dns server (if any) */
-    "usb",                                     /* dns suffix */
-    TU_ARRAY_SIZE(entries),                    /* num entry */
-    entries                                    /* entries */
-};
-
-
-
-/* handle any DNS requests from dns-server */
-bool dns_query_proc(const char *name, ip4_addr_t *addr)
-{
-    if (0 == strcmp(name, "tiny.usb")) {
-        *addr = ipaddr;
-        return true;
-    }
-    return false;
-}   // dns_query_proc
-
-
-
-void tud_network_init_cb(void)
-{
-    /* if the network is re-initializing and we have a leftover packet, we must do a cleanup */
-    if (received_frame)
-    {
-        pbuf_free(received_frame);
-        received_frame = NULL;
-    }
-}   // tud_network_init_cb
-
-
-
-bool tud_network_recv_cb(const uint8_t *src, uint16_t size)
-{
-    /* this shouldn't happen, but if we get another packet before
-    parsing the previous, we must signal our inability to accept it */
-    if (received_frame)
-        return false;
-
-    if (size) {
-        struct pbuf *p = pbuf_alloc(PBUF_RAW, size, PBUF_POOL);
-
-        if (p) {
-            /* pbuf_alloc() has already initialized struct; all we need to do is copy the data */
-            memcpy(p->payload, src, size);
-
-            /* store away the pointer for service_traffic() to later handle */
-            received_frame = p;
-        }
-    }
-    return true;
-}   // tud_network_recv_cb
-
-
-
-uint16_t tud_network_xmit_cb(uint8_t *dst, void *ref, uint16_t arg)
-{
-    struct pbuf *p = (struct pbuf *)ref;
-
-    (void)arg; /* unused for this example */
-
-    return pbuf_copy_partial(p, dst, p->tot_len, 0);
-}   // tud_network_xmit_cb
-
-
-
-static err_t linkoutput_fn(struct netif *netif, struct pbuf *p)
-{
-    (void)netif;
-
-    for (;;) {
-        /* if TinyUSB isn't ready, we must signal back to lwip that there is nothing we can do */
-        if (!tud_ready())
-            return ERR_USE;
-
-        /* if the network driver can accept another packet, we make it happen */
-        if (tud_network_can_xmit(p->tot_len)) {
-            tud_network_xmit(p, 0 /* unused for this example */);
-            return ERR_OK;
-        }
-
-        /* transfer execution to TinyUSB in the hopes that it will finish transmitting the prior packet */
-        tud_task();
-    }
-}   // linkoutput_fn
-
-
-
-static err_t ip4_output_fn(struct netif *netif, struct pbuf *p, const ip4_addr_t *addr)
-{
-    return etharp_output(netif, p, addr);
-}   // ip4_output_fn
-
-
-
-static err_t netif_init_cb(struct netif *netif)
-{
-    LWIP_ASSERT("netif != NULL", (netif != NULL));
-    netif->mtu = CFG_TUD_NET_MTU;
-    netif->flags = NETIF_FLAG_BROADCAST | NETIF_FLAG_ETHARP | NETIF_FLAG_LINK_UP | NETIF_FLAG_UP;
-    netif->state = NULL;
-    netif->name[0] = 'E';
-    netif->name[1] = 'X';
-    netif->linkoutput = linkoutput_fn;
-    netif->output = ip4_output_fn;
-    return ERR_OK;
-}   // netif_init_cb
-
-
-
-static void init_lwip(void)
-{
-    struct netif *netif = &netif_data;
-
-    lwip_init();
-
-    /* the lwip virtual MAC address must be different from the host's; to ensure this, we toggle the LSbit */
-    netif->hwaddr_len = sizeof(tud_network_mac_address);
-    memcpy(netif->hwaddr, tud_network_mac_address, sizeof(tud_network_mac_address));
-    netif->hwaddr[5] ^= 0x01;
-
-    netif = netif_add(netif, &ipaddr, &netmask, &gateway, NULL, netif_init_cb, ip_input);
-    netif_set_default(netif);
-
-    while ( !netif_is_up(&netif_data))
-        ;
-#if 0
-    while (dhserv_init(&dhcp_config) != ERR_OK)
-        ;
-    while (dnserv_init(IP_ADDR_ANY, 53, dns_query_proc) != ERR_OK)
-        ;
-#endif
-}   // init_lwip
-
-
-#endif
-
-//----------------------------------------------------------------------------------------------------------------------
-
-
-
 void rtt_console_init(uint32_t task_prio)
 {
     picoprobe_debug("rtt_console_init()\n");
@@ -559,8 +352,4 @@ void rtt_console_init(uint32_t task_prio)
     {
         picoprobe_error("rtt_console_init: cannot create task_rtt_console\n");
     }
-
-#if OPT_SYSVIEW_RNDIS
-    init_lwip();
-#endif
 }   // rtt_console_init

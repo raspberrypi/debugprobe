@@ -67,6 +67,9 @@
     #include "pico-sigrok/cdc_sigrok.h"
     #include "pico-sigrok/sigrok.h"
 #endif
+#if OPT_SYSVIEW_RNDIS
+    #include "net_starter.h"
+#endif
 
 
 /*
@@ -464,6 +467,10 @@ void usb_thread(void *ptr)
 
 #if OPT_SIGROK
     sigrok_init(SIGROK_TASK_PRIO);
+#endif
+
+#if OPT_SYSVIEW_RNDIS
+    net_starter_init(3);  // TODO
 #endif
 
 #if CFG_TUD_VENDOR

@@ -72,4 +72,7 @@
 
 #define LWIP_PLATFORM_ASSERT(x) do { if(!(x)) while(1); } while(0)
 
+#include <stdio.h>
+#define LWIP_PLATFORM_DIAG(x) do {printf x;} while(0)
+
 #endif /* __CC_H__ */
