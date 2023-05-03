@@ -35,10 +35,10 @@
 /* Prevent having to link sys_arch.c (we don't test the API layers in unit tests) */
 #define NO_SYS                          1
 #define MEM_ALIGNMENT                   4
-#define LWIP_RAW                        1
+#define LWIP_RAW                        0
 #define LWIP_NETCONN                    0
 #define LWIP_SOCKET                     0
-#define LWIP_DHCP                       1
+#define LWIP_DHCP                       0
 #define LWIP_ICMP                       1
 #define LWIP_UDP                        1
 #define LWIP_TCP                        1
@@ -49,7 +49,7 @@
 
 #define TCP_MSS                         (1500 /*mtu*/ - 20 /*iphdr*/ - 20 /*tcphhr*/)
 #define TCP_SND_BUF                     (2 * TCP_MSS)
-#define TCP_WND                         (TCP_MSS)
+//#define TCP_WND                         (TCP_MSS)
 
 #define ETHARP_SUPPORT_STATIC_ENTRIES   1
 
@@ -59,20 +59,20 @@
 
 #define LWIP_SINGLE_NETIF               1
 
-#define PBUF_POOL_SIZE                  2
-
-#define HTTPD_USE_CUSTOM_FSDATA         0
-
-#define LWIP_MULTICAST_PING             1
-#define LWIP_BROADCAST_PING             1
-#define LWIP_IPV6_MLD                   0
-#define LWIP_IPV6_SEND_ROUTER_SOLICIT   0
-
-#define LWIP_PROVIDE_ERRNO              1
-
-
-// meine Versuche
-#define LWIP_TCPIP_CORE_LOCKING         1
+//#define PBUF_POOL_SIZE                  2
+//
+//#define HTTPD_USE_CUSTOM_FSDATA         0
+//
+//#define LWIP_MULTICAST_PING             1
+//#define LWIP_BROADCAST_PING             1
+//#define LWIP_IPV6_MLD                   0
+//#define LWIP_IPV6_SEND_ROUTER_SOLICIT   0
+//
+//#define LWIP_PROVIDE_ERRNO              1
+//
+//
+//// meine Versuche
+//#define LWIP_TCPIP_CORE_LOCKING         1
 
 
 

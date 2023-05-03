@@ -32,13 +32,16 @@
 
 
 #if OPT_SYSVIEW_RNDIS
-    uint8_t tud_network_mac_address[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66};
+    uint8_t tud_network_mac_address[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x89};
 #endif
 
 
 //--------------------------------------------------------------------+
 // String enums
 //--------------------------------------------------------------------+
+
+// 0 -> ECM, OPT_SYSVIEW_RNDIS must be enabled
+#define USE_RNDIS    0
 
 enum
 {
@@ -105,7 +108,7 @@ tusb_desc_device_t const desc_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
-    .bcdUSB             = 0x0210, // USB Specification version 2.1 for BOS
+    .bcdUSB             = 0x0200,      // USB Specification version 2.1 for BOS (DAPv2) under Windows
 
     // Use Interface Association Descriptor (IAD) device class
     .bDeviceClass       = TUSB_CLASS_MISC,
@@ -233,10 +236,17 @@ enum
 #endif
 
 
+#if USE_RNDIS
 #define CONFIG_TOTAL_LEN   (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + CFG_TUD_VENDOR*TUD_VENDOR_DESC_LEN \
                             + CFG_TUD_HID*TUD_HID_INOUT_DESC_LEN + CFG_TUD_MSC*TUD_MSC_DESC_LEN                     \
                             + CFG_TUD_ECM_RNDIS*TUD_RNDIS_DESC_LEN                                                  \
                             + CFG_TUD_NCM*TUD_CDC_NCM_DESC_LEN)
+#else
+#define CONFIG_TOTAL_LEN   (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + CFG_TUD_VENDOR*TUD_VENDOR_DESC_LEN \
+                            + CFG_TUD_HID*TUD_HID_INOUT_DESC_LEN + CFG_TUD_MSC*TUD_MSC_DESC_LEN                     \
+                            + CFG_TUD_ECM_RNDIS*TUD_CDC_ECM_DESC_LEN                                                \
+                            + CFG_TUD_NCM*TUD_CDC_NCM_DESC_LEN)
+#endif
 
 #if CFG_TUD_HID
     static uint8_t const desc_hid_report[] =
@@ -283,9 +293,12 @@ static uint8_t const desc_configuration[] =
 #endif
 #if OPT_SYSVIEW_RNDIS
     #if CFG_TUD_ECM_RNDIS
-        TUD_RNDIS_DESCRIPTOR(ITF_NUM_CDC_RNDIS_COM, STRID_INTERFACE_RNDIS, CDC_RNDIS_NOTIFICATION_EP_NUM, 8, CDC_RNDIS_DATA_OUT_EP_NUM, CDC_RNDIS_DATA_IN_EP_NUM, 64),
-        // TODO ECM must be an alternative to RNDIS, RNDIS works on Windows, ECM on iOS, Linux can handle both!?
-        // TUD_CDC_ECM_DESCRIPTOR(ITF_NUM_CDC_RNDIS_COM, STRID_INTERFACE_RNDIS, STRID_MAC, CDC_RNDIS_NOTIFICATION_EP_NUM, 64, CDC_RNDIS_DATA_OUT_EP_NUM, CDC_RNDIS_DATA_IN_EP_NUM, 64, CFG_TUD_NET_MTU),
+        #if USE_RNDIS
+            TUD_RNDIS_DESCRIPTOR(ITF_NUM_CDC_RNDIS_COM, STRID_INTERFACE_RNDIS, CDC_RNDIS_NOTIFICATION_EP_NUM, 8, CDC_RNDIS_DATA_OUT_EP_NUM, CDC_RNDIS_DATA_IN_EP_NUM, 64),
+        #else
+            // TODO ECM must be an alternative to RNDIS, RNDIS works on Windows, ECM on iOS, Linux can handle both!?
+            TUD_CDC_ECM_DESCRIPTOR(ITF_NUM_CDC_RNDIS_COM, STRID_INTERFACE_RNDIS, STRID_MAC, CDC_RNDIS_NOTIFICATION_EP_NUM, 64, CDC_RNDIS_DATA_OUT_EP_NUM, CDC_RNDIS_DATA_IN_EP_NUM, 64, CFG_TUD_NET_MTU),
+        #endif
     #else
         TUD_CDC_NCM_DESCRIPTOR(ITF_NUM_CDC_NCM_COM, STRID_INTERFACE_RNDIS, STRID_MAC, CDC_NCM_NOTIFICATION_EP_NUM, 64, CDC_NCM_DATA_OUT_EP_NUM, CDC_NCM_DATA_IN_EP_NUM, 64, CFG_TUD_NET_MTU),
     #endif
@@ -324,7 +337,11 @@ static char const* string_desc_arr[] =
     [STRID_INTERFACE_CDC_DEBUG]  = "YAPicoprobe CDC-DEBUG",             // Interface descriptor for CDC DEBUG
 #if OPT_SYSVIEW_RNDIS
     #if CFG_TUD_ECM_RNDIS
-        [STRID_INTERFACE_RNDIS]  = "YaPicoprobe SysView RNDIS",         // Interface descriptor for SysView RNDIS
+        #if USE_RNDIS
+            [STRID_INTERFACE_RNDIS]  = "YaPicoprobe SysView RNDIS",     // Interface descriptor for SysView RNDIS
+        #else
+            [STRID_INTERFACE_RNDIS]  = "YaPicoprobe SysView ECM",       // Interface descriptor for SysView RNDIS
+        #endif
     #else
         [STRID_INTERFACE_RNDIS]  = "YaPicoprobe SysView NCM",           // Interface descriptor for SysView NCM
     #endif
