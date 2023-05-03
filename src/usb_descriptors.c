@@ -108,7 +108,7 @@ tusb_desc_device_t const desc_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
-    .bcdUSB             = 0x0200,      // USB Specification version 2.1 for BOS (DAPv2) under Windows
+    .bcdUSB             = 0x0210,      // USB Specification version 2.1 for BOS (DAPv2) under Windows
 
     // Use Interface Association Descriptor (IAD) device class
     .bDeviceClass       = TUSB_CLASS_MISC,
