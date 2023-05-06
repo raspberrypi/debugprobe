@@ -23,11 +23,8 @@
  *
  */
 
-#ifndef _NET_STARTER_H
-#define _NET_STARTER_H
-
-
-#include <stdint.h>
+#ifndef _NET_ECHO_H
+#define _NET_ECHO_H
 
 
 #ifdef __cplusplus
@@ -35,7 +32,7 @@
 #endif
 
 
-void net_starter_init(uint32_t task_prio);
+void net_echo_init(void);
 
 
 #ifdef __cplusplus

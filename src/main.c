@@ -68,7 +68,8 @@
     #include "pico-sigrok/sigrok.h"
 #endif
 #if OPT_SYSVIEW_RNDIS
-    #include "net_starter.h"
+    #include "net_glue.h"
+    #include "net_echo.h"
 #endif
 
 
@@ -471,6 +472,7 @@ void usb_thread(void *ptr)
 
 #if OPT_SYSVIEW_RNDIS
     net_starter_init(3);  // TODO
+    net_echo_init();
 #endif
 
 #if CFG_TUD_VENDOR
