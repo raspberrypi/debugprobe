@@ -33,17 +33,17 @@
 #define __LWIPOPTS_H__
 
 /* Prevent having to link sys_arch.c (we don't test the API layers in unit tests) */
-#define NO_SYS                          1
+#define NO_SYS                          0
 #define MEM_ALIGNMENT                   4
 #define LWIP_RAW                        0
-#define LWIP_NETCONN                    0
+#define LWIP_NETCONN                    0           // ????
 #define LWIP_SOCKET                     0
 #define LWIP_DHCP                       0
 #define LWIP_ICMP                       1
 #define LWIP_UDP                        1
 #define LWIP_TCP                        1
-#define LWIP_IPV4                       1
-#define LWIP_IPV6                       0
+//#define LWIP_IPV4                       1
+//#define LWIP_IPV6                       0
 #define ETH_PAD_SIZE                    0
 #define LWIP_IP_ACCEPT_UDP_PORT(p)      ((p) == PP_NTOHS(67))
 
@@ -53,16 +53,16 @@
 
 #define ETHARP_SUPPORT_STATIC_ENTRIES   1
 
-#define LWIP_HTTPD_CGI                  0
-#define LWIP_HTTPD_SSI                  0
-#define LWIP_HTTPD_SSI_INCLUDE_TAG      0
+//#define LWIP_HTTPD_CGI                  0
+//#define LWIP_HTTPD_SSI                  0
+//#define LWIP_HTTPD_SSI_INCLUDE_TAG      0
 
 #define LWIP_SINGLE_NETIF               1
 
 //#define PBUF_POOL_SIZE                  2
-//
-//#define HTTPD_USE_CUSTOM_FSDATA         0
-//
+////
+////#define HTTPD_USE_CUSTOM_FSDATA         0
+////
 //#define LWIP_MULTICAST_PING             1
 //#define LWIP_BROADCAST_PING             1
 //#define LWIP_IPV6_MLD                   0
@@ -73,25 +73,30 @@
 //
 //// meine Versuche
 //#define LWIP_TCPIP_CORE_LOCKING         1
-
+#define LWIP_PROVIDE_ERRNO              1
+#define TCPIP_MBOX_SIZE                 32
+#define TCPIP_THREAD_STACKSIZE          2048
+#define TCPIP_THREAD_PRIO               10
+//#define LWIP_ETHERNET                   1                 // bringt nix
+//#define LWIP_ARP                        1                 // bringt nix
 
 
 
 // Debugging (was sonst?)
-#define LWIP_DEBUG
+//#define LWIP_DEBUG
 
 #define API_LIB_DEBUG                   LWIP_DBG_ON
 #define API_MSG_DEBUG                   LWIP_DBG_ON
 #define AUTOIP_DEBUG                    LWIP_DBG_ON
 #define DHCP_DEBUG                      LWIP_DBG_ON
 #define DNS_DEBUG                       LWIP_DBG_ON
-#define ETHARP_DEBUG                    LWIP_DBG_ON
+#define ETHARP_DEBUG                    LWIP_DBG_OFF
 #define ICMP_DEBUG                      LWIP_DBG_ON
 #define IGMP_DEBUG                      LWIP_DBG_ON
 #define INET_DEBUG                      LWIP_DBG_ON
 #define IP_DEBUG                        LWIP_DBG_ON
 #define NETIF_DEBUG                     LWIP_DBG_ON
-#define PBUF_DEBUG                      LWIP_DBG_ON
+#define PBUF_DEBUG                      LWIP_DBG_OFF
 #define RAW_DEBUG                       LWIP_DBG_ON
 #define SLIP_DEBUG                      LWIP_DBG_ON
 #define SOCKETS_DEBUG                   LWIP_DBG_ON

@@ -31,17 +31,12 @@
 #include "picoprobe_config.h"
 
 
-#if OPT_SYSVIEW_RNDIS
-    uint8_t tud_network_mac_address[6] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x89};
-#endif
-
-
 //--------------------------------------------------------------------+
 // String enums
 //--------------------------------------------------------------------+
 
 // 0 -> ECM, OPT_SYSVIEW_RNDIS must be enabled
-#define USE_RNDIS    0
+#define USE_RNDIS    1
 
 enum
 {
@@ -61,42 +56,6 @@ enum
     STRID_INTERFACE_RNDIS,
     STRID_MAC,
 #endif
-};
-
-
-enum
-{
-#if CFG_TUD_VENDOR
-    ITF_NUM_PROBE_VENDOR,               // Old versions of Keil MDK only look at interface 0
-#endif
-#if CFG_TUD_HID
-    ITF_NUM_PROBE_HID,
-#endif
-#if CFG_TUD_CDC_UART
-    ITF_NUM_CDC_UART_COM,
-    ITF_NUM_CDC_UART_DATA,
-#endif
-#if OPT_SIGROK
-    ITF_NUM_CDC_SIGROK_COM,
-    ITF_NUM_CDC_SIGROK_DATA,
-#endif
-#if CFG_TUD_MSC
-    ITF_NUM_MSC,
-#endif
-#if CFG_TUD_CDC_DEBUG
-    ITF_NUM_CDC_DEBUG_COM,
-    ITF_NUM_CDC_DEBUG_DATA,
-#endif
-#if OPT_SYSVIEW_RNDIS
-    #if CFG_TUD_ECM_RNDIS
-        ITF_NUM_CDC_RNDIS_COM,
-        ITF_NUM_CDC_RNDIS_DATA,
-    #else
-        ITF_NUM_CDC_NCM_COM,
-        ITF_NUM_CDC_NCM_DATA,
-    #endif
-#endif
-    ITF_NUM_TOTAL
 };
 
 
@@ -130,19 +89,6 @@ tusb_desc_device_t const desc_device =
 // Application return pointer to descriptor
 uint8_t const * tud_descriptor_device_cb(void)
 {
-#if OPT_SYSVIEW_RNDIS
-#if 0
-    static bool initialized;
-
-    if ( !initialized) {
-        pico_unique_board_id_t id;
-
-        initialized = true;
-        pico_get_unique_board_id( &id);
-        memcpy(tud_network_mac_address, &id, sizeof(tud_network_mac_address));
-    }
-#endif
-#endif
     return (uint8_t const *) &desc_device;
 }
 
@@ -150,6 +96,42 @@ uint8_t const * tud_descriptor_device_cb(void)
 //--------------------------------------------------------------------+
 // Configuration Descriptor
 //--------------------------------------------------------------------+
+
+enum
+{
+#if CFG_TUD_VENDOR
+    ITF_NUM_PROBE_VENDOR,               // Old versions of Keil MDK only look at interface 0
+#endif
+#if CFG_TUD_HID
+    ITF_NUM_PROBE_HID,
+#endif
+#if CFG_TUD_CDC_UART
+    ITF_NUM_CDC_UART_COM,
+    ITF_NUM_CDC_UART_DATA,
+#endif
+#if OPT_SIGROK
+    ITF_NUM_CDC_SIGROK_COM,
+    ITF_NUM_CDC_SIGROK_DATA,
+#endif
+#if CFG_TUD_MSC
+    ITF_NUM_MSC,
+#endif
+#if OPT_SYSVIEW_RNDIS
+    #if CFG_TUD_ECM_RNDIS
+        ITF_NUM_CDC_RNDIS_COM,
+        ITF_NUM_CDC_RNDIS_DATA,
+    #else
+        ITF_NUM_CDC_NCM_COM,
+        ITF_NUM_CDC_NCM_DATA,
+    #endif
+#endif
+#if CFG_TUD_CDC_DEBUG
+    ITF_NUM_CDC_DEBUG_COM,
+    ITF_NUM_CDC_DEBUG_DATA,
+#endif
+    ITF_NUM_TOTAL
+};
+
 
 // don't know if consecutive numbering is required.  Let's do it anyway
 enum
@@ -177,21 +159,19 @@ enum
     MSC_OUT_EP_CNT,
     MSC_IN_EP_CNT,
 #endif
+#if OPT_SYSVIEW_RNDIS
+    #if CFG_TUD_ECM_RNDIS
+        CDC_RNDIS_NOTIFICATION_EP_CNT,
+        CDC_RNDIS_DATA_EP_CNT,
+    #else
+        CDC_NCM_NOTIFICATION_EP_CNT,
+        CDC_NCM_DATA_EP_CNT,
+    #endif
+#endif
 #if CFG_TUD_CDC_DEBUG
     CDC_DEBUG_NOTIFICATION_EP_CNT,
     CDC_DEBUG_DATA_OUT_EP_CNT,
     CDC_DEBUG_DATA_IN_EP_CNT,
-#endif
-#if OPT_SYSVIEW_RNDIS
-    #if CFG_TUD_ECM_RNDIS
-        CDC_RNDIS_NOTIFICATION_EP_CNT,
-        CDC_RNDIS_DATA_OUT_EP_CNT,
-        CDC_RNDIS_DATA_IN_EP_CNT,
-    #else
-        CDC_NCM_NOTIFICATION_EP_CNT,
-        CDC_NCM_DATA_OUT_EP_CNT,
-        CDC_NCM_DATA_IN_EP_CNT,
-    #endif
 #endif
 };
 
@@ -218,21 +198,21 @@ enum
     #define MSC_OUT_EP_NUM                  (MSC_OUT_EP_CNT + 0x00)
     #define MSC_IN_EP_NUM                   (MSC_IN_EP_CNT + 0x80)
 #endif
+#if OPT_SYSVIEW_RNDIS
+    #if CFG_TUD_ECM_RNDIS
+        #define CDC_RNDIS_NOTIFICATION_EP_NUM   (CDC_RNDIS_NOTIFICATION_EP_CNT + 0x80)
+        #define CDC_RNDIS_DATA_OUT_EP_NUM       (CDC_RNDIS_DATA_EP_CNT + 0x00)
+        #define CDC_RNDIS_DATA_IN_EP_NUM        (CDC_RNDIS_DATA_EP_CNT + 0x80)
+    #else
+        #define CDC_NCM_NOTIFICATION_EP_NUM     (CDC_NCM_NOTIFICATION_EP_CNT + 0x80)
+        #define CDC_NCM_DATA_OUT_EP_NUM         (CDC_NCM_DATA_EP_CNT + 0x00)
+        #define CDC_NCM_DATA_IN_EP_NUM          (CDC_NCM_DATA_EP_CNT + 0x80)
+    #endif
+#endif
 #if CFG_TUD_CDC_DEBUG
     #define CDC_DEBUG_NOTIFICATION_EP_NUM   (CDC_DEBUG_NOTIFICATION_EP_CNT + 0x80)
     #define CDC_DEBUG_DATA_OUT_EP_NUM       (CDC_DEBUG_DATA_OUT_EP_CNT + 0x00)
     #define CDC_DEBUG_DATA_IN_EP_NUM        (CDC_DEBUG_DATA_IN_EP_CNT + 0x80)
-#endif
-#if OPT_SYSVIEW_RNDIS
-    #if CFG_TUD_ECM_RNDIS
-        #define CDC_RNDIS_NOTIFICATION_EP_NUM   (CDC_RNDIS_NOTIFICATION_EP_CNT + 0x80)
-        #define CDC_RNDIS_DATA_OUT_EP_NUM       (CDC_RNDIS_DATA_OUT_EP_CNT + 0x00)
-        #define CDC_RNDIS_DATA_IN_EP_NUM        (CDC_RNDIS_DATA_IN_EP_CNT + 0x80)
-    #else
-        #define CDC_NCM_NOTIFICATION_EP_NUM     (CDC_NCM_NOTIFICATION_EP_CNT + 0x80)
-        #define CDC_NCM_DATA_OUT_EP_NUM         (CDC_NCM_DATA_OUT_EP_CNT + 0x00)
-        #define CDC_NCM_DATA_IN_EP_NUM          (CDC_NCM_DATA_IN_EP_CNT + 0x80)
-    #endif
 #endif
 
 
@@ -288,9 +268,6 @@ static uint8_t const desc_configuration[] =
 #if CFG_TUD_MSC
     TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, STRID_INTERFACE_MSC, MSC_OUT_EP_NUM, MSC_IN_EP_NUM, 64),
 #endif
-#if CFG_TUD_CDC_DEBUG
-    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_DEBUG_COM, STRID_INTERFACE_CDC_DEBUG, CDC_DEBUG_NOTIFICATION_EP_NUM, 64, CDC_DEBUG_DATA_OUT_EP_NUM, CDC_DEBUG_DATA_IN_EP_NUM, 64),
-#endif
 #if OPT_SYSVIEW_RNDIS
     #if CFG_TUD_ECM_RNDIS
         #if USE_RNDIS
@@ -302,6 +279,9 @@ static uint8_t const desc_configuration[] =
     #else
         TUD_CDC_NCM_DESCRIPTOR(ITF_NUM_CDC_NCM_COM, STRID_INTERFACE_RNDIS, STRID_MAC, CDC_NCM_NOTIFICATION_EP_NUM, 64, CDC_NCM_DATA_OUT_EP_NUM, CDC_NCM_DATA_IN_EP_NUM, 64, CFG_TUD_NET_MTU),
     #endif
+#endif
+#if CFG_TUD_CDC_DEBUG
+    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_DEBUG_COM, STRID_INTERFACE_CDC_DEBUG, CDC_DEBUG_NOTIFICATION_EP_NUM, 64, CDC_DEBUG_DATA_OUT_EP_NUM, CDC_DEBUG_DATA_IN_EP_NUM, 64),
 #endif
 };
 

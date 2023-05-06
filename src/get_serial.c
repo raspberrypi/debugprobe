@@ -28,15 +28,28 @@
 #include "pico/unique_id.h"
 #include "get_serial.h"
 
+
 /* C string for iSerialNumber in USB Device Descriptor, two chars per byte + terminating NUL */
 char usb_serial[PICO_UNIQUE_BOARD_ID_SIZE_BYTES * 2 + 1];
 
-/* Why a uint8_t[8] array inside a struct instead of an uint64_t an inquiring mind might wonder */
-static pico_unique_board_id_t uID;
+#if OPT_SYSVIEW_RNDIS
+    uint8_t tud_network_mac_address[6];
+#endif
+
 
 void usb_serial_init(void)
 {
+    pico_unique_board_id_t uID;
+
     pico_get_unique_board_id(&uID);
+
+#if OPT_SYSVIEW_RNDIS
+    tud_network_mac_address[0] = 0x02;     // never ever use 0x11 here!
+    for (int i = 1;  i < sizeof(tud_network_mac_address);  ++i)
+    {
+        tud_network_mac_address[i] = uID.id[PICO_UNIQUE_BOARD_ID_SIZE_BYTES - i];
+    }
+#endif
 
     for (int i = 0; i < PICO_UNIQUE_BOARD_ID_SIZE_BYTES * 2; i++)
     {

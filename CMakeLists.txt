@@ -204,7 +204,7 @@ if(OPT_SYSVIEW_RNDIS)
     )
     
     target_link_libraries(${PROJECT} PRIVATE
-        pico_lwip_nosys
+        pico_lwip_freertos
     )
     
 #    message("--------- " ${PICO_LWIP_PATH})

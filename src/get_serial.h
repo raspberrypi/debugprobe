@@ -29,6 +29,10 @@
 /* Contains unique serial number string (NUL terminated) after call to init_usb_serial */
 extern char usb_serial[];
 
+#if OPT_SYSVIEW_RNDIS
+    extern uint8_t tud_network_mac_address[];
+#endif
+
 /* Fills unique_serial with the flash unique id */
 extern void usb_serial_init(void);
 
