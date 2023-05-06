@@ -38,20 +38,11 @@
 
 #include "picoprobe_config.h"
 
-#if 0
-    #include "lwip/init.h"
-    #include "lwip/ip.h"
-    #include "lwip/etharp.h"
-    #include "lwip/ethip6.h"
-    #include "lwip/tcpip.h"
-    #include "lwip/timeouts.h"
-#else
-    #include "lwip/init.h"
-    #include "lwip/timeouts.h"
-    #include "lwip/ethip6.h"
+#include "lwip/init.h"
+#include "lwip/timeouts.h"
+#include "lwip/ethip6.h"
 
-    #include "lwip/tcpip.h"
-#endif
+#include "lwip/tcpip.h"
 #if LWIP_IPV4
     #include "dhserver.h"
     #include "dnserver.h"
@@ -423,25 +414,6 @@ echo_close(struct tcp_pcb *tpcb, struct echo_state *es)
 //----------------------------------------------------------------------------------------------------------------------
 
 
-
-#if 0
-static void service_traffic(void)
-{
-    /* handle any packet received by tud_network_recv_cb() */
-    if (received_frame) {
-        printf("service_traffic(): %p\n", received_frame);
-
-        ethernet_input(received_frame, &netif_data);
-        pbuf_free(received_frame);
-        received_frame = NULL;
-        tud_network_recv_renew();
-    }
-    sys_check_timeouts();
-}   // service_traffic
-#endif
-
-
-
 #if LWIP_IPV4
 /* handle any DNS requests from dns-server */
 bool dns_query_proc(const char *name, ip4_addr_t *addr)
@@ -460,15 +432,12 @@ bool dns_query_proc(const char *name, ip4_addr_t *addr)
 
 void tud_network_init_cb(void)
 {
-    printf("!!!!!!!!!!!!!!tud_network_init_cb() - %p\n", received_frame);
-
     /* if the network is re-initializing and we have a leftover packet, we must do a cleanup */
     if (received_frame)
     {
         pbuf_free(received_frame);
         received_frame = NULL;
     }
-    printf("tud_network_init_cb() d\n");
 }   // tud_network_init_cb
 
 
@@ -502,7 +471,7 @@ uint16_t tud_network_xmit_cb(uint8_t *dst, void *ref, uint16_t arg)
 {
     //printf("!!!!!!!!!!!!!!tud_network_xmit_cb(%p,%p,%u)\n", dst, ref, arg);
 
-#if 1
+#if 0
     struct pbuf *p = (struct pbuf *)ref;
     struct pbuf *q;
     uint16_t len = 0;
@@ -531,20 +500,9 @@ uint16_t tud_network_xmit_cb(uint8_t *dst, void *ref, uint16_t arg)
 
 
 
-#if 1
-void tud_network_link_state_cb(bool state)
-{
-    printf("!!!!!!!!!!!!!!tud_network_link_state_cb(%d)\n", state);
-}   // tud_network_link_state_cb
-#endif
-
-
-
-static err_t my_linkoutput_fn(struct netif *netif, struct pbuf *p)
+static err_t linkoutput_fn(struct netif *netif, struct pbuf *p)
 {
     (void)netif;
-
-    //printf("my_linkoutput_fn()\n");
 
     for (;;) {
         /* if TinyUSB isn't ready, we must signal back to lwip that there is nothing we can do */
@@ -556,76 +514,46 @@ static err_t my_linkoutput_fn(struct netif *netif, struct pbuf *p)
             tud_network_xmit(p, 0 /* unused for this example */);
             return ERR_OK;
         }
-
-        /* transfer execution to TinyUSB in the hopes that it will finish transmitting the prior packet */
-#if NO_SYS
-        //tud_task();
-#endif
     }
-}   // my_linkoutput_fn
+}   // linkoutput_fn
 
 
 
 #if LWIP_IPV4
-static err_t my_ip4_output_fn(struct netif *netif, struct pbuf *p, const ip4_addr_t *addr)
+static err_t ip4_output_fn(struct netif *netif, struct pbuf *p, const ip4_addr_t *addr)
 {
-    //printf("my_ip4_output_fn()\n");
-
     return etharp_output(netif, p, addr);
-}   // my_ip4_output_fn
+}   // ip4_output_fn
 #endif
 
 
 
 #if LWIP_IPV6
-static err_t my_ip6_output_fn(struct netif *netif, struct pbuf *p, const ip6_addr_t *addr)
+static err_t ip6_output_fn(struct netif *netif, struct pbuf *p, const ip6_addr_t *addr)
 {
-    printf("my_ip6_output_fn()\n");
-
     return ethip6_output(netif, p, addr);
-}   // my_ip6_output_fn
+}   // ip6_output_fn
 #endif
 
 
 
-#if 0
-err_t my_ip_input(struct pbuf *p, struct netif *inp)
+static err_t netif_init_cb(struct netif *netif)
 {
-    printf("my_ip_input(%p,%p)\n", p, inp);
-    if (p != NULL) {
-        if (IP_HDR_GET_VERSION(p->payload) == 6) {
-            printf("my_ip_input 6\n");
-            //return ip6_input(p, inp);
-            return ERR_ABRT;
-        }
-        printf("my_ip_input 4\n");
-        return ip4_input(p, inp);
-    }
-    return ERR_VAL;
-}   // my_ip_input
-#endif
-
-
-
-static err_t my_netif_init_cb(struct netif *netif)
-{
-    printf("my_netif_init_cb(%p)\n", netif);
-
     LWIP_ASSERT("netif != NULL", (netif != NULL));
     netif->mtu = CFG_TUD_NET_MTU;
     netif->flags = NETIF_FLAG_BROADCAST | NETIF_FLAG_ETHARP | NETIF_FLAG_LINK_UP | NETIF_FLAG_UP;
     netif->state = NULL;
     netif->name[0] = 'E';
     netif->name[1] = 'X';
-    netif->linkoutput = my_linkoutput_fn;
+    netif->linkoutput = linkoutput_fn;
 #if LWIP_IPV4
-    netif->output = my_ip4_output_fn;
+    netif->output = ip4_output_fn;
 #endif
 #if LWIP_IPV6
-    netif->output_ip6 = my_ip6_output_fn;
+    netif->output_ip6 = ip6_output_fn;
 #endif
     return ERR_OK;
-}   // my_netif_init_cb
+}   // netif_init_cb
 
 
 
@@ -633,46 +561,31 @@ static void init_lwip(void)
 {
     struct netif *netif = &netif_data;
 
-    printf("init_lwip()\n");
-#if NO_SYS
-    lwip_init();
-#else
     tcpip_init(NULL, NULL);
-#endif
 
     /* the lwip virtual MAC address must be different from the host's; to ensure this, we toggle the LSbit */
-#if 0
     netif->hwaddr_len = sizeof(tud_network_mac_address);
     memcpy(netif->hwaddr, tud_network_mac_address, sizeof(tud_network_mac_address));
-#else
-    netif->hwaddr_len = 6;
-    memcpy(netif->hwaddr, tud_network_mac_address, 6);
-#endif
     netif->hwaddr[5] ^= 0x01;
 
 #if LWIP_IPV4
-    netif = netif_add(netif, &ipaddr, &netmask, &gateway, NULL, my_netif_init_cb, ip_input);
+    netif = netif_add(netif, &ipaddr, &netmask, &gateway, NULL, netif_init_cb, ip_input);
 #else
-    netif = netif_add(netif, NULL, my_netif_init_cb, ip_input);
+    netif = netif_add(netif, NULL, netif_init_cb, ip_input);
 #endif
-    printf("init_lwip() - %p\n", netif);
 #if LWIP_IPV6
     netif_create_ip6_linklocal_address(netif, 1);
 #endif
     netif_set_default(netif);
 
-    printf("init_lwip() a\n");
     while ( !netif_is_up(netif))
-        printf("init_lwip() ax\n");
+        ;
 #if LWIP_IPV4
-    printf("init_lwip() b\n");
     while (dhserv_init(&dhcp_config) != ERR_OK)
-        printf("init_lwip() bx\n");
-    printf("init_lwip() c\n");
+        ;
     while (dnserv_init(IP_ADDR_ANY, 53, dns_query_proc) != ERR_OK)
-        printf("init_lwip() cx\n");
+        ;
 #endif
-    printf("init_lwip() d\n");
 }   // init_lwip
 
 
@@ -685,20 +598,14 @@ void net_starter_thread(void *ptr)
 
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(10));
-#if NO_SYS
-        tud_task();
-#endif
 
         /* handle any packet received by tud_network_recv_cb() */
         if (received_frame) {
-            //printf("service_traffic(): %p\n", received_frame);
-
             ethernet_input(received_frame, &netif_data);
             pbuf_free(received_frame);
             received_frame = NULL;
             tud_network_recv_renew();
         }
-        //sys_check_timeouts();
     }
 }   // net_starter_thread
 
@@ -706,9 +613,6 @@ void net_starter_thread(void *ptr)
 
 void net_starter_init(uint32_t task_prio)
 {
-    printf("net_starter_init()\n");
-
-#if 1
     init_lwip();
 
     xTaskCreateAffinitySet(net_starter_thread, "NET_STARTER", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_net_starter);
@@ -716,5 +620,4 @@ void net_starter_init(uint32_t task_prio)
     {
         picoprobe_error("net_starter_init: cannot create task_net_starter\n");
     }
-#endif
 }   // net_starter_init

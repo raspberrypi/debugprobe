@@ -44,10 +44,10 @@ void usb_serial_init(void)
     pico_get_unique_board_id(&uID);
 
 #if OPT_SYSVIEW_RNDIS
-    tud_network_mac_address[0] = 0x02;     // never ever use 0x11 here!
+    tud_network_mac_address[0] = 0xfe;     // 0xfe is allowed for local use, never use odd numbers here (group/multicast)
     for (int i = 1;  i < sizeof(tud_network_mac_address);  ++i)
     {
-        tud_network_mac_address[i] = uID.id[PICO_UNIQUE_BOARD_ID_SIZE_BYTES - i];
+        tud_network_mac_address[i] = uID.id[i + (PICO_UNIQUE_BOARD_ID_SIZE_BYTES - sizeof(tud_network_mac_address))];
     }
 #endif
 
