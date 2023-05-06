@@ -68,7 +68,6 @@ void cdc_debug_thread(void *ptr)
  */
 {
     for (;;) {
-#if CFG_TUD_CDC_DEBUG
         if ( !m_connected) {
             // wait here until connected (and until my terminal program is ready)
             while ( !m_connected) {
@@ -108,10 +107,6 @@ void cdc_debug_thread(void *ptr)
 
             tud_cdc_n_read(CDC_UART_N, &ch, sizeof(ch));
         }
-
-#else
-        xStreamBufferReceive(stream_printf, cdc_debug_buf, sizeof(cdc_debug_buf), pdMS_TO_TICKS(500));
-#endif
     }
 }   // cdc_debug_thread
 
@@ -123,12 +118,10 @@ void cdc_debug_line_state_cb(bool dtr, bool rts)
  * This seems to be necessary to survive e.g. a restart of the host (Linux)
  */
 {
-#if CFG_TUD_CDC_DEBUG
     tud_cdc_n_write_clear(CDC_DEBUG_N);
     tud_cdc_n_read_flush(CDC_DEBUG_N);
     m_connected = (dtr  ||  rts);
     xEventGroupSetBits(events, EV_TX_COMPLETE);
-#endif
 }   // cdc_debug_line_state_cb
 
 

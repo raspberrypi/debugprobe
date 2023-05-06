@@ -19,12 +19,20 @@ cmake_minimum_required(VERSION 3.12)
 if(PICO_BOARD STREQUAL "")
     set(PICO_BOARD pico)
 endif()
-option(OPT_TARGET_UART   "Enable CDC for target UART I/O"  1)
-option(OPT_CMSIS_DAPV1   "Enable CMSIS-DAPv1"              1)
-option(OPT_CMSIS_DAPV2   "Enable CMSIS-DAPv2"              1)
-option(OPT_SYSVIEW_RNDIS "Enable SysView over RNDIS"       1)
-option(OPT_SIGROK        "Enable sigrok"                   0)
-option(OPT_MSC           "Enable Mass Storage Device"      1)
+option(OPT_TARGET_UART     "Enable CDC for target UART I/O"         1)
+option(OPT_CMSIS_DAPV1     "Enable CMSIS-DAPv1"                     1)
+option(OPT_CMSIS_DAPV2     "Enable CMSIS-DAPv2"                     1)
+option(OPT_SYSVIEW_RNDIS   "Enable SysView over RNDIS"              1)
+option(OPT_SIGROK          "Enable sigrok"                          0)
+option(OPT_MSC             "Enable Mass Storage Device"             1)
+
+if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+    set(DEFAULT_OPT_PROBE_DEBUG_OUT 1)
+else()
+    set(DEFAULT_OPT_PROBE_DEBUG_OUT 0)
+endif()
+option(OPT_PROBE_DEBUG_OUT "Enable CDC for probe debug output"      ${DEFAULT_OPT_PROBE_DEBUG_OUT})
+
 
 #
 # SDK options
@@ -100,12 +108,6 @@ add_executable(${PROJECT}
         src/usb_descriptors.c
 )
 
-if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-        target_sources(${PROJECT} PRIVATE
-                src/cdc_debug.c
-        )
-endif()
-
 target_sources(${PROJECT} PRIVATE
         CMSIS_5/CMSIS/DAP/Firmware/Source/DAP.c
         CMSIS_5/CMSIS/DAP/Firmware/Source/JTAG_DP.c
@@ -172,6 +174,12 @@ if(OPT_TARGET_UART)
     add_compile_definitions(OPT_TARGET_UART=1)
     target_sources(${PROJECT} PRIVATE
         src/cdc_uart.c
+    )
+endif()
+if(OPT_PROBE_DEBUG_OUT)
+    add_compile_definitions(OPT_PROBE_DEBUG_OUT=1)
+    target_sources(${PROJECT} PRIVATE
+        src/cdc_debug.c
     )
 endif()
 if(OPT_CMSIS_DAPV1)

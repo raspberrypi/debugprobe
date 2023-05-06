@@ -44,7 +44,7 @@
 
 #include "picoprobe_config.h"
 #include "probe.h"
-#ifndef NDEBUG
+#if OPT_PROBE_DEBUG_OUT
     #include "cdc_debug.h"
 #endif
 #if OPT_TARGET_UART
@@ -125,7 +125,7 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
         cdc_uart_line_state_cb(dtr, rts);
     }
 #endif
-#if CFG_TUD_CDC_DEBUG
+#if OPT_PROBE_DEBUG_OUT
     if (itf == CDC_DEBUG_N) {
         cdc_debug_line_state_cb(dtr, rts);
     }
@@ -180,7 +180,7 @@ void tud_cdc_tx_complete_cb(uint8_t itf)
         cdc_uart_tx_complete_cb();
     }
 #endif
-#if CFG_TUD_CDC_DEBUG
+#if OPT_PROBE_DEBUG_OUT
     if (itf == CDC_DEBUG_N) {
         cdc_debug_tx_complete_cb();
     }
@@ -507,7 +507,7 @@ int main(void)
     usb_serial_init();
 
     // initialize stdio and should be done before anything else (that does printf())
-#if !defined(NDEBUG)
+#if OPT_PROBE_DEBUG_OUT
     cdc_debug_init(CDC_DEBUG_TASK_PRIO);
 #endif
 
@@ -532,7 +532,7 @@ int main(void)
 #if OPT_SIGROK
     picoprobe_info_out(" [sigrok CDC]");
 #endif
-#if CFG_TUD_CDC_DEBUG
+#if OPT_PROBE_DEBUG_OUT
     picoprobe_info_out(" [probe debug CDC]");
 #endif
 #if OPT_MSC
