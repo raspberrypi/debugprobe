@@ -5,8 +5,7 @@
 # - PICO_BOARD                   pico|pico_w|pico_debug_probe, default "pico"
 # - PICOPROBE_VERSION_MAJOR      major version number
 # - PICOPROBE_VERSION_MINOR      minor version number
-# - OPT_SIGROK                   enable/disable sigrok module, default "1"
-# - OPT_SYSVIEW_RNDIS            enable/disable sysview via RNDIS, default "0"
+# - lot more options below
 #
 # - GIT_HASH                     short git hash
 # - PROJECT                      project name for cmake
@@ -19,19 +18,20 @@ cmake_minimum_required(VERSION 3.12)
 if(PICO_BOARD STREQUAL "")
     set(PICO_BOARD pico)
 endif()
-option(OPT_TARGET_UART     "Enable CDC for target UART I/O"         1)
-option(OPT_CMSIS_DAPV1     "Enable CMSIS-DAPv1"                     1)
-option(OPT_CMSIS_DAPV2     "Enable CMSIS-DAPv2"                     1)
-option(OPT_SYSVIEW_RNDIS   "Enable SysView over RNDIS"              1)
-option(OPT_SIGROK          "Enable sigrok"                          0)
-option(OPT_MSC             "Enable Mass Storage Device"             1)
-
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     set(DEFAULT_OPT_PROBE_DEBUG_OUT 1)
 else()
     set(DEFAULT_OPT_PROBE_DEBUG_OUT 0)
 endif()
+
+option(OPT_CMSIS_DAPV1     "Enable CMSIS-DAPv1"                     0)
+option(OPT_CMSIS_DAPV2     "Enable CMSIS-DAPv2"                     0)
+option(OPT_TARGET_UART     "Enable CDC for target UART I/O"         1)
 option(OPT_PROBE_DEBUG_OUT "Enable CDC for probe debug output"      ${DEFAULT_OPT_PROBE_DEBUG_OUT})
+option(OPT_SIGROK          "Enable sigrok"                          0)
+option(OPT_MSC             "Enable Mass Storage Device"             0)
+option(OPT_NET_SYSVIEW     "Enable SysView over TCPIP"              1)
+option(OPT_NET_DNS         "Enable DNS on the Pico"                 0)    # all DNS is going over the Pico!?
 
 
 #
@@ -214,15 +214,14 @@ endif()
 #
 # this is for SystemView operation (requires RTT)
 #
-if(OPT_SYSVIEW_RNDIS)
-    add_compile_definitions(OPT_SYSVIEW_RNDIS=1)
+if(OPT_NET_SYSVIEW)
+    add_compile_definitions(OPT_NET_SYSVIEW=1)
     
     target_sources(${PROJECT} PRIVATE
         src/net_glue.c
         src/net_echo.c
         
         ${PICO_TINYUSB_PATH}/lib/networking/dhserver.c
-        ${PICO_TINYUSB_PATH}/lib/networking/dnserver.c
         ${PICO_TINYUSB_PATH}/lib/networking/rndis_reports.c
     )
 
@@ -233,6 +232,13 @@ if(OPT_SYSVIEW_RNDIS)
     target_link_libraries(${PROJECT} PRIVATE
         pico_lwip_freertos
     )
+
+    if(OPT_NET_DNS)
+        add_compile_definitions(OPT_NET_DNS=1)
+        target_sources(${PROJECT} PRIVATE
+            ${PICO_TINYUSB_PATH}/lib/networking/dnserver.c
+        )
+    endif()
     
 #    message("--------- " ${PICO_LWIP_PATH})
 #    message("--------- " ${PICO_LWIP_CONTRIB_PATH})

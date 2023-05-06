@@ -29,7 +29,7 @@
 /* Contains unique serial number string (NUL terminated) after call to init_usb_serial */
 extern char usb_serial[];
 
-#if OPT_SYSVIEW_RNDIS
+#if OPT_NET_SYSVIEW
     extern uint8_t tud_network_mac_address[];
 #endif
 

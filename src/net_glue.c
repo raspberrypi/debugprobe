@@ -43,8 +43,8 @@
 #include "lwip/ethip6.h"
 
 #include "lwip/tcpip.h"
-#if LWIP_IPV4
-    #include "dhserver.h"
+#include "dhserver.h"
+#if OPT_NET_DNS
     #include "dnserver.h"
 #endif
 
@@ -63,31 +63,33 @@ static struct netif netif_data;
 /* shared between tud_network_recv_cb() and service_traffic() */
 static struct pbuf *received_frame;
 
-#if LWIP_IPV4
-    /* network parameters of this MCU */
-    static const ip4_addr_t ipaddr  = IPADDR4_INIT_BYTES(192, 168, 10, 1);
-    static const ip4_addr_t netmask = IPADDR4_INIT_BYTES(255, 255, 255, 0);
-    static const ip4_addr_t gateway = IPADDR4_INIT_BYTES(0, 0, 0, 0);
+/* network parameters of this MCU */
+static const ip4_addr_t ipaddr  = IPADDR4_INIT_BYTES(192, 168, 10, 1);
+static const ip4_addr_t netmask = IPADDR4_INIT_BYTES(255, 255, 255, 0);
+static const ip4_addr_t gateway = IPADDR4_INIT_BYTES(0, 0, 0, 0);
 
-    /* database IP addresses that can be offered to the host; this must be in RAM to store assigned MAC addresses */
-    static dhcp_entry_t entries[] =
-    {
-        /* mac ip address                          lease time */
-        { {0}, IPADDR4_INIT_BYTES(192, 168, 10, 2), 24 * 60 * 60 },
-        { {0}, IPADDR4_INIT_BYTES(192, 168, 10, 3), 24 * 60 * 60 },
-        { {0}, IPADDR4_INIT_BYTES(192, 168, 10, 4), 24 * 60 * 60 },
-    };
+/* database IP addresses that can be offered to the host; this must be in RAM to store assigned MAC addresses */
+static dhcp_entry_t entries[] =
+{
+    /* mac ip address                          lease time */
+    { {0}, IPADDR4_INIT_BYTES(192, 168, 10, 2), 24 * 60 * 60 },
+    { {0}, IPADDR4_INIT_BYTES(192, 168, 10, 3), 24 * 60 * 60 },
+    { {0}, IPADDR4_INIT_BYTES(192, 168, 10, 4), 24 * 60 * 60 },
+};
 
-    static const dhcp_config_t dhcp_config =
-    {
-        .router = IPADDR4_INIT_BYTES(0, 0, 0, 0),  /* router address (if any) */
-        .port = 67,                                /* listen port */
-        .dns = IPADDR4_INIT_BYTES(0, 0, 0, 0),     /* dns server (if any) */
-        "usb",                                     /* dns suffix */
-        TU_ARRAY_SIZE(entries),                    /* num entry */
-        entries                                    /* entries */
-    };
+static const dhcp_config_t dhcp_config =
+{
+    .router = IPADDR4_INIT_BYTES(0, 0, 0, 0),  /* router address (if any) */
+    .port = 67,                                /* listen port */
+#if OPT_NET_DNS
+    .dns = IPADDR4_INIT_BYTES(192, 168, 10, 1),/* dns server (if any) */
+#else
+    .dns = IPADDR4_INIT_BYTES(0, 0, 0, 0),
 #endif
+    "usb",                                     /* dns suffix */
+    TU_ARRAY_SIZE(entries),                    /* num entry */
+    entries                                    /* entries */
+};
 
 static TaskHandle_t   task_net_glue = NULL;
 
@@ -95,9 +97,12 @@ static EventGroupHandle_t  events;
 
 
 
-#if LWIP_IPV4
-/* handle any DNS requests from dns-server */
-bool dns_query_proc(const char *name, ip4_addr_t *addr)
+#if OPT_NET_DNS
+static bool dns_query_proc(const char *name, ip4_addr_t *addr)
+/**
+ * Handle any DNS requests from dns-server
+ * If enabled all DNS requests seem to go over the Pico!?
+ */
 {
     printf("dns_query_proc(%s,.)\n", name);
 
@@ -201,12 +206,10 @@ static err_t linkoutput_fn(struct netif *netif, struct pbuf *p)
 
 
 
-#if LWIP_IPV4
 static err_t ip4_output_fn(struct netif *netif, struct pbuf *p, const ip4_addr_t *addr)
 {
     return etharp_output(netif, p, addr);
 }   // ip4_output_fn
-#endif
 
 
 
@@ -228,9 +231,7 @@ static err_t netif_init_cb(struct netif *netif)
     netif->name[0] = 'E';
     netif->name[1] = 'X';
     netif->linkoutput = linkoutput_fn;
-#if LWIP_IPV4
     netif->output = ip4_output_fn;
-#endif
 #if LWIP_IPV6
     netif->output_ip6 = ip6_output_fn;
 #endif
@@ -250,11 +251,7 @@ static void init_lwip(void)
     memcpy(netif->hwaddr, tud_network_mac_address, sizeof(tud_network_mac_address));
     netif->hwaddr[5] ^= 0x01;
 
-#if LWIP_IPV4
     netif = netif_add(netif, &ipaddr, &netmask, &gateway, NULL, netif_init_cb, ip_input);
-#else
-    netif = netif_add(netif, NULL, netif_init_cb, ip_input);
-#endif
 #if LWIP_IPV6
     netif_create_ip6_linklocal_address(netif, 1);
 #endif
@@ -262,9 +259,10 @@ static void init_lwip(void)
 
     while ( !netif_is_up(netif))
         ;
-#if LWIP_IPV4
+
     while (dhserv_init(&dhcp_config) != ERR_OK)
         ;
+#if OPT_NET_DNS
     while (dnserv_init(IP_ADDR_ANY, 53, dns_query_proc) != ERR_OK)
         ;
 #endif

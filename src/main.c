@@ -69,7 +69,7 @@
     #include "pico-sigrok/cdc_sigrok.h"
     #include "pico-sigrok/sigrok.h"
 #endif
-#if OPT_SYSVIEW_RNDIS
+#if OPT_NET_SYSVIEW
     #include "net_glue.h"
     #include "net_echo.h"
 #endif
@@ -475,7 +475,7 @@ void usb_thread(void *ptr)
     sigrok_init(SIGROK_TASK_PRIO);
 #endif
 
-#if OPT_SYSVIEW_RNDIS
+#if OPT_NET_SYSVIEW
     net_glue_init(NET_GLUE_TASK_PRIO);
     net_echo_init();
 #endif

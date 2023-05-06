@@ -32,7 +32,7 @@
 /* C string for iSerialNumber in USB Device Descriptor, two chars per byte + terminating NUL */
 char usb_serial[PICO_UNIQUE_BOARD_ID_SIZE_BYTES * 2 + 1];
 
-#if OPT_SYSVIEW_RNDIS
+#if OPT_NET_SYSVIEW
     uint8_t tud_network_mac_address[6];
 #endif
 
@@ -43,7 +43,7 @@ void usb_serial_init(void)
 
     pico_get_unique_board_id(&uID);
 
-#if OPT_SYSVIEW_RNDIS
+#if OPT_NET_SYSVIEW
     tud_network_mac_address[0] = 0xfe;     // 0xfe is allowed for local use, never use odd numbers here (group/multicast)
     for (int i = 1;  i < sizeof(tud_network_mac_address);  ++i)
     {

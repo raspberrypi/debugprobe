@@ -37,7 +37,7 @@
 #define LWIP_RAW                        0
 #define LWIP_NETCONN                    0
 #define LWIP_SOCKET                     0
-#define LWIP_DHCP                       0
+#define LWIP_DHCP                       1
 #define LWIP_ICMP                       1
 #define LWIP_UDP                        1
 #define LWIP_TCP                        1
@@ -60,17 +60,20 @@
 //#define LWIP_IPV6_MLD                   0
 //#define LWIP_IPV6_SEND_ROUTER_SOLICIT   0
 //
-//#define LWIP_PROVIDE_ERRNO              1
-//
-//
+
+
+//#define LWIP_AUTOIP  1
+//#define LWIP_DHCP_AUTOIP_COOP  (LWIP_DHCP && LWIP_AUTOIP)
+
+
 //// meine Versuche
 //#define LWIP_TCPIP_CORE_LOCKING         1
 #define LWIP_PROVIDE_ERRNO              1
+
+// for freertos mode
 #define TCPIP_MBOX_SIZE                 32
 #define TCPIP_THREAD_STACKSIZE          2048
 #define TCPIP_THREAD_PRIO               11
-//#define LWIP_ETHERNET                   1                 // bringt nix
-//#define LWIP_ARP                        1                 // bringt nix
 
 
 
