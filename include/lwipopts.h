@@ -68,7 +68,7 @@
 #define LWIP_PROVIDE_ERRNO              1
 #define TCPIP_MBOX_SIZE                 32
 #define TCPIP_THREAD_STACKSIZE          2048
-#define TCPIP_THREAD_PRIO               10
+#define TCPIP_THREAD_PRIO               11
 //#define LWIP_ETHERNET                   1                 // bringt nix
 //#define LWIP_ARP                        1                 // bringt nix
 

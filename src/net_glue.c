@@ -49,8 +49,12 @@
 #endif
 
 #include "FreeRTOS.h"
+#include "event_groups.h"
+
 #include "tusb.h"
 
+
+#define EV_RCVFRAME_READY     1
 
 
 /* lwip context */
@@ -85,7 +89,9 @@ static struct pbuf *received_frame;
     };
 #endif
 
-static TaskHandle_t   task_net_starter = NULL;
+static TaskHandle_t   task_net_glue = NULL;
+
+static EventGroupHandle_t  events;
 
 
 
@@ -135,6 +141,7 @@ bool tud_network_recv_cb(const uint8_t *src, uint16_t size)
 
             /* store away the pointer for service_traffic() to later handle */
             received_frame = p;
+            xEventGroupSetBits(events, EV_RCVFRAME_READY);
         }
     }
     return true;
@@ -265,12 +272,10 @@ static void init_lwip(void)
 
 
 
-void net_starter_thread(void *ptr)
+void net_glue_thread(void *ptr)
 {
-    vTaskDelay(pdMS_TO_TICKS(2000));
-
     for (;;) {
-        vTaskDelay(pdMS_TO_TICKS(10));
+        xEventGroupWaitBits(events, EV_RCVFRAME_READY, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
 
         /* handle any packet received by tud_network_recv_cb() */
         if (received_frame) {
@@ -280,17 +285,19 @@ void net_starter_thread(void *ptr)
             tud_network_recv_renew();
         }
     }
-}   // net_starter_thread
+}   // net_glue_thread
 
 
 
-void net_starter_init(uint32_t task_prio)
+void net_glue_init(uint32_t task_prio)
 {
+    events = xEventGroupCreate();
+
     init_lwip();
 
-    xTaskCreateAffinitySet(net_starter_thread, "NET_STARTER", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_net_starter);
-    if (task_net_starter == NULL)
+    xTaskCreateAffinitySet(net_glue_thread, "NET_GLUE", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_net_glue);
+    if (task_net_glue == NULL)
     {
-        picoprobe_error("net_starter_init: cannot create task_net_starter\n");
+        picoprobe_error("net_glue_init: cannot create task_net_glue\n");
     }
-}   // net_starter_init
+}   // net_glue_init

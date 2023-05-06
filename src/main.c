@@ -105,6 +105,7 @@ static uint8_t RxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZ
 // prios are critical and determine throughput
 #define TUD_TASK_PRIO               (tskIDLE_PRIORITY + 20)       // uses one core continuously (no longer valid with FreeRTOS usage)
 #define LED_TASK_PRIO               (tskIDLE_PRIORITY + 12)       // simple task which may interrupt everything else for periodic blinking
+#define NET_GLUE_TASK_PRIO          (tskIDLE_PRIORITY + 10)       // task which copies frames from tinyusb to lwip
 #define SIGROK_TASK_PRIO            (tskIDLE_PRIORITY + 9)        // Sigrok digital/analog signals (does nothing at the moment)
 #define MSC_WRITER_THREAD_PRIO      (tskIDLE_PRIORITY + 8)        // this is only running on writing UF2 files
 #define UART_TASK_PRIO              (tskIDLE_PRIORITY + 5)        // target -> host via UART
@@ -475,7 +476,7 @@ void usb_thread(void *ptr)
 #endif
 
 #if OPT_SYSVIEW_RNDIS
-    net_starter_init(3);  // TODO
+    net_glue_init(NET_GLUE_TASK_PRIO);
     net_echo_init();
 #endif
 

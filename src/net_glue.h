@@ -35,7 +35,7 @@
 #endif
 
 
-void net_starter_init(uint32_t task_prio);
+void net_glue_init(uint32_t task_prio);
 
 
 #ifdef __cplusplus
