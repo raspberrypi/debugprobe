@@ -57,7 +57,7 @@
 
 #include "target_board.h"    // DAPLink
 
-#if CFG_TUD_MSC
+#if OPT_MSC
     #include "msc/msc_utils.h"
 #endif
 #if defined(INCLUDE_RTT_CONSOLE)
@@ -458,7 +458,7 @@ void usb_thread(void *ptr)
 
     cdc_uart_init(UART_TASK_PRIO);
 
-#if CFG_TUD_MSC
+#if OPT_MSC
     msc_init(MSC_WRITER_THREAD_PRIO);
 #endif
 
@@ -531,7 +531,7 @@ int main(void)
 #if CFG_TUD_CDC_DEBUG
     picoprobe_info_out(" [probe debug CDC]");
 #endif
-#if CFG_TUD_MSC
+#if OPT_MSC
     picoprobe_info_out(" [DAPLink MSC]");
 #endif
     picoprobe_info_out("\n");

@@ -86,11 +86,15 @@
 
 #define CFG_TUD_HID                   1            // CMSIS-DAPv1
 #define CFG_TUD_VENDOR                1            // CMSIS-DAPv2
-#define CFG_TUD_MSC                   1            // DAPLink drive
+#if OPT_MSC
+    #define CFG_TUD_MSC               1            // DAPLink drive
+#else
+    #define CFG_TUD_MSC               0
+#endif
 #define CFG_TUD_CDC                   (CFG_TUD_CDC_UART + CFG_TUD_CDC_SIGROK + CFG_TUD_CDC_DEBUG)
 #if OPT_SYSVIEW_RNDIS
                                                    // lsusb output of NCM looks the same as setup from lwip webserver example
-    #define CFG_TUD_ECM_RNDIS         1            // RNDIS under Windows works only if it's the only class, so we try NCM for Linux
+    #define CFG_TUD_ECM_RNDIS         0            // RNDIS under Windows works only if it's the only class, so we try NCM for Linux
     #define CFG_TUD_NCM               (1 - CFG_TUD_ECM_RNDIS)
 #else
     #define CFG_TUD_ECM_RNDIS         0
@@ -113,8 +117,10 @@
 #define CFG_TUD_VENDOR_RX_BUFSIZE     1024
 #define CFG_TUD_VENDOR_TX_BUFSIZE     CFG_TUD_VENDOR_RX_BUFSIZE
 
- // note: this is optimized for DAPLink write speed
-#define CFG_TUD_MSC_EP_BUFSIZE        512
+#if OPT_MSC
+    // note: this is optimized for DAPLink write speed
+    #define CFG_TUD_MSC_EP_BUFSIZE        512
+#endif
 
 #if OPT_SYSVIEW_RNDIS
     #define CFG_TUD_NET_MTU           1514

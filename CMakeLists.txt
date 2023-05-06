@@ -19,8 +19,9 @@ cmake_minimum_required(VERSION 3.12)
 if(PICO_BOARD STREQUAL "")
     set(PICO_BOARD pico)
 endif()
-option(OPT_SIGROK        "Enable sigrok"             0)
-option(OPT_SYSVIEW_RNDIS "Enable SysView over RNDIS" 1)
+option(OPT_SYSVIEW_RNDIS "Enable SysView over RNDIS"  1)
+option(OPT_SIGROK        "Enable sigrok"              0)
+option(OPT_MSC           "Enable Mass Storage Device" )
 
 #
 # SDK options
@@ -121,8 +122,6 @@ target_include_directories(${PROJECT} PRIVATE
 # this is for MSC/DAPLink operation
 #
 target_sources(${PROJECT} PRIVATE
-        src/msc/msc_drive.c
-        src/msc/msc_utils.c
         src/daplink/daplink/util.c
         src/daplink/daplink/drag-n-drop/flash_manager.c
         src/daplink/daplink/interface/swd_host.c
@@ -192,7 +191,8 @@ if(OPT_SYSVIEW_RNDIS)
     add_compile_definitions(OPT_SYSVIEW_RNDIS=1)
     
     target_sources(${PROJECT} PRIVATE
-        src/net_starter.c
+        src/net_glue.c
+        src/net_echo.c
         
         ${PICO_TINYUSB_PATH}/lib/networking/dhserver.c
         ${PICO_TINYUSB_PATH}/lib/networking/dnserver.c
@@ -210,6 +210,19 @@ if(OPT_SYSVIEW_RNDIS)
 #    message("--------- " ${PICO_LWIP_PATH})
 #    message("--------- " ${PICO_LWIP_CONTRIB_PATH})
 #    message("--------- " ${PICO_TINYUSB_PATH})
+endif()
+
+#--------------------------------------------------------------------------------------------------
+#
+# this is for MSC operation
+#
+if(OPT_MSC)
+    add_compile_definitions(OPT_MSC=1)
+    
+    target_sources(${PROJECT} PRIVATE
+        src/msc/msc_drive.c
+        src/msc/msc_utils.c
+    )
 endif()
 
 #--------------------------------------------------------------------------------------------------

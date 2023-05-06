@@ -113,7 +113,7 @@ enum
     ITF_NUM_CDC_SIGROK_COM,
     ITF_NUM_CDC_SIGROK_DATA,
 #endif
-#if CFG_TUD_MSC
+#if OPT_MSC
     ITF_NUM_MSC,
 #endif
 #if OPT_SYSVIEW_RNDIS
@@ -155,7 +155,7 @@ enum
     CDC_SIGROK_DATA_OUT_EP_CNT,
     CDC_SIGROK_DATA_IN_EP_CNT,
 #endif
-#if CFG_TUD_MSC
+#if OPT_MSC
     MSC_OUT_EP_CNT,
     MSC_IN_EP_CNT,
 #endif
@@ -194,7 +194,7 @@ enum
     #define CDC_SIGROK_DATA_OUT_EP_NUM      (CDC_SIGROK_DATA_OUT_EP_CNT + 0x00)
     #define CDC_SIGROK_DATA_IN_EP_NUM       (CDC_SIGROK_DATA_IN_EP_CNT + 0x80)
 #endif
-#if CFG_TUD_MSC
+#if OPT_MSC
     #define MSC_OUT_EP_NUM                  (MSC_OUT_EP_CNT + 0x00)
     #define MSC_IN_EP_NUM                   (MSC_IN_EP_CNT + 0x80)
 #endif

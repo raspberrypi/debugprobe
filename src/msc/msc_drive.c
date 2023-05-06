@@ -48,8 +48,6 @@
 #define INCLUDE_RAM_UF2
 
 
-#if CFG_TUD_MSC
-
 #define ADWORD(X)       (X) & 0xff, ((X) & 0xff00) >> 8, ((X) & 0xff0000) >> 16, ((X) & 0xff000000) >> 24
 #define AWORD(X)        (X) & 0xff, ((X) & 0xff00) >> 8
 #define ADATE(Y,M,D)    AWORD((((Y)-1980) << 9) + ((M) << 5) + (D))
@@ -691,5 +689,3 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, u
 
     return resplen;
 }   // tud_msc_scsi_cb
-
-#endif
