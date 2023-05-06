@@ -30,6 +30,7 @@ option(OPT_TARGET_UART     "Enable CDC for target UART I/O"         1)
 option(OPT_PROBE_DEBUG_OUT "Enable CDC for probe debug output"      ${DEFAULT_OPT_PROBE_DEBUG_OUT})
 option(OPT_SIGROK          "Enable sigrok"                          0)
 option(OPT_MSC             "Enable Mass Storage Device"             0)
+option(OPT_NET             "Enable lwIP on the Pico"                1)
 option(OPT_NET_SYSVIEW     "Enable SysView over TCPIP"              1)
 option(OPT_NET_DNS         "Enable DNS on the Pico"                 0)    # all DNS is going over the Pico!?
 
@@ -214,8 +215,8 @@ endif()
 #
 # this is for SystemView operation (requires RTT)
 #
-if(OPT_NET_SYSVIEW)
-    add_compile_definitions(OPT_NET_SYSVIEW=1)
+if(OPT_NET)
+    add_compile_definitions(OPT_NET=1)
     
     target_sources(${PROJECT} PRIVATE
         src/net_glue.c

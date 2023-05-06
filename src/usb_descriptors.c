@@ -35,7 +35,7 @@
 // String enums
 //--------------------------------------------------------------------+
 
-// 0 -> ECM, OPT_NET_SYSVIEW must be enabled
+// 0 -> ECM, OPT_NET must be enabled
 #define USE_RNDIS    1
 
 enum
@@ -52,7 +52,7 @@ enum
     STRID_INTERFACE_CDC_SIGROK,
 #endif
     STRID_INTERFACE_CDC_DEBUG,
-#if OPT_NET_SYSVIEW
+#if OPT_NET
     STRID_INTERFACE_RNDIS,
     STRID_MAC,
 #endif
@@ -120,7 +120,7 @@ enum
 #if OPT_MSC
     ITF_NUM_MSC,
 #endif
-#if OPT_NET_SYSVIEW
+#if OPT_NET
     #if CFG_TUD_ECM_RNDIS
         ITF_NUM_CDC_RNDIS_COM,
         ITF_NUM_CDC_RNDIS_DATA,
@@ -163,7 +163,7 @@ enum
     MSC_OUT_EP_CNT,
     MSC_IN_EP_CNT,
 #endif
-#if OPT_NET_SYSVIEW
+#if OPT_NET
     #if CFG_TUD_ECM_RNDIS
         CDC_RNDIS_NOTIFICATION_EP_CNT,
         CDC_RNDIS_DATA_EP_CNT,
@@ -202,7 +202,7 @@ enum
     #define MSC_OUT_EP_NUM                  (MSC_OUT_EP_CNT + 0x00)
     #define MSC_IN_EP_NUM                   (MSC_IN_EP_CNT + 0x80)
 #endif
-#if OPT_NET_SYSVIEW
+#if OPT_NET
     #if CFG_TUD_ECM_RNDIS
         #define CDC_RNDIS_NOTIFICATION_EP_NUM   (CDC_RNDIS_NOTIFICATION_EP_CNT + 0x80)
         #define CDC_RNDIS_DATA_OUT_EP_NUM       (CDC_RNDIS_DATA_EP_CNT + 0x00)
@@ -272,7 +272,7 @@ static uint8_t const desc_configuration[] =
 #if OPT_MSC
     TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, STRID_INTERFACE_MSC, MSC_OUT_EP_NUM, MSC_IN_EP_NUM, 64),
 #endif
-#if OPT_NET_SYSVIEW
+#if OPT_NET
     #if CFG_TUD_ECM_RNDIS
         #if USE_RNDIS
             TUD_RNDIS_DESCRIPTOR(ITF_NUM_CDC_RNDIS_COM, STRID_INTERFACE_RNDIS, CDC_RNDIS_NOTIFICATION_EP_NUM, 8, CDC_RNDIS_DATA_OUT_EP_NUM, CDC_RNDIS_DATA_IN_EP_NUM, 64),
@@ -319,7 +319,7 @@ static char const* string_desc_arr[] =
     [STRID_INTERFACE_CDC_SIGROK] = "YAPicoprobe CDC-SIGROK",            // Interface descriptor for CDC SIGROK
 #endif
     [STRID_INTERFACE_CDC_DEBUG]  = "YAPicoprobe CDC-DEBUG",             // Interface descriptor for CDC DEBUG
-#if OPT_NET_SYSVIEW
+#if OPT_NET
     #if CFG_TUD_ECM_RNDIS
         #if USE_RNDIS
             [STRID_INTERFACE_RNDIS]  = "YaPicoprobe SysView RNDIS",     // Interface descriptor for SysView RNDIS
@@ -347,7 +347,7 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
         memcpy( &_desc_str[1], string_desc_arr[0], 2);
         chr_count = 1;
     }
-#if OPT_NET_SYSVIEW
+#if OPT_NET
     else if (index == STRID_MAC) {
         // Convert MAC address into UTF-16
         for (unsigned i = 0;  i < sizeof(tud_network_mac_address);  ++i) {
