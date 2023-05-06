@@ -67,7 +67,11 @@ tusb_desc_device_t const desc_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
-    .bcdUSB             = 0x0210,      // USB Specification version 2.1 for BOS (DAPv2) under Windows
+#if OPT_CMSIS_DAPV2                                     // USB Specification version 2.1 for BOS (DAPv2) under Windows
+    .bcdUSB             = 0x0210,
+#else
+    .bcdUSB             = 0x0200,
+#endif
 
     // Use Interface Association Descriptor (IAD) device class
     .bDeviceClass       = TUSB_CLASS_MISC,
@@ -99,10 +103,10 @@ uint8_t const * tud_descriptor_device_cb(void)
 
 enum
 {
-#if CFG_TUD_VENDOR
+#if OPT_CMSIS_DAPV2
     ITF_NUM_PROBE_VENDOR,               // Old versions of Keil MDK only look at interface 0
 #endif
-#if CFG_TUD_HID
+#if OPT_CMSIS_DAPV1
     ITF_NUM_PROBE_HID,
 #endif
 #if CFG_TUD_CDC_UART
@@ -137,11 +141,11 @@ enum
 enum
 {
     DUMMY_CNT = 0,
-#if CFG_TUD_VENDOR
+#if OPT_CMSIS_DAPV2
     PROBE_VENDOR_OUT_EP_CNT,
     PROBE_VENDOR_IN_EP_CNT,
 #endif
-#if CFG_TUD_HID
+#if OPT_CMSIS_DAPV1
     PROBE_HID_OUT_EP_CNT,
     PROBE_HID_IN_EP_CNT,
 #endif
@@ -176,11 +180,11 @@ enum
 };
 
 
-#if CFG_TUD_VENDOR
+#if OPT_CMSIS_DAPV2
     #define PROBE_VENDOR_OUT_EP_NUM         (PROBE_VENDOR_OUT_EP_CNT + 0x00)
     #define PROBE_VENDOR_IN_EP_NUM          (PROBE_VENDOR_IN_EP_CNT + 0x80)
 #endif
-#if CFG_TUD_HID
+#if OPT_CMSIS_DAPV1
     #define PROBE_HID_OUT_EP_NUM            (PROBE_HID_OUT_EP_CNT + 0x00)
     #define PROBE_HID_IN_EP_NUM             (PROBE_HID_IN_EP_CNT + 0x80)
 #endif
@@ -228,7 +232,7 @@ enum
                             + CFG_TUD_NCM*TUD_CDC_NCM_DESC_LEN)
 #endif
 
-#if CFG_TUD_HID
+#if OPT_CMSIS_DAPV1
     static uint8_t const desc_hid_report[] =
     {
         TUD_HID_REPORT_DESC_GENERIC_INOUT(CFG_TUD_HID_EP_BUFSIZE)
@@ -253,10 +257,10 @@ static uint8_t const desc_configuration[] =
     // Config number, interface count, string index, total length, attribute, power in mA
     //TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 500),
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0, CURR_MA),
-#if CFG_TUD_VENDOR
+#if OPT_CMSIS_DAPV2
     TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE_VENDOR, STRID_INTERFACE_DAP2, PROBE_VENDOR_OUT_EP_NUM, PROBE_VENDOR_IN_EP_NUM, 64),
 #endif
-#if CFG_TUD_HID
+#if OPT_CMSIS_DAPV1
     TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_PROBE_HID, STRID_INTERFACE_DAP1, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), PROBE_HID_OUT_EP_NUM, PROBE_HID_IN_EP_NUM, CFG_TUD_HID_EP_BUFSIZE, 1),
 #endif
 #if CFG_TUD_CDC_UART
@@ -377,7 +381,7 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 }
 
 
-#if CFG_TUD_VENDOR
+#if OPT_CMSIS_DAPV2
 /* [incoherent gibbering to make Windows happy] */
 
 //--------------------------------------------------------------------+

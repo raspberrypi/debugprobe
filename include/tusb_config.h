@@ -73,8 +73,8 @@
 //**********************************************
 
 #define CFG_TUD_CDC_UART              1            // CDC for target UART IO
-#if OPT_SIGROK
-    #define CFG_TUD_CDC_SIGROK        1            // CDC for sigrok IO
+#if OPT_SIGROK                                     // CDC for sigrok IO
+    #define CFG_TUD_CDC_SIGROK        1
 #else
     #define CFG_TUD_CDC_SIGROK        0
 #endif
@@ -84,10 +84,18 @@
     #define CFG_TUD_CDC_DEBUG         0
 #endif
 
-#define CFG_TUD_HID                   1            // CMSIS-DAPv1
-#define CFG_TUD_VENDOR                1            // CMSIS-DAPv2
-#if OPT_MSC
-    #define CFG_TUD_MSC               1            // DAPLink drive
+#if OPT_CMSIS_DAPV1                                // CMSIS-DAPv1
+    #define CFG_TUD_HID               1
+#else
+    #define CFG_TUD_HID               0
+#endif
+#if OPT_CMSIS_DAPV2                                // CMSIS-DAPv2
+    #define CFG_TUD_VENDOR            1
+#else
+    #define CFG_TUD_VENDOR            0
+#endif
+#if OPT_MSC                                        // DAPLink drive
+    #define CFG_TUD_MSC               1
 #else
     #define CFG_TUD_MSC               0
 #endif

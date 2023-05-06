@@ -187,7 +187,7 @@ void tud_cdc_tx_complete_cb(uint8_t itf)
 
 
 
-#if CFG_TUD_VENDOR
+#if OPT_CMSIS_DAPV2
 void tud_vendor_rx_cb(uint8_t itf)
 {
     if (itf == 0) {
@@ -198,7 +198,7 @@ void tud_vendor_rx_cb(uint8_t itf)
 
 
 
-#if CFG_TUD_VENDOR
+#if OPT_CMSIS_DAPV2
 /**
  * CMSIS-DAP task.
  * Receive DAP requests, execute them via DAP_ExecuteCommand() and transmit the response.
@@ -475,7 +475,7 @@ void usb_thread(void *ptr)
     net_echo_init();
 #endif
 
-#if CFG_TUD_VENDOR
+#if OPT_CMSIS_DAPV2
     xTaskCreateAffinitySet(dap_task, "CMSIS-DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, 2, &dap_taskhandle);
 #endif
 
@@ -516,10 +516,10 @@ int main(void)
     picoprobe_info("                     Welcome to Yet Another Picoprobe v" PICOPROBE_VERSION_STRING "-" GIT_HASH "\n");
     picoprobe_info("Features:\n");
     picoprobe_info(" ");
-#if CFG_TUD_VENDOR
+#if OPT_CMSIS_DAPV2
     picoprobe_info_out(" [CMSIS-DAPv2]");
 #endif
-#if CFG_TUD_HID
+#if OPT_CMSIS_DAPV1
     picoprobe_info_out(" [CMSIS-DAPv1]");
 #endif
 #if CFG_TUD_CDC_UART
@@ -557,7 +557,7 @@ int main(void)
 
 
 
-#if CFG_TUD_HID
+#if OPT_CMSIS_DAPV1
 static bool hid_swd_connected;
 static bool hid_swd_disconnect_requested;
 static TimerHandle_t     timer_hid_disconnect = NULL;
@@ -661,7 +661,7 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
 
 
 
-#if CFG_TUD_VENDOR
+#if OPT_CMSIS_DAPV2
 extern uint8_t const desc_ms_os_20[];
 
 bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)

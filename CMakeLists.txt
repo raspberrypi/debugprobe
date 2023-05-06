@@ -19,9 +19,11 @@ cmake_minimum_required(VERSION 3.12)
 if(PICO_BOARD STREQUAL "")
     set(PICO_BOARD pico)
 endif()
+option(OPT_CMSIS_DAPV1   "Enable CMSIS-DAPv1"         1)
+option(OPT_CMSIS_DAPV2   "Enable CMSIS-DAPv2"         1)
 option(OPT_SYSVIEW_RNDIS "Enable SysView over RNDIS"  1)
 option(OPT_SIGROK        "Enable sigrok"              0)
-option(OPT_MSC           "Enable Mass Storage Device" )
+option(OPT_MSC           "Enable Mass Storage Device" 1)
 
 #
 # SDK options
@@ -116,6 +118,17 @@ target_include_directories(${PROJECT} PRIVATE
         CMSIS_5/CMSIS/Core/Include/
         include/
 )
+
+#--------------------------------------------------------------------------------------------------
+#
+# Enable/disable CMSIS-DAP USB endpoints
+#
+if(OPT_CMSIS_DAPV1)
+    add_compile_definitions(OPT_CMSIS_DAPV1=1)
+endif()
+if(OPT_CMSIS_DAPV2)
+    add_compile_definitions(OPT_CMSIS_DAPV2=1)
+endif()
 
 #--------------------------------------------------------------------------------------------------
 #
