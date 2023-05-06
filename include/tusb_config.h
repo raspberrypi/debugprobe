@@ -72,7 +72,11 @@
 // This will change in the future.
 //**********************************************
 
-#define CFG_TUD_CDC_UART              1            // CDC for target UART IO
+#if OPT_TARGET_UART                                // CDC for target UART IO
+    #define CFG_TUD_CDC_UART          1
+#else
+    #define CFG_TUD_CDC_UART          0
+#endif
 #if OPT_SIGROK                                     // CDC for sigrok IO
     #define CFG_TUD_CDC_SIGROK        1
 #else

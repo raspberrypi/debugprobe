@@ -19,11 +19,12 @@ cmake_minimum_required(VERSION 3.12)
 if(PICO_BOARD STREQUAL "")
     set(PICO_BOARD pico)
 endif()
-option(OPT_CMSIS_DAPV1   "Enable CMSIS-DAPv1"         1)
-option(OPT_CMSIS_DAPV2   "Enable CMSIS-DAPv2"         1)
-option(OPT_SYSVIEW_RNDIS "Enable SysView over RNDIS"  1)
-option(OPT_SIGROK        "Enable sigrok"              0)
-option(OPT_MSC           "Enable Mass Storage Device" 1)
+option(OPT_TARGET_UART   "Enable CDC for target UART I/O"  1)
+option(OPT_CMSIS_DAPV1   "Enable CMSIS-DAPv1"              1)
+option(OPT_CMSIS_DAPV2   "Enable CMSIS-DAPv2"              1)
+option(OPT_SYSVIEW_RNDIS "Enable SysView over RNDIS"       1)
+option(OPT_SIGROK        "Enable sigrok"                   0)
+option(OPT_MSC           "Enable Mass Storage Device"      1)
 
 #
 # SDK options
@@ -87,7 +88,6 @@ endif()
 
 
 add_executable(${PROJECT}
-        src/cdc_uart.c
         src/dap_util.c
         src/get_serial.c
         src/led.c
@@ -118,17 +118,6 @@ target_include_directories(${PROJECT} PRIVATE
         CMSIS_5/CMSIS/Core/Include/
         include/
 )
-
-#--------------------------------------------------------------------------------------------------
-#
-# Enable/disable CMSIS-DAP USB endpoints
-#
-if(OPT_CMSIS_DAPV1)
-    add_compile_definitions(OPT_CMSIS_DAPV1=1)
-endif()
-if(OPT_CMSIS_DAPV2)
-    add_compile_definitions(OPT_CMSIS_DAPV2=1)
-endif()
 
 #--------------------------------------------------------------------------------------------------
 #
@@ -174,6 +163,23 @@ add_compile_definitions(DAPLINK_HIC_ID=0x08154711)
 
 # required to get required DAPLink functions
 add_compile_definitions(DRAG_N_DROP_SUPPORT=1)
+
+#--------------------------------------------------------------------------------------------------
+#
+# Enable/disable several USB endpoints
+#
+if(OPT_TARGET_UART)
+    add_compile_definitions(OPT_TARGET_UART=1)
+    target_sources(${PROJECT} PRIVATE
+        src/cdc_uart.c
+    )
+endif()
+if(OPT_CMSIS_DAPV1)
+    add_compile_definitions(OPT_CMSIS_DAPV1=1)
+endif()
+if(OPT_CMSIS_DAPV2)
+    add_compile_definitions(OPT_CMSIS_DAPV2=1)
+endif()
 
 #--------------------------------------------------------------------------------------------------
 #

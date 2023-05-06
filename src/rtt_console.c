@@ -40,7 +40,9 @@
 #include "rtt_console.h"
 #include "sw_lock.h"
 #include "RTT/SEGGER_RTT.h"
-#include "cdc_uart.h"
+#if OPT_TARGET_UART
+    #include "cdc_uart.h"
+#endif
 #include "led.h"
 
 
@@ -180,8 +182,10 @@ static void do_rtt_console(uint32_t rtt_cb)
             aUp.RdOff = (aUp.RdOff + cnt) % aUp.SizeOfBuffer;
             ok = ok  &&  swd_write_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[RTT_CHANNEL_CONSOLE].RdOff), aUp.RdOff);
 
+#if OPT_TARGET_UART
             // put received data into CDC UART
             cdc_uart_write(buf, cnt);
+#endif
 
             led_state(LS_RTT_RX_DATA);
         }

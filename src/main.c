@@ -47,7 +47,9 @@
 #ifndef NDEBUG
     #include "cdc_debug.h"
 #endif
-#include "cdc_uart.h"
+#if OPT_TARGET_UART
+    #include "cdc_uart.h"
+#endif
 #include "dap_util.h"
 #include "get_serial.h"
 #include "led.h"
@@ -118,7 +120,7 @@ static EventGroupHandle_t events;
 
 void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 {
-#if CFG_TUD_CDC_UART
+#if OPT_TARGET_UART
     if (itf == CDC_UART_N) {
         cdc_uart_line_state_cb(dtr, rts);
     }
@@ -140,7 +142,7 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 #if CFG_TUD_CDC
 void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding)
 {
-#if CFG_TUD_CDC_UART
+#if OPT_TARGET_UART
     if (itf == CDC_UART_N) {
         cdc_uart_line_coding_cb(line_coding);
     }
@@ -157,7 +159,7 @@ void tud_cdc_rx_cb(uint8_t itf)
         cdc_sigrok_rx_cb();
     }
 #endif
-#if CFG_TUD_CDC_UART
+#if OPT_TARGET_UART
     if (itf == CDC_UART_N) {
         cdc_uart_rx_cb();
     }
@@ -173,7 +175,7 @@ void tud_cdc_tx_complete_cb(uint8_t itf)
         cdc_sigrok_tx_complete_cb();
     }
 #endif
-#if CFG_TUD_CDC_UART
+#if OPT_TARGET_UART
     if (itf == CDC_UART_N) {
         cdc_uart_tx_complete_cb();
     }
@@ -456,7 +458,9 @@ void usb_thread(void *ptr)
         g_board_info.prerun_board_config();
     }
 
+#if OPT_TARGET_UART
     cdc_uart_init(UART_TASK_PRIO);
+#endif
 
 #if OPT_MSC
     msc_init(MSC_WRITER_THREAD_PRIO);
@@ -522,7 +526,7 @@ int main(void)
 #if OPT_CMSIS_DAPV1
     picoprobe_info_out(" [CMSIS-DAPv1]");
 #endif
-#if CFG_TUD_CDC_UART
+#if OPT_TARGET_UART
     picoprobe_info_out(" [UART -> CDC]");
 #endif
 #if OPT_SIGROK
