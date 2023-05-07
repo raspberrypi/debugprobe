@@ -30,6 +30,7 @@
 #include "lwip/err.h"
 
 #include "net_sysview.h"
+#include "rtt_console.h"
 
 
 /**
@@ -181,8 +182,11 @@ static err_t sysview_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t
         //
         // send received data to RTT SysView
         //
+        for (uint16_t ndx = 0;  ndx < p->len;  ++ndx)
+        {
+            rtt_sysview_send_byte(((uint8_t *)p->payload)[ndx]);
+        }
         tcp_recved(tpcb, p->len);
-        // TODO data to RTT
         pbuf_free(p);
         ret_err = ERR_OK;
     }

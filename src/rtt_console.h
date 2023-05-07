@@ -28,6 +28,7 @@
 
 
 #include <stdint.h>
+#include <stdbool.h>
 
 
 #ifdef __cplusplus
@@ -38,6 +39,10 @@
 void rtt_console_init(uint32_t task_prio);
 void rtt_console_send_byte(uint8_t ch);
 bool rtt_console_cb_exists(void);
+
+#if OPT_NET_SYSVIEW_SERVER
+    void rtt_sysview_send_byte(uint8_t ch);
+#endif
 
 
 #ifdef __cplusplus

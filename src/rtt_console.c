@@ -47,25 +47,32 @@
 
 
 
-#define TARGET_RAM_START      g_board_info.target_cfg->ram_regions[0].start
-#define TARGET_RAM_END        g_board_info.target_cfg->ram_regions[0].end
+#define TARGET_RAM_START        g_board_info.target_cfg->ram_regions[0].start
+#define TARGET_RAM_END          g_board_info.target_cfg->ram_regions[0].end
 
-#define STREAM_RTT_SIZE       128
-#define STREAM_RTT_TRIGGER    1
+#define STREAM_RTT_SIZE         128
+#define STREAM_RTT_TRIGGER      1
 
-#define RTT_CHANNEL_CONSOLE   1
-#define RTT_POLL_INT_MS       1
+#define RTT_CHANNEL_CONSOLE     0
+#define RTT_POLL_INT_MS         10
 
-#define EV_RTT_TO_TARGET      0x01
+#define EV_RTT_TO_TARGET        0x01
 
-static const uint32_t         segger_alignment = 4;
-static const uint8_t          seggerRTT[16] = "SEGGER RTT\0\0\0\0\0\0";
-static uint32_t               prev_rtt_cb = 0;
-static bool                   rtt_console_running = false;
+static const uint32_t           segger_alignment = 4;
+static const uint8_t            seggerRTT[16] = "SEGGER RTT\0\0\0\0\0\0";
+static uint32_t                 prev_rtt_cb = 0;
+static bool                     rtt_console_running = false;
 
-static TaskHandle_t           task_rtt_console = NULL;
-static StreamBufferHandle_t   stream_rtt;                   // small stream for host->probe->target communication
-static EventGroupHandle_t     events;
+static TaskHandle_t             task_rtt_console = NULL;
+static StreamBufferHandle_t     stream_rtt_console_to_target;                  // small stream for host->probe->target console communication
+static EventGroupHandle_t       events;
+
+#if OPT_NET_SYSVIEW_SERVER
+    #define RTT_CHANNEL_SYSVIEW 1
+    #undef  RTT_POLL_INT_MS
+    #define RTT_POLL_INT_MS     1                                              // faster polling
+    static StreamBufferHandle_t stream_rtt_sysview_to_target;                  // small stream for host->probe->target sysview communication
+#endif
 
 
 
@@ -136,10 +143,51 @@ static uint32_t search_for_rtt_cb(void)
 
 
 
+static void rtt_to_target(uint32_t rtt_cb, StreamBufferHandle_t stream, uint16_t channel, SEGGER_RTT_BUFFER_DOWN *aDown)
+{
+    bool ok = true;
+    uint8_t buf[16];
+
+    if ( !xStreamBufferIsEmpty(stream)) {
+        //
+        // send data to target
+        //
+        ok = ok  &&  swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, aDown[channel].RdOff), (uint32_t *)&(aDown->RdOff));
+        if ((aDown->WrOff + 1) % aDown->SizeOfBuffer != aDown->RdOff) {
+            // -> space left in RTT buffer on target
+            uint32_t cnt;
+            size_t r;
+
+            if (aDown->WrOff >= aDown->RdOff) {
+                cnt = aDown->SizeOfBuffer - aDown->WrOff;
+            }
+            else {
+                cnt = (aDown->RdOff - aDown->WrOff) - 1;
+            }
+            cnt = MIN(cnt, sizeof(buf));
+
+            r = xStreamBufferReceive(stream, &buf, cnt, 0);
+            if (r > 0) {
+                ok = ok  &&  swd_write_memory((uint32_t)aDown->pBuffer + aDown->WrOff, buf, r);
+                aDown->WrOff = (aDown->WrOff + r) % aDown->SizeOfBuffer;
+                ok = ok  &&  swd_write_word(rtt_cb + offsetof(SEGGER_RTT_CB, aDown[channel].WrOff), aDown->WrOff);
+
+                led_state(LS_UART_TX_DATA);
+            }
+        }
+    }
+}   // rtt_to_target
+
+
+
 static void do_rtt_console(uint32_t rtt_cb)
 {
-    SEGGER_RTT_BUFFER_UP   aUp;       // Up buffer, transferring information up from target via debug probe to host
-    SEGGER_RTT_BUFFER_DOWN aDown;     // Down buffer, transferring information from host via debug probe to target
+    SEGGER_RTT_BUFFER_UP   aUpConsole;       // Up buffer, transferring information up from target via debug probe to host
+    SEGGER_RTT_BUFFER_DOWN aDownConsole;     // Down buffer, transferring information from host via debug probe to target
+#if OPT_NET_SYSVIEW_SERVER
+    SEGGER_RTT_BUFFER_UP   aUpSysView;       // Up buffer, transferring information up from target via debug probe to host
+    SEGGER_RTT_BUFFER_DOWN aDownSysView;     // Down buffer, transferring information from host via debug probe to target
+#endif
     uint8_t buf[256];
     bool ok = true;
 
@@ -150,16 +198,22 @@ static void do_rtt_console(uint32_t rtt_cb)
     }
 
     ok = ok  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[RTT_CHANNEL_CONSOLE]),
-                                 (uint8_t *)&aUp, sizeof(aUp));
+                                 (uint8_t *)&aUpConsole, sizeof(aUpConsole));
     ok = ok  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aDown[RTT_CHANNEL_CONSOLE]),
-                                 (uint8_t *)&aDown, sizeof(aDown));
+                                 (uint8_t *)&aDownConsole, sizeof(aDownConsole));
+#if OPT_NET_SYSVIEW_SERVER
+    ok = ok  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[RTT_CHANNEL_SYSVIEW]),
+                                 (uint8_t *)&aUpSysView, sizeof(aUpSysView));
+    ok = ok  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aDown[RTT_CHANNEL_SYSVIEW]),
+                                 (uint8_t *)&aDownSysView, sizeof(aDownSysView));
+#endif
 
     // do operations
     rtt_console_running = true;
     while (ok  &&  !sw_unlock_requested()) {
-        ok = ok  &&  swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[RTT_CHANNEL_CONSOLE].WrOff), (uint32_t *)&aUp.WrOff);
+        ok = ok  &&  swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[RTT_CHANNEL_CONSOLE].WrOff), (uint32_t *)&aUpConsole.WrOff);
 
-        if (aUp.WrOff == aUp.RdOff) {
+        if (aUpConsole.WrOff == aUpConsole.RdOff) {
             // -> no characters available
             xEventGroupWaitBits(events, EV_RTT_TO_TARGET, pdTRUE, pdFALSE, pdMS_TO_TICKS(RTT_POLL_INT_MS));
         }
@@ -169,18 +223,18 @@ static void do_rtt_console(uint32_t rtt_cb)
             //
             uint32_t cnt;
 
-            if (aUp.WrOff > aUp.RdOff) {
-                cnt = aUp.WrOff - aUp.RdOff;
+            if (aUpConsole.WrOff > aUpConsole.RdOff) {
+                cnt = aUpConsole.WrOff - aUpConsole.RdOff;
             }
             else {
-                cnt = aUp.SizeOfBuffer - aUp.RdOff;
+                cnt = aUpConsole.SizeOfBuffer - aUpConsole.RdOff;
             }
             cnt = MIN(cnt, sizeof(buf));
 
             memset(buf, 0, sizeof(buf));
-            ok = ok  &&  swd_read_memory((uint32_t)aUp.pBuffer + aUp.RdOff, buf, cnt);
-            aUp.RdOff = (aUp.RdOff + cnt) % aUp.SizeOfBuffer;
-            ok = ok  &&  swd_write_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[RTT_CHANNEL_CONSOLE].RdOff), aUp.RdOff);
+            ok = ok  &&  swd_read_memory((uint32_t)aUpConsole.pBuffer + aUpConsole.RdOff, buf, cnt);
+            aUpConsole.RdOff = (aUpConsole.RdOff + cnt) % aUpConsole.SizeOfBuffer;
+            ok = ok  &&  swd_write_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[RTT_CHANNEL_CONSOLE].RdOff), aUpConsole.RdOff);
 
 #if OPT_TARGET_UART
             // put received data into CDC UART
@@ -190,34 +244,13 @@ static void do_rtt_console(uint32_t rtt_cb)
             led_state(LS_RTT_RX_DATA);
         }
 
-        if ( !xStreamBufferIsEmpty(stream_rtt)) {
-            //
-            // send data to target
-            //
-            ok = ok  &&  swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, aDown[RTT_CHANNEL_CONSOLE].RdOff), (uint32_t *)&(aDown.RdOff));
-            if ((aDown.WrOff + 1) % aDown.SizeOfBuffer != aDown.RdOff) {
-                // -> space left in RTT buffer on target
-                uint32_t cnt;
-                size_t r;
-
-                if (aDown.WrOff >= aDown.RdOff) {
-                    cnt = aDown.SizeOfBuffer - aDown.WrOff;
-                }
-                else {
-                    cnt = (aDown.RdOff - aDown.WrOff) - 1;
-                }
-                cnt = MIN(cnt, sizeof(buf));
-
-                r = xStreamBufferReceive(stream_rtt, &buf, cnt, 0);
-                if (r > 0) {
-                    ok = ok  &&  swd_write_memory((uint32_t)aDown.pBuffer + aDown.WrOff, buf, r);
-                    aDown.WrOff = (aDown.WrOff + r) % aDown.SizeOfBuffer;
-                    ok = ok  &&  swd_write_word(rtt_cb + offsetof(SEGGER_RTT_CB, aDown[RTT_CHANNEL_CONSOLE].WrOff), aDown.WrOff);
-
-                    led_state(LS_UART_TX_DATA);
-                }
-            }
-        }
+        //
+        // transfer RTT data to target
+        //
+        rtt_to_target(rtt_cb, stream_rtt_console_to_target, RTT_CHANNEL_CONSOLE, &aDownConsole);
+#if OPT_NET_SYSVIEW_SERVER
+        rtt_to_target(rtt_cb, stream_rtt_console_to_target, RTT_CHANNEL_SYSVIEW, &aDownSysView);
+#endif
     }
     rtt_console_running = false;
 }   // do_rtt_console
@@ -317,26 +350,42 @@ bool rtt_console_cb_exists(void)
 
 
 
-void rtt_console_send_byte(uint8_t ch)
+void rtt_send_byte(StreamBufferHandle_t stream, uint8_t ch)
 /**
  * Write a byte into the RTT stream.
  * If there is no space left in the stream, wait 10ms and then try again.
  * If there is still no space, then drop a byte from the stream.
  */
 {
-    size_t available = xStreamBufferSpacesAvailable(stream_rtt);
+    size_t available = xStreamBufferSpacesAvailable(stream);
     if (available < sizeof(ch)) {
         vTaskDelay(pdMS_TO_TICKS(10));
-        available = xStreamBufferSpacesAvailable(stream_rtt);
+        available = xStreamBufferSpacesAvailable(stream);
         if (available < sizeof(ch)) {
             uint8_t dummy;
-            xStreamBufferReceive(stream_rtt, &dummy, sizeof(dummy), 0);
+            xStreamBufferReceive(stream, &dummy, sizeof(dummy), 0);
             picoprobe_error("rtt_console_send_byte: drop byte\n");
         }
     }
-    xStreamBufferSend(stream_rtt, &ch, sizeof(ch), 0);
+    xStreamBufferSend(stream, &ch, sizeof(ch), 0);
     xEventGroupSetBits(events, EV_RTT_TO_TARGET);
+}   // rtt_send_byte
+
+
+
+void rtt_console_send_byte(uint8_t ch)
+{
+    rtt_send_byte(stream_rtt_console_to_target, ch);
 }   // rtt_console_send_byte
+
+
+
+#if OPT_NET_SYSVIEW_SERVER
+void rtt_sysview_send_byte(uint8_t ch)
+{
+    rtt_send_byte(stream_rtt_sysview_to_target, ch);
+}   // rtt_sysview_send_byte
+#endif
 
 
 
@@ -346,10 +395,17 @@ void rtt_console_init(uint32_t task_prio)
 
     events = xEventGroupCreate();
 
-    stream_rtt = xStreamBufferCreate(STREAM_RTT_SIZE, STREAM_RTT_TRIGGER);
-    if (stream_rtt == NULL) {
-        picoprobe_error("rtt_console_init: cannot create stream_rtt\n");
+    stream_rtt_console_to_target = xStreamBufferCreate(STREAM_RTT_SIZE, STREAM_RTT_TRIGGER);
+    if (stream_rtt_console_to_target == NULL) {
+        picoprobe_error("rtt_console_init: cannot create stream_rtt_console_to_target\n");
     }
+
+#if OPT_NET_SYSVIEW_SERVER
+    stream_rtt_sysview_to_target = xStreamBufferCreate(STREAM_RTT_SIZE, STREAM_RTT_TRIGGER);
+    if (stream_rtt_sysview_to_target == NULL) {
+        picoprobe_error("rtt_console_init: cannot create stream_rtt_sysview_to_target\n");
+    }
+#endif
 
     xTaskCreateAffinitySet(rtt_console_thread, "RTT_CONSOLE", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_rtt_console);
     if (task_rtt_console == NULL)
