@@ -72,6 +72,11 @@
 
 
 //--------------------------------------
+// memory
+#define MEM_SIZE                        10000
+
+
+//--------------------------------------
 // for freertos mode
 #define TCPIP_MBOX_SIZE                 32
 #define TCPIP_THREAD_STACKSIZE          2048

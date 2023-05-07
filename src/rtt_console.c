@@ -43,9 +43,13 @@
 #if OPT_TARGET_UART
     #include "cdc_uart.h"
 #endif
+#if OPT_NET_SYSVIEW_SERVER
+    #include "net/net_sysview.h"
+#endif
 #include "led.h"
 
 
+typedef void (*rtt_data_to_host)(const uint8_t *buf, uint32_t cnt);
 
 #define TARGET_RAM_START        g_board_info.target_cfg->ram_regions[0].start
 #define TARGET_RAM_END          g_board_info.target_cfg->ram_regions[0].end
@@ -143,7 +147,49 @@ static uint32_t search_for_rtt_cb(void)
 
 
 
-static void rtt_to_target(uint32_t rtt_cb, StreamBufferHandle_t stream, uint16_t channel, SEGGER_RTT_BUFFER_DOWN *aDown)
+static bool rtt_from_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER_UP *aUp,
+                            rtt_data_to_host data_to_host, bool *worked)
+{
+    bool ok;
+    uint8_t buf[256];
+
+    ok = swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[channel].WrOff), (uint32_t *)&(aUp->WrOff));
+
+    if (ok  &&  aUp->WrOff != aUp->RdOff) {
+        //
+        // fetch characters from target
+        //
+        uint32_t cnt;
+
+        if (aUp->WrOff > aUp->RdOff) {
+            cnt = aUp->WrOff - aUp->RdOff;
+        }
+        else {
+            cnt = aUp->SizeOfBuffer - aUp->RdOff;
+        }
+        cnt = MIN(cnt, sizeof(buf));
+
+        memset(buf, 0, sizeof(buf));
+        ok = ok  &&  swd_read_memory((uint32_t)aUp->pBuffer + aUp->RdOff, buf, cnt);
+        aUp->RdOff = (aUp->RdOff + cnt) % aUp->SizeOfBuffer;
+        ok = ok  &&  swd_write_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[channel].RdOff), aUp->RdOff);
+
+        if (data_to_host != NULL)
+        {
+            // direct received data to host
+            data_to_host(buf, cnt);
+        }
+
+        led_state(LS_RTT_RX_DATA);
+        *worked = true;
+    }
+    return ok;
+}   // rtt_from_target
+
+
+
+static bool rtt_to_target(uint32_t rtt_cb, StreamBufferHandle_t stream, uint16_t channel,
+                          SEGGER_RTT_BUFFER_DOWN *aDown, bool *worked)
 {
     bool ok = true;
     uint8_t buf[16];
@@ -175,7 +221,9 @@ static void rtt_to_target(uint32_t rtt_cb, StreamBufferHandle_t stream, uint16_t
                 led_state(LS_UART_TX_DATA);
             }
         }
+        *worked = true;
     }
+    return ok;
 }   // rtt_to_target
 
 
@@ -188,7 +236,6 @@ static void do_rtt_console(uint32_t rtt_cb)
     SEGGER_RTT_BUFFER_UP   aUpSysView;       // Up buffer, transferring information up from target via debug probe to host
     SEGGER_RTT_BUFFER_DOWN aDownSysView;     // Down buffer, transferring information from host via debug probe to target
 #endif
-    uint8_t buf[256];
     bool ok = true;
 
     static_assert(sizeof(uint32_t) == sizeof(unsigned int));    // why doesn't segger use uint32_t?
@@ -211,46 +258,31 @@ static void do_rtt_console(uint32_t rtt_cb)
     // do operations
     rtt_console_running = true;
     while (ok  &&  !sw_unlock_requested()) {
-        ok = ok  &&  swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[RTT_CHANNEL_CONSOLE].WrOff), (uint32_t *)&aUpConsole.WrOff);
+        bool worked = false;
 
-        if (aUpConsole.WrOff == aUpConsole.RdOff) {
-            // -> no characters available
+        //
+        // transfer RTT from target to host
+        //
+#if OPT_TARGET_UART
+        ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aUpConsole, cdc_uart_write, &worked);
+#endif
+#if OPT_NET_SYSVIEW_SERVER
+        ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView, net_sysview_send, &worked);
+#endif
+
+        //
+        // transfer RTT data from host to target
+        //
+        ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_console_to_target, RTT_CHANNEL_CONSOLE, &aDownConsole, &worked);
+#if OPT_NET_SYSVIEW_SERVER
+        ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_sysview_to_target, RTT_CHANNEL_SYSVIEW, &aDownSysView, &worked);
+#endif
+
+        if ( !worked)
+        {
+            // -> did nothing in the previous run -> delay
             xEventGroupWaitBits(events, EV_RTT_TO_TARGET, pdTRUE, pdFALSE, pdMS_TO_TICKS(RTT_POLL_INT_MS));
         }
-        else {
-            //
-            // fetch characters from target
-            //
-            uint32_t cnt;
-
-            if (aUpConsole.WrOff > aUpConsole.RdOff) {
-                cnt = aUpConsole.WrOff - aUpConsole.RdOff;
-            }
-            else {
-                cnt = aUpConsole.SizeOfBuffer - aUpConsole.RdOff;
-            }
-            cnt = MIN(cnt, sizeof(buf));
-
-            memset(buf, 0, sizeof(buf));
-            ok = ok  &&  swd_read_memory((uint32_t)aUpConsole.pBuffer + aUpConsole.RdOff, buf, cnt);
-            aUpConsole.RdOff = (aUpConsole.RdOff + cnt) % aUpConsole.SizeOfBuffer;
-            ok = ok  &&  swd_write_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[RTT_CHANNEL_CONSOLE].RdOff), aUpConsole.RdOff);
-
-#if OPT_TARGET_UART
-            // put received data into CDC UART
-            cdc_uart_write(buf, cnt);
-#endif
-
-            led_state(LS_RTT_RX_DATA);
-        }
-
-        //
-        // transfer RTT data to target
-        //
-        rtt_to_target(rtt_cb, stream_rtt_console_to_target, RTT_CHANNEL_CONSOLE, &aDownConsole);
-#if OPT_NET_SYSVIEW_SERVER
-        rtt_to_target(rtt_cb, stream_rtt_console_to_target, RTT_CHANNEL_SYSVIEW, &aDownSysView);
-#endif
     }
     rtt_console_running = false;
 }   // do_rtt_console
