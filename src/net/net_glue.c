@@ -270,7 +270,7 @@ static void init_lwip(void)
 
 
 
-void net_glue_thread(void *ptr)
+static void net_glue_thread(void *ptr)
 {
     for (;;) {
         xEventGroupWaitBits(events, EV_RCVFRAME_READY, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));

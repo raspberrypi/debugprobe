@@ -49,13 +49,13 @@ struct echo_state
     struct pbuf *p;
 };
 
-err_t echo_accept(void *arg, struct tcp_pcb *newpcb, err_t err);
-err_t echo_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err);
-void echo_error(void *arg, err_t err);
-err_t echo_poll(void *arg, struct tcp_pcb *tpcb);
-err_t echo_sent(void *arg, struct tcp_pcb *tpcb, u16_t len);
-void echo_send(struct tcp_pcb *tpcb, struct echo_state *es);
-void echo_close(struct tcp_pcb *tpcb, struct echo_state *es);
+static err_t echo_accept(void *arg, struct tcp_pcb *newpcb, err_t err);
+static err_t echo_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err);
+static void echo_error(void *arg, err_t err);
+static err_t echo_poll(void *arg, struct tcp_pcb *tpcb);
+static err_t echo_sent(void *arg, struct tcp_pcb *tpcb, u16_t len);
+static void echo_send(struct tcp_pcb *tpcb, struct echo_state *es);
+static void echo_close(struct tcp_pcb *tpcb, struct echo_state *es);
 
 
 
@@ -85,7 +85,7 @@ void net_echo_init(void)
 
 
 
-err_t echo_accept(void *arg, struct tcp_pcb *newpcb, err_t err)
+static err_t echo_accept(void *arg, struct tcp_pcb *newpcb, err_t err)
 {
     err_t ret_err;
     struct echo_state *es;
@@ -119,7 +119,7 @@ err_t echo_accept(void *arg, struct tcp_pcb *newpcb, err_t err)
 
 
 
-err_t echo_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err)
+static err_t echo_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err)
 {
     struct echo_state *es;
     err_t ret_err;
@@ -204,7 +204,7 @@ err_t echo_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err)
 
 
 
-void echo_error(void *arg, err_t err)
+static void echo_error(void *arg, err_t err)
 {
     struct echo_state *es;
 
@@ -219,7 +219,7 @@ void echo_error(void *arg, err_t err)
 
 
 
-err_t echo_poll(void *arg, struct tcp_pcb *tpcb)
+static err_t echo_poll(void *arg, struct tcp_pcb *tpcb)
 {
     err_t ret_err;
     struct echo_state *es;
@@ -254,7 +254,7 @@ err_t echo_poll(void *arg, struct tcp_pcb *tpcb)
 
 
 
-err_t echo_sent(void *arg, struct tcp_pcb *tpcb, u16_t len)
+static err_t echo_sent(void *arg, struct tcp_pcb *tpcb, u16_t len)
 {
     struct echo_state *es;
 
@@ -282,7 +282,7 @@ err_t echo_sent(void *arg, struct tcp_pcb *tpcb, u16_t len)
 
 
 
-void echo_send(struct tcp_pcb *tpcb, struct echo_state *es)
+static void echo_send(struct tcp_pcb *tpcb, struct echo_state *es)
 {
     struct pbuf *ptr;
     err_t wr_err = ERR_OK;
@@ -332,7 +332,7 @@ void echo_send(struct tcp_pcb *tpcb, struct echo_state *es)
 
 
 
-void echo_close(struct tcp_pcb *tpcb, struct echo_state *es)
+static void echo_close(struct tcp_pcb *tpcb, struct echo_state *es)
 {
     tcp_arg(tpcb, NULL);
     tcp_sent(tpcb, NULL);
