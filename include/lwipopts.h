@@ -34,52 +34,68 @@
 
 #define NO_SYS                          0
 #define MEM_ALIGNMENT                   4
-#define LWIP_RAW                        0
-#define LWIP_NETCONN                    0
-#define LWIP_SOCKET                     0
-#define LWIP_DHCP                       1
-#define LWIP_ICMP                       1
+#define LWIP_IPV6                       0                         // default: 0
+#define LWIP_RAW                        0                         // default: 0
+#define LWIP_NETCONN                    0                         // default: 0
+#define LWIP_SOCKET                     0                         // default: 0, provide socket API
 #define LWIP_UDP                        1
 #define LWIP_TCP                        1
-#define ETH_PAD_SIZE                    0
-#define LWIP_IP_ACCEPT_UDP_PORT(p)      ((p) == PP_NTOHS(67))
 
-#define TCP_MSS                         (1500 /*mtu*/ - 20 /*iphdr*/ - 20 /*tcphhr*/)
-#define TCP_SND_BUF                     (2 * TCP_MSS)
+// ARP
+#define LWIP_ARP                        1                         // default: 1
+//#define ETH_PAD_SIZE                    0
+//#define ETHARP_SUPPORT_STATIC_ENTRIES   1
+#define ARP_TABLE_SIZE                  4
 
-#define ETHARP_SUPPORT_STATIC_ENTRIES   1
+// ICMP
+#define LWIP_ICMP                       1                         // default: 1
+//#define LWIP_MULTICAST_PING             1
+//#define LWIP_BROADCAST_PING             1
 
+// DHCP  TODO required?
+#define LWIP_DHCP                       1
+//#define LWIP_IP_ACCEPT_UDP_PORT(p)      ((p) == PP_NTOHS(67))
+
+// AUTOIP
+//#define LWIP_AUTOIP                     1                         // default: 0
+//#define LWIP_DHCP_AUTOIP_COOP           (LWIP_DHCP && LWIP_AUTOIP)
+
+// netif
 #define LWIP_SINGLE_NETIF               1
 
-//#define PBUF_POOL_SIZE                  2
-////
-////#define HTTPD_USE_CUSTOM_FSDATA         0
-////
-#define LWIP_MULTICAST_PING             1
-#define LWIP_BROADCAST_PING             1
-//#define LWIP_IPV6_MLD                   0
-//#define LWIP_IPV6_SEND_ROUTER_SOLICIT   0
-//
+
+//--------------------------------------
+// performance tuning
+#define TCP_MSS                         (1500 - 20 - 20)          // MTU minus header sizes (best value til now)
+//#define TCP_SND_BUF                     (2 * TCP_MSS)
+//#define TCP_OVERSIZE                    TCP_MSS
 
 
-//#define LWIP_AUTOIP  1
-//#define LWIP_DHCP_AUTOIP_COOP  (LWIP_DHCP && LWIP_AUTOIP)
-
-
-//// meine Versuche
-//#define LWIP_TCPIP_CORE_LOCKING         1
-#define LWIP_PROVIDE_ERRNO              1
-
+//--------------------------------------
 // for freertos mode
 #define TCPIP_MBOX_SIZE                 32
 #define TCPIP_THREAD_STACKSIZE          2048
 #define TCPIP_THREAD_PRIO               11
 
 
+//--------------------------------------
+// trying...
+#define LWIP_PROVIDE_ERRNO              1
+#if LWIP_SOCKET
+    #define LWIP_TIMEVAL_PRIVATE        0      // required for LWIP_SOCKET
+#endif
 
-// Debugging (was sonst?)
+
+//--------------------------------------
+// statistics
+//#define LWIP_STATS                      1
+//#define LWIP_STATS_DISPLAY              1
+//#define LINK_STATS                      1
+
+
+//--------------------------------------
+// debugging
 //#define LWIP_DEBUG
-
 #define API_LIB_DEBUG                   LWIP_DBG_ON
 #define API_MSG_DEBUG                   LWIP_DBG_ON
 #define AUTOIP_DEBUG                    LWIP_DBG_ON

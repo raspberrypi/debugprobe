@@ -70,8 +70,13 @@
     #include "pico-sigrok/sigrok.h"
 #endif
 #if OPT_NET
-    #include "net_glue.h"
-    #include "net_echo.h"
+    #include "net/net_glue.h"
+    #if OPT_NET_ECHO_SERVER
+        #include "net/net_echo.h"
+    #endif
+    #if OPT_NET_IPERF_SERVER
+        #include "lwip/apps/lwiperf.h"
+    #endif
 #endif
 
 
@@ -103,6 +108,7 @@ static uint8_t RxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZ
 
 
 // prios are critical and determine throughput
+// there is one more task prio in lwipopts.h
 #define TUD_TASK_PRIO               (tskIDLE_PRIORITY + 20)       // uses one core continuously (no longer valid with FreeRTOS usage)
 #define LED_TASK_PRIO               (tskIDLE_PRIORITY + 12)       // simple task which may interrupt everything else for periodic blinking
 #define NET_GLUE_TASK_PRIO          (tskIDLE_PRIORITY + 10)       // task which copies frames from tinyusb to lwip
@@ -477,7 +483,13 @@ void usb_thread(void *ptr)
 
 #if OPT_NET
     net_glue_init(NET_GLUE_TASK_PRIO);
-    net_echo_init();
+    #if OPT_NET_ECHO_SERVER
+        net_echo_init();
+    #endif
+    #if OPT_NET_IPERF_SERVER
+        // test with: iperf -c 192.168.10.1 -e -i 1 -l 1024
+        lwiperf_start_tcp_server_default(NULL, NULL);
+    #endif
 #endif
 
 #if OPT_CMSIS_DAPV2

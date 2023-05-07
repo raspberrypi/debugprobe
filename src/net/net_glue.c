@@ -249,7 +249,7 @@ static void init_lwip(void)
     /* the lwip virtual MAC address must be different from the host's; to ensure this, we toggle the LSbit */
     netif->hwaddr_len = sizeof(tud_network_mac_address);
     memcpy(netif->hwaddr, tud_network_mac_address, sizeof(tud_network_mac_address));
-    netif->hwaddr[5] ^= 0x01;
+    //netif->hwaddr[5] ^= 0x01;
 
     netif = netif_add(netif, &ipaddr, &netmask, &gateway, NULL, netif_init_cb, ip_input);
 #if LWIP_IPV6
