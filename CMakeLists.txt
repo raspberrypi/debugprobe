@@ -24,12 +24,13 @@ else()
     set(DEFAULT_OPT_PROBE_DEBUG_OUT 0)
 endif()
 
-option(OPT_CMSIS_DAPV1        "Enable CMSIS-DAPv1"                     0)
-option(OPT_CMSIS_DAPV2        "Enable CMSIS-DAPv2"                     0)
+option(OPT_CMSIS_DAPV1        "Enable CMSIS-DAPv1"                     1)
+option(OPT_CMSIS_DAPV2        "Enable CMSIS-DAPv2"                     1)
 option(OPT_TARGET_UART        "Enable CDC for target UART I/O"         1)
 option(OPT_PROBE_DEBUG_OUT    "Enable CDC for probe debug output"      ${DEFAULT_OPT_PROBE_DEBUG_OUT})
 option(OPT_SIGROK             "Enable sigrok"                          0)
-option(OPT_MSC                "Enable Mass Storage Device"             0)
+option(OPT_MSC                "Enable Mass Storage Device"             1)
+option(OPT_MSC_RAM_UF2        "Enable file 'RAM.UF2' on Mass Storage"  1)
 option(OPT_NET                "Enable lwIP on the Pico"                1)
 option(OPT_NET_DNS            "Enable DNS on the Pico"                 0)    # all DNS is going over the Pico!?
 option(OPT_NET_ECHO_SERVER    "Enable echo server for testing"         1)
@@ -279,6 +280,10 @@ if(OPT_MSC)
         src/msc/msc_drive.c
         src/msc/msc_utils.c
     )
+    
+    if(OPT_MSC_RAM_UF2)
+        add_compile_definitions(OPT_MSC_RAM_UF2=1)
+    endif()
 endif()
 
 #--------------------------------------------------------------------------------------------------
