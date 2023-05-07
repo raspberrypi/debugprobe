@@ -27,33 +27,48 @@
 #include "lwip/debug.h"
 #include "lwip/stats.h"
 #include "lwip/tcp.h"
+#include "lwip/err.h"
 
 #include "net_sysview.h"
 
 
+/**
+ * Some definitions for server communication
+ * - server port
+ * - "Hello" message expected by SystemView App: SEGGER SystemView VM.mm.rr
+ */
+#define SEGGER_SYSVIEW_MAJOR            3
+#define SEGGER_SYSVIEW_MINOR            32
+#define SEGGER_SYSVIEW_REV              0
+#ifndef SYSVIEW_COMM_SERVER_PORT
+    #define SYSVIEW_COMM_SERVER_PORT    19111
+#endif
+#define SYSVIEW_COMM_APP_HELLO_SIZE     32
+#define SYSVIEW_COMM_TARGET_HELLO_SIZE  32
+static const uint8_t sysview_hello[SYSVIEW_COMM_TARGET_HELLO_SIZE] = { 'S', 'E', 'G', 'G', 'E', 'R', ' ', 'S', 'y', 's', 't', 'e', 'm', 'V', 'i', 'e', 'w', ' ', 'V',
+        '0' + SEGGER_SYSVIEW_MAJOR, '.',
+        '0' + (SEGGER_SYSVIEW_MINOR / 10), '0' + (SEGGER_SYSVIEW_MINOR % 10), '.',
+        '0' + (SEGGER_SYSVIEW_REV / 10), '0' + (SEGGER_SYSVIEW_REV % 10), '\0', 0, 0, 0, 0, 0 };
 
-#define PORT_SYSVIEW           19111
 
-
-
+// pcb for socket listening
 static struct tcp_pcb *sysview_pcb;
+
 
 enum echo_states
 {
-    ES_NONE = 0,
-    ES_ACCEPTED,
-    ES_RECEIVED,
-    ES_CLOSING
+    SVS_NONE = 0,
+    SVS_WAIT_HELLO,
+    SVS_SEND_HELLO,
+    SVS_READY,
 };
 
 
+// state of the server socket
 struct sysview_state
 {
-    u8_t state;
-    u8_t retries;
+    uint8_t state;
     struct tcp_pcb *pcb;
-    /* pbuf (chain) to recycle */
-    struct pbuf *p;
 };
 
 
@@ -75,6 +90,8 @@ void sysview_error(void *arg, err_t err)
 
 void sysview_close(struct tcp_pcb *tpcb, struct sysview_state *svs)
 {
+    printf("sysview_close(%p,%p): %d\n", tpcb, svs, svs->state);
+
     tcp_arg(tpcb, NULL);
     tcp_sent(tpcb, NULL);
     tcp_recv(tpcb, NULL);
@@ -90,77 +107,17 @@ void sysview_close(struct tcp_pcb *tpcb, struct sysview_state *svs)
 
 
 
-static void sysview_send(struct tcp_pcb *tpcb, struct sysview_state *svs)
+static err_t sysview_sent(void *arg, struct tcp_pcb *tpcb, uint16_t len)
 {
-    struct pbuf *ptr;
-    err_t wr_err = ERR_OK;
+    struct sysview_state *svs = (struct sysview_state *)arg;
 
-    while ((wr_err == ERR_OK) &&
-            (svs->p != NULL) &&
-            (svs->p->len <= tcp_sndbuf(tpcb)))
+    printf("sysview_sent(%p,%p,%d) %d\n", arg, tpcb, len, svs->state);
+
+    if (svs->state == SVS_SEND_HELLO)
     {
-        ptr = svs->p;
-
-        /* enqueue data for transmission */
-        wr_err = tcp_write(tpcb, ptr->payload, ptr->len, 1);
-        if (wr_err == ERR_OK)
-        {
-            u16_t plen;
-            u8_t freed;
-
-            plen = ptr->len;
-            /* continue with next pbuf in chain (if any) */
-            svs->p = ptr->next;
-            if(svs->p != NULL)
-            {
-                /* new reference! */
-                pbuf_ref(svs->p);
-            }
-            /* chop first pbuf from chain */
-            do
-            {
-                /* try hard to free pbuf */
-                freed = pbuf_free(ptr);
-            }
-            while(freed == 0);
-            /* we can read more data now */
-            tcp_recved(tpcb, plen);
-        }
-        else if(wr_err == ERR_MEM)
-        {
-            /* we are low on memory, try later / harder, defer to poll */
-            svs->p = ptr;
-        }
-        else
-        {
-            /* other problem ?? */
-        }
+        svs->state = SVS_READY;
     }
-}   // sysview_send
 
-
-
-static err_t sysview_sent(void *arg, struct tcp_pcb *tpcb, u16_t len)
-{
-    struct sysview_state *svs;
-
-    svs = (struct sysview_state *)arg;
-    svs->retries = 0;
-
-    if(svs->p != NULL)
-    {
-        /* still got pbufs to send */
-        tcp_sent(tpcb, sysview_sent);
-        sysview_send(tpcb, svs);
-    }
-    else
-    {
-        /* no more pbufs to send */
-        if(svs->state == ES_CLOSING)
-        {
-            sysview_close(tpcb, svs);
-        }
-    }
     return ERR_OK;
 }   // sysview_sent
 
@@ -168,82 +125,71 @@ static err_t sysview_sent(void *arg, struct tcp_pcb *tpcb, u16_t len)
 
 static err_t sysview_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err)
 {
-    struct sysview_state *svs;
+    struct sysview_state *svs = (struct sysview_state *)arg;
     err_t ret_err;
+
+    printf("sysview_recv(%p,%p,%p,%d) %d\n", arg, tpcb, p, err, svs->state);
 
     LWIP_ASSERT("arg != NULL", arg != NULL);
 
-    svs = (struct sysview_state *)arg;
     if (p == NULL)
     {
-        /* remote host closed connection */
-        svs->state = ES_CLOSING;
-        if(svs->p == NULL)
-        {
-            /* we're done sending, close it */
-            sysview_close(tpcb, svs);
-        }
-        else
-        {
-            /* we're not done yet */
-            tcp_sent(tpcb, sysview_sent);
-            sysview_send(tpcb, svs);
-        }
+        //
+        // remote host closed connection
+        //
+        sysview_close(tpcb, svs);
         ret_err = ERR_OK;
     }
-    else if(err != ERR_OK)
+    else if (err != ERR_OK)
     {
-        /* cleanup, for unkown reason */
+        //
+        // cleanup, for unknown reason
+        //
+        // TODO actually return pbuf only, if !ERR_ABRT ??
         if (p != NULL)
         {
-            svs->p = NULL;
             pbuf_free(p);
         }
         ret_err = err;
     }
-    else if(svs->state == ES_ACCEPTED)
+    else if (svs->state == SVS_WAIT_HELLO)
     {
-        /* first data chunk in p->payload */
-        svs->state = ES_RECEIVED;
-        /* store reference to incoming pbuf (chain) */
-        svs->p = p;
-        /* install send completion notifier */
-        tcp_sent(tpcb, sysview_sent);
-        sysview_send(tpcb, svs);
-        ret_err = ERR_OK;
-    }
-    else if (svs->state == ES_RECEIVED)
-    {
-        /* read some more data */
-        if(svs->p == NULL)
+        //
+        // expecting hello message
+        //
+        printf("sysview_recv, %d:'%s'\n", p->len, (const char *)p->payload);
+        if (p->len != SYSVIEW_COMM_APP_HELLO_SIZE)
         {
-            svs->p = p;
-            tcp_sent(tpcb, sysview_sent);
-            sysview_send(tpcb, svs);
+            // invalid hello
+            pbuf_free(p);
+            tcp_abort(tpcb);
+            // TODO close here?
+            ret_err = ERR_ABRT;
         }
         else
         {
-            struct pbuf *ptr;
-
-            /* chain pbufs to the end of what we recv'ed previously  */
-            ptr = svs->p;
-            pbuf_chain(ptr,p);
+            // valid hello, response with hello back
+            tcp_recved(tpcb, SYSVIEW_COMM_APP_HELLO_SIZE);
+            pbuf_free(p);
+            tcp_write(tpcb, sysview_hello, SYSVIEW_COMM_TARGET_HELLO_SIZE, 0);
+            svs->state = SVS_SEND_HELLO;
+            ret_err = ERR_OK;
         }
-        ret_err = ERR_OK;
     }
-    else if(svs->state == ES_CLOSING)
+    else if (svs->state == SVS_READY)
     {
-        /* odd case, remote side closing twice, trash data */
-        tcp_recved(tpcb, p->tot_len);
-        svs->p = NULL;
+        //
+        // send received data to RTT SysView
+        //
+        tcp_recved(tpcb, p->len);
+        // TODO data to RTT
         pbuf_free(p);
         ret_err = ERR_OK;
     }
     else
     {
-        /* unkown es->state, trash data  */
+        /* unknown svs->state, trash data  */
         tcp_recved(tpcb, p->tot_len);
-        svs->p = NULL;
         pbuf_free(p);
         ret_err = ERR_OK;
     }
@@ -255,25 +201,12 @@ static err_t sysview_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t
 err_t sysview_poll(void *arg, struct tcp_pcb *tpcb)
 {
     err_t ret_err;
-    struct sysview_state *svs;
+    struct sysview_state *svs = (struct sysview_state *)arg;
 
-    svs = (struct sysview_state *)arg;
+    printf("sysview_poll(%p,%p) %d\n", arg, tpcb, svs->state);
+
     if (svs != NULL)
     {
-        if (svs->p != NULL)
-        {
-            /* there is a remaining pbuf (chain)  */
-            tcp_sent(tpcb, sysview_sent);
-            sysview_send(tpcb, svs);
-        }
-        else
-        {
-            /* no remaining pbuf (chain)  */
-            if(svs->state == ES_CLOSING)
-            {
-                sysview_close(tpcb, svs);
-            }
-        }
         ret_err = ERR_OK;
     }
     else
@@ -298,20 +231,19 @@ static err_t sysview_accept(void *arg, struct tcp_pcb *newpcb, err_t err)
     svs = (struct sysview_state *)mem_malloc(sizeof(struct sysview_state));
     if (svs != NULL)
     {
-        svs->state = ES_ACCEPTED;
+        svs->state = SVS_WAIT_HELLO;
         svs->pcb = newpcb;
-        svs->retries = 0;
-        svs->p = NULL;
-        /* pass newly allocated es to our callbacks */
-        tcp_arg(newpcb, svs);
+        /* pass newly allocated svs to our callbacks */
+        tcp_arg(newpcb,  svs);
+        tcp_err(newpcb,  sysview_error);
         tcp_recv(newpcb, sysview_recv);
-        tcp_err(newpcb, sysview_error);
         tcp_poll(newpcb, sysview_poll, 0);        // TODO interval?
+        tcp_sent(newpcb, sysview_sent);
         ret_err = ERR_OK;
     }
     else
     {
-        printf("sysview_accept(): cannot allow\n");
+        printf("sysview_accept(): cannot alloc\n");
         ret_err = ERR_MEM;
     }
     return ret_err;
@@ -331,7 +263,7 @@ void net_sysview_init(void)
         return;
     }
 
-    err = tcp_bind(pcb, IP_ADDR_ANY, PORT_SYSVIEW);
+    err = tcp_bind(pcb, IP_ADDR_ANY, SYSVIEW_COMM_SERVER_PORT);
     if (err != ERR_OK)
     {
         printf("net_sysview_init(): cannot bind, err:%d\n", err);
