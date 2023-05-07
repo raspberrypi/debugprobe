@@ -24,15 +24,17 @@ else()
     set(DEFAULT_OPT_PROBE_DEBUG_OUT 0)
 endif()
 
-option(OPT_CMSIS_DAPV1     "Enable CMSIS-DAPv1"                     0)
-option(OPT_CMSIS_DAPV2     "Enable CMSIS-DAPv2"                     0)
-option(OPT_TARGET_UART     "Enable CDC for target UART I/O"         1)
-option(OPT_PROBE_DEBUG_OUT "Enable CDC for probe debug output"      ${DEFAULT_OPT_PROBE_DEBUG_OUT})
-option(OPT_SIGROK          "Enable sigrok"                          0)
-option(OPT_MSC             "Enable Mass Storage Device"             0)
-option(OPT_NET             "Enable lwIP on the Pico"                1)
-option(OPT_NET_SYSVIEW     "Enable SysView over TCPIP"              1)
-option(OPT_NET_DNS         "Enable DNS on the Pico"                 0)    # all DNS is going over the Pico!?
+option(OPT_CMSIS_DAPV1        "Enable CMSIS-DAPv1"                     0)
+option(OPT_CMSIS_DAPV2        "Enable CMSIS-DAPv2"                     0)
+option(OPT_TARGET_UART        "Enable CDC for target UART I/O"         1)
+option(OPT_PROBE_DEBUG_OUT    "Enable CDC for probe debug output"      ${DEFAULT_OPT_PROBE_DEBUG_OUT})
+option(OPT_SIGROK             "Enable sigrok"                          0)
+option(OPT_MSC                "Enable Mass Storage Device"             0)
+option(OPT_NET                "Enable lwIP on the Pico"                1)
+option(OPT_NET_DNS            "Enable DNS on the Pico"                 0)    # all DNS is going over the Pico!?
+option(OPT_NET_ECHO_SERVER    "Enable echo server for testing"         1)
+option(OPT_NET_IPERF_SERVER   "Enable iperf server for tuning"         1)
+option(OPT_NET_SYSVIEW_SERVER "Enable SysView over TCPIP"              1)
 
 
 #
@@ -219,8 +221,7 @@ if(OPT_NET)
     add_compile_definitions(OPT_NET=1)
     
     target_sources(${PROJECT} PRIVATE
-        src/net_glue.c
-        src/net_echo.c
+        src/net/net_glue.c
         
         ${PICO_TINYUSB_PATH}/lib/networking/dhserver.c
         ${PICO_TINYUSB_PATH}/lib/networking/rndis_reports.c
@@ -238,6 +239,27 @@ if(OPT_NET)
         add_compile_definitions(OPT_NET_DNS=1)
         target_sources(${PROJECT} PRIVATE
             ${PICO_TINYUSB_PATH}/lib/networking/dnserver.c
+        )
+    endif()
+    
+    if(OPT_NET_SYSVIEW_SERVER)
+        add_compile_definitions(OPT_NET_SYSVIEW_SERVER=1)
+        target_sources(${PROJECT} PRIVATE
+            src/net/net_sysview.c
+        )
+    endif()
+    
+    if(OPT_NET_ECHO_SERVER)
+        add_compile_definitions(OPT_NET_ECHO_SERVER=1)
+        target_sources(${PROJECT} PRIVATE
+            src/net/net_echo.c
+        )
+    endif()
+    
+    if(OPT_NET_IPERF_SERVER)
+        add_compile_definitions(OPT_NET_IPERF_SERVER=1)
+        target_sources(${PROJECT} PRIVATE
+            ${PICO_LWIP_PATH}/src/apps/lwiperf/lwiperf.c
         )
     endif()
     

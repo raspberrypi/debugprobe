@@ -77,6 +77,9 @@
     #if OPT_NET_IPERF_SERVER
         #include "lwip/apps/lwiperf.h"
     #endif
+    #if OPT_NET_SYSVIEW_SERVER
+        #include "net/net_sysview.h"
+    #endif
 #endif
 
 
@@ -483,6 +486,9 @@ void usb_thread(void *ptr)
 
 #if OPT_NET
     net_glue_init(NET_GLUE_TASK_PRIO);
+    #if OPT_NET_SYSVIEW_SERVER
+        net_sysview_init();
+    #endif
     #if OPT_NET_ECHO_SERVER
         net_echo_init();
     #endif
