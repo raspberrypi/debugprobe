@@ -117,7 +117,6 @@ static uint8_t RxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZ
 #define NET_GLUE_TASK_PRIO          (tskIDLE_PRIORITY + 10)       // task which copies frames from tinyusb to lwip
 #define SIGROK_TASK_PRIO            (tskIDLE_PRIORITY + 9)        // Sigrok digital/analog signals (does nothing at the moment)
 #define MSC_WRITER_THREAD_PRIO      (tskIDLE_PRIORITY + 8)        // this is only running on writing UF2 files
-#define NET_SYSVIEW_PRIO            (tskIDLE_PRIORITY + 7)        // net_sysview: send data to host (client)
 #define UART_TASK_PRIO              (tskIDLE_PRIORITY + 5)        // target -> host via UART
 #define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 4)        // target -> host via RTT
 #define CDC_DEBUG_TASK_PRIO         (tskIDLE_PRIORITY + 4)        // probe debugging output
@@ -488,7 +487,7 @@ void usb_thread(void *ptr)
 #if OPT_NET
     net_glue_init(NET_GLUE_TASK_PRIO);
     #if OPT_NET_SYSVIEW_SERVER
-        net_sysview_init(NET_SYSVIEW_PRIO);
+        net_sysview_init();
     #endif
     #if OPT_NET_ECHO_SERVER
         net_echo_init();

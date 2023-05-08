@@ -26,12 +26,11 @@
 
 #include "FreeRTOS.h"
 #include "stream_buffer.h"
-#include "task.h"
-#include "event_groups.h"
 
 #include "lwip/debug.h"
 #include "lwip/stats.h"
 #include "lwip/tcp.h"
+#include "lwip/tcpip.h"
 #include "lwip/err.h"
 
 #include "picoprobe_config.h"
@@ -76,20 +75,13 @@ struct tcp_pcb *m_pcb_client;
 #define STREAM_SYSVIEW_SIZE      4096
 #define STREAM_SYSVIEW_TRIGGER   32
 
-static TaskHandle_t              task_sysview = NULL;
 static StreamBufferHandle_t      stream_sysview_to_host;
-
-#define EV_STREAM                0x01
-#define EV_SENT                  0x02
-
-/// event flags
-static EventGroupHandle_t        events;
 
 
 
 void sysview_error(void *arg, err_t err)
 {
-    printf("picoprobe_error: %d\n", err);
+    picoprobe_error("sysview_error: %d\n", err);
 
     m_state = SVS_NONE;
 }   // sysview_error
@@ -98,7 +90,7 @@ void sysview_error(void *arg, err_t err)
 
 void sysview_close(struct tcp_pcb *tpcb)
 {
-    //printf("sysview_close(%p): %d\n", tpcb, m_state);
+    printf("sysview_close(%p): %d\n", tpcb, m_state);
 
     tcp_arg(tpcb, NULL);
     tcp_sent(tpcb, NULL);
@@ -113,16 +105,56 @@ void sysview_close(struct tcp_pcb *tpcb)
 
 
 
+static void sysview_try_send(void *ctx)
+{
+    if (/* m_state == SVS_READY  && */  !xStreamBufferIsEmpty(stream_sysview_to_host)) {
+        size_t cnt;
+        size_t max_cnt;
+        uint8_t tx_buf[64];
+        err_t err;
+
+        //printf("sysview_try_send: %d\n", xStreamBufferBytesAvailable(stream_sysview_to_host));
+
+        max_cnt = tcp_sndbuf(m_pcb_client);
+        if (max_cnt != 0) {
+            max_cnt = MIN(sizeof(tx_buf), max_cnt);
+            cnt = xStreamBufferReceive(stream_sysview_to_host, tx_buf, max_cnt, pdMS_TO_TICKS(10));
+            if (cnt != 0) {
+                if (xStreamBufferIsEmpty(stream_sysview_to_host))
+                {
+                    err = tcp_write(m_pcb_client, tx_buf, cnt, TCP_WRITE_FLAG_COPY);
+                    if (err != ERR_OK)
+                        picoprobe_error("sysview_try_send/a: %d\n", err);
+#if 0
+                    err = tcp_output(m_pcb_client);
+                    if (err != ERR_OK)
+                        picoprobe_error("sysview_try_send/b: %d\n", err);
+#endif
+                }
+                else
+                {
+                    err = tcp_write(m_pcb_client, tx_buf, cnt, TCP_WRITE_FLAG_COPY | TCP_WRITE_FLAG_MORE);
+                    if (err != ERR_OK)
+                        picoprobe_error("sysview_try_send/c: %d\n", err);
+                    tcpip_callback_with_block(sysview_try_send, NULL, 0);
+                }
+            }
+        }
+    }
+}   // sysview_try_send
+
+
+
 static err_t sysview_sent(void *arg, struct tcp_pcb *tpcb, uint16_t len)
 {
-    //printf("sysview_sent(%p,%p,%d) %d\n", arg, tpcb, len, m_state);
+    printf("sysview_sent(%p,%p,%d) %d\n", arg, tpcb, len, m_state);
 
     if (m_state == SVS_SEND_HELLO)
     {
         m_state = SVS_READY;
         xStreamBufferReset(stream_sysview_to_host);
     }
-    xEventGroupSetBits(events, EV_SENT);
+    tcpip_callback_with_block(sysview_try_send, NULL, 0);
 
     return ERR_OK;
 }   // sysview_sent
@@ -133,7 +165,7 @@ static err_t sysview_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t
 {
     err_t ret_err;
 
-    //printf("sysview_recv(%p,%p,%p,%d) %d\n", arg, tpcb, p, err, m_state);
+    // printf("sysview_recv(%p,%p,%p,%d) %d\n", arg, tpcb, p, err, m_state);
 
     if (p == NULL)
     {
@@ -160,7 +192,7 @@ static err_t sysview_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t
         //
         // expecting hello message
         //
-        //printf("sysview_recv, %d:'%s'\n", p->len, (const char *)p->payload);
+        printf("sysview_recv, %d:'%s'\n", p->len, (const char *)p->payload);
         if (p->len != SYSVIEW_COMM_APP_HELLO_SIZE)
         {
             // invalid hello
@@ -206,7 +238,7 @@ static err_t sysview_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t
 
 err_t sysview_poll(void *arg, struct tcp_pcb *tpcb)
 {
-    //printf("sysview_poll(%p,%p) %d\n", arg, tpcb, m_state);
+    // printf("sysview_poll(%p,%p) %d\n", arg, tpcb, m_state);
 
     return ERR_OK;
 }   // sysview_poll
@@ -232,51 +264,9 @@ static err_t sysview_accept(void *arg, struct tcp_pcb *newpcb, err_t err)
 
 
 
-static void sysview_thread(void *ptr)
-{
-    for (;;) {
-        xEventGroupWaitBits(events, EV_STREAM | EV_SENT, pdTRUE, pdFALSE, pdMS_TO_TICKS(1000));
-
-        if (m_state == SVS_READY  &&  !xStreamBufferIsEmpty(stream_sysview_to_host)) {
-            size_t cnt;
-            size_t max_cnt;
-            uint8_t tx_buf[64];
-            err_t err;
-
-            //printf("sysview_thread: %d\n", xStreamBufferBytesAvailable(stream_sysview_to_host));
-
-            max_cnt = tcp_sndbuf(m_pcb_client);
-            if (max_cnt != 0) {
-                max_cnt = MIN(sizeof(tx_buf), max_cnt);
-                cnt = xStreamBufferReceive(stream_sysview_to_host, tx_buf, max_cnt, pdMS_TO_TICKS(10));
-                if (cnt != 0) {
-                    if (xStreamBufferIsEmpty(stream_sysview_to_host))
-                    {
-                        err = tcp_write(m_pcb_client, tx_buf, cnt, TCP_WRITE_FLAG_COPY);
-                        if (err != ERR_OK)
-                            picoprobe_error("sysview_thread/a: %d\n", err);
-                        err = tcp_output(m_pcb_client);
-                        if (err != ERR_OK)
-                            picoprobe_error("sysview_thread/b: %d\n", err);
-                    }
-                    else
-                    {
-                        err = tcp_write(m_pcb_client, tx_buf, cnt, TCP_WRITE_FLAG_COPY | TCP_WRITE_FLAG_MORE);
-                        if (err != ERR_OK)
-                            picoprobe_error("sysview_thread/c: %d\n", err);
-                        xEventGroupSetBits(events, EV_STREAM);
-                    }
-                }
-            }
-        }
-    }
-}   // sysview_thread
-
-
-
 void net_sysview_send(const uint8_t *buf, uint32_t cnt)
 {
-    //printf("net_sysview_send(%p,%lu) %d\n", buf, cnt, m_state);
+    printf("net_sysview_send(%p,%lu) %d\n", buf, cnt, m_state);
 
     if (m_state != SVS_READY)
     {
@@ -285,13 +275,13 @@ void net_sysview_send(const uint8_t *buf, uint32_t cnt)
     else
     {
         xStreamBufferSend(stream_sysview_to_host, buf, cnt, pdMS_TO_TICKS(5));
-        xEventGroupSetBits(events, EV_STREAM);
+        tcpip_callback_with_block(sysview_try_send, NULL, 0);
     }
 }   // net_sysview_send
 
 
 
-void net_sysview_init(uint32_t task_prio)
+void net_sysview_init(void)
 {
     err_t err;
     struct tcp_pcb *pcb;
@@ -299,13 +289,10 @@ void net_sysview_init(uint32_t task_prio)
     //
     // initialize some infrastructure
     //
-    events = xEventGroupCreate();
-
     stream_sysview_to_host = xStreamBufferCreate(STREAM_SYSVIEW_SIZE, STREAM_SYSVIEW_TRIGGER);
     if (stream_sysview_to_host == NULL) {
         picoprobe_error("net_sysview_init: cannot create stream_sysview_to_host\n");
     }
-    xTaskCreateAffinitySet(sysview_thread, "net_sysview", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_sysview);
 
     //
     // initialize socket listener
