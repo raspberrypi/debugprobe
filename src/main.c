@@ -341,6 +341,10 @@ void dap_task(void *ptr)
 
 
 #if configUSE_TRACE_FACILITY
+static uint32_t tusb_count;
+static TimerHandle_t timer_task_stat;
+static EventGroupHandle_t events_task_stat;
+
 char task_state(eTaskState state)
 {
     static const char state_ch[] = "RrBSDI";
@@ -348,26 +352,35 @@ char task_state(eTaskState state)
 }   // task_state
 
 
-
-void print_task_stat(void)
+void trigger_task_stat(TimerHandle_t xTimer)
 {
-    static uint32_t prev_s = (uint32_t)-8;
-    static bool initialized;
-    uint32_t curr_s;
+    xEventGroupSetBits(events_task_stat, 0x01);
+}   // trigger_task_stat
 
-    curr_s = (uint32_t)(time_us_64() / 1000000);
-    if (curr_s - prev_s >= 10) {
-        #define NUM_ENTRY 15
-        HeapStats_t heap_status;
-        static TaskStatus_t task_status[NUM_ENTRY];
-        uint32_t total_run_time;
 
-        picoprobe_info("---------------------------------------\n");
+void print_task_stat(void *ptr)
+{
+#define NUM_ENTRY 15
+    bool initialized = false;
+    uint32_t prev_tusb_count = 0;
+    HeapStats_t heap_status;
+    TaskStatus_t task_status[NUM_ENTRY];
+    uint32_t total_run_time;
+
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+    timer_task_stat = xTimerCreate("task stat", pdMS_TO_TICKS(10000), pdTRUE, NULL, trigger_task_stat);   // just for fun: exact period of 10s
+    events_task_stat = xEventGroupCreate();
+
+    xTimerReset(timer_task_stat, 0);
+
+    for (;;) {
+        printf("---------------------------------------\n");
         if ( !initialized) {
             uint32_t cnt;
 
             initialized = true;
-            picoprobe_info("assign IDLE tasks to certain core\n");
+            printf("assign IDLE tasks to certain core\n");
             cnt = uxTaskGetSystemState(task_status, NUM_ENTRY, &total_run_time);
             for (uint32_t n = 0;  n < cnt;  ++n) {
                 if (strcmp(task_status[n].pcTaskName, "IDLE0") == 0) {
@@ -379,13 +392,15 @@ void print_task_stat(void)
             }
         }
 
+        printf("TinyUSB counter : %lu\n", tusb_count - prev_tusb_count);
+        prev_tusb_count = tusb_count;
         vPortGetHeapStats( &heap_status);
-        //picoprobe_info("curr heap free: %d\n", heap_status.xAvailableHeapSpaceInBytes);
-        picoprobe_info("min heap free   : %d\n", heap_status.xMinimumEverFreeBytesRemaining);
+        printf("curr heap free  : %d\n", heap_status.xAvailableHeapSpaceInBytes);
+        printf("min heap free   : %d\n", heap_status.xMinimumEverFreeBytesRemaining);
 
-        picoprobe_info("number of tasks : %lu\n", uxTaskGetNumberOfTasks());
+        printf("number of tasks : %lu\n", uxTaskGetNumberOfTasks());
         if (uxTaskGetNumberOfTasks() > NUM_ENTRY) {
-            picoprobe_info("!!!!!!!!!!!!!!! redefine NUM_ENTRY to see task state\n");
+            printf("!!!!!!!!!!!!!!! redefine NUM_ENTRY to see task state\n");
         }
         else {
             // this part is critical concerning overflow because the numbers are getting quickly very big (us timer resolution)
@@ -405,10 +420,10 @@ void print_task_stat(void)
                 curr_tick_sum += task_status[n].ulRunTimeCounter;
                 delta_tick_sum += task_status[n].ulRunTimeCounter - prev_tick[prev_ndx];
             }
-            picoprobe_info("delta tick sum  : %lu\n", delta_tick_sum);
+            printf("delta tick sum  : %lu\n", delta_tick_sum);
 
-            picoprobe_info("NUM PRI  S/AM  CPU  TOT STACK  NAME\n");
-            picoprobe_info("---------------------------------------\n");
+            printf("NUM PRI  S/AM  CPU  TOT STACK  NAME\n");
+            printf("---------------------------------------\n");
 
             curr_tick_sum /= configNUM_CORES;
             delta_tick_sum /= configNUM_CORES;
@@ -429,7 +444,7 @@ void print_task_stat(void)
                 percent_sum += percent;
                 percent_total_sum += percent_total;
 
-                picoprobe_info("%3lu  %2lu  %c/%2d %4lu %4lu %5lu  %s\n",
+                printf("%3lu  %2lu  %c/%2d %4lu %4lu %5lu  %s\n",
                                task_status[n].xTaskNumber,
                                task_status[n].uxCurrentPriority,
                                task_state(task_status[n].eCurrentState), (int)task_status[n].uxCoreAffinityMask,
@@ -439,12 +454,12 @@ void print_task_stat(void)
 
                 prev_tick[prev_ndx] = curr_tick;
             }
-            picoprobe_info("---------------------------------------\n");
-            picoprobe_info("              %3lu %3lu\n", percent_sum, percent_total_sum);
+            printf("---------------------------------------\n");
+            printf("              %3lu %3lu\n", percent_sum, percent_total_sum);
         }
-        picoprobe_info("---------------------------------------\n");
+        printf("---------------------------------------\n");
 
-        prev_s = curr_s;
+        xEventGroupWaitBits(events_task_stat, 0x01, pdTRUE, pdFALSE, pdMS_TO_TICKS(60000));
     }
 }   // print_task_stat
 #endif
@@ -502,13 +517,19 @@ void usb_thread(void *ptr)
     xTaskCreateAffinitySet(dap_task, "CMSIS-DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, 2, &dap_taskhandle);
 #endif
 
+#if configUSE_TRACE_FACILITY
+    {
+        TaskHandle_t task_stat_handle;
+        xTaskCreateAffinitySet(print_task_stat, "Print Task Stat", configMINIMAL_STACK_SIZE, NULL, 30, -1, &task_stat_handle);
+    }
+#endif
+
     tusb_init();
     for (;;) {
-        tud_task();             // the FreeRTOS version goes into blocking state if its event queue is empty
-
 #if configUSE_TRACE_FACILITY
-        print_task_stat();
+        ++tusb_count;
 #endif
+        tud_task();             // the FreeRTOS version goes into blocking state if its event queue is empty
     }
 }   // usb_thread
 
@@ -572,7 +593,7 @@ int main(void)
     events = xEventGroupCreate();
 
     // it seems that lwip does not like affinity setting in its thread, so the affinity of the USB thread is corrected in the task itself
-    xTaskCreateAffinitySet(usb_thread, "TinyUSB Main", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, -1, &tud_taskhandle);
+    xTaskCreateAffinitySet(usb_thread, "TinyUSB Main", 8000, NULL, TUD_TASK_PRIO, -1, &tud_taskhandle);
     vTaskStartScheduler();
 
     return 0;
