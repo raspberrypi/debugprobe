@@ -133,8 +133,6 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data) {
   probe_write_bits(8, prq);
 
   /* Turnaround (ignore read bits) */
-  probe_read_mode();
-
   ack = probe_read_bits(DAP_Data.swd_conf.turnaround + 3);
   ack >>= DAP_Data.swd_conf.turnaround;
 
@@ -154,12 +152,10 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data) {
       picoprobe_debug("Read %02x ack %02x 0x%08x parity %01x\n",
                       prq, ack, val, bit);
       /* Turnaround for line idle */
-      probe_read_bits(DAP_Data.swd_conf.turnaround);
-      probe_write_mode();
+      probe_hiz_clocks(DAP_Data.swd_conf.turnaround);
     } else {
       /* Turnaround for write */
-      probe_read_bits(DAP_Data.swd_conf.turnaround);
-      probe_write_mode();
+      probe_hiz_clocks(DAP_Data.swd_conf.turnaround);
 
       /* Write WDATA[0:31] */
       val = *data;
@@ -178,9 +174,9 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data) {
     /* Idle cycles - drive 0 for N clocks */
     if (DAP_Data.transfer.idle_cycles) {
       for (n = DAP_Data.transfer.idle_cycles; n; ) {
-        if (n > 32) {
-          probe_write_bits(32, 0);
-          n -= 32;
+        if (n > 256) {
+          probe_write_bits(256, 0);
+          n -= 256;
         } else {
           probe_write_bits(n, 0);
           n -= n;
@@ -195,8 +191,7 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data) {
       /* Dummy Read RDATA[0:31] + Parity */
       probe_read_bits(33);
     }
-    probe_read_bits(DAP_Data.swd_conf.turnaround);
-    probe_write_mode();
+    probe_hiz_clocks(DAP_Data.swd_conf.turnaround);
     if (DAP_Data.swd_conf.data_phase && ((request & DAP_TRANSFER_RnW) == 0U)) {
       /* Dummy Write WDATA[0:31] + Parity */
       probe_write_bits(32, 0);
@@ -209,7 +204,6 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data) {
   n = DAP_Data.swd_conf.turnaround + 32U + 1U;
   /* Back off data phase */
   probe_read_bits(n);
-  probe_write_mode();
   return ((uint8_t)ack);
 }
 
