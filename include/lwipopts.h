@@ -81,8 +81,8 @@
 
 //--------------------------------------
 // for freertos mode
-#define TCPIP_MBOX_SIZE                 128
-#define TCPIP_THREAD_STACKSIZE          60000
+#define TCPIP_MBOX_SIZE                 64
+#define TCPIP_THREAD_STACKSIZE          8192
 #define TCPIP_THREAD_PRIO               11
 
 

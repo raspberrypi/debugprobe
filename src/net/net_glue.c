@@ -112,7 +112,7 @@ static bool dns_query_proc(const char *name, ip4_addr_t *addr)
 void tud_network_init_cb(void)
 {
     /* if the network is re-initializing and we have a leftover packet, we must do a cleanup */
-    if (received_frame)
+    if (received_frame != NULL)
     {
         pbuf_free(received_frame);
         received_frame = NULL;
@@ -126,7 +126,8 @@ static void net_glue_usb_to_lwip(void *ptr)
  * handle any packet received by tud_network_recv_cb() in context of lwIP
  */
 {
-    // printf("net_glue_usb_to_lwip\n");
+    //printf("net_glue_usb_to_lwip\n");
+
     if (received_frame != NULL) {
         ethernet_input(received_frame, &netif_data);
         pbuf_free(received_frame);

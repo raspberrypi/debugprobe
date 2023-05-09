@@ -92,7 +92,7 @@ void sysview_error(void *arg, err_t err)
 
 void sysview_close(struct tcp_pcb *tpcb)
 {
-    printf("sysview_close(%p): %d\n", tpcb, m_state);
+    //printf("sysview_close(%p): %d\n", tpcb, m_state);
 
     tcp_arg(tpcb, NULL);
     tcp_sent(tpcb, NULL);
@@ -113,7 +113,7 @@ static void sysview_try_send(void *ctx)
 {
     block_call_back_message = false;
 
-    if (/* m_state == SVS_READY  && */  !xStreamBufferIsEmpty(stream_sysview_to_host)) {
+    if ( !xStreamBufferIsEmpty(stream_sysview_to_host)) {
         size_t cnt;
         size_t max_cnt;
         uint8_t tx_buf[512];
@@ -125,40 +125,14 @@ static void sysview_try_send(void *ctx)
             max_cnt = MIN(sizeof(tx_buf), max_cnt);
             cnt = xStreamBufferReceive(stream_sysview_to_host, tx_buf, max_cnt, pdMS_TO_TICKS(10));
             if (cnt != 0) {
-                if (xStreamBufferIsEmpty(stream_sysview_to_host))
-                {
-                    err = tcp_write(m_pcb_client, tx_buf, cnt, TCP_WRITE_FLAG_COPY);
-                    if (err != ERR_OK) {
-                        picoprobe_error("sysview_try_send/a: %d\n", err);
-                        sysview_close(m_pcb_client);
-                    }
-#if 0
-                    err = tcp_output(m_pcb_client);
-                    if (err != ERR_OK) {
-                        picoprobe_error("sysview_try_send/b: %d\n", err);
-                        sysview_close(m_pcb_client);
-                    }
-#endif
+                // the write has either 512 bytes (so send it) or the stream is empty (so send it as well)
+                err = tcp_write(m_pcb_client, tx_buf, cnt, TCP_WRITE_FLAG_COPY);
+                if (err != ERR_OK) {
+                    picoprobe_error("sysview_try_send/a: %d\n", err);
+                    sysview_close(m_pcb_client);
                 }
-                else
-                {
-                    err = tcp_write(m_pcb_client, tx_buf, cnt, TCP_WRITE_FLAG_COPY | TCP_WRITE_FLAG_MORE);
-                    if (err != ERR_OK) {
-                        picoprobe_error("sysview_try_send/c: %d\n", err);                        sysview_close(m_pcb_client);
-                    }
+                if ( !xStreamBufferIsEmpty(stream_sysview_to_host)) {
                     tcpip_callback_with_block(sysview_try_send, NULL, 0);
-                }
-                m_xmt_cnt += cnt;
-                if (m_xmt_cnt > 1000)
-                {
-                    m_xmt_cnt = 0;
-#if 1
-                    err = tcp_output(m_pcb_client);
-                    if (err != ERR_OK) {
-                        picoprobe_error("sysview_try_send/d: %d\n", err);
-                        sysview_close(m_pcb_client);
-                    }
-#endif
                 }
             }
         }
@@ -169,7 +143,7 @@ static void sysview_try_send(void *ctx)
 
 static err_t sysview_sent(void *arg, struct tcp_pcb *tpcb, uint16_t len)
 {
-    printf("sysview_sent(%p,%p,%d) %d\n", arg, tpcb, len, m_state);
+    //printf("sysview_sent(%p,%p,%d) %d\n", arg, tpcb, len, m_state);
 
     if (m_state == SVS_SEND_HELLO)
     {
@@ -216,7 +190,7 @@ static err_t sysview_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t
         //
         // expecting hello message
         //
-        printf("sysview_recv, %d:'%s'\n", p->len, (const char *)p->payload);
+        // printf("sysview_recv, %d:'%s'\n", p->len, (const char *)p->payload);
         if (p->len != SYSVIEW_COMM_APP_HELLO_SIZE)
         {
             // invalid hello
@@ -291,8 +265,10 @@ static err_t sysview_accept(void *arg, struct tcp_pcb *newpcb, err_t err)
 
 void net_sysview_send(const uint8_t *buf, uint32_t cnt)
 {
+#if 0
     if (m_state != SVS_NONE)
         printf("net_sysview_send(%p,%lu) %d\n", buf, cnt, m_state);
+#endif
 
     if (m_state != SVS_READY)
     {
@@ -309,7 +285,7 @@ void net_sysview_send(const uint8_t *buf, uint32_t cnt)
             block_call_back_message = true;
             err = tcpip_callback_with_block(sysview_try_send, NULL, 0);
             if (err != ERR_OK) {
-                printf("net_sysview_send: queue %d\n", err);
+                picoprobe_error("net_sysview_send: error %d\n", err);
                 sysview_close(m_pcb_client);
             }
         }

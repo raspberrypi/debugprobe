@@ -82,12 +82,12 @@
 #define configAPPLICATION_ALLOCATED_HEAP        0
 
 /* Hook function related definitions. */
-#define configCHECK_FOR_STACK_OVERFLOW          0
+#define configCHECK_FOR_STACK_OVERFLOW          1
 #define configUSE_MALLOC_FAILED_HOOK            1
 #define configUSE_DAEMON_TASK_STARTUP_HOOK      0
 
 /* Run time and task stats gathering related definitions. */
-#define configUSE_TRACE_FACILITY                1                                // switch on task status output
+#define configUSE_TRACE_FACILITY                0                                // switch on task status output
 #define configGENERATE_RUN_TIME_STATS           configUSE_TRACE_FACILITY
 #define configUSE_STATS_FORMATTING_FUNCTIONS    0
 
@@ -118,10 +118,15 @@
 */
 
 /* SMP port only */
-#define configNUM_CORES                         2
+#define configNUM_CORES                         1
 #define configTICK_CORE                         1
 #define configRUN_MULTIPLE_PRIORITIES           1
-#define configUSE_CORE_AFFINITY                 1
+#if configNUM_CORES != 1
+    #define configUSE_CORE_AFFINITY             1
+#endif
+#if !defined(configUSE_CORE_AFFINITY)  ||  configUSE_CORE_AFFINITY == 0
+    #define xTaskCreateAffinitySet(FUN,NAM,STK,PAR,PRI,AFF,HND)   xTaskCreate(FUN,NAM,STK,PAR,PRI,HND)
+#endif
 
 /* RP2040 specific */
 #define configSUPPORT_PICO_SYNC_INTEROP         1
@@ -140,7 +145,7 @@ to exclude the API function. */
 #define INCLUDE_vTaskDelayUntil                 0
 #define INCLUDE_vTaskDelay                      1
 #define INCLUDE_xTaskGetSchedulerState          0
-#define INCLUDE_xTaskGetCurrentTaskHandle       0
+#define INCLUDE_xTaskGetCurrentTaskHandle       1
 #define INCLUDE_uxTaskGetStackHighWaterMark     0
 #define INCLUDE_xTaskGetIdleTaskHandle          0
 #define INCLUDE_eTaskGetState                   0

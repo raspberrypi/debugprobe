@@ -613,7 +613,7 @@ int main(void)
     events = xEventGroupCreate();
 
     // it seems that TinyUSB does not like affinity setting in its thread, so the affinity of the USB thread is corrected in the task itself
-    xTaskCreateAffinitySet(usb_thread, "TinyUSB Main", 8000, NULL, TUD_TASK_PRIO, -1, &tud_taskhandle);
+    xTaskCreateAffinitySet(usb_thread, "TinyUSB Main", 4096, NULL, TUD_TASK_PRIO, -1, &tud_taskhandle);
     vTaskStartScheduler();
 
     return 0;
