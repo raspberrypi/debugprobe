@@ -26,7 +26,6 @@
  */
 
 #include "tusb.h"
-#include "pico/unique_id.h"
 #include "get_serial.h"
 #include "picoprobe_config.h"
 
