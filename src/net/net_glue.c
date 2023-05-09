@@ -48,9 +48,6 @@
     #include "dnserver.h"
 #endif
 
-//#include "FreeRTOS.h"
-//#include "event_groups.h"
-
 #include "tusb.h"
 
 
@@ -90,10 +87,6 @@ static const dhcp_config_t dhcp_config =
     TU_ARRAY_SIZE(entries),                    /* num entry */
     entries                                    /* entries */
 };
-
-//static TaskHandle_t   task_net_glue = NULL;
-
-//static EventGroupHandle_t  events;
 
 
 
@@ -162,7 +155,6 @@ bool tud_network_recv_cb(const uint8_t *src, uint16_t size)
 
             /* store away the pointer for service_traffic() to later handle */
             received_frame = p;
-            //xEventGroupSetBits(events, EV_RCVFRAME_READY);
             tcpip_callback_with_block(net_glue_usb_to_lwip, NULL, 0);
         }
     }
@@ -257,7 +249,7 @@ static err_t netif_init_cb(struct netif *netif)
 
 
 
-static void init_lwip(void)
+void net_glue_init(void)
 {
     struct netif *netif = &netif_data;
 
@@ -282,41 +274,5 @@ static void init_lwip(void)
 #if OPT_NET_DNS
     while (dnserv_init(IP_ADDR_ANY, 53, dns_query_proc) != ERR_OK)
         ;
-#endif
-}   // init_lwip
-
-
-
-static void net_glue_thread(void *ptr)
-{
-    for (;;) {
-        //xEventGroupWaitBits(events, EV_RCVFRAME_READY, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
-
-#if 0
-        /* handle any packet received by tud_network_recv_cb() */
-        if (received_frame) {
-            ethernet_input(received_frame, &netif_data);
-            pbuf_free(received_frame);
-            received_frame = NULL;
-            tud_network_recv_renew();
-        }
-#endif
-    }
-}   // net_glue_thread
-
-
-
-void net_glue_init(uint32_t task_prio)
-{
-    //events = xEventGroupCreate();
-
-    init_lwip();
-
-#if 0
-    xTaskCreateAffinitySet(net_glue_thread, "NET_GLUE", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_net_glue);
-    if (task_net_glue == NULL)
-    {
-        picoprobe_error("net_glue_init: cannot create task_net_glue\n");
-    }
 #endif
 }   // net_glue_init

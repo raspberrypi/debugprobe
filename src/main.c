@@ -114,7 +114,6 @@ static uint8_t RxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZ
 // there is one more task prio in lwipopts.h
 #define TUD_TASK_PRIO               (tskIDLE_PRIORITY + 20)       // uses one core continuously (no longer valid with FreeRTOS usage)
 #define LED_TASK_PRIO               (tskIDLE_PRIORITY + 12)       // simple task which may interrupt everything else for periodic blinking
-#define NET_GLUE_TASK_PRIO          (tskIDLE_PRIORITY + 10)       // task which copies frames from tinyusb to lwip
 #define SIGROK_TASK_PRIO            (tskIDLE_PRIORITY + 9)        // Sigrok digital/analog signals (does nothing at the moment)
 #define MSC_WRITER_THREAD_PRIO      (tskIDLE_PRIORITY + 8)        // this is only running on writing UF2 files
 #define UART_TASK_PRIO              (tskIDLE_PRIORITY + 5)        // target -> host via UART
@@ -361,11 +360,27 @@ void trigger_task_stat(TimerHandle_t xTimer)
 void print_task_stat(void *ptr)
 {
 #define NUM_ENTRY 15
-    bool initialized = false;
     uint32_t prev_tusb_count = 0;
     HeapStats_t heap_status;
     TaskStatus_t task_status[NUM_ENTRY];
     uint32_t total_run_time;
+
+#if defined(configUSE_CORE_AFFINITY)  &&  configUSE_CORE_AFFINITY != 0
+    {
+        uint32_t cnt;
+
+        printf("assign IDLE tasks to certain core\n");
+        cnt = uxTaskGetSystemState(task_status, NUM_ENTRY, &total_run_time);
+        for (uint32_t n = 0;  n < cnt;  ++n) {
+            if (strcmp(task_status[n].pcTaskName, "IDLE0") == 0) {
+                vTaskCoreAffinitySet(task_status[n].xHandle, 1 << 0);
+            }
+            else if (strcmp(task_status[n].pcTaskName, "IDLE1") == 0) {
+                vTaskCoreAffinitySet(task_status[n].xHandle, 1 << 1);
+            }
+        }
+    }
+#endif
 
     vTaskDelay(pdMS_TO_TICKS(100));
 
@@ -376,21 +391,6 @@ void print_task_stat(void *ptr)
 
     for (;;) {
         printf("---------------------------------------\n");
-        if ( !initialized) {
-            uint32_t cnt;
-
-            initialized = true;
-            printf("assign IDLE tasks to certain core\n");
-            cnt = uxTaskGetSystemState(task_status, NUM_ENTRY, &total_run_time);
-            for (uint32_t n = 0;  n < cnt;  ++n) {
-                if (strcmp(task_status[n].pcTaskName, "IDLE0") == 0) {
-                    vTaskCoreAffinitySet(task_status[n].xHandle, 1 << 0);
-                }
-                else if (strcmp(task_status[n].pcTaskName, "IDLE1") == 0) {
-                    vTaskCoreAffinitySet(task_status[n].xHandle, 1 << 1);
-                }
-            }
-        }
 
         printf("TinyUSB counter : %lu\n", tusb_count - prev_tusb_count);
         prev_tusb_count = tusb_count;
@@ -419,6 +419,13 @@ void print_task_stat(void *ptr)
                 assert(prev_ndx < NUM_ENTRY + 1);
                 curr_tick_sum += task_status[n].ulRunTimeCounter;
                 delta_tick_sum += task_status[n].ulRunTimeCounter - prev_tick[prev_ndx];
+
+#if defined(configUSE_CORE_AFFINITY)  &&  configUSE_CORE_AFFINITY != 0
+                if (strcmp(task_status[n].pcTaskName, "IDLE1") != 0  &&  vTaskCoreAffinityGet(task_status[n].xHandle) != 1) {
+                    printf("!!!! change affinity of '%s' to 1\n", task_status[n].pcTaskName);
+                    vTaskCoreAffinitySet(task_status[n].xHandle, 1);
+                }
+#endif
             }
             printf("delta tick sum  : %lu\n", delta_tick_sum);
 
@@ -444,6 +451,7 @@ void print_task_stat(void *ptr)
                 percent_sum += percent;
                 percent_total_sum += percent_total;
 
+#if defined(configUSE_CORE_AFFINITY)  &&  configUSE_CORE_AFFINITY != 0
                 printf("%3lu  %2lu  %c/%2d %4lu %4lu %5lu  %s\n",
                                task_status[n].xTaskNumber,
                                task_status[n].uxCurrentPriority,
@@ -451,6 +459,15 @@ void print_task_stat(void *ptr)
                                percent, percent_total,
                                task_status[n].usStackHighWaterMark,
                                task_status[n].pcTaskName);
+#else
+                printf("%3lu  %2lu  %c/%2d %4lu %4lu %5lu  %s\n",
+                               task_status[n].xTaskNumber,
+                               task_status[n].uxCurrentPriority,
+                               task_state(task_status[n].eCurrentState), 1,
+                               percent, percent_total,
+                               task_status[n].usStackHighWaterMark,
+                               task_status[n].pcTaskName);
+#endif
 
                 prev_tick[prev_ndx] = curr_tick;
             }
@@ -476,7 +493,9 @@ void usb_thread(void *ptr)
 
     led_init(LED_TASK_PRIO);
 
+#if defined(configUSE_CORE_AFFINITY)  &&  configUSE_CORE_AFFINITY != 0
     vTaskCoreAffinitySet(tud_taskhandle, 1);
+#endif
 
     // do a first initialization, dynamic target detection is done in rtt_console
     if (g_board_info.prerun_board_config != NULL) {
@@ -500,7 +519,8 @@ void usb_thread(void *ptr)
 #endif
 
 #if OPT_NET
-    net_glue_init(NET_GLUE_TASK_PRIO);
+    net_glue_init();
+
     #if OPT_NET_SYSVIEW_SERVER
         net_sysview_init();
     #endif
@@ -592,7 +612,7 @@ int main(void)
 
     events = xEventGroupCreate();
 
-    // it seems that lwip does not like affinity setting in its thread, so the affinity of the USB thread is corrected in the task itself
+    // it seems that TinyUSB does not like affinity setting in its thread, so the affinity of the USB thread is corrected in the task itself
     xTaskCreateAffinitySet(usb_thread, "TinyUSB Main", 8000, NULL, TUD_TASK_PRIO, -1, &tud_taskhandle);
     vTaskStartScheduler();
 
