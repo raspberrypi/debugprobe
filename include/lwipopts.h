@@ -74,12 +74,15 @@
 //--------------------------------------
 // memory
 #define MEM_SIZE                        10000
+//#define MEM_LIBC_MALLOC                 1
+//#define MEMP_MEM_MALLOC                 1
+//#define LWIP_ALLOW_MEM_FREE_FROM_OTHER_CONTEXT 1
 
 
 //--------------------------------------
 // for freertos mode
-#define TCPIP_MBOX_SIZE                 32
-#define TCPIP_THREAD_STACKSIZE          2048
+#define TCPIP_MBOX_SIZE                 128
+#define TCPIP_THREAD_STACKSIZE          60000
 #define TCPIP_THREAD_PRIO               11
 
 

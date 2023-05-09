@@ -64,6 +64,8 @@
     #define CFG_TUD_ENDPOINT0_SIZE    64
 #endif
 
+#define CFG_TUD_TASK_QUEUE_SZ         128
+
 //------------- CLASS -------------//
 
 //**********************************************
@@ -106,7 +108,7 @@
 #define CFG_TUD_CDC                   (CFG_TUD_CDC_UART + CFG_TUD_CDC_SIGROK + CFG_TUD_CDC_DEBUG)
 #if OPT_NET
                                                    // lsusb output of NCM looks the same as setup from lwip webserver example
-    #define CFG_TUD_ECM_RNDIS         0            // RNDIS under Windows works only if it's the only class, so we try NCM for Linux
+    #define CFG_TUD_ECM_RNDIS         1            // RNDIS under Windows works only if it's the only class, so we try NCM for Linux
     #define CFG_TUD_NCM               (1 - CFG_TUD_ECM_RNDIS)
 #else
     #define CFG_TUD_ECM_RNDIS         0
@@ -131,7 +133,7 @@
 
 #if OPT_MSC
     // note: this is optimized for DAPLink write speed
-    #define CFG_TUD_MSC_EP_BUFSIZE        512
+    #define CFG_TUD_MSC_EP_BUFSIZE    512
 #endif
 
 #if OPT_NET
