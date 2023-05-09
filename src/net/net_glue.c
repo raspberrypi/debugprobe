@@ -48,8 +48,8 @@
     #include "dnserver.h"
 #endif
 
-#include "FreeRTOS.h"
-#include "event_groups.h"
+//#include "FreeRTOS.h"
+//#include "event_groups.h"
 
 #include "tusb.h"
 
@@ -91,9 +91,9 @@ static const dhcp_config_t dhcp_config =
     entries                                    /* entries */
 };
 
-static TaskHandle_t   task_net_glue = NULL;
+//static TaskHandle_t   task_net_glue = NULL;
 
-static EventGroupHandle_t  events;
+//static EventGroupHandle_t  events;
 
 
 
@@ -128,6 +128,22 @@ void tud_network_init_cb(void)
 
 
 
+static void net_glue_usb_to_lwip(void *ptr)
+/**
+ * handle any packet received by tud_network_recv_cb() in context of lwIP
+ */
+{
+    // printf("net_glue_usb_to_lwip\n");
+    if (received_frame != NULL) {
+        ethernet_input(received_frame, &netif_data);
+        pbuf_free(received_frame);
+        received_frame = NULL;
+        tud_network_recv_renew();
+    }
+}   // net_glue_usb_to_lwip
+
+
+
 bool tud_network_recv_cb(const uint8_t *src, uint16_t size)
 {
     //printf("!!!!!!!!!!!!!!tud_network_recv_cb(%p,%u)\n", src, size);
@@ -146,7 +162,8 @@ bool tud_network_recv_cb(const uint8_t *src, uint16_t size)
 
             /* store away the pointer for service_traffic() to later handle */
             received_frame = p;
-            xEventGroupSetBits(events, EV_RCVFRAME_READY);
+            //xEventGroupSetBits(events, EV_RCVFRAME_READY);
+            tcpip_callback_with_block(net_glue_usb_to_lwip, NULL, 0);
         }
     }
     return true;
@@ -273,8 +290,9 @@ static void init_lwip(void)
 static void net_glue_thread(void *ptr)
 {
     for (;;) {
-        xEventGroupWaitBits(events, EV_RCVFRAME_READY, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
+        //xEventGroupWaitBits(events, EV_RCVFRAME_READY, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
 
+#if 0
         /* handle any packet received by tud_network_recv_cb() */
         if (received_frame) {
             ethernet_input(received_frame, &netif_data);
@@ -282,6 +300,7 @@ static void net_glue_thread(void *ptr)
             received_frame = NULL;
             tud_network_recv_renew();
         }
+#endif
     }
 }   // net_glue_thread
 
@@ -289,13 +308,15 @@ static void net_glue_thread(void *ptr)
 
 void net_glue_init(uint32_t task_prio)
 {
-    events = xEventGroupCreate();
+    //events = xEventGroupCreate();
 
     init_lwip();
 
+#if 0
     xTaskCreateAffinitySet(net_glue_thread, "NET_GLUE", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_net_glue);
     if (task_net_glue == NULL)
     {
         picoprobe_error("net_glue_init: cannot create task_net_glue\n");
     }
+#endif
 }   // net_glue_init
