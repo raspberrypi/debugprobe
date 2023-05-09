@@ -46,6 +46,7 @@
 .side_set 1 opt
 
 public write_cmd:
+public turnaround_cmd:                      ; Alias of write, used for probe_oen.pio
     pull
 write_bitloop:
     out pins, 1             [1]  side 0x0   ; Data is output by host on negedge

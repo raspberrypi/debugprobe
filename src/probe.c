@@ -79,14 +79,16 @@ void probe_assert_reset(bool state)
 typedef enum probe_pio_command {
     CMD_WRITE = 0,
     CMD_SKIP,
+    CMD_TURNAROUND,
     CMD_READ
 } probe_pio_command_t;
 
 static inline uint32_t fmt_probe_command(uint bit_count, bool out_en, probe_pio_command_t cmd) {
     uint cmd_addr =
-        cmd == CMD_WRITE ? probe.offset + probe_offset_write_cmd :
-        cmd == CMD_SKIP  ? probe.offset + probe_offset_get_next_cmd :
-                           probe.offset + probe_offset_read_cmd;
+        cmd == CMD_WRITE      ? probe.offset + probe_offset_write_cmd :
+        cmd == CMD_SKIP       ? probe.offset + probe_offset_get_next_cmd :
+        cmd == CMD_TURNAROUND ? probe.offset + probe_offset_turnaround_cmd :
+                                probe.offset + probe_offset_read_cmd;
     return ((bit_count - 1) & 0xff) | ((uint)out_en << 8) | (cmd_addr << 9);
 }
 
@@ -100,7 +102,7 @@ void probe_write_bits(uint bit_count, uint32_t data_byte) {
 }
 
 void probe_hiz_clocks(uint bit_count) {
-    pio_sm_put_blocking(pio0, PROBE_SM, fmt_probe_command(bit_count, false, CMD_WRITE));
+    pio_sm_put_blocking(pio0, PROBE_SM, fmt_probe_command(bit_count, false, CMD_TURNAROUND));
     pio_sm_put_blocking(pio0, PROBE_SM, 0);
 }
 

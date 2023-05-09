@@ -1,39 +1,48 @@
 ; Output-enable active-low variant of the SWD probe
 
+; This program is very similar to the one in probe.pio. The only difference is
+; that here write_cmd and turnaround_cmd are split into two separate routines,
+; whose difference is OEn being high/low.
+
+; SWDIO_OEn is pin 0, SWCLK pin 1, SWDIO (out) pin 2, SWDI (in) pin 3.
+; Pin 0 and 1 are sideset pins
+
 .program probe
 .side_set 2 opt
 
-; SWDIO_OEN is pin 0, SWCLK pin 1, SWDIO (out) pin 2, SWDI (in) pin 3.
-; Pin 0 and 1 are sideset pins
-public out_negedge:
-  set pindirs, 0x1 side 0x0    ; OE_N 0, data high, clock 0
-public out_idle:
-  pull                         ; pull nbits - 1
-  mov x, osr
-  pull                         ; pull data
-public out_negedge_bitloop:
-  out pins, 1                  side 0x0
-  jmp x-- out_negedge_bitloop  side 0x2  ; OE_N 0, clock high
-  set pins, 1                  side 0x0  ; drive data high (idle bus state)
-  push                         ; Push to rx fifo just so processor knows when done
-  jmp out_negedge              ; Wait for next transaction
+public turnaround_cmd:
+    pull
+turnaround_bitloop:
+    nop                         [1]  side 0x1
+    jmp x-- turnaround_bitloop  [1]  side 0x3
+    jmp get_next_cmd
 
-public in_posedge:
-  set pindirs, 0x0            side 0x1 ; OE_N 1, data high, clock 0
-public in_idle:
-  pull
-  mov x, osr
-in_posedge_bitloop:
-  in pins, 1                  side 0x1 ; OE_N 1, clock 0
-  jmp x-- in_posedge_bitloop  side 0x3 ; OE_N 1, clock 1
-  push
-  jmp in_posedge
+public write_cmd:
+    pull
+write_bitloop:
+    out pins, 1                 [1]  side 0x0   ; Data is output by host on negedge
+    jmp x-- write_bitloop       [1]  side 0x2   ; ...and captured by target on posedge
+                                                ; Fall through to next command
+.wrap_target
+public get_next_cmd:
+    pull                             side 0x1   ; SWCLK initially low, OEn disabled
+    out x, 8                                    ; Get bit count
+    out pindirs, 1                              ; Set SWDIO direction
+    out pc, 5                                   ; Go to command routine
+
+read_bitloop:
+    nop                                         ; Additional delay on taken loop branch
+public read_cmd:
+    in pins, 1                  [1]  side 0x3   ; Data is captured by host on posedge
+    jmp x-- read_bitloop             side 0x1
+    push
+.wrap                                           ; Wrap to next command
 
 
 ; Implement probe_gpio_init() and probe_sm_init() methods here - set pins, offsets, sidesets etc
 % c-sdk {
 
-void probe_gpio_init()
+static inline void probe_gpio_init()
 {
 #if defined(PROBE_PIN_RESET)
     // Target reset pin: pull up, input to emulate open drain pin
@@ -51,10 +60,10 @@ void probe_gpio_init()
     gpio_pull_up(PROBE_PIN_SWDIOEN);
 }
 
-void probe_sm_init(pio_sm_config* sm_config) {
+static inline void probe_sm_init(pio_sm_config* sm_config) {
 
     // Set SWDIOEN and SWCLK as sideset pins
-    sm_config_set_sideset_pins(&sm_config, PROBE_PIN_SWDIOEN);
+    sm_config_set_sideset_pins(sm_config, PROBE_PIN_SWDIOEN);
 
     // Set SWDIO offset
     sm_config_set_out_pins(sm_config, PROBE_PIN_SWDIO, 1);
