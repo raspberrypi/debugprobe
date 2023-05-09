@@ -147,6 +147,44 @@ static uint32_t search_for_rtt_cb(void)
 
 
 
+static bool rtt_check_channel_from_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER_UP *aUp)
+{
+    bool ok;
+    int32_t buff_cnt;
+
+    ok = (rtt_cb >= TARGET_RAM_START  &&  rtt_cb <= TARGET_RAM_END);
+    ok = ok  &&  swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, MaxNumUpBuffers), (uint32_t *)&(buff_cnt));
+    ok = ok  &&  (buff_cnt > channel);
+    ok = ok  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[channel]), (uint8_t *)aUp, sizeof(SEGGER_RTT_BUFFER_UP));
+    ok = ok  &&  (aUp->SizeOfBuffer > 0  &&  aUp->SizeOfBuffer < TARGET_RAM_END - TARGET_RAM_START);
+    ok = ok  &&  ((uint32_t)aUp->pBuffer >= TARGET_RAM_START  &&  (uint32_t)aUp->pBuffer + aUp->SizeOfBuffer <= TARGET_RAM_END);
+    if (ok) {
+        printf("rtt_check_channel_from_target: %u %p %u %u %u\n", channel, aUp->pBuffer, aUp->SizeOfBuffer, aUp->RdOff, aUp->WrOff);
+    }
+    return ok;
+}   // rtt_check_channel_from_target
+
+
+
+static bool rtt_check_channel_to_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER_DOWN *aDown)
+{
+    bool ok;
+    int32_t buff_cnt;
+
+    ok = (rtt_cb >= TARGET_RAM_START  &&  rtt_cb <= TARGET_RAM_END);
+    ok = ok  &&  swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, MaxNumDownBuffers), (uint32_t *)&(buff_cnt));
+    ok = ok  &&  (buff_cnt > channel);
+    ok = ok  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aDown[channel]), (uint8_t *)aDown, sizeof(SEGGER_RTT_BUFFER_DOWN));
+    ok = ok  &&  (aDown->SizeOfBuffer > 0  &&  aDown->SizeOfBuffer < TARGET_RAM_END - TARGET_RAM_START);
+    ok = ok  &&  ((uint32_t)aDown->pBuffer >= TARGET_RAM_START  &&  (uint32_t)aDown->pBuffer + aDown->SizeOfBuffer <= TARGET_RAM_END);
+    if (ok) {
+        printf("rtt_check_channel_to_target: %u %p %u %u %u\n", channel, aDown->pBuffer, aDown->SizeOfBuffer, aDown->RdOff, aDown->WrOff);
+    }
+    return ok;
+}   // rtt_check_channel_to_target
+
+
+
 static bool rtt_from_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER_UP *aUp,
                             rtt_data_to_host data_to_host, bool *worked)
 {
@@ -211,9 +249,11 @@ static bool rtt_to_target(uint32_t rtt_cb, StreamBufferHandle_t stream, uint16_t
                 cnt = (aDown->RdOff - aDown->WrOff) - 1;
             }
             cnt = MIN(cnt, sizeof(buf));
+            printf("a cnt: %u %u %lu\n", channel, aDown->WrOff, cnt);
 
             r = xStreamBufferReceive(stream, &buf, cnt, 0);
             if (r > 0) {
+                printf("b addr: %u %lx %d\n", channel, (uint32_t)aDown->pBuffer + aDown->WrOff, r);
                 ok = ok  &&  swd_write_memory((uint32_t)aDown->pBuffer + aDown->WrOff, buf, r);
                 aDown->WrOff = (aDown->WrOff + r) % aDown->SizeOfBuffer;
                 ok = ok  &&  swd_write_word(rtt_cb + offsetof(SEGGER_RTT_CB, aDown[channel].WrOff), aDown->WrOff);
@@ -230,11 +270,17 @@ static bool rtt_to_target(uint32_t rtt_cb, StreamBufferHandle_t stream, uint16_t
 
 static void do_rtt_console(uint32_t rtt_cb)
 {
+#if OPT_TARGET_UART
     SEGGER_RTT_BUFFER_UP   aUpConsole;       // Up buffer, transferring information up from target via debug probe to host
     SEGGER_RTT_BUFFER_DOWN aDownConsole;     // Down buffer, transferring information from host via debug probe to target
+    bool ok_console_from_target = false;
+    bool ok_console_to_target = false;
+#endif
 #if OPT_NET_SYSVIEW_SERVER
     SEGGER_RTT_BUFFER_UP   aUpSysView;       // Up buffer, transferring information up from target via debug probe to host
     SEGGER_RTT_BUFFER_DOWN aDownSysView;     // Down buffer, transferring information from host via debug probe to target
+    bool ok_sysview_from_target = false;
+    bool ok_sysview_to_target = false;
 #endif
     bool ok = true;
 
@@ -244,39 +290,47 @@ static void do_rtt_console(uint32_t rtt_cb)
         return;
     }
 
-    ok = ok  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[RTT_CHANNEL_CONSOLE]),
-                                 (uint8_t *)&aUpConsole, sizeof(aUpConsole));
-    ok = ok  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aDown[RTT_CHANNEL_CONSOLE]),
-                                 (uint8_t *)&aDownConsole, sizeof(aDownConsole));
-#if OPT_NET_SYSVIEW_SERVER
-    ok = ok  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[RTT_CHANNEL_SYSVIEW]),
-                                 (uint8_t *)&aUpSysView, sizeof(aUpSysView));
-    ok = ok  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aDown[RTT_CHANNEL_SYSVIEW]),
-                                 (uint8_t *)&aDownSysView, sizeof(aDownSysView));
-#endif
-
     // do operations
     rtt_console_running = true;
     while (ok  &&  !sw_unlock_requested()) {
         bool worked = false;
 
+        #if OPT_TARGET_UART
+            if ( !ok_console_from_target)
+                ok_console_from_target = rtt_check_channel_from_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aUpConsole);
+            if ( !ok_console_to_target)
+                ok_console_to_target = rtt_check_channel_to_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aDownConsole);
+        #endif
+        #if OPT_NET_SYSVIEW_SERVER
+            if ( !ok_sysview_from_target)
+                ok_sysview_from_target = rtt_check_channel_from_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView);
+            if ( !ok_sysview_to_target)
+                ok_sysview_to_target = rtt_check_channel_to_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aDownSysView);
+        #endif
+
         //
         // transfer RTT from target to host
         //
-#if OPT_TARGET_UART
-        ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aUpConsole, cdc_uart_write, &worked);
-#endif
-#if OPT_NET_SYSVIEW_SERVER
-        ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView, net_sysview_send, &worked);
-#endif
+        #if OPT_TARGET_UART
+            if (ok_console_from_target)
+                ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aUpConsole, cdc_uart_write, &worked);
+        #endif
+        #if OPT_NET_SYSVIEW_SERVER
+            if (ok_sysview_from_target)
+                ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView, net_sysview_send, &worked);
+        #endif
 
         //
         // transfer RTT data from host to target
         //
-        ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_console_to_target, RTT_CHANNEL_CONSOLE, &aDownConsole, &worked);
-#if OPT_NET_SYSVIEW_SERVER
-        ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_sysview_to_target, RTT_CHANNEL_SYSVIEW, &aDownSysView, &worked);
-#endif
+        #if OPT_TARGET_UART
+            if (ok_console_to_target)
+                ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_console_to_target, RTT_CHANNEL_CONSOLE, &aDownConsole, &worked);
+        #endif
+        #if OPT_NET_SYSVIEW_SERVER
+            if (ok_sysview_to_target)
+                ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_sysview_to_target, RTT_CHANNEL_SYSVIEW, &aDownSysView, &worked);
+        #endif
 
         if ( !worked)
         {
@@ -348,7 +402,7 @@ void rtt_console_thread(void *ptr)
             }
         }
 
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(100));            // give the target some time for startup
         if ( !target_connect()) {
             led_state(LS_NO_TARGET);
             target_online = false;
@@ -382,7 +436,7 @@ bool rtt_console_cb_exists(void)
 
 
 
-void rtt_send_byte(StreamBufferHandle_t stream, uint8_t ch)
+void rtt_send_byte(StreamBufferHandle_t stream, uint16_t channel, uint8_t ch, bool allow_drop)
 /**
  * Write a byte into the RTT stream.
  * If there is no space left in the stream, wait 10ms and then try again.
@@ -390,13 +444,13 @@ void rtt_send_byte(StreamBufferHandle_t stream, uint8_t ch)
  */
 {
     size_t available = xStreamBufferSpacesAvailable(stream);
-    if (available < sizeof(ch)) {
+    if ( !allow_drop  &&  available < sizeof(ch)) {
         vTaskDelay(pdMS_TO_TICKS(10));
         available = xStreamBufferSpacesAvailable(stream);
         if (available < sizeof(ch)) {
             uint8_t dummy;
             xStreamBufferReceive(stream, &dummy, sizeof(dummy), 0);
-            picoprobe_error("rtt_console_send_byte: drop byte\n");
+            picoprobe_error("rtt_console_send_byte: drop byte on channel %d\n", channel);
         }
     }
     xStreamBufferSend(stream, &ch, sizeof(ch), 0);
@@ -407,7 +461,7 @@ void rtt_send_byte(StreamBufferHandle_t stream, uint8_t ch)
 
 void rtt_console_send_byte(uint8_t ch)
 {
-    rtt_send_byte(stream_rtt_console_to_target, ch);
+    rtt_send_byte(stream_rtt_console_to_target, RTT_CHANNEL_CONSOLE, ch, false);
 }   // rtt_console_send_byte
 
 
@@ -415,7 +469,8 @@ void rtt_console_send_byte(uint8_t ch)
 #if OPT_NET_SYSVIEW_SERVER
 void rtt_sysview_send_byte(uint8_t ch)
 {
-    rtt_send_byte(stream_rtt_sysview_to_target, ch);
+    // TODO der muss noch auf NULL checken!
+    //rtt_send_byte(stream_rtt_sysview_to_target, RTT_CHANNEL_SYSVIEW, ch, true);
 }   // rtt_sysview_send_byte
 #endif
 
@@ -439,7 +494,7 @@ void rtt_console_init(uint32_t task_prio)
     }
 #endif
 
-    xTaskCreateAffinitySet(rtt_console_thread, "RTT_CONSOLE", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_rtt_console);
+    xTaskCreateAffinitySet(rtt_console_thread, "RTT", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_rtt_console);
     if (task_rtt_console == NULL)
     {
         picoprobe_error("rtt_console_init: cannot create task_rtt_console\n");
