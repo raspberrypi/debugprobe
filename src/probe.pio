@@ -39,6 +39,8 @@
 // garbage on writes allows the interface code to return early after pushing a
 // write command, as there is no need in general to poll for a command's
 // completion as long as all commands are executed in order.)
+//
+// The SWCLK period is 4 PIO SM execution cycles.
 
 .program probe
 .side_set 1 opt
@@ -46,22 +48,23 @@
 public write_cmd:
     pull
 write_bitloop:
-    out pins, 1             side 0x0   ; Data is output by host on negedge
-    jmp x-- write_bitloop   side 0x1   ; ...and captured by target on posedge
-                                       ; Fall through to next command
+    out pins, 1             [1]  side 0x0   ; Data is output by host on negedge
+    jmp x-- write_bitloop   [1]  side 0x1   ; ...and captured by target on posedge
+                                            ; Fall through to next command
 .wrap_target
 public get_next_cmd:
-    pull                    side 0x0   ; SWCLK is initially low
-    out x, 8                           ; Get bit count
-    out pindirs, 1                     ; Set SWDIO direction
-    out pc, 5                          ; Go to command routine
+    pull                         side 0x0   ; SWCLK is initially low
+    out x, 8                                ; Get bit count
+    out pindirs, 1                          ; Set SWDIO direction
+    out pc, 5                               ; Go to command routine
 
-public read_cmd:
 read_bitloop:
-    in pins, 1              side 0x1   ; Data is captured by host on posedge
-    jmp x-- read_bitloop    side 0x0
+    nop                                     ; Additional delay on taken loop branch
+public read_cmd:
+    in pins, 1              [1]  side 0x1   ; Data is captured by host on posedge
+    jmp x-- read_bitloop         side 0x0
     push
-.wrap                                  ; Wrap to next command
+.wrap                                       ; Wrap to next command
 
 
 ; Implement probe_gpio_init() and probe_sm_init() methods here - set pins, offsets, sidesets etc

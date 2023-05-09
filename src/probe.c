@@ -62,8 +62,9 @@ static struct _probe probe;
 void probe_set_swclk_freq(uint freq_khz) {
         uint clk_sys_freq_khz = clock_get_hz(clk_sys) / 1000;
         picoprobe_info("Set swclk freq %dKHz sysclk %dkHz\n", freq_khz, clk_sys_freq_khz);
-        // Worked out with saleae
-        uint32_t divider = clk_sys_freq_khz / freq_khz / 2;
+        uint32_t divider = clk_sys_freq_khz / freq_khz / 4;
+        if (divider == 0)
+            divider = 1;
         pio_sm_set_clkdiv_int_frac(pio0, PROBE_SM, divider, 0);
 }
 
