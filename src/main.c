@@ -420,7 +420,7 @@ void print_task_stat(void *ptr)
                 curr_tick_sum += task_status[n].ulRunTimeCounter;
                 delta_tick_sum += task_status[n].ulRunTimeCounter - prev_tick[prev_ndx];
 
-#if defined(configUSE_CORE_AFFINITY)  &&  configUSE_CORE_AFFINITY != 0
+#if 0  &&  defined(configUSE_CORE_AFFINITY)  &&  configUSE_CORE_AFFINITY != 0
                 if (strcmp(task_status[n].pcTaskName, "IDLE1") != 0  &&  vTaskCoreAffinityGet(task_status[n].xHandle) != 1) {
                     printf("!!!! change affinity of '%s' to 1\n", task_status[n].pcTaskName);
                     vTaskCoreAffinitySet(task_status[n].xHandle, 1);
@@ -493,7 +493,7 @@ void usb_thread(void *ptr)
 
     led_init(LED_TASK_PRIO);
 
-#if defined(configUSE_CORE_AFFINITY)  &&  configUSE_CORE_AFFINITY != 0
+#if 0  &&  defined(configUSE_CORE_AFFINITY)  &&  configUSE_CORE_AFFINITY != 0
     vTaskCoreAffinitySet(tud_taskhandle, 1);
 #endif
 
