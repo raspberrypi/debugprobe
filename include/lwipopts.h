@@ -65,15 +65,15 @@
 
 
 //--------------------------------------
-// performance tuning
+// performance tuning (do not change without extensive testing, optimized for ECM)
 #define TCP_MSS                         (1500 - 20 - 20)          // MTU minus header sizes (best value til now)
-//#define TCP_SND_BUF                     (2 * TCP_MSS)
-//#define TCP_OVERSIZE                    TCP_MSS
+#define TCP_SND_BUF                     (4 * TCP_MSS)             //   good tuning
+//#define TCP_OVERSIZE                    (TCP_MSS / 4)             // til now no good value found
 
 
 //--------------------------------------
 // memory
-#define MEM_SIZE                        10000
+#define MEM_SIZE                        20000
 //#define MEM_LIBC_MALLOC                 1
 //#define MEMP_MEM_MALLOC                 1
 //#define LWIP_ALLOW_MEM_FREE_FROM_OTHER_CONTEXT 1

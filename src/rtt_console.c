@@ -339,20 +339,9 @@ static void do_rtt_io(uint32_t rtt_cb)
     // do operations
     rtt_console_running = true;
     while (ok  &&  !sw_unlock_requested()) {
-        bool worked = false;
+        bool worked;
 
-        #if OPT_TARGET_UART
-            if ( !ok_console_from_target)
-                ok_console_from_target = rtt_check_channel_from_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aUpConsole);
-            if ( !ok_console_to_target)
-                ok_console_to_target = rtt_check_channel_to_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aDownConsole);
-        #endif
-        #if OPT_NET_SYSVIEW_SERVER
-            if ( !ok_sysview_from_target)
-                ok_sysview_from_target = rtt_check_channel_from_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView);
-            if ( !ok_sysview_to_target)
-                ok_sysview_to_target = rtt_check_channel_to_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aDownSysView);
-        #endif
+        worked = false;
 
         //
         // transfer RTT from target to host
@@ -380,7 +369,21 @@ static void do_rtt_io(uint32_t rtt_cb)
 
         if ( !worked)
         {
-            // -> did nothing in the previous run -> delay
+            // did nothing -> check if RTT channels appeared
+            #if OPT_TARGET_UART
+                if ( !ok_console_from_target)
+                    ok_console_from_target = rtt_check_channel_from_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aUpConsole);
+                if ( !ok_console_to_target)
+                    ok_console_to_target = rtt_check_channel_to_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aDownConsole);
+            #endif
+            #if OPT_NET_SYSVIEW_SERVER
+                if ( !ok_sysview_from_target)
+                    ok_sysview_from_target = rtt_check_channel_from_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView);
+                if ( !ok_sysview_to_target)
+                    ok_sysview_to_target = rtt_check_channel_to_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aDownSysView);
+            #endif
+
+            // -> delay
             xEventGroupWaitBits(events, EV_RTT_TO_TARGET, pdTRUE, pdFALSE, pdMS_TO_TICKS(RTT_POLL_INT_MS));
         }
     }

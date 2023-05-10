@@ -35,7 +35,8 @@
 //--------------------------------------------------------------------+
 
 // 0 -> ECM, OPT_NET must be enabled
-#define USE_RNDIS    1
+// ECM is preferred because RNDIS changes DNS setup on Linux and also will likely be thrown out of the kernel
+#define USE_RNDIS    0
 
 enum
 {

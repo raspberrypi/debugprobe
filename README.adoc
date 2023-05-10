@@ -32,8 +32,9 @@ Finally there is **Y**et **A**nother **Picoprobe** around, the YAPicoprobe.
 ** UART connection between target and probe is redirected
 ** RTT terminal channel is automatically redirected into this CDC (if there is no
    CMSIS-DAPv2/MSC connection)
-* CDC - virtual com port for logging of the probe
-* CDC sigrok probe - data collection on eight digital and three analog channels
+* https://www.segger.com/products/development-tools/systemview/[SystemView] support over TCP/IP
+* CDC - virtual com port for (debug) logging of the probe
+* optional CDC sigrok probe - data collection on eight digital and three analog channels
   (logic analyzer and oscilloscope) with auto-trigger capability
 * LED for state indication
 * Other Benefits
@@ -148,7 +149,7 @@ Unfortunately DAP converts internally the frequency into delays which are always
 That means that actual clock speeds are `125MHz / (2*n)`, `n>=3` -> 20833kHz, 12500kHz, 10417kHz, ...
 
 Normally the requested frequency is rounded down according to the possible values from above.  But if the specified frequency 
-is completely out of range, the allowed maximum SWD frequency of the RP2040 is used, which is 24MHz.
+is completely out of range, the allowed maximum target SWD frequency is used, e.g. for the RP2040 24MHz.
 
 Actually usable frequency depends on cabling and the DAP speed.  If the DAP cannot access memory with speed determined by the host, it responds
 with WAIT and the host needs to retry.
@@ -194,17 +195,16 @@ Because CMSIS-DAP access should be generic, flashing of other SWD compatible dev
 
 ### RTT - Real Time Transfer
 https://www.segger.com/products/debug-probes/j-link/technology/about-real-time-transfer/[RTT]
-allows transfer from the target to the host in "realtime".  YAPicoprobe currently reads
-channel 0 of the targets RTT and sends it into the CDC of the target.  Effectively this
-allows RTT debug output into a terminal.
+allows transfer from the target to the host in "realtime" via the SWD interface.
 
-If an RTT control block has been detected, characters received via the target CDC are transmitted
-with RTT to the target.
+The RTT control block on the target is automatically detected.  Currently channels 0 and 1 are supported.
+
+To get the RTT channels running, code on the target has to be either instrumented or adopted.
 
 [NOTE]
 ====
 * only the devices RAM is scanned for an RTT control block, for unknown devices
-  RAM in the range 0x20000000-0x2003ffff is assumed
+  RAM the range 0x20000000-0x2003ffff is assumed
 * don't be too overwhelmed about Seggers numbers in
   the above mentioned document.  The data must still be
   transferred which is not taken into account in the diagram
@@ -216,11 +216,32 @@ with RTT to the target.
 ====
 
 
+#### Terminal I/O
+
+RTT channel 0 is used for bidirectional console communication.  This channel is directed into the UART CDC
+of the target device.
+
+
+#### SystemView
+
+RTT channel 1 is used for communication with Seggers https://www.segger.com/products/development-tools/systemview/[SystemView].
+YAPicoprobe provides the data over TCP/IP at port 19111 which is the default for SystemViews communication.
+Default IP address of the probe (if not built otherwise) is 192.168.10.1. +
+
+[NOTE]
+====
+SystemView communication via TCP/IP had been chosen to spare you from another CDC port and also
+because SystemView over COM port works on my Linux device just until v3.30 (Segger promises
+a fix for > 3.50a, nevertheless TCP/IP is used...)
+====
+
+
 ### Sigrok - Data Collection
 
 [IMPORTANT]
 ====
-Sigrok is disabled on the Pico Debug Probe.
+Sigrok is no longer compiled per default into the probe firmware.  If you want sigrok support,
+the <<how-to-build,build instructions>> have to be checked.
 ====
 
 The probe allows data collection for a https://sigrok.org/[sigrok] compatible
@@ -432,7 +453,7 @@ rtt.println("sub module");
 
 ## Internals
 
-### Building from Source
+### Building from Source [[how-to-build]]
 
 Building from source is done with the help of a stub Makefile which eases integration into Eclipse (but can be
 used from command line as well).  The Makefile creates via cmake a `build.ninja` which is responsible for
@@ -440,6 +461,8 @@ the actual build process.
 
 To build the project, there must be somewhere a recent https://github.com/raspberrypi/pico-sdk[Pico SDK] and
 the environment variable `PICO_SDK_PATH` must point to it.
+
+If you want to adopt YAPicoprobe options to your needs, check CMakeLists.txt and invoke cmake accordingly.
 
 Requirements:
 

@@ -1,0 +1,55 @@
+:imagesdir: png
+:source-highlighter: rouge
+:toc:
+:toclevels: 5
+
+
+
+
+## Some lwIP Notes
+
+lwIP is used for creation of a network interface of YAPicoprobe to avoid
+an uncountable number of additional CDC com ports. +
+Currently just a Segger SysView server is listening on port 19111.
+But I guess there is more to come.
+
+lwIP had some traps waiting for me.  Despite reading the official
+https://www.nongnu.org/lwip/2_1_x/pitfalls.html[Common Pitfalls]
+I took some of them.
+
+MAC:: Do not use a random MAC!  At least not for the first byte.
+   I was "lucky" choosing one with an odd first byte.  Unfortunately
+   bit 0 marks a group address.  At least Linux rejects such MAC
+   addresses with a more or less useless error message in the syslog.
+   Took a while until I found out that the MAC address was the culprit
+   for no communication. +
+   Finally I have used 0xfe as the first byte and the remaining five
+   bytes of the MAC address are copied from the last bytes of Picos serial number
+   (which actually is the serial number of the external flash).
+   
+OS Mode:: *really* take it serious what they are writing about "raw" APIs
+   and only using the TCPIP thread for any calls to it. +
+   Use `tcpip_callback_with_block(<func>, <void-arg>, 0)` for
+   non-blocking invocations of some function.  This also saves you
+   from creating extra simple threads for communication tasks line
+   in the TineUSB/lwIP glue code.  That was my first idea and it took
+   a while until I found out how bad that idea was. +
+   Same was true for the thread(!) which stuffed data for SysView into
+   it's server:  bad idea! +
+   Effect of wrong API handling were random crashes or connection
+   disruptions.
+   
+RNDIS/ECM/NCM::
+   * *RNDIS*: this was my former favorite, because it is supported by all
+     relevant OSs.  Also throughput seemed to be good. 
+     Unfortunately RNDIS seems to manipulate routing in a way that the
+     default route on my Linux wants to go through the probe.  Not
+     really what I want...
+   * *NCM*: is said to be the best choice.  I did not manage to get an
+     acceptable throughput.  Transfer seems to get stuck from time to time
+     and SystemView aborts.  So also not the favorite.
+   * *ECM*: works good, packets are transferred continuously, throughput
+     also seems to be ok.  So this is the way to go. +
+     Unfortunately there is no driver integrated into Win10, so possible 
+     extra trouble appears.
+

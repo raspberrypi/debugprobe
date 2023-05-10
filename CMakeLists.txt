@@ -29,10 +29,10 @@ option(OPT_CMSIS_DAPV2        "Enable CMSIS-DAPv2"                     1)
 option(OPT_TARGET_UART        "Enable CDC for target UART I/O"         1)
 option(OPT_PROBE_DEBUG_OUT    "Enable CDC for probe debug output"      ${DEFAULT_OPT_PROBE_DEBUG_OUT})
 option(OPT_SIGROK             "Enable sigrok"                          0)
-option(OPT_MSC                "Enable Mass Storage Device"             1)
+option(OPT_MSC                "Enable Mass Storage Device"             0)
 option(OPT_MSC_RAM_UF2        "Enable file 'RAM.UF2' on Mass Storage"  1)
 option(OPT_NET                "Enable lwIP on the Pico"                1)
-option(OPT_NET_DNS            "Enable DNS on the Pico"                 0)    # all DNS is going over the Pico!?
+set(OPT_NET_192_168           10 CACHE STRING "Set the subnet of 192.168.x")
 option(OPT_NET_ECHO_SERVER    "Enable echo server for testing"         1)
 option(OPT_NET_IPERF_SERVER   "Enable iperf server for tuning"         1)
 option(OPT_NET_SYSVIEW_SERVER "Enable SysView over TCPIP"              1)
@@ -54,6 +54,9 @@ include(FreeRTOS_Kernel_import.cmake)
 set(PICO_BOARD_HEADER_DIRS  ${CMAKE_CURRENT_LIST_DIR}/include/boards)
 pico_sdk_init()
 
+#    message("--------- " ${PICO_LWIP_PATH})
+#    message("--------- " ${PICO_LWIP_CONTRIB_PATH})
+#    message("--------- " ${PICO_TINYUSB_PATH})
 
 project(${PROJECT})
 
@@ -220,6 +223,7 @@ endif()
 #
 if(OPT_NET)
     add_compile_definitions(OPT_NET=1)
+    add_compile_definitions(OPT_NET_192_168=${OPT_NET_192_168})
     
     target_sources(${PROJECT} PRIVATE
         src/net/net_glue.c
@@ -236,13 +240,6 @@ if(OPT_NET)
         pico_lwip_freertos
     )
 
-    if(OPT_NET_DNS)
-        add_compile_definitions(OPT_NET_DNS=1)
-        target_sources(${PROJECT} PRIVATE
-            ${PICO_TINYUSB_PATH}/lib/networking/dnserver.c
-        )
-    endif()
-    
     if(OPT_NET_SYSVIEW_SERVER)
         add_compile_definitions(OPT_NET_SYSVIEW_SERVER=1)
         target_sources(${PROJECT} PRIVATE
@@ -263,10 +260,6 @@ if(OPT_NET)
             ${PICO_LWIP_PATH}/src/apps/lwiperf/lwiperf.c
         )
     endif()
-    
-#    message("--------- " ${PICO_LWIP_PATH})
-#    message("--------- " ${PICO_LWIP_CONTRIB_PATH})
-#    message("--------- " ${PICO_TINYUSB_PATH})
 endif()
 
 #--------------------------------------------------------------------------------------------------

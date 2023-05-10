@@ -44,9 +44,6 @@
 
 #include "lwip/tcpip.h"
 #include "dhserver.h"
-#if OPT_NET_DNS
-    #include "dnserver.h"
-#endif
 
 #include "tusb.h"
 
@@ -60,8 +57,12 @@ static struct netif netif_data;
 /* shared between tud_network_recv_cb() and service_traffic() */
 static struct pbuf *received_frame;
 
+#ifndef OPT_NET_192_168
+    #define OPT_NET_192_168   10
+#endif
+
 /* network parameters of this MCU */
-static const ip4_addr_t ipaddr  = IPADDR4_INIT_BYTES(192, 168, 10, 1);
+static const ip4_addr_t ipaddr  = IPADDR4_INIT_BYTES(192, 168, OPT_NET_192_168, 1);
 static const ip4_addr_t netmask = IPADDR4_INIT_BYTES(255, 255, 255, 0);
 static const ip4_addr_t gateway = IPADDR4_INIT_BYTES(0, 0, 0, 0);
 
@@ -69,43 +70,20 @@ static const ip4_addr_t gateway = IPADDR4_INIT_BYTES(0, 0, 0, 0);
 static dhcp_entry_t entries[] =
 {
     /* mac ip address                          lease time */
-    { {0}, IPADDR4_INIT_BYTES(192, 168, 10, 2), 24 * 60 * 60 },
-    { {0}, IPADDR4_INIT_BYTES(192, 168, 10, 3), 24 * 60 * 60 },
-    { {0}, IPADDR4_INIT_BYTES(192, 168, 10, 4), 24 * 60 * 60 },
+    { {0}, IPADDR4_INIT_BYTES(192, 168, OPT_NET_192_168, 2), 24 * 60 * 60 },
+    { {0}, IPADDR4_INIT_BYTES(192, 168, OPT_NET_192_168, 3), 24 * 60 * 60 },
+    { {0}, IPADDR4_INIT_BYTES(192, 168, OPT_NET_192_168, 4), 24 * 60 * 60 },
 };
 
 static const dhcp_config_t dhcp_config =
 {
     .router = IPADDR4_INIT_BYTES(0, 0, 0, 0),  /* router address (if any) */
     .port = 67,                                /* listen port */
-#if OPT_NET_DNS
-    .dns = IPADDR4_INIT_BYTES(192, 168, 10, 1),/* dns server (if any) */
-#else
     .dns = IPADDR4_INIT_BYTES(0, 0, 0, 0),
-#endif
-    "usb",                                     /* dns suffix */
+    "",                                        /* dns suffix */
     TU_ARRAY_SIZE(entries),                    /* num entry */
     entries                                    /* entries */
 };
-
-
-
-#if OPT_NET_DNS
-static bool dns_query_proc(const char *name, ip4_addr_t *addr)
-/**
- * Handle any DNS requests from dns-server
- * If enabled all DNS requests seem to go over the Pico!?
- */
-{
-    printf("dns_query_proc(%s,.)\n", name);
-
-    if (0 == strcmp(name, "tiny.usb")) {
-        *addr = ipaddr;
-        return true;
-    }
-    return false;
-}   // dns_query_proc
-#endif
 
 
 
@@ -272,8 +250,4 @@ void net_glue_init(void)
 
     while (dhserv_init(&dhcp_config) != ERR_OK)
         ;
-#if OPT_NET_DNS
-    while (dnserv_init(IP_ADDR_ANY, 53, dns_query_proc) != ERR_OK)
-        ;
-#endif
 }   // net_glue_init
