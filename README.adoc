@@ -32,7 +32,7 @@ Finally there is **Y**et **A**nother **Picoprobe** around, the YAPicoprobe.
 ** UART connection between target and probe is redirected
 ** RTT terminal channel is automatically redirected into this CDC (if there is no
    CMSIS-DAPv2/MSC connection)
-* https://www.segger.com/products/development-tools/systemview/[SystemView] support over TCP/IP
+* https://www.segger.com/products/development-tools/systemview/[SystemView] support over TCP/IP (ECM/NCM/RNDIS)
 * CDC - virtual com port for (debug) logging of the probe
 * optional CDC sigrok probe - data collection on eight digital and three analog channels
   (logic analyzer and oscilloscope) with auto-trigger capability
@@ -225,8 +225,8 @@ of the target device.
 #### SystemView
 
 RTT channel 1 is used for communication with Seggers https://www.segger.com/products/development-tools/systemview/[SystemView].
-YAPicoprobe provides the data over TCP/IP at port 19111 which is the default for SystemViews communication.
-Default IP address of the probe (if not built otherwise) is 192.168.10.1. +
+YAPicoprobe provides the data over TCP at port 19111 which is the default for SystemView communication.
+Default IP address of the probe (if not built otherwise) is 192.168.14.1.
 
 [NOTE]
 ====
@@ -353,9 +353,9 @@ The Pico Debug Probe has four additional LEDs.  Assignment is as follows:
 ====
 
 
-### Configuration
+## Configuration
 
-#### udev rules for MSC and CMSIS-DAP
+### udev rules for MSC and CMSIS-DAP
 
 Under Linux one wants to use the following udev rules for convenience.
 
@@ -379,7 +379,29 @@ ACTION=="add", SUBSYSTEMS=="usb", SUBSYSTEM=="block", ENV{ID_FS_USAGE}=="filesys
 ACTION=="remove", SUBSYSTEMS=="usb", SUBSYSTEM=="block", ENV{ID_FS_USAGE}=="filesystem", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="0003", RUN+="/usr/bin/logger --tag rpi-pico-mount Unmounting what seems to be a Raspberry Pi Pico", RUN+="/usr/bin/systemd-umount /media/pico"
 ----
 
-#### PlatformIO [[platformio]]
+### Network Configuration
+
+SystemView connectivity over TCP/IP is on most systems not configuration free.  On Debian the configuration
+is as follows:
+
+* after connecting the probe with the host, `ip a` shows its network interface, e.g. `enxfe<your-probe>`.
+  If the network interface already shows an IP address everything is fine and you are ready
+* if not, then you can get the IP address with `sudo dhclient enxfe<your-probe>`
+* to make the permanent add the following lines to `/etc/network/interfaces`:
+
+[source]
+----
+allow-hotplug enxfe<your-probe>
+iface enxfe<your-probe> inet dhcp
+----
+
+On my system this unfortunately leads to error messages (which are harmless) if the probe is not connected.
+
+The default address of the probe is 192.168.14.1.  If there is a collision with the current setup of the
+host, the probe firmware has to be rebuilt with `-DOPT_NET_192_168=<subnet>`.
+
+
+### PlatformIO [[platformio]]
 https://platformio.org/[PlatformIO] configuration in `platformio.ini` is pretty straight forward:
 
 .PlatformIO configuration
@@ -410,12 +432,12 @@ upload_command = cp .pio/build/pico_cp/firmware.uf2 /media/picoprobe
 
 I'm sure there are smarter ways to specify the image path.
 
-There is also a special PlatformIO handling in the probe: it ignores the defensive 1MHz clock setting which is used by
+Optional: there is also a special PlatformIO handling in the probe: it ignores the defensive 1MHz clock setting which is used by
 the above contained OpenOCD.  Standard clock is thus 15MHz.  If this is too fast, set the frequency with
 `pyocd reset -f 1100000 -t rp2040` or similar.  If this is too slow, use `pyocd reset -f 50000000 -t rp2040`.
 
 
-##### RTT
+#### RTT
 To use RTT for debug/console output the following has to be done:
 
 * in `platformio.ini`:
@@ -504,6 +526,18 @@ make all
 ----
 make create-images
 ----
+
+.Bare call of cmake
+[source,bash]
+----
+mkdir _build; cd _build
+cmake .. -D<option>=<value> -DPICO_BOARD=pico_w
+cmake --build .
+# output in picoprobe.elf/uf2/hex/bin
+----
+
+If you want to know the several options use the one liner
+`cmake -LH .. | sed -n -e '/OPT_/{x;1!p;g;$!N;p;D;}' -e h`.
 
 
 ### Code Inherited

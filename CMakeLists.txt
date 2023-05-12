@@ -21,21 +21,22 @@ endif()
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     set(DEFAULT_OPT_PROBE_DEBUG_OUT 1)
 else()
-    set(DEFAULT_OPT_PROBE_DEBUG_OUT 0)
+    set(DEFAULT_OPT_PROBE_DEBUG_OUT 1)
 endif()
 
-option(OPT_CMSIS_DAPV1        "Enable CMSIS-DAPv1"                     1)
-option(OPT_CMSIS_DAPV2        "Enable CMSIS-DAPv2"                     1)
-option(OPT_TARGET_UART        "Enable CDC for target UART I/O"         1)
-option(OPT_PROBE_DEBUG_OUT    "Enable CDC for probe debug output"      ${DEFAULT_OPT_PROBE_DEBUG_OUT})
-option(OPT_SIGROK             "Enable sigrok"                          0)
-option(OPT_MSC                "Enable Mass Storage Device"             0)
-option(OPT_MSC_RAM_UF2        "Enable file 'RAM.UF2' on Mass Storage"  1)
-option(OPT_NET                "Enable lwIP on the Pico"                1)
-set(OPT_NET_192_168           10 CACHE STRING "Set the subnet of 192.168.x")
-option(OPT_NET_ECHO_SERVER    "Enable echo server for testing"         1)
-option(OPT_NET_IPERF_SERVER   "Enable iperf server for tuning"         1)
-option(OPT_NET_SYSVIEW_SERVER "Enable SysView over TCPIP"              1)
+option(OPT_CMSIS_DAPV1         "Enable CMSIS-DAPv1"                     1)
+option(OPT_CMSIS_DAPV2         "Enable CMSIS-DAPv2"                     1)
+option(OPT_TARGET_UART         "Enable CDC for target UART I/O"         1)
+option(OPT_PROBE_DEBUG_OUT     "Enable CDC for probe debug output"      ${DEFAULT_OPT_PROBE_DEBUG_OUT})
+option(OPT_SIGROK              "Enable sigrok"                          0)
+option(OPT_MSC                 "Enable Mass Storage Device"             1)
+option(OPT_MSC_RAM_UF2         "Enable file 'RAM.UF2' on Mass Storage"  1)
+option(OPT_NET                 "Enable lwIP on the Pico"                1)
+set(OPT_NET_192_168            14 CACHE STRING "Set the subnet of 192.168.x")
+option(OPT_NET_ECHO_SERVER     "Enable echo server for testing"         1)
+option(OPT_NET_IPERF_SERVER    "Enable iperf server for tuning"         1)
+option(OPT_NET_SYSVIEW_SERVER  "Enable SysView over TCPIP"              1)
+option(OPT_SPECIAL_CLK_FOR_PIO "Ignore clock frequency request of 1MHz (this is for PlatformIO tuning)" 0)
 
 
 #
@@ -70,6 +71,7 @@ add_definitions(
         -DPICO_HEAP_SIZE=0x0
         -DPICO_STACK_SIZE=0x400
         -DTARGET_BOARD_${PICO_BOARD_UPPER}
+        -DOPT_SPECIAL_CLK_FOR_PIO=${OPT_SPECIAL_CLK_FOR_PIO}
 )
 
 #

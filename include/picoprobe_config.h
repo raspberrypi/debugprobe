@@ -30,31 +30,31 @@
 #define INCLUDE_RTT_CONSOLE
 
 
-#if !defined(NDEBUG)
+#if OPT_PROBE_DEBUG_OUT
     #define picoprobe_info_out(format,args...) printf(format, ## args)
 #else
     #define picoprobe_info_out(format,...) ((void)0)
 #endif
 
-#if !defined(NDEBUG)
+#if OPT_PROBE_DEBUG_OUT
     #define picoprobe_info(format,args...) printf("(II) " format, ## args)
 #else
     #define picoprobe_info(format,...) ((void)0)
 #endif
 
-#if 0  &&  !defined(NDEBUG)
+#if 0  &&  OPT_PROBE_DEBUG_OUT
     #define picoprobe_debug(format,args...) printf("(DD) " format, ## args)
 #else
     #define picoprobe_debug(format,...) ((void)0)
 #endif
 
-#if 0  &&  !defined(NDEBUG)
+#if 0  &&  OPT_PROBE_DEBUG_OUT
     #define picoprobe_dump(format,args...) printf("(..) " format, ## args)
 #else
     #define picoprobe_dump(format,...) ((void)0)
 #endif
 
-#if 1  &&  !defined(NDEBUG)
+#if 1  &&  OPT_PROBE_DEBUG_OUT
     #define picoprobe_error(format,args...) printf("(EE) " format, ## args)
 #else
     #define picoprobe_error(format,...) ((void)0)

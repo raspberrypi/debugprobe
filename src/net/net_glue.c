@@ -38,10 +38,6 @@
 
 #include "picoprobe_config.h"
 
-#include "lwip/init.h"
-#include "lwip/timeouts.h"
-#include "lwip/ethip6.h"
-
 #include "lwip/tcpip.h"
 #include "dhserver.h"
 
@@ -71,18 +67,16 @@ static dhcp_entry_t entries[] =
 {
     /* mac ip address                          lease time */
     { {0}, IPADDR4_INIT_BYTES(192, 168, OPT_NET_192_168, 2), 24 * 60 * 60 },
-    { {0}, IPADDR4_INIT_BYTES(192, 168, OPT_NET_192_168, 3), 24 * 60 * 60 },
-    { {0}, IPADDR4_INIT_BYTES(192, 168, OPT_NET_192_168, 4), 24 * 60 * 60 },
 };
 
 static const dhcp_config_t dhcp_config =
 {
-    .router = IPADDR4_INIT_BYTES(0, 0, 0, 0),  /* router address (if any) */
-    .port = 67,                                /* listen port */
-    .dns = IPADDR4_INIT_BYTES(0, 0, 0, 0),
-    "",                                        /* dns suffix */
-    TU_ARRAY_SIZE(entries),                    /* num entry */
-    entries                                    /* entries */
+    .router = IPADDR4_INIT_BYTES(0, 0, 0, 0),  // router address (if any)
+    .port = 67,                                // listen port
+    .dns = IPADDR4_INIT_BYTES(0, 0, 0, 0),     // dns server
+    NULL,                                      // dns suffix: specify NULL, otherwise /etc/resolv.conf will be changed
+    TU_ARRAY_SIZE(entries),                    // num entry
+    entries                                    // entries
 };
 
 
@@ -237,7 +231,7 @@ void net_glue_init(void)
     /* the lwip virtual MAC address must be different from the host's; to ensure this, we toggle the LSbit */
     netif->hwaddr_len = sizeof(tud_network_mac_address);
     memcpy(netif->hwaddr, tud_network_mac_address, sizeof(tud_network_mac_address));
-    //netif->hwaddr[5] ^= 0x01;
+    netif->hwaddr[5] ^= 0x01;     // don't know what for, but everybody is doing it...
 
     netif = netif_add(netif, &ipaddr, &netmask, &gateway, NULL, netif_init_cb, ip_input);
 #if LWIP_IPV6

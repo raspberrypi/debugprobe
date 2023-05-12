@@ -65,7 +65,7 @@
 #define SR_ADC_A_MASK       (((1 << (SR_NUM_A_CHAN)) - 1))
 
 
-#if 1  &&  !defined(NDEBUG)
+#if 1  &&  OPT_PROBE_DEBUG_OUT
     #define Dprintf(format,args...) printf("(SR) " format, ## args)
 #else
     #define Dprintf(format,...) ((void)0)

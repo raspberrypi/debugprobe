@@ -17,6 +17,7 @@ lwIP had some traps waiting for me.  Despite reading the official
 https://www.nongnu.org/lwip/2_1_x/pitfalls.html[Common Pitfalls]
 I took some of them.
 
+
 MAC:: Do not use a random MAC!  At least not for the first byte.
    I was "lucky" choosing one with an odd first byte.  Unfortunately
    bit 0 marks a group address.  At least Linux rejects such MAC
@@ -40,6 +41,14 @@ OS Mode:: *really* take it serious what they are writing about "raw" APIs
    disruptions.
    
 RNDIS/ECM/NCM::
+   To be honest, I'm very confused about the system behaviour of RNDIS/ECM/NCM.
+   Sometimes the host gets "disconnected", because the DNS in `/etc/resolv.conf`
+   are changed, sometimes not.  Sometimes the probe needs `dhclient` to get
+   the TCP/IP connection, sometimes not.  Sometimes the probe has an IPv6 address, sometimes
+   not.  And this all just on my Linux host.  Interoperation with Windows
+   makes things even worse. +
+   And `/etc/network/interfaces` generates error
+   messages even when the device has `allow-hotplug`. +
    * *RNDIS*: this was my former favorite, because it is supported by all
      relevant OSs.  Also throughput seemed to be good. 
      Unfortunately RNDIS seems to manipulate routing in a way that the
@@ -51,5 +60,13 @@ RNDIS/ECM/NCM::
    * *ECM*: works good, packets are transferred continuously, throughput
      also seems to be ok.  So this is the way to go. +
      Unfortunately there is no driver integrated into Win10, so possible 
-     extra trouble appears.
-
+     extra trouble appears.  Yes... extra trouble: cannot find a driver
+     for Win10.
+     
+[NOTE]
+====
+RNDIS on Win10 works only, if RNDIS on the probe is the only USB class selected.
+So it is possible to create a special probe firmware which provides only features
+like SystemView, but you cannot have a probe which does SystemView and CMSIS-DAP. +
+This is not a fault of lwIP, it is a bug in the Win10 driver(?).
+====

@@ -74,9 +74,6 @@ static struct _probe probe;
 
 
 
-#define SPECIAL_CLK_FOR_PIO
-
-
 /**
  * Set SWD frequency.
  * Frequency is checked against maximum values and stored as a future default.
@@ -90,7 +87,7 @@ void probe_set_swclk_freq(uint32_t freq_khz)
     uint32_t div_int;
     uint32_t div_frac;
 
-#ifdef SPECIAL_CLK_FOR_PIO
+#if OPT_SPECIAL_CLK_FOR_PIO
     // This very defensive frequency setting was introduced by either Max or Earle.  We prefer higher clock rates.
     // Clock rate can be set via tool, e.g. "pyocd reset -f 50000000" to get maximum target SWD frequency.
     if (freq_khz == 1000)

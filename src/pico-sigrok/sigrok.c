@@ -815,7 +815,7 @@ static void sigrok_thread(void *ptr)
 
     vTaskDelay(pdMS_TO_TICKS(100));
     uint32_t f_clk_adc = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_CLK_ADC);
-#ifndef NDEBUG
+#if OPT_PROBE_DEBUG_OUT
     Dprintf("+++++++++++++++++++++++++++++++++ PICO sigrok starting +++++++++++++++++++++++++++++++++\n");
     uint32_t f_pll_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_SYS_CLKSRC_PRIMARY);
     Dprintf("pll_sys = %lukHz\n", f_pll_sys);

@@ -34,9 +34,10 @@
 // String enums
 //--------------------------------------------------------------------+
 
-// 0 -> ECM, OPT_NET must be enabled
-// ECM is preferred because RNDIS changes DNS setup on Linux and also will likely be thrown out of the kernel
-#define USE_RNDIS    0
+// OPT_NET must be enabled for any effect
+// 0 -> ECM, ECM has good throughput, but no driver for Win10
+// 1 -> RNDIS, RNDIS must be the only USB class under windows to get RNDIS work successfully
+#define USE_RNDIS    1
 
 enum
 {
@@ -53,7 +54,7 @@ enum
 #endif
     STRID_INTERFACE_CDC_DEBUG,
 #if OPT_NET
-    STRID_INTERFACE_RNDIS,
+    STRID_INTERFACE_NET,
     STRID_MAC,
 #endif
 };
@@ -275,13 +276,13 @@ static uint8_t const desc_configuration[] =
 #if OPT_NET
     #if CFG_TUD_ECM_RNDIS
         #if USE_RNDIS
-            TUD_RNDIS_DESCRIPTOR(ITF_NUM_CDC_RNDIS_COM, STRID_INTERFACE_RNDIS, CDC_RNDIS_NOTIFICATION_EP_NUM, 8, CDC_RNDIS_DATA_OUT_EP_NUM, CDC_RNDIS_DATA_IN_EP_NUM, 64),
+            TUD_RNDIS_DESCRIPTOR(ITF_NUM_CDC_RNDIS_COM, STRID_INTERFACE_NET, CDC_RNDIS_NOTIFICATION_EP_NUM, 8, CDC_RNDIS_DATA_OUT_EP_NUM, CDC_RNDIS_DATA_IN_EP_NUM, 64),
         #else
             // TODO ECM must be an alternative to RNDIS, RNDIS works on Windows, ECM on iOS, Linux can handle both!?
-            TUD_CDC_ECM_DESCRIPTOR(ITF_NUM_CDC_RNDIS_COM, STRID_INTERFACE_RNDIS, STRID_MAC, CDC_RNDIS_NOTIFICATION_EP_NUM, 64, CDC_RNDIS_DATA_OUT_EP_NUM, CDC_RNDIS_DATA_IN_EP_NUM, 64, CFG_TUD_NET_MTU),
+            TUD_CDC_ECM_DESCRIPTOR(ITF_NUM_CDC_RNDIS_COM, STRID_INTERFACE_NET, STRID_MAC, CDC_RNDIS_NOTIFICATION_EP_NUM, 64, CDC_RNDIS_DATA_OUT_EP_NUM, CDC_RNDIS_DATA_IN_EP_NUM, 64, CFG_TUD_NET_MTU),
         #endif
     #else
-        TUD_CDC_NCM_DESCRIPTOR(ITF_NUM_CDC_NCM_COM, STRID_INTERFACE_RNDIS, STRID_MAC, CDC_NCM_NOTIFICATION_EP_NUM, 64, CDC_NCM_DATA_OUT_EP_NUM, CDC_NCM_DATA_IN_EP_NUM, 64, CFG_TUD_NET_MTU),
+        TUD_CDC_NCM_DESCRIPTOR(ITF_NUM_CDC_NCM_COM, STRID_INTERFACE_NET, STRID_MAC, CDC_NCM_NOTIFICATION_EP_NUM, 64, CDC_NCM_DATA_OUT_EP_NUM, CDC_NCM_DATA_IN_EP_NUM, 64, CFG_TUD_NET_MTU),
     #endif
 #endif
 #if OPT_PROBE_DEBUG_OUT
@@ -322,12 +323,12 @@ static char const* string_desc_arr[] =
 #if OPT_NET
     #if CFG_TUD_ECM_RNDIS
         #if USE_RNDIS
-            [STRID_INTERFACE_RNDIS]  = "YaPicoprobe SysView RNDIS",     // Interface descriptor for SysView RNDIS
+            [STRID_INTERFACE_NET]  = "YaPicoprobe RNDIS",               // Interface descriptor for SysView RNDIS
         #else
-            [STRID_INTERFACE_RNDIS]  = "YaPicoprobe SysView ECM",       // Interface descriptor for SysView RNDIS
+            [STRID_INTERFACE_NET]  = "YaPicoprobe ECM",                 // Interface descriptor for SysView RNDIS
         #endif
     #else
-        [STRID_INTERFACE_RNDIS]  = "YaPicoprobe SysView NCM",           // Interface descriptor for SysView NCM
+        [STRID_INTERFACE_NET]  = "YaPicoprobe NCM",                     // Interface descriptor for SysView NCM
     #endif
     [STRID_MAC]                  = "",
 #endif
