@@ -41,7 +41,7 @@
 #include "sw_lock.h"
 #include "RTT/SEGGER_RTT.h"
 #if OPT_TARGET_UART
-    #include "cdc_uart.h"
+    #include "cdc/cdc_uart.h"
 #endif
 #if OPT_NET_SYSVIEW_SERVER
     #include "net/net_sysview.h"

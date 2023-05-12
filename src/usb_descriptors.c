@@ -37,7 +37,7 @@
 // OPT_NET must be enabled for any effect
 // 0 -> ECM, ECM has good throughput, but no driver for Win10
 // 1 -> RNDIS, RNDIS must be the only USB class under windows to get RNDIS work successfully
-#define USE_RNDIS    1
+#define USE_RNDIS    0
 
 enum
 {

@@ -45,10 +45,10 @@
 #include "picoprobe_config.h"
 #include "probe.h"
 #if OPT_PROBE_DEBUG_OUT
-    #include "cdc_debug.h"
+    #include "cdc/cdc_debug.h"
 #endif
 #if OPT_TARGET_UART
-    #include "cdc_uart.h"
+    #include "cdc/cdc_uart.h"
 #endif
 #include "dap_util.h"
 #include "get_serial.h"
