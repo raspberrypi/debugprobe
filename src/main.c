@@ -50,6 +50,9 @@
 #if OPT_TARGET_UART
     #include "cdc/cdc_uart.h"
 #endif
+#if OPT_CDC_SYSVIEW
+    #include "cdc/cdc_sysview.h"
+#endif
 #include "dap_util.h"
 #include "get_serial.h"
 #include "led.h"
@@ -116,6 +119,7 @@ static uint8_t RxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZ
 #define LED_TASK_PRIO               (tskIDLE_PRIORITY + 12)       // simple task which may interrupt everything else for periodic blinking
 #define SIGROK_TASK_PRIO            (tskIDLE_PRIORITY + 9)        // Sigrok digital/analog signals (does nothing at the moment)
 #define MSC_WRITER_THREAD_PRIO      (tskIDLE_PRIORITY + 8)        // this is only running on writing UF2 files
+#define SYSVIEW_TASK_PRIO           (tskIDLE_PRIORITY + 6)        // target -> host via SysView
 #define UART_TASK_PRIO              (tskIDLE_PRIORITY + 5)        // target -> host via UART
 #define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 4)        // target -> host via RTT
 #define CDC_DEBUG_TASK_PRIO         (tskIDLE_PRIORITY + 4)        // probe debugging output
@@ -142,6 +146,11 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 #if OPT_SIGROK
     if (itf == CDC_SIGROK_N) {
         cdc_sigrok_line_state_cb(dtr, rts);
+    }
+#endif
+#if OPT_CDC_SYSVIEW
+    if (itf == CDC_SYSVIEW_N) {
+        cdc_sysview_line_state_cb(dtr, rts);
     }
 #endif
 }   // tud_cdc_line_state_cb
@@ -173,6 +182,11 @@ void tud_cdc_rx_cb(uint8_t itf)
         cdc_uart_rx_cb();
     }
 #endif
+#if OPT_CDC_SYSVIEW
+    if (itf == CDC_SYSVIEW_N) {
+        cdc_sysview_rx_cb();
+    }
+#endif
 }   // tud_cdc_rx_cb
 
 
@@ -192,6 +206,11 @@ void tud_cdc_tx_complete_cb(uint8_t itf)
 #if OPT_PROBE_DEBUG_OUT
     if (itf == CDC_DEBUG_N) {
         cdc_debug_tx_complete_cb();
+    }
+#endif
+#if OPT_CDC_SYSVIEW
+    if (itf == CDC_SYSVIEW_N) {
+        cdc_sysview_tx_complete_cb();
     }
 #endif
 }   // tud_cdc_tx_complete_cb
@@ -506,6 +525,10 @@ void usb_thread(void *ptr)
     cdc_uart_init(UART_TASK_PRIO);
 #endif
 
+#if OPT_CDC_SYSVIEW
+    cdc_sysview_init(SYSVIEW_TASK_PRIO);
+#endif
+
 #if OPT_MSC
     msc_init(MSC_WRITER_THREAD_PRIO);
 #endif
@@ -587,7 +610,7 @@ int main(void)
     picoprobe_info_out(" [CMSIS-DAPv1]");
 #endif
 #if OPT_TARGET_UART
-    picoprobe_info_out(" [UART -> CDC]");
+    picoprobe_info_out(" [UART CDC]");
 #endif
 #if OPT_SIGROK
     picoprobe_info_out(" [sigrok CDC]");
@@ -597,6 +620,12 @@ int main(void)
 #endif
 #if OPT_MSC
     picoprobe_info_out(" [DAPLink MSC]");
+#endif
+#if OPT_CDC_SYSVIEW
+    picoprobe_info_out(" [SysView CDC]");
+#endif
+#if OPT_NET_SYSVIEW
+    picoprobe_info_out(" [SysView Net]");
 #endif
     picoprobe_info_out("\n");
 #if defined(TARGET_BOARD_PICO)

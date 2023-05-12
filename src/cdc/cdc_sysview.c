@@ -120,6 +120,7 @@ static void cdc_thread(void *ptr)
 
             tx_len = tud_cdc_n_read(CDC_SYSVIEW_N, &ch, sizeof(ch));
             if (tx_len != 0) {
+            // TODO seems that SystemView transmitts garbage on UART line
                 rtt_sysview_send_byte(ch);
             }
         }
@@ -134,7 +135,8 @@ void cdc_sysview_line_state_cb(bool dtr, bool rts)
  * This seems to be necessary to survive e.g. a restart of the host (Linux)
  */
 {
-    printf("cdc_sysview_line_state_cb(%d,%d)\n", dtr, rts);
+    //printf("cdc_sysview_line_state_cb(%d,%d)\n", dtr, rts);
+
     tud_cdc_n_write_clear(CDC_SYSVIEW_N);
     tud_cdc_n_read_flush(CDC_SYSVIEW_N);
     m_connected = (dtr  ||  rts);
@@ -153,6 +155,8 @@ void cdc_sysview_tx_complete_cb(void)
 
 void cdc_sysview_rx_cb()
 {
+    //printf("cdc_sysview_rx_cb()\n");
+    
     xEventGroupSetBits(events, EV_RX);
 }   // cdc_sysview_rx_cb
 
@@ -161,6 +165,7 @@ void cdc_sysview_rx_cb()
 void net_sysview_send(const uint8_t *buf, uint32_t cnt)
 {
     //printf("net_sysview_send(%p,%lu)\n", buf, cnt);
+    
     if ( !m_connected) {
         xStreamBufferReset(stream_sysview);
     }
