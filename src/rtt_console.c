@@ -43,10 +43,17 @@
 #if OPT_TARGET_UART
     #include "cdc/cdc_uart.h"
 #endif
+#if OPT_CDC_SYSVIEW
+    #include "cdc/cdc_sysview.h"
+#endif
 #if OPT_NET_SYSVIEW_SERVER
     #include "net/net_sysview.h"
 #endif
 #include "led.h"
+
+#if OPT_CDC_SYSVIEW  ||  OPT_NET_SYSVIEW_SERVER
+    #define INCLUDE_SYSVIEW     1
+#endif
 
 
 typedef void (*rtt_data_to_host)(const uint8_t *buf, uint32_t cnt);
@@ -73,7 +80,7 @@ static TaskHandle_t             task_rtt_console = NULL;
 static StreamBufferHandle_t     stream_rtt_console_to_target;                  // small stream for host->probe->target console communication
 static EventGroupHandle_t       events;
 
-#if OPT_NET_SYSVIEW_SERVER
+#if INCLUDE_SYSVIEW
     #define RTT_CHANNEL_SYSVIEW 1
     #undef  RTT_POLL_INT_MS
     #define RTT_POLL_INT_MS     1                                              // faster polling
@@ -322,7 +329,7 @@ static void do_rtt_io(uint32_t rtt_cb)
     ok_console_from_target = false;
     ok_console_to_target = false;
 #endif
-#if OPT_NET_SYSVIEW_SERVER
+#if INCLUDE_SYSVIEW
     SEGGER_RTT_BUFFER_UP   aUpSysView;       // Up buffer, transferring information up from target via debug probe to host
     SEGGER_RTT_BUFFER_DOWN aDownSysView;     // Down buffer, transferring information from host via debug probe to target
     ok_sysview_from_target = false;
@@ -350,7 +357,7 @@ static void do_rtt_io(uint32_t rtt_cb)
             if (ok_console_from_target)
                 ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aUpConsole, cdc_uart_write, &worked);
         #endif
-        #if OPT_NET_SYSVIEW_SERVER
+        #if INCLUDE_SYSVIEW
             if (ok_sysview_from_target)
                 ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView, net_sysview_send, &worked);
         #endif
@@ -362,7 +369,7 @@ static void do_rtt_io(uint32_t rtt_cb)
             if (ok_console_to_target)
                 ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_console_to_target, RTT_CHANNEL_CONSOLE, &aDownConsole, &worked);
         #endif
-        #if OPT_NET_SYSVIEW_SERVER
+        #if INCLUDE_SYSVIEW
             if (ok_sysview_to_target)
                 ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_sysview_to_target, RTT_CHANNEL_SYSVIEW, &aDownSysView, &worked);
         #endif
@@ -376,7 +383,7 @@ static void do_rtt_io(uint32_t rtt_cb)
                 if ( !ok_console_to_target)
                     ok_console_to_target = rtt_check_channel_to_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aDownConsole);
             #endif
-            #if OPT_NET_SYSVIEW_SERVER
+            #if INCLUDE_SYSVIEW
                 if ( !ok_sysview_from_target)
                     ok_sysview_from_target = rtt_check_channel_from_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView);
                 if ( !ok_sysview_to_target)
@@ -515,7 +522,7 @@ void rtt_console_send_byte(uint8_t ch)
 
 
 
-#if OPT_NET_SYSVIEW_SERVER
+#if INCLUDE_SYSVIEW
 void rtt_sysview_send_byte(uint8_t ch)
 /**
  * Send a byte to the SysView channel of the target
@@ -523,7 +530,7 @@ void rtt_sysview_send_byte(uint8_t ch)
  * TODO currently this is disabled because this aborts SysView operation.  Has to be investigated.
  */
 {
-#if 0
+#if 1
     rtt_send_byte(stream_rtt_sysview_to_target, RTT_CHANNEL_SYSVIEW, ch, true);
 #endif
 }   // rtt_sysview_send_byte
@@ -542,7 +549,7 @@ void rtt_console_init(uint32_t task_prio)
         picoprobe_error("rtt_console_init: cannot create stream_rtt_console_to_target\n");
     }
 
-#if OPT_NET_SYSVIEW_SERVER
+#if INCLUDE_SYSVIEW
     stream_rtt_sysview_to_target = xStreamBufferCreate(STREAM_RTT_SIZE, STREAM_RTT_TRIGGER);
     if (stream_rtt_sysview_to_target == NULL) {
         picoprobe_error("rtt_console_init: cannot create stream_rtt_sysview_to_target\n");

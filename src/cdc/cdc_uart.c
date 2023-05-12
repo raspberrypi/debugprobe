@@ -76,7 +76,7 @@ static EventGroupHandle_t     events;
 
 
 
-void cdc_thread(void *ptr)
+static void cdc_thread(void *ptr)
 {
     static uint8_t cdc_tx_buf[CFG_TUD_CDC_TX_BUFSIZE];
 

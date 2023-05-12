@@ -31,12 +31,13 @@ option(OPT_PROBE_DEBUG_OUT     "Enable CDC for probe debug output"      ${DEFAUL
 option(OPT_SIGROK              "Enable sigrok"                          0)
 option(OPT_MSC                 "Enable Mass Storage Device"             1)
 option(OPT_MSC_RAM_UF2         "Enable file 'RAM.UF2' on Mass Storage"  1)
-option(OPT_NET                 "Enable lwIP on the Pico"                1)
+option(OPT_NET                 "Enable lwIP on the Pico"                0)
 set(OPT_NET_192_168            14 CACHE STRING "Set the subnet of 192.168.x")
 option(OPT_NET_ECHO_SERVER     "Enable echo server for testing"         1)
 option(OPT_NET_IPERF_SERVER    "Enable iperf server for tuning"         1)
 option(OPT_NET_SYSVIEW_SERVER  "Enable SysView over TCPIP"              1)
 option(OPT_SPECIAL_CLK_FOR_PIO "Ignore clock frequency request of 1MHz (this is for PlatformIO tuning)" 0)
+option(OPT_CDC_SYSVIEW         "Enable SysView over CDC"                1)
 
 
 #
@@ -182,13 +183,13 @@ add_compile_definitions(DRAG_N_DROP_SUPPORT=1)
 if(OPT_TARGET_UART)
     add_compile_definitions(OPT_TARGET_UART=1)
     target_sources(${PROJECT} PRIVATE
-        src/cdc_uart.c
+        src/cdc/cdc_uart.c
     )
 endif()
 if(OPT_PROBE_DEBUG_OUT)
     add_compile_definitions(OPT_PROBE_DEBUG_OUT=1)
     target_sources(${PROJECT} PRIVATE
-        src/cdc_debug.c
+        src/cdc/cdc_debug.c
     )
 endif()
 if(OPT_CMSIS_DAPV1)
@@ -196,6 +197,12 @@ if(OPT_CMSIS_DAPV1)
 endif()
 if(OPT_CMSIS_DAPV2)
     add_compile_definitions(OPT_CMSIS_DAPV2=1)
+endif()
+if(OPT_CDC_SYSVIEW)
+    add_compile_definitions(OPT_CDC_SYSVIEW=1)
+    target_sources(${PROJECT} PRIVATE
+        src/cdc/cdc_sysview.c
+    )
 endif()
 
 #--------------------------------------------------------------------------------------------------

@@ -57,6 +57,9 @@ enum
     STRID_INTERFACE_NET,
     STRID_MAC,
 #endif
+#if OPT_CDC_SYSVIEW
+    STRID_INTERFACE_CDC_SYSVIEW,
+#endif
 };
 
 
@@ -134,6 +137,10 @@ enum
     ITF_NUM_CDC_DEBUG_COM,
     ITF_NUM_CDC_DEBUG_DATA,
 #endif
+#if OPT_CDC_SYSVIEW
+    ITF_NUM_CDC_SYSVIEW_COM,
+    ITF_NUM_CDC_SYSVIEW_DATA,
+#endif
     ITF_NUM_TOTAL
 };
 
@@ -152,13 +159,11 @@ enum
 #endif
 #if OPT_TARGET_UART
     CDC_UART_NOTIFICATION_EP_CNT,
-    CDC_UART_DATA_OUT_EP_CNT,
-    CDC_UART_DATA_IN_EP_CNT,
+    CDC_UART_DATA_EP_CNT,
 #endif
 #if OPT_SIGROK
     CDC_SIGROK_NOTIFICATION_EP_CNT,
-    CDC_SIGROK_DATA_OUT_EP_CNT,
-    CDC_SIGROK_DATA_IN_EP_CNT,
+    CDC_SIGROK_DATA_EP_CNT,
 #endif
 #if OPT_MSC
     MSC_OUT_EP_CNT,
@@ -175,8 +180,11 @@ enum
 #endif
 #if OPT_PROBE_DEBUG_OUT
     CDC_DEBUG_NOTIFICATION_EP_CNT,
-    CDC_DEBUG_DATA_OUT_EP_CNT,
-    CDC_DEBUG_DATA_IN_EP_CNT,
+    CDC_DEBUG_DATA_EP_CNT,
+#endif
+#if OPT_CDC_SYSVIEW
+    CDC_SYSVIEW_NOTIFICATION_EP_CNT,
+    CDC_SYSVIEW_DATA_EP_CNT,
 #endif
 };
 
@@ -191,13 +199,13 @@ enum
 #endif
 #if OPT_TARGET_UART
     #define CDC_UART_NOTIFICATION_EP_NUM    (CDC_UART_NOTIFICATION_EP_CNT + 0x80)
-    #define CDC_UART_DATA_OUT_EP_NUM        (CDC_UART_DATA_OUT_EP_CNT + 0x00)
-    #define CDC_UART_DATA_IN_EP_NUM         (CDC_UART_DATA_IN_EP_CNT + 0x80)
+    #define CDC_UART_DATA_OUT_EP_NUM        (CDC_UART_DATA_EP_CNT + 0x00)
+    #define CDC_UART_DATA_IN_EP_NUM         (CDC_UART_DATA_EP_CNT + 0x80)
 #endif
 #if OPT_SIGROK
     #define CDC_SIGROK_NOTIFICATION_EP_NUM  (CDC_SIGROK_NOTIFICATION_EP_CNT + 0x80)
-    #define CDC_SIGROK_DATA_OUT_EP_NUM      (CDC_SIGROK_DATA_OUT_EP_CNT + 0x00)
-    #define CDC_SIGROK_DATA_IN_EP_NUM       (CDC_SIGROK_DATA_IN_EP_CNT + 0x80)
+    #define CDC_SIGROK_DATA_OUT_EP_NUM      (CDC_SIGROK_DATA_EP_CNT + 0x00)
+    #define CDC_SIGROK_DATA_IN_EP_NUM       (CDC_SIGROK_DATA_EP_CNT + 0x80)
 #endif
 #if OPT_MSC
     #define MSC_OUT_EP_NUM                  (MSC_OUT_EP_CNT + 0x00)
@@ -216,21 +224,26 @@ enum
 #endif
 #if OPT_PROBE_DEBUG_OUT
     #define CDC_DEBUG_NOTIFICATION_EP_NUM   (CDC_DEBUG_NOTIFICATION_EP_CNT + 0x80)
-    #define CDC_DEBUG_DATA_OUT_EP_NUM       (CDC_DEBUG_DATA_OUT_EP_CNT + 0x00)
-    #define CDC_DEBUG_DATA_IN_EP_NUM        (CDC_DEBUG_DATA_IN_EP_CNT + 0x80)
+    #define CDC_DEBUG_DATA_OUT_EP_NUM       (CDC_DEBUG_DATA_EP_CNT + 0x00)
+    #define CDC_DEBUG_DATA_IN_EP_NUM        (CDC_DEBUG_DATA_EP_CNT + 0x80)
+#endif
+#if OPT_CDC_SYSVIEW
+    #define CDC_SYSVIEW_NOTIFICATION_EP_NUM (CDC_SYSVIEW_NOTIFICATION_EP_CNT + 0x80)
+    #define CDC_SYSVIEW_DATA_OUT_EP_NUM     (CDC_SYSVIEW_DATA_EP_CNT + 0x00)
+    #define CDC_SYSVIEW_DATA_IN_EP_NUM      (CDC_SYSVIEW_DATA_EP_CNT + 0x80)
 #endif
 
 
 #if USE_RNDIS
-#define CONFIG_TOTAL_LEN   (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + CFG_TUD_VENDOR*TUD_VENDOR_DESC_LEN \
-                            + CFG_TUD_HID*TUD_HID_INOUT_DESC_LEN + CFG_TUD_MSC*TUD_MSC_DESC_LEN                     \
-                            + CFG_TUD_ECM_RNDIS*TUD_RNDIS_DESC_LEN                                                  \
-                            + CFG_TUD_NCM*TUD_CDC_NCM_DESC_LEN)
+    #define CONFIG_TOTAL_LEN   (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + CFG_TUD_VENDOR*TUD_VENDOR_DESC_LEN \
+                                + CFG_TUD_HID*TUD_HID_INOUT_DESC_LEN + CFG_TUD_MSC*TUD_MSC_DESC_LEN                     \
+                                + CFG_TUD_ECM_RNDIS*TUD_RNDIS_DESC_LEN                                                  \
+                                + CFG_TUD_NCM*TUD_CDC_NCM_DESC_LEN)
 #else
-#define CONFIG_TOTAL_LEN   (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + CFG_TUD_VENDOR*TUD_VENDOR_DESC_LEN \
-                            + CFG_TUD_HID*TUD_HID_INOUT_DESC_LEN + CFG_TUD_MSC*TUD_MSC_DESC_LEN                     \
-                            + CFG_TUD_ECM_RNDIS*TUD_CDC_ECM_DESC_LEN                                                \
-                            + CFG_TUD_NCM*TUD_CDC_NCM_DESC_LEN)
+    #define CONFIG_TOTAL_LEN   (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + CFG_TUD_VENDOR*TUD_VENDOR_DESC_LEN \
+                                + CFG_TUD_HID*TUD_HID_INOUT_DESC_LEN + CFG_TUD_MSC*TUD_MSC_DESC_LEN                     \
+                                + CFG_TUD_ECM_RNDIS*TUD_CDC_ECM_DESC_LEN                                                \
+                                + CFG_TUD_NCM*TUD_CDC_NCM_DESC_LEN)
 #endif
 
 #if OPT_CMSIS_DAPV1
@@ -288,6 +301,9 @@ static uint8_t const desc_configuration[] =
 #if OPT_PROBE_DEBUG_OUT
     TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_DEBUG_COM, STRID_INTERFACE_CDC_DEBUG, CDC_DEBUG_NOTIFICATION_EP_NUM, 64, CDC_DEBUG_DATA_OUT_EP_NUM, CDC_DEBUG_DATA_IN_EP_NUM, 64),
 #endif
+#if OPT_CDC_SYSVIEW
+    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_SYSVIEW_COM, STRID_INTERFACE_CDC_SYSVIEW, CDC_SYSVIEW_NOTIFICATION_EP_NUM, 64, CDC_SYSVIEW_DATA_OUT_EP_NUM, CDC_SYSVIEW_DATA_IN_EP_NUM, 64),
+#endif
 };
 
 
@@ -308,29 +324,32 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 // array of pointer to string descriptors
 static char const* string_desc_arr[] =
 {
-    [STRID_LANGID]               = (const char[]) { 0x09, 0x04 },       // is supported language is English (0x0409)
-    [STRID_MANUFACTURER]         = "RaspberryPi",                       // Manufacturer
-    [STRID_PRODUCT]              = "YAPicoprobe CMSIS-DAP",             // Product,                                 **MUST** contain "CMSIS-DAP" to enable "CMSIS-DAP v1"
-    [STRID_SERIAL]               = usb_serial,                          // Serial, uses flash unique ID
-    [STRID_INTERFACE_DAP2]       = "YAPicoprobe CMSIS-DAP v2",          // Interface descriptor for Bulk transport, **MUST** contain "CMSIS-DAP" to enable "CMSIS-DAP v2"
-    [STRID_INTERFACE_DAP1]       = "YAPicoprobe CMSIS-DAP v1",          // Interface descriptor for HID transport
-    [STRID_INTERFACE_MSC]        = "YAPicoprobe Flash Drive",           // Interface descriptor for MSC interface
-    [STRID_INTERFACE_CDC_UART]   = "YAPicoprobe CDC-UART",              // Interface descriptor for CDC UART (from target)
+    [STRID_LANGID]                 = (const char[]) { 0x09, 0x04 },       // is supported language is English (0x0409)
+    [STRID_MANUFACTURER]           = "RaspberryPi",                       // Manufacturer
+    [STRID_PRODUCT]                = "YAPicoprobe CMSIS-DAP",             // Product,                                 **MUST** contain "CMSIS-DAP" to enable "CMSIS-DAP v1"
+    [STRID_SERIAL]                 = usb_serial,                          // Serial, uses flash unique ID
+    [STRID_INTERFACE_DAP2]         = "YAPicoprobe CMSIS-DAP v2",          // Interface descriptor for Bulk transport, **MUST** contain "CMSIS-DAP" to enable "CMSIS-DAP v2"
+    [STRID_INTERFACE_DAP1]         = "YAPicoprobe CMSIS-DAP v1",          // Interface descriptor for HID transport
+    [STRID_INTERFACE_MSC]          = "YAPicoprobe Flash Drive",           // Interface descriptor for MSC interface
+    [STRID_INTERFACE_CDC_UART]     = "YAPicoprobe CDC-UART",              // Interface descriptor for CDC UART (from target)
 #if OPT_SIGROK
-    [STRID_INTERFACE_CDC_SIGROK] = "YAPicoprobe CDC-SIGROK",            // Interface descriptor for CDC SIGROK
+    [STRID_INTERFACE_CDC_SIGROK]   = "YAPicoprobe CDC-SIGROK",            // Interface descriptor for CDC SIGROK
 #endif
-    [STRID_INTERFACE_CDC_DEBUG]  = "YAPicoprobe CDC-DEBUG",             // Interface descriptor for CDC DEBUG
+    [STRID_INTERFACE_CDC_DEBUG]    = "YAPicoprobe CDC-DEBUG",             // Interface descriptor for CDC DEBUG
 #if OPT_NET
     #if CFG_TUD_ECM_RNDIS
         #if USE_RNDIS
-            [STRID_INTERFACE_NET]  = "YaPicoprobe RNDIS",               // Interface descriptor for SysView RNDIS
+            [STRID_INTERFACE_NET]  = "YAPicoprobe RNDIS",                 // Interface descriptor for SysView RNDIS
         #else
-            [STRID_INTERFACE_NET]  = "YaPicoprobe ECM",                 // Interface descriptor for SysView RNDIS
+            [STRID_INTERFACE_NET]  = "YAPicoprobe ECM",                   // Interface descriptor for SysView RNDIS
         #endif
     #else
-        [STRID_INTERFACE_NET]  = "YaPicoprobe NCM",                     // Interface descriptor for SysView NCM
+        [STRID_INTERFACE_NET]      = "YAPicoprobe NCM",                   // Interface descriptor for SysView NCM
     #endif
-    [STRID_MAC]                  = "",
+    [STRID_MAC]                    = "",
+#endif
+#if OPT_CDC_SYSVIEW
+    [STRID_INTERFACE_CDC_SYSVIEW]  = "YAPicoprobe CDC-SysView",           // Interface descriptor for SysView CDC
 #endif
 };
 

@@ -89,6 +89,11 @@
 #else
     #define CFG_TUD_CDC_DEBUG         0
 #endif
+#if OPT_CDC_SYSVIEW                                // CDC for SysView
+    #define CFG_TUD_CDC_SYSVIEW       1
+#else
+    #define CFG_TUD_CDC_SYSVIEW       0
+#endif
 
 #if OPT_CMSIS_DAPV1                                // CMSIS-DAPv1
     #define CFG_TUD_HID               1
@@ -105,7 +110,7 @@
 #else
     #define CFG_TUD_MSC               0
 #endif
-#define CFG_TUD_CDC                   (CFG_TUD_CDC_UART + CFG_TUD_CDC_SIGROK + CFG_TUD_CDC_DEBUG)
+#define CFG_TUD_CDC                   (CFG_TUD_CDC_UART + CFG_TUD_CDC_SIGROK + CFG_TUD_CDC_DEBUG + CFG_TUD_CDC_SYSVIEW)
 #if OPT_NET
                                                    // lsusb output of NCM looks the same as setup from lwip webserver example
     #define CFG_TUD_ECM_RNDIS         1            // RNDIS under Windows works only if it's the only class, so we try NCM for Linux
@@ -121,6 +126,9 @@
     #define CDC_SIGROK_N              (CFG_TUD_CDC_UART + CFG_TUD_CDC_SIGROK - 1)
 #endif
 #define CDC_DEBUG_N                   (CFG_TUD_CDC_UART + CFG_TUD_CDC_SIGROK + CFG_TUD_CDC_DEBUG - 1)
+#if OPT_CDC_SYSVIEW
+    #define CDC_SYSVIEW_N             (CFG_TUD_CDC_UART + CFG_TUD_CDC_SIGROK + CFG_TUD_CDC_DEBUG + CFG_TUD_CDC_SYSVIEW - 1)
+#endif
 
 //------------- BUFFER SIZES -------------//
 

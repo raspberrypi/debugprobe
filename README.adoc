@@ -221,6 +221,8 @@ To get the RTT channels running, code on the target has to be either instrumente
 RTT channel 0 is used for bidirectional console communication.  This channel is directed into the UART CDC
 of the target device.
 
+Communication is birectional, but don't expect high transfer rates from host to target.
+
 
 #### SystemView
 
@@ -582,6 +584,9 @@ If you want to know the several options use the one liner
 
 | https://github.com/openocd-org/openocd[OpenOCD on github]
 | https://openocd.org/[Official Homepage]
+
+| https://wiki.segger.com/Use_SystemView_without_RTOS[Use SystemView without RTOS]
+|
 
 |===
 

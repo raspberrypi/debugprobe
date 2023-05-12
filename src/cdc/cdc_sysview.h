@@ -23,31 +23,20 @@
  *
  */
 
-#ifndef _RTT_CONSOLE_H
-#define _RTT_CONSOLE_H
-
+#ifndef CDC_SYSVIEW_H
+#define CDC_SYSVIEW_H
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "tusb.h"
 
+#if OPT_CDC_SYSVIEW
+    void net_sysview_send(const uint8_t *buf, uint32_t cnt);
+    void cdc_sysview_init(uint32_t task_prio);
 
-#ifdef __cplusplus
-    extern "C" {
+    void cdc_sysview_line_state_cb(bool dtr, bool rts);
+    void cdc_sysview_tx_complete_cb(void);
+    void cdc_sysview_rx_cb(void);
 #endif
-
-
-void rtt_console_init(uint32_t task_prio);
-void rtt_console_send_byte(uint8_t ch);
-bool rtt_console_cb_exists(void);
-
-#if OPT_NET_SYSVIEW_SERVER  ||  OPT_CDC_SYSVIEW
-    void rtt_sysview_send_byte(uint8_t ch);
-#endif
-
-
-#ifdef __cplusplus
-    }
-#endif
-
 
 #endif
