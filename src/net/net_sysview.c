@@ -143,7 +143,7 @@ static void sysview_try_send(void *ctx)
 
 static err_t sysview_sent(void *arg, struct tcp_pcb *tpcb, uint16_t len)
 {
-    //printf("sysview_sent(%p,%p,%d) %d\n", arg, tpcb, len, m_state);
+    printf("sysview_sent(%p,%p,%d) %d\n", arg, tpcb, len, m_state);
 
     if (m_state == SVS_SEND_HELLO)
     {
@@ -214,10 +214,12 @@ static err_t sysview_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t
         //
         // send received data to RTT SysView
         //
+#if 0
         for (uint16_t ndx = 0;  ndx < p->len;  ++ndx)
         {
             rtt_sysview_send_byte(((uint8_t *)p->payload)[ndx]);
         }
+#endif
         tcp_recved(tpcb, p->len);
         pbuf_free(p);
         ret_err = ERR_OK;
@@ -255,8 +257,10 @@ static err_t sysview_accept(void *arg, struct tcp_pcb *newpcb, err_t err)
     tcp_arg(newpcb,  NULL);
     tcp_err(newpcb,  sysview_error);
     tcp_recv(newpcb, sysview_recv);
-    tcp_poll(newpcb, sysview_poll, 0);        // TODO interval?
+    tcp_poll(newpcb, sysview_poll, 0);
     tcp_sent(newpcb, sysview_sent);
+
+    tcp_nagle_enable(newpcb);
 
     return ERR_OK;
 }   // sysview_accept

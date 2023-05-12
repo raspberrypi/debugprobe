@@ -68,6 +68,7 @@
 // performance tuning (do not change without extensive testing, optimized for ECM)
 #define TCP_MSS                         (1500 - 20 - 20)          // MTU minus header sizes (best value til now)
 #define TCP_SND_BUF                     (4 * TCP_MSS)             //   good tuning
+//#define TCP_WND                         TCP_SND_BUF
 //#define TCP_OVERSIZE                    (TCP_MSS / 4)             // til now no good value found
 
 

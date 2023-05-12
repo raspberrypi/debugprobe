@@ -72,7 +72,7 @@ static void cdc_thread(void *ptr)
         cdc_rx_chars = tud_cdc_n_available(CDC_SYSVIEW_N);
         if (cdc_rx_chars == 0  &&  xStreamBufferIsEmpty(stream_sysview)) {
             // -> nothing left to do: sleep for a long time
-            tud_cdc_n_write_flush(CDC_SYSVIEW_N);
+            //tud_cdc_n_write_flush(CDC_SYSVIEW_N);
             xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM | EV_RX, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
         }
         else if (cdc_rx_chars != 0) {
@@ -85,7 +85,7 @@ static void cdc_thread(void *ptr)
         }
 
         //
-        // probe -> host
+        // (target ->) probe -> host
         //
         if ( !xStreamBufferIsEmpty(stream_sysview)) {
             //
@@ -96,33 +96,42 @@ static void cdc_thread(void *ptr)
 
             max_cnt = tud_cdc_n_write_available(CDC_SYSVIEW_N);
             if (max_cnt != 0) {
+                //printf("%d\n",max_cnt);
                 max_cnt = MIN(sizeof(cdc_tx_buf), max_cnt);
                 cnt = xStreamBufferReceive(stream_sysview, cdc_tx_buf, max_cnt, pdMS_TO_TICKS(500));
                 if (cnt != 0) {
+                    //printf("%d %d\n",cnt,max_cnt);
                     tud_cdc_n_write(CDC_SYSVIEW_N, cdc_tx_buf, cnt);
+                    if (cnt > 200) {
+                        //tud_cdc_n_write_flush(CDC_SYSVIEW_N);
+                    }
                 }
             }
         }
         else {
-            tud_cdc_n_write_flush(CDC_SYSVIEW_N);
+            //tud_cdc_n_write_flush(CDC_SYSVIEW_N);
         }
 
         //
         // host -> probe -> target
-        // -----------------------
-        // Characters are transferred bytewise to keep delays into the other direction low.
-        // So this is not a high throughput solution...
         //
-        cdc_rx_chars = tud_cdc_n_available(CDC_SYSVIEW_N);
-        if (cdc_rx_chars != 0) {
+        for (;;) {
             uint8_t ch;
             uint32_t tx_len;
 
-            tx_len = tud_cdc_n_read(CDC_SYSVIEW_N, &ch, sizeof(ch));
-            if (tx_len != 0) {
-            // TODO seems that SystemView transmitts garbage on UART line
-                rtt_sysview_send_byte(ch);
+            cdc_rx_chars = tud_cdc_n_available(CDC_SYSVIEW_N);
+            if (cdc_rx_chars == 0) {
+                break;
             }
+
+            tx_len = tud_cdc_n_read(CDC_SYSVIEW_N, &ch, sizeof(ch));
+            if (tx_len == 0) {
+                break;
+            }
+
+            // TODO seems that SystemView transmitts garbage on UART line
+            //printf("-> %02x\n", ch);
+            rtt_sysview_send_byte(ch);
         }
     }
 }   // cdc_thread
@@ -135,7 +144,7 @@ void cdc_sysview_line_state_cb(bool dtr, bool rts)
  * This seems to be necessary to survive e.g. a restart of the host (Linux)
  */
 {
-    //printf("cdc_sysview_line_state_cb(%d,%d)\n", dtr, rts);
+    printf("cdc_sysview_line_state_cb(%d,%d)\n", dtr, rts);
 
     tud_cdc_n_write_clear(CDC_SYSVIEW_N);
     tud_cdc_n_read_flush(CDC_SYSVIEW_N);

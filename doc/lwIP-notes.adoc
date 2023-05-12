@@ -70,3 +70,16 @@ So it is possible to create a special probe firmware which provides only feature
 like SystemView, but you cannot have a probe which does SystemView and CMSIS-DAP. +
 This is not a fault of lwIP, it is a bug in the Win10 driver(?).
 ====
+
+
+## Log
+
+### 2023-05-12
+
+* for unknown reasons the probe is even with ECM in stutter mode, don't know
+  why, that worked before smoothly.  Transfer rate is bad
+* systemview test program (NoOS) on the target:
+** it already worked with around 10000 events/s, now the limit is ~3000
+** if there is a SysTick ISR then SystemView is completely messed up.
+   Checked that locking is included.  Seems to be so.
+
