@@ -143,7 +143,7 @@ static void sysview_try_send(void *ctx)
 
 static err_t sysview_sent(void *arg, struct tcp_pcb *tpcb, uint16_t len)
 {
-    printf("sysview_sent(%p,%p,%d) %d\n", arg, tpcb, len, m_state);
+    //printf("sysview_sent(%p,%p,%d) %d\n", arg, tpcb, len, m_state);
 
     if (m_state == SVS_SEND_HELLO)
     {
@@ -214,12 +214,10 @@ static err_t sysview_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t
         //
         // send received data to RTT SysView
         //
-#if 0
         for (uint16_t ndx = 0;  ndx < p->len;  ++ndx)
         {
             rtt_sysview_send_byte(((uint8_t *)p->payload)[ndx]);
         }
-#endif
         tcp_recved(tpcb, p->len);
         pbuf_free(p);
         ret_err = ERR_OK;

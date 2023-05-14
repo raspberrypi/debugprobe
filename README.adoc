@@ -606,3 +606,4 @@ If you want to know the several options use the one liner
 * an incomplete list of link:doc/TODO.adoc[TODOs], more on https://github.com/rgrr/yapicoprobe/issues[github]
 * some link:doc/optimizations.adoc[optimizations]
 * some link:doc/benchmarks.adoc[benchmarks]
+* link:doc/lwIP-notes.adoc[adventures with lwIP], Ethernet over USB and operating system compatibility

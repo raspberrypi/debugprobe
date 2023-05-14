@@ -530,9 +530,7 @@ void rtt_sysview_send_byte(uint8_t ch)
  * TODO currently this is disabled because this aborts SysView operation.  Has to be investigated.
  */
 {
-#if 1
     rtt_send_byte(stream_rtt_sysview_to_target, RTT_CHANNEL_SYSVIEW, ch, true);
-#endif
 }   // rtt_sysview_send_byte
 #endif
 
