@@ -265,33 +265,49 @@ static err_t sysview_accept(void *arg, struct tcp_pcb *newpcb, err_t err)
 
 
 
-void net_sysview_send(const uint8_t *buf, uint32_t cnt)
+uint32_t net_sysview_send(const uint8_t *buf, uint32_t cnt)
+/**
+ * Send characters from SysView RTT channel into stream.
+ *
+ * \param buf  pointer to the buffer to be sent, if NULL then remaining space in stream is returned
+ * \param cnt  number of bytes to be sent
+ * \return if \buf is NULL the remaining space in stream is returned, otherwise the number of bytes
+ */
 {
+    uint32_t r = 0;
+
 #if 0
     if (m_state != SVS_NONE)
         printf("net_sysview_send(%p,%lu) %d\n", buf, cnt, m_state);
 #endif
 
-    if (m_state != SVS_READY)
-    {
-        xStreamBufferReset(stream_sysview_to_host);
+    if (buf == NULL) {
+        r = xStreamBufferSpacesAvailable(stream_sysview_to_host);
     }
-    else
-    {
-        xStreamBufferSend(stream_sysview_to_host, buf, cnt, pdMS_TO_TICKS(1));
-
-        if ( !block_call_back_message)
+    else {
+        if (m_state != SVS_READY)
         {
-            err_t err;
+            xStreamBufferReset(stream_sysview_to_host);
+        }
+        else
+        {
+            r = xStreamBufferSend(stream_sysview_to_host, buf, cnt, pdMS_TO_TICKS(1000));
 
-            block_call_back_message = true;
-            err = tcpip_callback_with_block(sysview_try_send, NULL, 0);
-            if (err != ERR_OK) {
-                picoprobe_error("net_sysview_send: error %d\n", err);
-                sysview_close(m_pcb_client);
+            if ( !block_call_back_message)
+            {
+                err_t err;
+
+                block_call_back_message = true;
+                err = tcpip_callback_with_block(sysview_try_send, NULL, 0);
+                if (err != ERR_OK) {
+                    picoprobe_error("net_sysview_send: error %d\n", err);
+                    sysview_close(m_pcb_client);
+                }
             }
         }
     }
+
+    return r;
 }   // net_sysview_send
 
 

@@ -212,11 +212,13 @@ void cdc_uart_rx_cb()
 
 
 
-static void cdc_uart_put_into_stream(const void *data, size_t len, bool in_isr)
+static uint32_t cdc_uart_put_into_stream(const void *data, size_t len, bool in_isr)
 /**
  * Write into stream.  If not connected use the stream as a FIFO and drop old content.
  */
 {
+    uint32_t r = 0;
+
     if ( !m_connected) {
         size_t available = xStreamBufferSpacesAvailable(stream_uart);
         for (;;) {
@@ -239,11 +241,13 @@ static void cdc_uart_put_into_stream(const void *data, size_t len, bool in_isr)
         }
     }
     if (in_isr) {
-        xStreamBufferSendFromISR(stream_uart, data, len, NULL);
+        r = xStreamBufferSendFromISR(stream_uart, data, len, NULL);
     }
     else {
-        xStreamBufferSend(stream_uart, data, len, 0);
+        r = xStreamBufferSend(stream_uart, data, len, 0);     // drop characters in worst case
     }
+
+    return r;
 }   // cdc_uart_put_into_stream
 
 
@@ -280,10 +284,26 @@ void on_uart_rx(void)
 
 
 
-void cdc_uart_write(const uint8_t *buf, uint32_t cnt)
+uint32_t cdc_uart_write(const uint8_t *buf, uint32_t cnt)
+/**
+ * Send characters from console RTT channel into stream.
+ *
+ * \param buf  pointer to the buffer to be sent, if NULL then remaining space in stream is returned
+ * \param cnt  number of bytes to be sent
+ * \return if \buf is NULL the remaining space in stream is returned, otherwise the number of bytes
+ */
 {
-    cdc_uart_put_into_stream(buf, cnt, false);
-    xEventGroupSetBits(events, EV_STREAM);
+    uint32_t r = 0;
+
+    if (buf == NULL) {
+        r = xStreamBufferSpacesAvailable(stream_uart);
+    }
+    else {
+        r = cdc_uart_put_into_stream(buf, cnt, false);
+        xEventGroupSetBits(events, EV_STREAM);
+    }
+
+    return r;
 }   // cdc_uart_write
 
 

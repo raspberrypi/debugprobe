@@ -32,8 +32,8 @@
 #endif
 
 
-    void net_sysview_init(void);
-void net_sysview_send(const uint8_t *buf, uint32_t cnt);
+void net_sysview_init(void);
+uint32_t net_sysview_send(const uint8_t *buf, uint32_t cnt);
 
 
 #ifdef __cplusplus

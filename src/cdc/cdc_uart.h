@@ -31,7 +31,7 @@
 #include "tusb.h"
 
 #if OPT_TARGET_UART
-    void cdc_uart_write(const uint8_t *buf, uint32_t cnt);
+    uint32_t cdc_uart_write(const uint8_t *buf, uint32_t cnt);
     void cdc_uart_init(uint32_t task_prio);
 
     void cdc_uart_line_state_cb(bool dtr, bool rts);

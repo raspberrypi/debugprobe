@@ -171,18 +171,34 @@ void cdc_sysview_rx_cb()
 
 
 
-void net_sysview_send(const uint8_t *buf, uint32_t cnt)
+uint32_t net_sysview_send(const uint8_t *buf, uint32_t cnt)
+/**
+ * Send characters from SysView RTT channel into stream.
+ *
+ * \param buf  pointer to the buffer to be sent, if NULL then remaining space in stream is returned
+ * \param cnt  number of bytes to be sent
+ * \return if \buf is NULL the remaining space in stream is returned, otherwise the number of bytes
+ */
 {
+    uint32_t r = 0;
+
     //printf("net_sysview_send(%p,%lu)\n", buf, cnt);
     
-    if ( !m_connected) {
-        xStreamBufferReset(stream_sysview);
+    if (buf == NULL) {
+        r = xStreamBufferSpacesAvailable(stream_sysview);
     }
     else {
-        xStreamBufferSend(stream_sysview, buf, cnt, 0);
+        if ( !m_connected) {
+            xStreamBufferReset(stream_sysview);
+        }
+        else {
+            r = xStreamBufferSend(stream_sysview, buf, cnt, pdMS_TO_TICKS(1000));
+        }
+
+        xEventGroupSetBits(events, EV_STREAM);
     }
 
-    xEventGroupSetBits(events, EV_STREAM);
+    return r;
 }   // net_sysview_send
 
 

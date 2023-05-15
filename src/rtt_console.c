@@ -56,7 +56,7 @@
 #endif
 
 
-typedef void (*rtt_data_to_host)(const uint8_t *buf, uint32_t cnt);
+typedef uint32_t (*rtt_data_to_host)(const uint8_t *buf, uint32_t cnt);
 
 #define TARGET_RAM_START        g_board_info.target_cfg->ram_regions[0].start
 #define TARGET_RAM_END          g_board_info.target_cfg->ram_regions[0].end
@@ -65,7 +65,7 @@ typedef void (*rtt_data_to_host)(const uint8_t *buf, uint32_t cnt);
 #define STREAM_RTT_TRIGGER      1
 
 #define RTT_CHANNEL_CONSOLE     0
-#define RTT_POLL_INT_MS         10
+#define RTT_CONSOLE_POLL_INT_MS 10
 
 #define EV_RTT_TO_TARGET        0x01
 
@@ -82,11 +82,12 @@ static EventGroupHandle_t       events;
 
 #if INCLUDE_SYSVIEW
     #define RTT_CHANNEL_SYSVIEW 1
-    #undef  RTT_POLL_INT_MS
     #define RTT_POLL_INT_MS     1                                              // faster polling
     static StreamBufferHandle_t stream_rtt_sysview_to_target;                  // small stream for host->probe->target sysview communication
     static bool ok_sysview_from_target = false;
     static bool ok_sysview_to_target = false;
+#else
+    #define RTT_POLL_INT_MS     RTT_CONSOLE_POLL_INT_MS
 #endif
 
 
@@ -221,38 +222,43 @@ static unsigned rtt_get_write_space(SEGGER_RTT_BUFFER_DOWN *pRing)
 static bool rtt_from_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER_UP *aUp,
                             rtt_data_to_host data_to_host, bool *worked)
 {
-    bool ok;
+    bool ok = true;
     uint8_t buf[256];
+    uint32_t cnt;
 
-    ok = swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[channel].WrOff), (uint32_t *)&(aUp->WrOff));
+    assert(data_to_host != NULL);
 
-    if (ok  &&  aUp->WrOff != aUp->RdOff) {
-        //
-        // fetch characters from target
-        //
-        uint32_t cnt;
+    cnt = data_to_host(NULL, 0);
+    if (cnt < sizeof(buf) / 4) {
+        //printf("no space in stream %d: %d\n", channel, cnt);
+        //*worked = true;
+    }
+    else {
+        ok = ok  &&  swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[channel].WrOff), (uint32_t *)&(aUp->WrOff));
 
-        if (aUp->WrOff > aUp->RdOff) {
-            cnt = aUp->WrOff - aUp->RdOff;
-        }
-        else {
-            cnt = aUp->SizeOfBuffer - aUp->RdOff;
-        }
-        cnt = MIN(cnt, sizeof(buf));
+        if (ok  &&  aUp->WrOff != aUp->RdOff) {
+            //
+            // fetch characters from target
+            //
+            if (aUp->WrOff > aUp->RdOff) {
+                cnt = MIN(cnt, aUp->WrOff - aUp->RdOff);
+            }
+            else {
+                cnt = MIN(cnt, aUp->SizeOfBuffer - aUp->RdOff);
+            }
+            cnt = MIN(cnt, sizeof(buf));
 
-        memset(buf, 0, sizeof(buf));
-        ok = ok  &&  swd_read_memory((uint32_t)aUp->pBuffer + aUp->RdOff, buf, cnt);
-        aUp->RdOff = (aUp->RdOff + cnt) % aUp->SizeOfBuffer;
-        ok = ok  &&  swd_write_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[channel].RdOff), aUp->RdOff);
+            memset(buf, 0, sizeof(buf));
+            ok = ok  &&  swd_read_memory((uint32_t)aUp->pBuffer + aUp->RdOff, buf, cnt);
+            aUp->RdOff = (aUp->RdOff + cnt) % aUp->SizeOfBuffer;
+            ok = ok  &&  swd_write_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[channel].RdOff), aUp->RdOff);
 
-        if (data_to_host != NULL)
-        {
             // direct received data to host
             data_to_host(buf, cnt);
-        }
 
-        led_state(LS_RTT_RX_DATA);
-        *worked = true;
+            led_state(LS_RTT_RX_DATA);
+            *worked = true;
+        }
     }
     return ok;
 }   // rtt_from_target
@@ -346,36 +352,51 @@ static void do_rtt_io(uint32_t rtt_cb)
     // do operations
     rtt_console_running = true;
     while (ok  &&  !sw_unlock_requested()) {
-        bool worked;
+        bool probe_rtt_cb;
 
-        worked = false;
+        probe_rtt_cb = true;
 
-        //
-        // transfer RTT from target to host
-        //
-        #if OPT_TARGET_UART
-            if (ok_console_from_target)
-                ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aUpConsole, cdc_uart_write, &worked);
-        #endif
-        #if INCLUDE_SYSVIEW
-            if (ok_sysview_from_target)
-                ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView, net_sysview_send, &worked);
-        #endif
-
-        //
-        // transfer RTT data from host to target
-        //
-        #if OPT_TARGET_UART
-            if (ok_console_to_target)
-                ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_console_to_target, RTT_CHANNEL_CONSOLE, &aDownConsole, &worked);
-        #endif
-        #if INCLUDE_SYSVIEW
-            if (ok_sysview_to_target)
-                ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_sysview_to_target, RTT_CHANNEL_SYSVIEW, &aDownSysView, &worked);
-        #endif
-
-        if ( !worked)
+#if OPT_TARGET_UART
         {
+            static bool worked_uart = false;
+            static TickType_t lastTimeWorked;
+
+            if ( !worked_uart  &&  xTaskGetTickCount() - lastTimeWorked < pdMS_TO_TICKS(RTT_CONSOLE_POLL_INT_MS)) {
+                //
+                // pause console IO for a longer time to let SysView the interface
+                //
+            }
+            else {
+                worked_uart = false;
+
+                if (ok_console_from_target)
+                    ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aUpConsole, cdc_uart_write, &worked_uart);
+
+                if (ok_console_to_target)
+                    ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_console_to_target, RTT_CHANNEL_CONSOLE, &aDownConsole, &worked_uart);
+
+                probe_rtt_cb = probe_rtt_cb  &&  !worked_uart;
+
+                lastTimeWorked = xTaskGetTickCount();
+            }
+        }
+#endif
+
+#if INCLUDE_SYSVIEW
+        {
+            bool worked_sysview = false;
+
+            if (ok_sysview_from_target)
+                ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView, net_sysview_send, &worked_sysview);
+
+            if (ok_sysview_to_target)
+                ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_sysview_to_target, RTT_CHANNEL_SYSVIEW, &aDownSysView, &worked_sysview);
+
+            probe_rtt_cb = probe_rtt_cb  &&  !worked_sysview;
+        }
+#endif
+
+        if (ok  &&  probe_rtt_cb) {
             // did nothing -> check if RTT channels appeared
             #if OPT_TARGET_UART
                 if ( !ok_console_from_target)
