@@ -31,13 +31,15 @@ option(OPT_PROBE_DEBUG_OUT     "Enable CDC for probe debug output"      ${DEFAUL
 option(OPT_SIGROK              "Enable sigrok"                          0)
 option(OPT_MSC                 "Enable Mass Storage Device"             1)
 option(OPT_MSC_RAM_UF2         "Enable file 'RAM.UF2' on Mass Storage"  1)
-option(OPT_NET                 "Enable lwIP on the Pico"                1)
+set(OPT_NET                    "ECM" CACHE STRING "Enable lwIP on the Pico via ECM/NCM/RNDIS")
 set(OPT_NET_192_168            14 CACHE STRING "Set the subnet of 192.168.x")
 option(OPT_NET_ECHO_SERVER     "Enable echo server for testing"         1)
 option(OPT_NET_IPERF_SERVER    "Enable iperf server for tuning"         1)
 option(OPT_NET_SYSVIEW_SERVER  "Enable SysView over TCPIP"              1)
-option(OPT_SPECIAL_CLK_FOR_PIO "Ignore clock frequency request of 1MHz (this is for PlatformIO tuning)" 0)
 option(OPT_CDC_SYSVIEW         "Enable SysView over CDC"                0)
+
+# extra
+option(OPT_SPECIAL_CLK_FOR_PIO "Ignore clock frequency request of 1MHz (this is for PlatformIO tuning)" 0)
 
 
 #
@@ -107,7 +109,7 @@ endif()
 
 add_executable(${PROJECT}
         src/dap_util.c
-        src/get_serial.c
+        src/get_config.c
         src/led.c
         src/main.c
         src/misc_utils.c
@@ -230,7 +232,17 @@ endif()
 #
 # this is for SystemView operation (requires RTT)
 #
-if(OPT_NET)
+if(NOT OPT_NET STREQUAL "")
+    if(OPT_NET STREQUAL "ECM")
+        add_compile_definitions(OPT_NET_PROTO_ECM=1)
+    elseif(OPT_NET STREQUAL "NCM")
+        add_compile_definitions(OPT_NET_PROTO_NCM=1)
+    elseif(OPT_NET STREQUAL "RNDIS")
+        add_compile_definitions(OPT_NET_PROTO_RNDIS=1)
+    else()
+        message(FATAL_ERROR "OPT_NET must be either empty or one of ECM/NCM/RNDIS but is '${OPT_NET}'")
+    endif()
+    
     add_compile_definitions(OPT_NET=1)
     add_compile_definitions(OPT_NET_192_168=${OPT_NET_192_168})
     

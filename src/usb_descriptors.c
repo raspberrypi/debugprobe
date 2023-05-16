@@ -34,11 +34,6 @@
 // String enums
 //--------------------------------------------------------------------+
 
-// OPT_NET must be enabled for any effect
-// 0 -> ECM, ECM has good throughput, but no driver for Win10
-// 1 -> RNDIS, RNDIS must be the only USB class under windows to get RNDIS work successfully
-#define USE_RNDIS    0
-
 enum
 {
     STRID_LANGID = 0,
@@ -124,14 +119,12 @@ enum
 #if OPT_MSC
     ITF_NUM_MSC,
 #endif
-#if OPT_NET
-    #if CFG_TUD_ECM_RNDIS
-        ITF_NUM_CDC_RNDIS_COM,
-        ITF_NUM_CDC_RNDIS_DATA,
-    #else
-        ITF_NUM_CDC_NCM_COM,
-        ITF_NUM_CDC_NCM_DATA,
-    #endif
+#if OPT_NET_PROTO_ECM  ||  OPT_NET_PROTO_RNDIS
+    ITF_NUM_CDC_RNDIS_COM,
+    ITF_NUM_CDC_RNDIS_DATA,
+#elif OPT_NET_PROTO_NCM
+    ITF_NUM_CDC_NCM_COM,
+    ITF_NUM_CDC_NCM_DATA,
 #endif
 #if OPT_PROBE_DEBUG_OUT
     ITF_NUM_CDC_DEBUG_COM,
@@ -169,14 +162,12 @@ enum
     MSC_OUT_EP_CNT,
     MSC_IN_EP_CNT,
 #endif
-#if OPT_NET
-    #if CFG_TUD_ECM_RNDIS
-        CDC_RNDIS_NOTIFICATION_EP_CNT,
-        CDC_RNDIS_DATA_EP_CNT,
-    #else
-        CDC_NCM_NOTIFICATION_EP_CNT,
-        CDC_NCM_DATA_EP_CNT,
-    #endif
+#if OPT_NET_PROTO_ECM  ||  OPT_NET_PROTO_RNDIS
+    CDC_RNDIS_NOTIFICATION_EP_CNT,
+    CDC_RNDIS_DATA_EP_CNT,
+#elif OPT_NET_PROTO_NCM
+    CDC_NCM_NOTIFICATION_EP_CNT,
+    CDC_NCM_DATA_EP_CNT,
 #endif
 #if OPT_PROBE_DEBUG_OUT
     CDC_DEBUG_NOTIFICATION_EP_CNT,
@@ -211,16 +202,14 @@ enum
     #define MSC_OUT_EP_NUM                  (MSC_OUT_EP_CNT + 0x00)
     #define MSC_IN_EP_NUM                   (MSC_IN_EP_CNT + 0x80)
 #endif
-#if OPT_NET
-    #if CFG_TUD_ECM_RNDIS
-        #define CDC_RNDIS_NOTIFICATION_EP_NUM   (CDC_RNDIS_NOTIFICATION_EP_CNT + 0x80)
-        #define CDC_RNDIS_DATA_OUT_EP_NUM       (CDC_RNDIS_DATA_EP_CNT + 0x00)
-        #define CDC_RNDIS_DATA_IN_EP_NUM        (CDC_RNDIS_DATA_EP_CNT + 0x80)
-    #else
-        #define CDC_NCM_NOTIFICATION_EP_NUM     (CDC_NCM_NOTIFICATION_EP_CNT + 0x80)
-        #define CDC_NCM_DATA_OUT_EP_NUM         (CDC_NCM_DATA_EP_CNT + 0x00)
-        #define CDC_NCM_DATA_IN_EP_NUM          (CDC_NCM_DATA_EP_CNT + 0x80)
-    #endif
+#if OPT_NET_PROTO_ECM  ||  OPT_NET_PROTO_RNDIS
+    #define CDC_RNDIS_NOTIFICATION_EP_NUM   (CDC_RNDIS_NOTIFICATION_EP_CNT + 0x80)
+    #define CDC_RNDIS_DATA_OUT_EP_NUM       (CDC_RNDIS_DATA_EP_CNT + 0x00)
+    #define CDC_RNDIS_DATA_IN_EP_NUM        (CDC_RNDIS_DATA_EP_CNT + 0x80)
+#elif OPT_NET_PROTO_NCM
+    #define CDC_NCM_NOTIFICATION_EP_NUM     (CDC_NCM_NOTIFICATION_EP_CNT + 0x80)
+    #define CDC_NCM_DATA_OUT_EP_NUM         (CDC_NCM_DATA_EP_CNT + 0x00)
+    #define CDC_NCM_DATA_IN_EP_NUM          (CDC_NCM_DATA_EP_CNT + 0x80)
 #endif
 #if OPT_PROBE_DEBUG_OUT
     #define CDC_DEBUG_NOTIFICATION_EP_NUM   (CDC_DEBUG_NOTIFICATION_EP_CNT + 0x80)
@@ -234,7 +223,7 @@ enum
 #endif
 
 
-#if USE_RNDIS
+#if OPT_NET_PROTO_RNDIS
     #define CONFIG_TOTAL_LEN   (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + CFG_TUD_VENDOR*TUD_VENDOR_DESC_LEN \
                                 + CFG_TUD_HID*TUD_HID_INOUT_DESC_LEN + CFG_TUD_MSC*TUD_MSC_DESC_LEN                     \
                                 + CFG_TUD_ECM_RNDIS*TUD_RNDIS_DESC_LEN                                                  \
@@ -286,17 +275,12 @@ static uint8_t const desc_configuration[] =
 #if OPT_MSC
     TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, STRID_INTERFACE_MSC, MSC_OUT_EP_NUM, MSC_IN_EP_NUM, 64),
 #endif
-#if OPT_NET
-    #if CFG_TUD_ECM_RNDIS
-        #if USE_RNDIS
-            TUD_RNDIS_DESCRIPTOR(ITF_NUM_CDC_RNDIS_COM, STRID_INTERFACE_NET, CDC_RNDIS_NOTIFICATION_EP_NUM, 8, CDC_RNDIS_DATA_OUT_EP_NUM, CDC_RNDIS_DATA_IN_EP_NUM, 64),
-        #else
-            // TODO ECM must be an alternative to RNDIS, RNDIS works on Windows, ECM on iOS, Linux can handle both!?
-            TUD_CDC_ECM_DESCRIPTOR(ITF_NUM_CDC_RNDIS_COM, STRID_INTERFACE_NET, STRID_MAC, CDC_RNDIS_NOTIFICATION_EP_NUM, 64, CDC_RNDIS_DATA_OUT_EP_NUM, CDC_RNDIS_DATA_IN_EP_NUM, 64, CFG_TUD_NET_MTU),
-        #endif
-    #else
-        TUD_CDC_NCM_DESCRIPTOR(ITF_NUM_CDC_NCM_COM, STRID_INTERFACE_NET, STRID_MAC, CDC_NCM_NOTIFICATION_EP_NUM, 64, CDC_NCM_DATA_OUT_EP_NUM, CDC_NCM_DATA_IN_EP_NUM, 64, CFG_TUD_NET_MTU),
-    #endif
+#if OPT_NET_PROTO_RNDIS
+    TUD_RNDIS_DESCRIPTOR(ITF_NUM_CDC_RNDIS_COM, STRID_INTERFACE_NET, CDC_RNDIS_NOTIFICATION_EP_NUM, 8, CDC_RNDIS_DATA_OUT_EP_NUM, CDC_RNDIS_DATA_IN_EP_NUM, 64),
+#elif OPT_NET_PROTO_ECM
+    TUD_CDC_ECM_DESCRIPTOR(ITF_NUM_CDC_RNDIS_COM, STRID_INTERFACE_NET, STRID_MAC, CDC_RNDIS_NOTIFICATION_EP_NUM, 64, CDC_RNDIS_DATA_OUT_EP_NUM, CDC_RNDIS_DATA_IN_EP_NUM, 64, CFG_TUD_NET_MTU),
+#elif OPT_NET_PROTO_NCM
+    TUD_CDC_NCM_DESCRIPTOR(ITF_NUM_CDC_NCM_COM, STRID_INTERFACE_NET, STRID_MAC, CDC_NCM_NOTIFICATION_EP_NUM, 64, CDC_NCM_DATA_OUT_EP_NUM, CDC_NCM_DATA_IN_EP_NUM, 64, CFG_TUD_NET_MTU),
 #endif
 #if OPT_PROBE_DEBUG_OUT
     TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_DEBUG_COM, STRID_INTERFACE_CDC_DEBUG, CDC_DEBUG_NOTIFICATION_EP_NUM, 64, CDC_DEBUG_DATA_OUT_EP_NUM, CDC_DEBUG_DATA_IN_EP_NUM, 64),
@@ -336,16 +320,14 @@ static char const* string_desc_arr[] =
     [STRID_INTERFACE_CDC_SIGROK]   = "YAPicoprobe CDC-SIGROK",            // Interface descriptor for CDC SIGROK
 #endif
     [STRID_INTERFACE_CDC_DEBUG]    = "YAPicoprobe CDC-DEBUG",             // Interface descriptor for CDC DEBUG
+#if OPT_NET_PROTO_RNDIS
+    [STRID_INTERFACE_NET]          = "YAPicoprobe RNDIS",                 // Interface descriptor for SysView RNDIS
+#elif OPT_NET_PROTO_ECM
+    [STRID_INTERFACE_NET]          = "YAPicoprobe ECM",                   // Interface descriptor for SysView RNDIS
+#elif OPT_NET_PROTO_NCM
+    [STRID_INTERFACE_NET]          = "YAPicoprobe NCM",                   // Interface descriptor for SysView NCM
+#endif
 #if OPT_NET
-    #if CFG_TUD_ECM_RNDIS
-        #if USE_RNDIS
-            [STRID_INTERFACE_NET]  = "YAPicoprobe RNDIS",                 // Interface descriptor for SysView RNDIS
-        #else
-            [STRID_INTERFACE_NET]  = "YAPicoprobe ECM",                   // Interface descriptor for SysView RNDIS
-        #endif
-    #else
-        [STRID_INTERFACE_NET]      = "YAPicoprobe NCM",                   // Interface descriptor for SysView NCM
-    #endif
     [STRID_MAC]                    = "",
 #endif
 #if OPT_CDC_SYSVIEW

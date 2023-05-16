@@ -112,9 +112,15 @@
 #endif
 #define CFG_TUD_CDC                   (CFG_TUD_CDC_UART + CFG_TUD_CDC_SIGROK + CFG_TUD_CDC_DEBUG + CFG_TUD_CDC_SYSVIEW)
 #if OPT_NET
-                                                   // lsusb output of NCM looks the same as setup from lwip webserver example
-    #define CFG_TUD_ECM_RNDIS         1            // RNDIS under Windows works only if it's the only class, so we try NCM for Linux
-    #define CFG_TUD_NCM               (1 - CFG_TUD_ECM_RNDIS)
+    #if OPT_NET_PROTO_ECM  ||  OPT_NET_PROTO_RNDIS
+        #define CFG_TUD_ECM_RNDIS     1            // RNDIS under Windows works only if it's the only class, so we try NCM for Linux
+        #define CFG_TUD_NCM           0
+    #elif OPT_NET_PROTO_NCM
+        #define CFG_TUD_ECM_RNDIS     0
+        #define CFG_TUD_NCM           1
+    #else
+        #error "Illegal OPT_NET_PROTO definition"
+    #endif
 #else
     #define CFG_TUD_ECM_RNDIS         0
     #define CFG_TUD_NCM               0

@@ -68,7 +68,16 @@
     #define __OPT_CDC_SYSVIEW
 #endif
 #if OPT_NET
-    #define __OPT_NET                 " [Net: 192.168." xxCoNfSTR(OPT_NET_192_168) ".1]"
+    #define __OPT_NET_IP              " [Net: 192.168." xxCoNfSTR(OPT_NET_192_168) ".1"
+    #if OPT_NET_PROTO_ECM
+        #define __OPT_NET_CONF        __OPT_NET_IP " (ECM)]"
+    #elif OPT_NET_PROTO_NCM
+        #define __OPT_NET_CONF        __OPT_NET_IP " (NCM)]"
+    #elif OPT_NET_PROTO_RNDIS
+        #define __OPT_NET_CONF        __OPT_NET_IP " (RNDIS)]"
+    #else
+        #error "Illegal OPT_NET_PROTO definition"
+    #endif
 #else
     #define __OPT_NET
 #endif
@@ -94,7 +103,7 @@
  */
 #define CONFIG_FEATURES()  __OPT_CMSIS_DAPV1 __OPT_CMSIS_DAPV2 __OPT_MSC __OPT_TARGET_UART __OPT_TARGET_UART      \
                            __OPT_PROBE_DEBUG_OUT __OPT_CDC_SYSVIEW                                                \
-                           __OPT_NET __OPT_NET_SYSVIEW_SERVER __OPT_NET_ECHO_SERVER __OPT_NET_IPERF_SERVER
+                           __OPT_NET_CONF __OPT_NET_SYSVIEW_SERVER __OPT_NET_ECHO_SERVER __OPT_NET_IPERF_SERVER
 
 /**
  * CONFIG_BOARD
