@@ -28,6 +28,88 @@
 
 #include <stdint.h>
 
+
+#define _xxCoNfSTR(S)  #S
+#define xxCoNfSTR(S)   _xxCoNfSTR(S)
+
+#if OPT_CMSIS_DAPV1
+    #define __OPT_CMSIS_DAPV1         " [CMSIS-DAPv1]"
+#else
+    #define __OPT_CMSIS_DAPV1
+#endif
+#if OPT_CMSIS_DAPV2
+    #define __OPT_CMSIS_DAPV2         " [CMSIS-DAPv2]"
+#else
+    #define __OPT_CMSIS_DAPV2
+#endif
+#if OPT_MSC
+    #define __OPT_MSC                 " [MSC: DAPLink]"
+#else
+    #define __OPT_MSC
+#endif
+#if OPT_TARGET_UART
+    #define __OPT_TARGET_UART         " [CDC: UART]"
+#else
+    #define __OPT_TARGET_UART
+#endif
+#if OPT_SIGROK
+    #define __OPT_SIGROK              " [CDC: sigrok]"
+#else
+    #define __OPT_SIGROK
+#endif
+#if OPT_PROBE_DEBUG_OUT
+    #define __OPT_PROBE_DEBUG_OUT     " [CDC: probe debug]"
+#else
+    #define __OPT_PROBE_DEBUG_OUT
+#endif
+#if OPT_CDC_SYSVIEW
+    #define __OPT_CDC_SYSVIEW         " [CDC: SysView]"
+#else
+    #define __OPT_CDC_SYSVIEW
+#endif
+#if OPT_NET
+    #define __OPT_NET                 " [Net: 192.168." xxCoNfSTR(OPT_NET_192_168) ".1]"
+#else
+    #define __OPT_NET
+#endif
+#if OPT_NET_SYSVIEW_SERVER
+    #define __OPT_NET_SYSVIEW_SERVER  " [Net: SysView]"
+#else
+    #define __OPT_NET_SYSVIEW_SERVER
+#endif
+#if OPT_NET_ECHO_SERVER
+    #define __OPT_NET_ECHO_SERVER     " [Net: Echo]"
+#else
+    #define __OPT_NET_ECHO_SERVER
+#endif
+#if OPT_NET_IPERF_SERVER
+    #define __OPT_NET_IPERF_SERVER    " [Net: IPerf]"
+#else
+    #define __OPT_NET_IPERF_SERVER
+#endif
+
+
+/**
+ * CONFIG_FEATURES
+ */
+#define CONFIG_FEATURES()  __OPT_CMSIS_DAPV1 __OPT_CMSIS_DAPV2 __OPT_MSC __OPT_TARGET_UART __OPT_TARGET_UART      \
+                           __OPT_PROBE_DEBUG_OUT __OPT_CDC_SYSVIEW                                                \
+                           __OPT_NET __OPT_NET_SYSVIEW_SERVER __OPT_NET_ECHO_SERVER __OPT_NET_IPERF_SERVER
+
+/**
+ * CONFIG_BOARD
+ */
+#if defined(TARGET_BOARD_PICO)
+    #define CONFIG_BOARD() "Pico"
+#elif defined(TARGET_BOARD_PICO_W)
+    #define CONFIG_BOARD() "Pico_W"
+#elif defined(TARGET_BOARD_PICO_DEBUG_PROBE)
+    #define CONFIG_BOARD() "Pico Debug Probe"
+#else
+    #define CONFIG_BOARD() "UNKNOWN board"
+#endif
+
+
 /* Contains unique serial number string (NUL terminated) after call to init_usb_serial */
 extern char usb_serial[];
 
@@ -36,7 +118,5 @@ extern char usb_serial[];
 #endif
 
 void get_config_init(void);
-const char *get_config_features(void);
-const char *get_config_board(void);
 
 #endif

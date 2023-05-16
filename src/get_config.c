@@ -45,59 +45,10 @@ char usb_serial[PICO_UNIQUE_BOARD_ID_SIZE_BYTES * 2 + 1];
     uint8_t tud_network_mac_address[6];
 #endif
 
-static char config_features[] =
-    #if OPT_CMSIS_DAPV1
-        " [CMSIS-DAPv1]"
-    #endif
-    #if OPT_CMSIS_DAPV2
-        " [CMSIS-DAPv2]"
-    #endif
-    #if OPT_MSC
-        " [MSC: DAPLink]"
-    #endif
-    #if OPT_TARGET_UART
-        " [CDC: UART]"
-    #endif
-    #if OPT_SIGROK
-        " [CDC: sigrok]"
-    #endif
-    #if OPT_PROBE_DEBUG_OUT
-        " [CDC: probe debug]"
-    #endif
-    #if OPT_CDC_SYSVIEW
-        " [CDC: SysView]"
-    #endif
-    #if OPT_NET
-            " [Net: 192.168." STR(OPT_NET_192_168) ".1]"
-    #endif
-    #if OPT_NET_SYSVIEW_SERVER
-        " [Net: SysView]"
-    #endif
-    #if OPT_NET_ECHO_SERVER
-        " [Net: Echo]"
-    #endif
-    #if OPT_NET_IPERF_SERVER
-        " [Net: IPerf]"
-    #endif
-    ;
-
-
-static char config_board[] =
-    #if defined(TARGET_BOARD_PICO)
-        "Pico"
-    #elif defined(TARGET_BOARD_PICO_W)
-        "Pico_W"
-    #elif defined(TARGET_BOARD_PICO_DEBUG_PROBE)
-        Pico Debug Probe""
-    #else
-        "UNKNOWN board"
-    #endif
-    ;
-
 
 void get_config_init(void)
 /**
- * Fills unique_serial with the flash unique id
+ * Fills \a usb_serial with the flash unique id, \a tud_network_mac_address similar.
  */
 {
     pico_unique_board_id_t uID;
@@ -123,16 +74,3 @@ void get_config_init(void)
         usb_serial[i] = nibble < 10 ? nibble + '0' : nibble + 'A' - 10;
     }
 }   // get_config_init
-
-
-
-const char *get_config_features(void)
-{
-    return config_features;
-}   // get_config_features
-
-
-const char *get_config_board(void)
-{
-    return config_board;
-}   // get_config_board

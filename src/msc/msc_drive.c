@@ -43,6 +43,7 @@
 
 #include "probe.h"
 #include "msc_utils.h"
+#include "get_config.h"
 
 
 #define ADWORD(X)       (X) & 0xff, ((X) & 0xff00) >> 8, ((X) & 0xff0000) >> 16, ((X) & 0xff000000) >> 24
@@ -59,11 +60,22 @@
     #define GIT_HASH
 #endif
 
+#if OPT_MSC_RAM_UF2
+    #define __OPT_MSC_RAM_UF2 "- RAM.UF2 mirrors the RAM content of the target\r\n"
+#else
+    #define __OPT_MSC_RAM_UF2
+#endif
+
 #define README_CONTENTS \
-"This is Yet Another Picoprobe v" PICOPROBE_VERSION_STRING  _GIT_HASH ".\r\n\r\n\
-- CURRENT.UF2 mirrors the flash content of the target\r\n\
-- INFO_UF2.TXT holds some information about probe and target\r\n\
-- drop a UF2 file to flash the target device\r\n"
+"This is Yet Another Picoprobe v" PICOPROBE_VERSION_STRING  _GIT_HASH ".\r\n\r\n" \
+"Features:\r\n"                                                                   \
+" " CONFIG_FEATURES() "\r\n"                                                      \
+"Board:\r\n"                                                                      \
+"  " CONFIG_BOARD() "\r\n\r\n"                                                    \
+"- CURRENT.UF2 mirrors the flash content of the target\r\n"                       \
+__OPT_MSC_RAM_UF2                                                                 \
+"- INFO_UF2.TXT holds some information about probe and target\r\n"                \
+"- drop a UF2 file to flash the target device\r\n"
 #define README_SIZE            (sizeof(README_CONTENTS) - 1)
 
 #define INDEXHTM_CONTENTS \

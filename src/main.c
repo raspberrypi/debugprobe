@@ -602,9 +602,9 @@ int main(void)
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
     picoprobe_info("                     Welcome to Yet Another Picoprobe v" PICOPROBE_VERSION_STRING "-" GIT_HASH "\n");
     picoprobe_info("Features:\n");
-    picoprobe_info(" %s\n", get_config_features());
+    picoprobe_info(" %s\n", CONFIG_FEATURES());
     picoprobe_info("Probe HW:\n");
-    picoprobe_info("  %s\n", get_config_board());
+    picoprobe_info("  %s\n", CONFIG_BOARD());
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
     events = xEventGroupCreate();
