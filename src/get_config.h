@@ -23,8 +23,10 @@
  *
  */
 
-#ifndef GET_SERIAL_H_
-#define GET_SERIAL_H_
+#ifndef GET_CONFIG_H_
+#define GET_CONFIG_H_
+
+#include <stdint.h>
 
 /* Contains unique serial number string (NUL terminated) after call to init_usb_serial */
 extern char usb_serial[];
@@ -33,7 +35,8 @@ extern char usb_serial[];
     extern uint8_t tud_network_mac_address[];
 #endif
 
-/* Fills unique_serial with the flash unique id */
-extern void usb_serial_init(void);
+void get_config_init(void);
+const char *get_config_features(void);
+const char *get_config_board(void);
 
 #endif

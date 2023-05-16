@@ -25,8 +25,8 @@
  *
  */
 
+#include <get_config.h>
 #include "tusb.h"
-#include "get_serial.h"
 #include "picoprobe_config.h"
 
 

@@ -54,7 +54,7 @@
     #include "cdc/cdc_sysview.h"
 #endif
 #include "dap_util.h"
-#include "get_serial.h"
+#include "get_config.h"
 #include "led.h"
 #include "DAP_config.h"
 #include "DAP.h"
@@ -587,7 +587,7 @@ int main(void)
 #endif
     set_sys_clock_khz(PROBE_CPU_CLOCK_KHZ, true);
 
-    usb_serial_init();
+    get_config_init();
 
     // initialize stdio and should be done before anything else (that does printf())
 #if OPT_PROBE_DEBUG_OUT
@@ -602,41 +602,9 @@ int main(void)
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
     picoprobe_info("                     Welcome to Yet Another Picoprobe v" PICOPROBE_VERSION_STRING "-" GIT_HASH "\n");
     picoprobe_info("Features:\n");
-    picoprobe_info(" ");
-#if OPT_CMSIS_DAPV2
-    picoprobe_info_out(" [CMSIS-DAPv2]");
-#endif
-#if OPT_CMSIS_DAPV1
-    picoprobe_info_out(" [CMSIS-DAPv1]");
-#endif
-#if OPT_TARGET_UART
-    picoprobe_info_out(" [UART CDC]");
-#endif
-#if OPT_SIGROK
-    picoprobe_info_out(" [sigrok CDC]");
-#endif
-#if OPT_PROBE_DEBUG_OUT
-    picoprobe_info_out(" [probe debug CDC]");
-#endif
-#if OPT_MSC
-    picoprobe_info_out(" [DAPLink MSC]");
-#endif
-#if OPT_CDC_SYSVIEW
-    picoprobe_info_out(" [SysView CDC]");
-#endif
-#if OPT_NET_SYSVIEW
-    picoprobe_info_out(" [SysView Net]");
-#endif
-    picoprobe_info_out("\n");
-#if defined(TARGET_BOARD_PICO)
-    picoprobe_info("  Probe HW: Pico\n");
-#elif defined(TARGET_BOARD_PICO_W)
-    picoprobe_info("  Probe HW: Pico_W\n");
-#elif defined(TARGET_BOARD_PICO_DEBUG_PROBE)
-    picoprobe_info("  Probe HW: Pico Debug Probe\n");
-#else
-    picoprobe_info("  Running on UNKNOWN board\n");
-#endif
+    picoprobe_info(" %s\n", get_config_features());
+    picoprobe_info("Probe HW:\n");
+    picoprobe_info("  %s\n", get_config_board());
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
     events = xEventGroupCreate();
