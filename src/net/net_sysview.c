@@ -77,7 +77,8 @@ static uint32_t m_xmt_cnt;
 
 static StreamBufferHandle_t      stream_sysview_to_host;
 
-static bool block_call_back_message;    // TODO trying, not final
+static bool block_call_back_message;
+static bool block_call_to_tcp_output;
 
 
 
@@ -103,6 +104,9 @@ void sysview_close(struct tcp_pcb *tpcb)
     tcp_close(tpcb);
 
     xStreamBufferReset(stream_sysview_to_host);
+    
+    block_call_to_tcp_output = false;
+    block_call_back_message = false;
 
     m_state = SVS_NONE;
 }   // sysview_close
@@ -131,6 +135,12 @@ static void sysview_try_send(void *ctx)
                     picoprobe_error("sysview_try_send/a: %d\n", err);
                     sysview_close(m_pcb_client);
                 }
+                
+                if ( !block_call_to_tcp_output  &&  tcp_sndbuf(m_pcb_client) < TCP_SND_BUF / 2) {
+                    block_call_to_tcp_output = true;
+                    tcp_output(m_pcb_client);
+                }
+                
                 if ( !xStreamBufferIsEmpty(stream_sysview_to_host)) {
                     tcpip_callback_with_block(sysview_try_send, NULL, 0);
                 }
@@ -144,6 +154,8 @@ static void sysview_try_send(void *ctx)
 static err_t sysview_sent(void *arg, struct tcp_pcb *tpcb, uint16_t len)
 {
     //printf("sysview_sent(%p,%p,%d) %d\n", arg, tpcb, len, m_state);
+
+    block_call_to_tcp_output = false;
 
     if (m_state == SVS_SEND_HELLO)
     {
@@ -236,7 +248,7 @@ static err_t sysview_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t
 
 err_t sysview_poll(void *arg, struct tcp_pcb *tpcb)
 {
-    // printf("sysview_poll(%p,%p) %d\n", arg, tpcb, m_state);
+    //printf("sysview_poll(%p,%p) %d\n", arg, tpcb, m_state);
 
     sysview_try_send(NULL);
     return ERR_OK;
@@ -246,7 +258,7 @@ err_t sysview_poll(void *arg, struct tcp_pcb *tpcb)
 
 static err_t sysview_accept(void *arg, struct tcp_pcb *newpcb, err_t err)
 {
-    /* commonly observed practive to call tcp_setprio(), why? */
+    /* commonly observed practice to call tcp_setprio(), why? */
     tcp_setprio(newpcb, TCP_PRIO_MAX);
 
     m_state = SVS_WAIT_HELLO;
@@ -257,8 +269,6 @@ static err_t sysview_accept(void *arg, struct tcp_pcb *newpcb, err_t err)
     tcp_recv(newpcb, sysview_recv);
     tcp_poll(newpcb, sysview_poll, 0);
     tcp_sent(newpcb, sysview_sent);
-
-    tcp_nagle_enable(newpcb);
 
     return ERR_OK;
 }   // sysview_accept
