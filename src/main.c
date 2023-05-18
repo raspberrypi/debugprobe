@@ -86,6 +86,9 @@
 #endif
 
 
+#define TASK_MAX_CNT                15
+
+
 /*
  * The following is part of a hack to make DAP_PACKET_COUNT a variable.
  * CMSIS-DAPv2 has better performance with 2 packets while
@@ -378,28 +381,10 @@ void trigger_task_stat(TimerHandle_t xTimer)
 
 void print_task_stat(void *ptr)
 {
-#define NUM_ENTRY 15
     uint32_t prev_tusb_count = 0;
     HeapStats_t heap_status;
-    TaskStatus_t task_status[NUM_ENTRY];
+    TaskStatus_t task_status[TASK_MAX_CNT];
     uint32_t total_run_time;
-
-#if defined(configUSE_CORE_AFFINITY)  &&  configUSE_CORE_AFFINITY != 0
-    {
-        uint32_t cnt;
-
-        printf("assign IDLE tasks to certain core\n");
-        cnt = uxTaskGetSystemState(task_status, NUM_ENTRY, &total_run_time);
-        for (uint32_t n = 0;  n < cnt;  ++n) {
-            if (strcmp(task_status[n].pcTaskName, "IDLE0") == 0) {
-                vTaskCoreAffinitySet(task_status[n].xHandle, 1 << 0);
-            }
-            else if (strcmp(task_status[n].pcTaskName, "IDLE1") == 0) {
-                vTaskCoreAffinitySet(task_status[n].xHandle, 1 << 1);
-            }
-        }
-    }
-#endif
 
     vTaskDelay(pdMS_TO_TICKS(100));
 
@@ -418,41 +403,38 @@ void print_task_stat(void *ptr)
         printf("min heap free   : %d\n", heap_status.xMinimumEverFreeBytesRemaining);
 
         printf("number of tasks : %lu\n", uxTaskGetNumberOfTasks());
-        if (uxTaskGetNumberOfTasks() > NUM_ENTRY) {
-            printf("!!!!!!!!!!!!!!! redefine NUM_ENTRY to see task state\n");
+        if (uxTaskGetNumberOfTasks() > TASK_MAX_CNT) {
+            printf("!!!!!!!!!!!!!!! redefine TASK_MAX_CNT to see task state\n");
         }
         else {
             // this part is critical concerning overflow because the numbers are getting quickly very big (us timer resolution)
-            static uint32_t prev_tick[NUM_ENTRY+1];
+            static uint32_t prev_tick_us[TASK_MAX_CNT+1];
+            static uint32_t sum_tick_ms[TASK_MAX_CNT+1];
+            static uint32_t total_sum_tick_ms;
             uint32_t cnt;
-            uint32_t curr_tick_sum;
-            uint32_t delta_tick_sum;
+            uint32_t all_delta_tick_sum_us;
             uint32_t percent_sum;
             uint32_t percent_total_sum;
 
-            cnt = uxTaskGetSystemState(task_status, NUM_ENTRY, &total_run_time);
-            curr_tick_sum = 0;
-            delta_tick_sum = 0;
+            cnt = uxTaskGetSystemState(task_status, TASK_MAX_CNT, &total_run_time);
+            all_delta_tick_sum_us = 0;
             for (uint32_t n = 0;  n < cnt;  ++n) {
-                uint32_t prev_ndx = task_status[n].xTaskNumber;
-                assert(prev_ndx < NUM_ENTRY + 1);
-                curr_tick_sum += task_status[n].ulRunTimeCounter;
-                delta_tick_sum += task_status[n].ulRunTimeCounter - prev_tick[prev_ndx];
+                uint32_t task_ndx = task_status[n].xTaskNumber;
+                uint32_t ticks_us;
 
-#if 0  &&  defined(configUSE_CORE_AFFINITY)  &&  configUSE_CORE_AFFINITY != 0
-                if (strcmp(task_status[n].pcTaskName, "IDLE1") != 0  &&  vTaskCoreAffinityGet(task_status[n].xHandle) != 1) {
-                    printf("!!!! change affinity of '%s' to 1\n", task_status[n].pcTaskName);
-                    vTaskCoreAffinitySet(task_status[n].xHandle, 1);
-                }
-#endif
+                assert(task_ndx < TASK_MAX_CNT + 1);
+                ticks_us = task_status[n].ulRunTimeCounter - prev_tick_us[task_ndx];
+                all_delta_tick_sum_us += ticks_us;
+                sum_tick_ms[task_ndx] += (ticks_us + 500) / 1000;
             }
-            printf("delta tick sum  : %lu\n", delta_tick_sum);
+            printf("delta tick sum  : %lu\n", all_delta_tick_sum_us);
 
             printf("NUM PRI  S/AM  CPU  TOT STACK  NAME\n");
             printf("---------------------------------------\n");
 
-            curr_tick_sum /= configNUM_CORES;
-            delta_tick_sum /= configNUM_CORES;
+            all_delta_tick_sum_us /= configNUM_CORES;
+            total_sum_tick_ms += (all_delta_tick_sum_us + 500) / 1000;
+
             percent_sum = 0;
             percent_total_sum = 0;
             for (uint32_t n = 0;  n < cnt;  ++n) {
@@ -460,13 +442,13 @@ void print_task_stat(void *ptr)
                 uint32_t percent_total;
                 uint32_t curr_tick;
                 uint32_t delta_tick;
-                uint32_t prev_ndx = task_status[n].xTaskNumber;
+                uint32_t task_ndx = task_status[n].xTaskNumber;
 
                 curr_tick = task_status[n].ulRunTimeCounter;
-                delta_tick = curr_tick - prev_tick[prev_ndx];
+                delta_tick = curr_tick - prev_tick_us[task_ndx];
 
-                percent = (delta_tick + delta_tick_sum / 2000) / (delta_tick_sum / 1000);
-                percent_total = (curr_tick + curr_tick_sum / 2000) / (curr_tick_sum / 1000);
+                percent = (delta_tick + all_delta_tick_sum_us / 2000) / (all_delta_tick_sum_us / 1000);
+                percent_total = (1000 * sum_tick_ms[task_ndx] + total_sum_tick_ms / 2) / total_sum_tick_ms;
                 percent_sum += percent;
                 percent_total_sum += percent_total;
 
@@ -488,7 +470,7 @@ void print_task_stat(void *ptr)
                                task_status[n].pcTaskName);
 #endif
 
-                prev_tick[prev_ndx] = curr_tick;
+                prev_tick_us[task_ndx] = curr_tick;
             }
             printf("---------------------------------------\n");
             printf("              %3lu %3lu\n", percent_sum, percent_total_sum);
@@ -557,13 +539,47 @@ void usb_thread(void *ptr)
 #endif
 
 #if OPT_CMSIS_DAPV2
-    xTaskCreateAffinitySet(dap_task, "CMSIS-DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, 2, &dap_taskhandle);
+    xTaskCreate(dap_task, "CMSIS-DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);
 #endif
 
 #if configUSE_TRACE_FACILITY
     {
         TaskHandle_t task_stat_handle;
-        xTaskCreateAffinitySet(print_task_stat, "Print Task Stat", configMINIMAL_STACK_SIZE, NULL, 30, -1, &task_stat_handle);
+        xTaskCreate(print_task_stat, "Print Task Stat", configMINIMAL_STACK_SIZE, NULL, 30, &task_stat_handle);
+    }
+#endif
+
+#if defined(configUSE_CORE_AFFINITY)  &&  configUSE_CORE_AFFINITY != 0
+    //
+    // This is the only place to set task affinity.
+    // TODO ATTENTION core affinity
+    // Currently only RTT_FROM is running on an extra core (and RTT_FROM is a real hack).  This is because
+    // if RTT is running on a different thread than tinyusb/lwip (not sure), the probe is crashing very
+    // fast on SystemView events in net_sysview_send()
+    //
+    {
+        TaskStatus_t task_status[TASK_MAX_CNT];
+        uint32_t cnt;
+
+        picoprobe_info("Assign tasks to certain cores\n");
+        cnt = uxTaskGetSystemState(task_status, TASK_MAX_CNT, NULL);
+        if (cnt >= TASK_MAX_CNT) {
+            picoprobe_error("TASK_MAX_CNT must be re-adjusted\n");
+        }
+
+        for (uint32_t n = 0;  n < cnt;  ++n) {
+            if (    strcmp(task_status[n].pcTaskName, "IDLE1") == 0
+                ||  strcmp(task_status[n].pcTaskName, "RTT_FROM") == 0
+                ||  strcmp(task_status[n].pcTaskName, "RTTxxx") == 0
+            ) {
+                // set it to core 1
+                vTaskCoreAffinitySet(task_status[n].xHandle, 1 << 1);
+            }
+            else {
+                // set it to core 0
+                vTaskCoreAffinitySet(task_status[n].xHandle, 1 << 0);
+            }
+        }
     }
 #endif
 
@@ -610,7 +626,7 @@ int main(void)
     events = xEventGroupCreate();
 
     // it seems that TinyUSB does not like affinity setting in its thread, so the affinity of the USB thread is corrected in the task itself
-    xTaskCreateAffinitySet(usb_thread, "TinyUSB Main", 4096, NULL, TUD_TASK_PRIO, -1, &tud_taskhandle);
+    xTaskCreate(usb_thread, "TinyUSB Main", 4096, NULL, TUD_TASK_PRIO, &tud_taskhandle);
     vTaskStartScheduler();
 
     return 0;
@@ -654,8 +670,6 @@ uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t
 void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t const* RxDataBuffer, uint16_t bufsize)
 {
     uint32_t response_size = TU_MIN(CFG_TUD_HID_EP_BUFSIZE, bufsize);
-
-    // TODO do sw_lock() / unlock! (with timer)
 
     // This doesn't use multiple report and report ID
     (void) itf;

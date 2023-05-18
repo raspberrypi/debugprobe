@@ -212,6 +212,6 @@ void cdc_sysview_init(uint32_t task_prio)
         picoprobe_error("cdc_sysview_init: cannot create stream_sysview\n");
     }
 
-    xTaskCreateAffinitySet(cdc_thread, "CDC_SysView", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_sysview);
+    xTaskCreate(cdc_thread, "CDC_SysView", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_sysview);
     cdc_sysview_line_state_cb(false, false);
 }   // cdc_sysview_init

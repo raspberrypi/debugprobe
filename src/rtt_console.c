@@ -68,6 +68,8 @@ typedef uint32_t (*rtt_data_to_host)(const uint8_t *buf, uint32_t cnt);
 #define RTT_CONSOLE_POLL_INT_MS 10
 
 #define EV_RTT_TO_TARGET        0x01
+#define EV_RTT_FROM_TARGET_STRT 0x02
+#define EV_RTT_FROM_TARGET_END  0x04
 
 static const uint32_t           segger_alignment = 4;
 static const uint8_t            seggerRTT[16] = "SEGGER RTT\0\0\0\0\0\0";
@@ -77,6 +79,7 @@ static bool                     ok_console_from_target = false;
 static bool                     ok_console_to_target = false;
 
 static TaskHandle_t             task_rtt_console = NULL;
+static TaskHandle_t             task_rtt_from_target_thread = NULL;
 static StreamBufferHandle_t     stream_rtt_console_to_target;                  // small stream for host->probe->target console communication
 static EventGroupHandle_t       events;
 
@@ -219,9 +222,85 @@ static unsigned rtt_get_write_space(SEGGER_RTT_BUFFER_DOWN *pRing)
 
 
 
+#define USE_EXTRA_THREAD_FOR_FROM_TARGET
+
+#ifdef USE_EXTRA_THREAD_FOR_FROM_TARGET
+
+static SEGGER_RTT_BUFFER_UP *ft_aUp;
+static uint16_t ft_channel;
+static uint32_t ft_rtt_cb;
+static uint8_t ft_buf[256];
+static uint32_t ft_cnt;
+
+static void rtt_from_target_thread(void *)
+/**
+ * Data transfer is CPU intensive, because SWD access is blocking the CPU.
+ * So the idea is to put this task in an extra thread with affinity to the second core.
+ * Core affinity is set in \a main.c
+ */
+{
+    for (;;) {
+        bool ok;
+
+        xEventGroupWaitBits(events, EV_RTT_FROM_TARGET_STRT, pdTRUE, pdFALSE, portMAX_DELAY);
+
+        ok = swd_read_word(ft_rtt_cb + offsetof(SEGGER_RTT_CB, aUp[ft_channel].WrOff), (uint32_t *)&(ft_aUp->WrOff));
+
+        if (ok  &&  ft_aUp->WrOff != ft_aUp->RdOff) {
+            //
+            // fetch data from target
+            //
+            if (ft_aUp->WrOff > ft_aUp->RdOff) {
+                ft_cnt = MIN(ft_cnt, ft_aUp->WrOff - ft_aUp->RdOff);
+            }
+            else {
+                ft_cnt = MIN(ft_cnt, ft_aUp->SizeOfBuffer - ft_aUp->RdOff);
+            }
+            ft_cnt = MIN(ft_cnt, sizeof(ft_buf));
+
+            memset(ft_buf, 0, sizeof(ft_buf));
+            ok = ok  &&  swd_read_memory((uint32_t)ft_aUp->pBuffer + ft_aUp->RdOff, ft_buf, ft_cnt);
+            ft_aUp->RdOff = (ft_aUp->RdOff + ft_cnt) % ft_aUp->SizeOfBuffer;
+            ok = ok  &&  swd_write_word(ft_rtt_cb + offsetof(SEGGER_RTT_CB, aUp[ft_channel].RdOff), ft_aUp->RdOff);
+        }
+        else {
+            ft_cnt = 0;
+        }
+
+        xEventGroupSetBits(events, EV_RTT_FROM_TARGET_END);
+    }
+}   // rtt_from_target_thread
+
+#endif
+
+
+
 static bool rtt_from_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER_UP *aUp,
                             rtt_data_to_host data_to_host, bool *worked)
 {
+#ifdef USE_EXTRA_THREAD_FOR_FROM_TARGET
+    ft_cnt = data_to_host(NULL, 0);
+    if (ft_cnt < sizeof(ft_buf) / 4) {
+        //printf("no space in stream %d: %d\n", channel, ft_cnt);
+    }
+    else {
+        ft_aUp = aUp;
+        ft_channel = channel;
+        ft_rtt_cb = rtt_cb;
+
+        xEventGroupSetBits(events, EV_RTT_FROM_TARGET_STRT);
+        xEventGroupWaitBits(events, EV_RTT_FROM_TARGET_END, pdTRUE, pdFALSE, portMAX_DELAY);
+
+        if (ft_cnt != 0) {
+            // direct received data to host
+            data_to_host(ft_buf, ft_cnt);
+
+            led_state(LS_RTT_RX_DATA);
+            *worked = true;
+        }
+    }
+    return true;
+#else
     bool ok = true;
     uint8_t buf[256];
     uint32_t cnt;
@@ -234,11 +313,18 @@ static bool rtt_from_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER
         //*worked = true;
     }
     else {
+        ft_aUp = aUp;
+        ft_channel = channel;
+        ft_rtt_cb = rtt_cb;
+
+        xEventGroupSetBits(events, EV_RTT_FROM_TARGET_STRT);
+        xEventGroupWaitBits(events, EV_RTT_FROM_TARGET_END, pdTRUE, pdFALSE, portMAX_DELAY);
+
         ok = ok  &&  swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[channel].WrOff), (uint32_t *)&(aUp->WrOff));
 
         if (ok  &&  aUp->WrOff != aUp->RdOff) {
             //
-            // fetch characters from target
+            // fetch data from target
             //
             if (aUp->WrOff > aUp->RdOff) {
                 cnt = MIN(cnt, aUp->WrOff - aUp->RdOff);
@@ -261,6 +347,7 @@ static bool rtt_from_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER
         }
     }
     return ok;
+#endif
 }   // rtt_from_target
 
 
@@ -575,9 +662,15 @@ void rtt_console_init(uint32_t task_prio)
     }
 #endif
 
-    xTaskCreateAffinitySet(rtt_io_thread, "RTT", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_rtt_console);
+    xTaskCreate(rtt_io_thread, "RTT", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_rtt_console);
     if (task_rtt_console == NULL)
     {
         picoprobe_error("rtt_console_init: cannot create task_rtt_console\n");
+    }
+
+    xTaskCreate(rtt_from_target_thread, "RTT_FROM", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_rtt_from_target_thread);
+    if (task_rtt_from_target_thread == NULL)
+    {
+        picoprobe_error("rtt_console_init: cannot create task_rtt_from_target_thread\n");
     }
 }   // rtt_console_init

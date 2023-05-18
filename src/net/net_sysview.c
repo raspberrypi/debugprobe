@@ -277,7 +277,7 @@ uint32_t net_sysview_send(const uint8_t *buf, uint32_t cnt)
     uint32_t r = 0;
 
 #if 0
-    if (m_state != SVS_NONE)
+    if (m_state != SVS_NONE  &&  buf != NULL)
         printf("net_sysview_send(%p,%lu) %d\n", buf, cnt, m_state);
 #endif
 

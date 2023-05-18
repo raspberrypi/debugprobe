@@ -317,5 +317,5 @@ void led_init(uint32_t task_prio)
     rx_data_from_target_init();
     tx_data_to_target_init();
 
-    xTaskCreateAffinitySet(led_thread, "LED", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_led);
+    xTaskCreate(led_thread, "LED", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_led);
 }   // led_init
