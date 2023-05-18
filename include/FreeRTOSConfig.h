@@ -87,15 +87,14 @@
 #define configUSE_DAEMON_TASK_STARTUP_HOOK      0
 
 /* Run time and task stats gathering related definitions. */
-#define configUSE_TRACE_FACILITY                0                                // switch on task status output
-#define configGENERATE_RUN_TIME_STATS           configUSE_TRACE_FACILITY
+#define configGENERATE_RUN_TIME_STATS           0                                // switch on task status output
 #define configUSE_STATS_FORMATTING_FUNCTIONS    0
 
-#if configUSE_TRACE_FACILITY
+#if configGENERATE_RUN_TIME_STATS
     #define TF_TIMER_BASE            _u(0x40054000)
     #define TF_TIMER_TIMERAWL_OFFSET _u(0x00000028)
 
-    #warning "configUSE_TRACE_FACILITY is set"
+    #warning "configGENERATE_RUN_TIME_STATS is set"
     #define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS()        do {} while( 0 )
     #define portALT_GET_RUN_TIME_COUNTER_VALUE( dest )      ( dest = *((uint32_t *)(TF_TIMER_BASE + TF_TIMER_TIMERAWL_OFFSET)) )
 #endif
@@ -123,9 +122,8 @@
 #define configRUN_MULTIPLE_PRIORITIES           1
 #if configNUM_CORES != 1
     #define configUSE_CORE_AFFINITY             1
-#endif
-#if !defined(configUSE_CORE_AFFINITY)  ||  configUSE_CORE_AFFINITY == 0
-    #define xTaskCreateAffinitySet(FUN,NAM,STK,PAR,PRI,AFF,HND)   xTaskCreate(FUN,NAM,STK,PAR,PRI,HND)
+    #undef configUSE_TRACE_FACILITY
+    #define configUSE_TRACE_FACILITY            1                                // required for setup of core affinity
 #endif
 
 /* RP2040 specific */

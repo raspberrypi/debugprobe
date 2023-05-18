@@ -231,6 +231,7 @@ static uint16_t ft_channel;
 static uint32_t ft_rtt_cb;
 static uint8_t ft_buf[256];
 static uint32_t ft_cnt;
+static bool ft_ok;
 
 static void rtt_from_target_thread(void *)
 /**
@@ -240,13 +241,11 @@ static void rtt_from_target_thread(void *)
  */
 {
     for (;;) {
-        bool ok;
-
         xEventGroupWaitBits(events, EV_RTT_FROM_TARGET_STRT, pdTRUE, pdFALSE, portMAX_DELAY);
 
-        ok = swd_read_word(ft_rtt_cb + offsetof(SEGGER_RTT_CB, aUp[ft_channel].WrOff), (uint32_t *)&(ft_aUp->WrOff));
+        ft_ok = swd_read_word(ft_rtt_cb + offsetof(SEGGER_RTT_CB, aUp[ft_channel].WrOff), (uint32_t *)&(ft_aUp->WrOff));
 
-        if (ok  &&  ft_aUp->WrOff != ft_aUp->RdOff) {
+        if (ft_ok  &&  ft_aUp->WrOff != ft_aUp->RdOff) {
             //
             // fetch data from target
             //
@@ -259,9 +258,9 @@ static void rtt_from_target_thread(void *)
             ft_cnt = MIN(ft_cnt, sizeof(ft_buf));
 
             memset(ft_buf, 0, sizeof(ft_buf));
-            ok = ok  &&  swd_read_memory((uint32_t)ft_aUp->pBuffer + ft_aUp->RdOff, ft_buf, ft_cnt);
+            ft_ok = ft_ok  &&  swd_read_memory((uint32_t)ft_aUp->pBuffer + ft_aUp->RdOff, ft_buf, ft_cnt);
             ft_aUp->RdOff = (ft_aUp->RdOff + ft_cnt) % ft_aUp->SizeOfBuffer;
-            ok = ok  &&  swd_write_word(ft_rtt_cb + offsetof(SEGGER_RTT_CB, aUp[ft_channel].RdOff), ft_aUp->RdOff);
+            ft_ok = ft_ok  &&  swd_write_word(ft_rtt_cb + offsetof(SEGGER_RTT_CB, aUp[ft_channel].RdOff), ft_aUp->RdOff);
         }
         else {
             ft_cnt = 0;
@@ -299,7 +298,7 @@ static bool rtt_from_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER
             *worked = true;
         }
     }
-    return true;
+    return ft_ok;
 #else
     bool ok = true;
     uint8_t buf[256];

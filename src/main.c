@@ -361,7 +361,7 @@ void dap_task(void *ptr)
 
 
 
-#if configUSE_TRACE_FACILITY
+#if configGENERATE_RUN_TIME_STATS
 static uint32_t tusb_count;
 static TimerHandle_t timer_task_stat;
 static EventGroupHandle_t events_task_stat;
@@ -473,7 +473,7 @@ void print_task_stat(void *ptr)
                 prev_tick_us[task_ndx] = curr_tick;
             }
             printf("---------------------------------------\n");
-            printf("              %3lu %3lu\n", percent_sum, percent_total_sum);
+            printf("              %4lu %4lu\n", percent_sum, percent_total_sum);
         }
         printf("---------------------------------------\n");
 
@@ -542,7 +542,7 @@ void usb_thread(void *ptr)
     xTaskCreate(dap_task, "CMSIS-DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);
 #endif
 
-#if configUSE_TRACE_FACILITY
+#if configGENERATE_RUN_TIME_STATS
     {
         TaskHandle_t task_stat_handle;
         xTaskCreate(print_task_stat, "Print Task Stat", configMINIMAL_STACK_SIZE, NULL, 30, &task_stat_handle);
@@ -585,7 +585,7 @@ void usb_thread(void *ptr)
 
     tusb_init();
     for (;;) {
-#if configUSE_TRACE_FACILITY
+#if configGENERATE_RUN_TIME_STATS
         ++tusb_count;
 #endif
         tud_task();             // the FreeRTOS version goes into blocking state if its event queue is empty
