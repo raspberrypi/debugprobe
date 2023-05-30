@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2021 Raspberry Pi (Trading) Ltd.
+ * Copyright (c) 2021-2023 Raspberry Pi (Trading) Ltd.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,32 +23,50 @@
  *
  */
 
+// Every TX FIFO entry is either a command, or up to 32 bits of data.
+// Command format:
+//
+// | 13:9 |  8  |  7:0  |
+// | Cmd  | Dir | Count |
+//
+// Count is the number of bits to be transferred by this command, minus 1.
+// Dir is the output enable for the SWDIO pin.
+// Cmd is the address of the write_cmd, read_cmd or get_next_cmd label.
+//
+// write_cmd expects a FIFO data entry, but read_cmd does not.
+//
+// read_cmd pushes data to the FIFO, but write_cmd does not. (The lack of RX
+// garbage on writes allows the interface code to return early after pushing a
+// write command, as there is no need in general to poll for a command's
+// completion as long as all commands are executed in order.)
+//
+// The SWCLK period is 4 PIO SM execution cycles.
+
 .program probe
 .side_set 1 opt
 
-public out_negedge:
-    set pindirs, 1 side 0x0 ; Init OE clock 0
-public out_idle:
-    pull           ; Pull number of bits to shift -1 from tx fifo and put into output shift register
-    mov x, osr     ; mov bits to shift -1 from output shift register into x
-    pull           ; Pull data to shift out
-out_negedge_bitloop:
-    out pins, 1                  side 0x0 ; clock data out on falling edge
-    jmp  x-- out_negedge_bitloop side 0x1 ; data is present for posedge
-    set pins, 1                  side 0x0 ; Drive data high (idle bus state)
-    push                                 ; Push to rx fifo just so processor knows when done
-    jmp out_negedge                      ; Wait for next transaction
+public write_cmd:
+public turnaround_cmd:                      ; Alias of write, used for probe_oen.pio
+    pull
+write_bitloop:
+    out pins, 1             [1]  side 0x0   ; Data is output by host on negedge
+    jmp x-- write_bitloop   [1]  side 0x1   ; ...and captured by target on posedge
+                                            ; Fall through to next command
+.wrap_target
+public get_next_cmd:
+    pull                         side 0x0   ; SWCLK is initially low
+    out x, 8                                ; Get bit count
+    out pindirs, 1                          ; Set SWDIO direction
+    out pc, 5                               ; Go to command routine
 
-public in_posedge:
-    set pindirs, 0 side 0x0 ; INIT IE clock 0
-public in_idle:
-    pull                   ; Pull number of bits to shift -1 from tx fifo and put into output shift register
-    mov x, osr             ; mov bits to shift -1 from output shift register into x into x
-in_posedge_bitloop:
-    in pins, 1                        side 0x1 ; Generate posedge and read data
-    jmp x-- in_posedge_bitloop        side 0x0 ;
-    push                                      ; Push to rx fifo when done
-    jmp in_posedge                            ; Jump back to start
+read_bitloop:
+    nop                                     ; Additional delay on taken loop branch
+public read_cmd:
+    in pins, 1              [1]  side 0x1   ; Data is captured by host on posedge
+    jmp x-- read_bitloop         side 0x0
+    push
+.wrap                                       ; Wrap to next command
+
 
 ; Implement probe_gpio_init() and probe_sm_init() methods here - set pins, offsets, sidesets etc
 % c-sdk {
