@@ -31,7 +31,7 @@ option(OPT_PROBE_DEBUG_OUT     "Enable CDC for probe debug output"      ${DEFAUL
 option(OPT_SIGROK              "Enable sigrok"                          0)
 option(OPT_MSC                 "Enable Mass Storage Device"             1)
 option(OPT_MSC_RAM_UF2         "Enable file 'RAM.UF2' on Mass Storage"  1)
-set(OPT_NET                    "ECM" CACHE STRING "Enable lwIP on the Pico via ECM/NCM/RNDIS")
+set(OPT_NET                    "NCM" CACHE STRING "Enable lwIP on the Pico via ECM/NCM/RNDIS")
 set(OPT_NET_192_168            14 CACHE STRING "Set the subnet of 192.168.x")
 option(OPT_NET_ECHO_SERVER     "Enable echo server for testing"         1)
 option(OPT_NET_IPERF_SERVER    "Enable iperf server for tuning"         1)
@@ -62,7 +62,26 @@ pico_sdk_init()
 #    message("--------- " ${PICO_LWIP_CONTRIB_PATH})
 #    message("--------- " ${PICO_TINYUSB_PATH})
 
-project(${PROJECT})
+#
+# set some things inherited from Makefile / command line
+#
+if(PICOPROBE_VERSION_MAJOR)
+        add_definitions(-DPICOPROBE_VERSION_MAJOR=${PICOPROBE_VERSION_MAJOR})
+else()
+        set(PICOPROBE_VERSION_MAJOR 0)
+endif()
+if(PICOPROBE_VERSION_MINOR)
+        add_definitions(-DPICOPROBE_VERSION_MINOR=${PICOPROBE_VERSION_MINOR})
+else()
+        set(PICOPROBE_VERSION_MINOR 0)
+endif()
+
+project(${PROJECT}
+        VERSION ${PICOPROBE_VERSION_MAJOR}.${PICOPROBE_VERSION_MINOR}
+        DESCRIPTION "YAPicoprobe CMSIS-DAP"
+        HOMEPAGE_URL https://github.com/rgrr/yapicoprobe
+        LANGUAGES C CXX ASM
+)
 
 string(TOUPPER ${PICO_BOARD} PICO_BOARD_UPPER)
 
@@ -77,29 +96,15 @@ add_definitions(
         -DOPT_SPECIAL_CLK_FOR_PIO=${OPT_SPECIAL_CLK_FOR_PIO}
 )
 
-#
-# set some things inherited from Makefile / command line
-#
-if (PICOPROBE_VERSION_MAJOR)
-        add_definitions(-DPICOPROBE_VERSION_MAJOR=${PICOPROBE_VERSION_MAJOR})
-else()
-        set(PICOPROBE_VERSION_MAJOR 0)
-endif()
-if (PICOPROBE_VERSION_MINOR)
-        add_definitions(-DPICOPROBE_VERSION_MINOR=${PICOPROBE_VERSION_MINOR})
-else()
-        set(PICOPROBE_VERSION_MINOR 0)
-endif()
-
 # set version string to "x.yy"
 # there are perhaps smarter ways...
-if (PICOPROBE_VERSION_MINOR LESS "10")
+if(PICOPROBE_VERSION_MINOR LESS "10")
         add_definitions(-DPICOPROBE_VERSION_STRING="${PICOPROBE_VERSION_MAJOR}.0${PICOPROBE_VERSION_MINOR}")
 else()
         add_definitions(-DPICOPROBE_VERSION_STRING="${PICOPROBE_VERSION_MAJOR}.${PICOPROBE_VERSION_MINOR}")
 endif()
 
-if (GIT_HASH)
+if(GIT_HASH)
         add_definitions(-DGIT_HASH="${GIT_HASH}")
 endif()
 
@@ -250,9 +255,14 @@ if(NOT OPT_NET STREQUAL "")
         src/net/net_glue.c
         
         ${PICO_TINYUSB_PATH}/lib/networking/dhserver.c
-        ${PICO_TINYUSB_PATH}/lib/networking/rndis_reports.c
     )
 
+    if(NOT OPT_NET STREQUAL "NCM")
+        target_sources(${PROJECT} PRIVATE
+            ${PICO_TINYUSB_PATH}/lib/networking/rndis_reports.c
+        )
+    endif()
+    
     target_include_directories(${PROJECT} PRIVATE
         ${PICO_TINYUSB_PATH}/lib/networking
     )
