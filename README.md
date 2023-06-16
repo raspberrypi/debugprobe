@@ -25,7 +25,11 @@ then run cmake and build the code:
 ```
 Easy! 
 
-If you want to create the version that runs on the raspberry pi debugprobe, then you need to change the configuration of the software a bit. In the file src/picoprobe_config.h near the bottom, you'll find three includes, two of which are commented out. Uncomment the one for debugprobe and recompile. Please note that the project still builds as "picoprobe". You might want to rename the resulting binary (.uf2) to "debugprobe.uf2". The same goes for the ".elf" file. 
+If you want to create the version that runs on the raspberry pi debugprobe, then you need to invoke cmake with the DEBUGPROBE=ON option: 
+```
+cmake -DDEBUGPROBE=ON ..
+````
+Please note that the project still builds as "picoprobe". You might want to rename the resulting binary (.uf2) to "debugprobe.uf2". The same goes for the ".elf" file. 
 
 
 # TODO
@@ -33,5 +37,4 @@ If you want to create the version that runs on the raspberry pi debugprobe, then
 - Instead of polling, move the DAP thread to an asynchronously started/stopped one-shot operation to reduce CPU wakeups
 - AutoBaud selection, as PIO is a capable frequency counter
 - Possibly include RTT support
-- Allow switching between building picoprobe/debugprobe versions with a cmake definition. 
 - generate the debugprobe version under the right name.
