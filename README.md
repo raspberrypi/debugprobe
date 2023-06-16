@@ -9,19 +9,20 @@ Picoprobe documentation can be found in the [Pico Getting Started Guide](https:/
 For the purpose of making changes or studying of the code, you may want to compile the code yourself. 
 
 To compile the "picoprobe" version of this project just initialize the submodules and update them: 
-
+```
  git submodule init
  git submodule update
-
+```
 then create and switch to the build directory: 
+```
  mkdir build
  cd build
-
+```
 then run cmake and build the code:
-
+```
  cmake ..
  make
-
+```
 Easy! 
 
 If you want to create the version that runs on the raspberry pi debugprobe, then you need to change the configuration of the software a bit. In the file src/picoprobe_config.h near the bottom, you'll find three includes, two of which are commented out. Uncomment the one for debugprobe and recompile. Please note that the project still builds as "picoprobe". You might want to rename the resulting binary (.uf2) to "debugprobe.uf2". The same goes for the ".elf" file. 
