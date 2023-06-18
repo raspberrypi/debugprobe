@@ -157,8 +157,8 @@ void probe_init() {
 
 void probe_deinit(void)
 {
-  probe_read_mode();
   if (probe.initted) {
+    probe_read_mode();
     pio_sm_set_enabled(pio0, PROBE_SM, 0);
     pio_remove_program(pio0, &probe_program, probe.offset);
     probe.initted = 0;
