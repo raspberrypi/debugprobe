@@ -23,13 +23,13 @@ then run cmake and build the code:
  cmake ..
  make
 ```
-Easy! 
+Done! You should now have a picoprobe.uf2 that you can upload to your pico in the normal way. 
 
 If you want to create the version that runs on the raspberry pi debugprobe, then you need to invoke cmake with the DEBUGPROBE=ON option: 
 ```
 cmake -DDEBUGPROBE=ON ..
-````
-Please note that the project still builds as "picoprobe". You might want to rename the resulting binary (.uf2) to "debugprobe.uf2". The same goes for the ".elf" file. 
+```
+Please note that the project still builds as "picoprobe". You might want to rename the resulting binary (.uf2) to "debugprobe.uf2". The same goes for the ".elf" file.
 
 
 # TODO
