@@ -23,7 +23,7 @@ then run cmake and build the code:
  cmake ..
  make
 ```
-Easy! 
+Done! 
 
 If you want to create the version that runs on the raspberry pi debugprobe, then you need to change the configuration of the software a bit. In the file src/picoprobe_config.h near the bottom, you'll find three includes, two of which are commented out. Uncomment the one for debugprobe and recompile. Please note that the project still builds as "picoprobe". You might want to rename the resulting binary (.uf2) to "debugprobe.uf2". The same goes for the ".elf" file. 
 
