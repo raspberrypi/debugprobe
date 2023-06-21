@@ -48,7 +48,10 @@ option (DEBUGPROBE "compile for the debugprobe" OFF)
 if (DEBUGPROBE)
     target_compile_definitions (picoprobe PRIVATE 
 	DEBUGPROBE=1
-)
+    )
+    set_target_properties(picoprobe PROPERTIES 
+        OUTPUT_NAME "debugprobe"
+    )
 endif ()
 
 

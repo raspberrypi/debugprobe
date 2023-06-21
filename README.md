@@ -29,7 +29,8 @@ If you want to create the version that runs on the raspberry pi debugprobe, then
 ```
 cmake -DDEBUGPROBE=ON ..
 ```
-Please note that the project still builds as "picoprobe". You might want to rename the resulting binary (.uf2) to "debugprobe.uf2". The same goes for the ".elf" file.
+
+This will build with the configuration for the debugprobe and call the output program "debugprobe.uf2" as opposed to "picoprobe.uf2" for the vanilla version. 
 
 Note that if you first ran through the whole sequence to compile for the pico, then you don't need to start back at the top. You can just go back to the cmake step and start from there.
 
@@ -39,4 +40,3 @@ Note that if you first ran through the whole sequence to compile for the pico, t
 - Instead of polling, move the DAP thread to an asynchronously started/stopped one-shot operation to reduce CPU wakeups
 - AutoBaud selection, as PIO is a capable frequency counter
 - Possibly include RTT support
-- generate the debugprobe version under the right name.
