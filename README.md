@@ -8,7 +8,7 @@ Picoprobe documentation can be found in the [Pico Getting Started Guide](https:/
 
 For the purpose of making changes or studying of the code, you may want to compile the code yourself. 
 
-To compile the "picoprobe" version of this project just initialize the submodules and update them: 
+To compile this project just initialize the submodules and update them: 
 ```
  git submodule init
  git submodule update
