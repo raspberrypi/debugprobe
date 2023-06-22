@@ -8,10 +8,9 @@ Picoprobe documentation can be found in the [Pico Getting Started Guide](https:/
 
 For the purpose of making changes or studying of the code, you may want to compile the code yourself. 
 
-To compile this project just initialize the submodules and update them: 
+To compile this project firstly initialize and update the submodules: 
 ```
- git submodule init
- git submodule update
+ git submodule update --init
 ```
 then create and switch to the build directory: 
 ```
@@ -23,16 +22,16 @@ then run cmake and build the code:
  cmake ..
  make
 ```
-Done! You should now have a picoprobe.uf2 that you can upload to your pico in the normal way. 
+Done! You should now have a `picoprobe.uf2` that you can upload to your Pico in the normal way. 
 
-If you want to create the version that runs on the raspberry pi debugprobe, then you need to invoke cmake in the sequence above with the DEBUGPROBE=ON option: 
+If you want to create the version that runs on the Raspberry Pi Debug Probe, then you need to invoke `cmake` in the sequence above with the `DEBUGPROBE=ON` option: 
 ```
 cmake -DDEBUGPROBE=ON ..
 ```
 
-This will build with the configuration for the debugprobe and call the output program "debugprobe.uf2" as opposed to "picoprobe.uf2" for the vanilla version. 
+This will build with the configuration for the Debug Probe and call the output program `debugprobe.uf2`, as opposed to `picoprobe.uf2` for the vanilla version. 
 
-Note that if you first ran through the whole sequence to compile for the pico, then you don't need to start back at the top. You can just go back to the cmake step and start from there.
+Note that if you first ran through the whole sequence to compile for the Pico, then you don't need to start back at the top. You can just go back to the `cmake` step and start from there.
 
 
 # TODO
