@@ -44,6 +44,17 @@ target_compile_definitions (picoprobe PRIVATE
 	PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
 )
 
+option (DEBUGPROBE "compile for the debugprobe" OFF)
+if (DEBUGPROBE)
+    target_compile_definitions (picoprobe PRIVATE 
+	DEBUGPROBE=1
+    )
+    set_target_properties(picoprobe PROPERTIES 
+        OUTPUT_NAME "debugprobe"
+    )
+endif ()
+
+
 target_link_libraries(picoprobe PRIVATE
         pico_multicore
         pico_stdlib
