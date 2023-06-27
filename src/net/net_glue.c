@@ -42,6 +42,7 @@
 #include "dhserver.h"
 
 #include "tusb.h"
+#include "device/usbd_pvt.h" // for usbd_defer_func
 
 
 #define EV_RCVFRAME_READY     1
@@ -51,7 +52,13 @@
 static struct netif netif_data;
 
 /* shared between tud_network_recv_cb() and service_traffic() */
-static struct pbuf *received_frame;
+static struct pbuf *received_frame = NULL;
+
+static uint8_t rcv_buff[4000];
+static uint16_t rcv_buff_len = 0;
+
+static uint8_t xmt_buff[4000];
+static uint16_t xmt_buff_len = 0;
 
 #ifndef OPT_NET_192_168
     #define OPT_NET_192_168   10
@@ -82,6 +89,9 @@ static const dhcp_config_t dhcp_config =
 
 
 void tud_network_init_cb(void)
+/**
+ * initialize any network state back to the beginning
+ */
 {
     /* if the network is re-initializing and we have a leftover packet, we must do a cleanup */
     if (received_frame != NULL)
@@ -93,6 +103,13 @@ void tud_network_init_cb(void)
 
 
 
+static void context_tinyusb_tud_network_recv_renew(void *param)
+{
+    tud_network_recv_renew();
+}   // context_tinyusb_tud_network_recv_renew
+
+
+
 static void net_glue_usb_to_lwip(void *ptr)
 /**
  * handle any packet received by tud_network_recv_cb() in context of lwIP
@@ -100,20 +117,44 @@ static void net_glue_usb_to_lwip(void *ptr)
 {
     //printf("net_glue_usb_to_lwip\n");
 
+#if 0
     if (received_frame != NULL) {
         ethernet_input(received_frame, &netif_data);
         pbuf_free(received_frame);
         received_frame = NULL;
         tud_network_recv_renew();
     }
+#else
+    if (rcv_buff_len != 0) {
+        struct pbuf *p = pbuf_alloc(PBUF_RAW, rcv_buff_len, PBUF_POOL);
+
+        if (p) {
+            memcpy(p->payload, rcv_buff, rcv_buff_len);
+            ethernet_input(p, &netif_data);
+            pbuf_free(p);
+            rcv_buff_len = 0;
+#if 0
+            tud_network_recv_renew();
+#else
+            // did not change anything
+            usbd_defer_func(context_tinyusb_tud_network_recv_renew, NULL, false);
+#endif
+        }
+    }
+#endif
 }   // net_glue_usb_to_lwip
 
 
 
 bool tud_network_recv_cb(const uint8_t *src, uint16_t size)
+/**
+ * Copy buffer (host ->) TinyUSB -> lwIP (-> application)
+ * \return false if the packet buffer was not accepted
+ */
 {
     //printf("!!!!!!!!!!!!!!tud_network_recv_cb(%p,%u)\n", src, size);
 
+#if 0
     /* this shouldn't happen, but if we get another packet before
     parsing the previous, we must signal our inability to accept it */
     if (received_frame)
@@ -131,12 +172,27 @@ bool tud_network_recv_cb(const uint8_t *src, uint16_t size)
             tcpip_callback_with_block(net_glue_usb_to_lwip, NULL, 0);
         }
     }
+#else
+    if (rcv_buff_len != 0)
+        return false;
+
+    if (size != 0) {
+        assert(size < sizeof(rcv_buff));
+        memcpy(rcv_buff, src, size);
+        rcv_buff_len = size;
+        tcpip_callback_with_block(net_glue_usb_to_lwip, NULL, 0);
+    }
+#endif
     return true;
 }   // tud_network_recv_cb
 
 
 
 uint16_t tud_network_xmit_cb(uint8_t *dst, void *ref, uint16_t arg)
+/**
+ * (application ->) lwIP -> TinyUSB (-> host)
+ * \return number of bytes copied
+ */
 {
     //printf("!!!!!!!!!!!!!!tud_network_xmit_cb(%p,%p,%u)\n", dst, ref, arg);
 
@@ -158,32 +214,82 @@ uint16_t tud_network_xmit_cb(uint8_t *dst, void *ref, uint16_t arg)
     }
 
     return len;
-#else
+#elif 0
     struct pbuf *p = (struct pbuf *)ref;
 
     (void)arg; /* unused for this example */
 
     return pbuf_copy_partial(p, dst, p->tot_len, 0);
+#else
+    uint16_t r = xmt_buff_len;
+    memcpy(dst, xmt_buff, xmt_buff_len);
+    xmt_buff_len = 0;
+    return r;
 #endif
 }   // tud_network_xmit_cb
 
 
 
+static void conext_tinyusb_linkoutput(void *param)
+{
+    if ( !tud_network_can_xmit(xmt_buff_len)) {
+        printf("conext_tinyusb_linkoutput: sleep\n");
+        vTaskDelay(pdMS_TO_TICKS(10));
+        usbd_defer_func(conext_tinyusb_linkoutput, NULL, false);
+    }
+    else {
+        tud_network_xmit(xmt_buff, 0);
+    }
+}   // conext_tinyusb_linkoutput
+
+
+
 static err_t linkoutput_fn(struct netif *netif, struct pbuf *p)
+/**
+ * called by lwIP to transmit data to TinyUSB
+ */
 {
     (void)netif;
 
-    for (;;) {
+#if 0
+    // TODO: interesting: if !can_xmit, then TinyUSB does the transfer in the "background"
+    //       but this is priority dependent.  Better sleep here for a short period and then repeat.
+    for (;;)
+    {
+        //printf("linkoutput_fn()\n");
         /* if TinyUSB isn't ready, we must signal back to lwip that there is nothing we can do */
-        if (!tud_ready())
+        if ( !tud_ready()) {
             return ERR_USE;
+        }
 
         /* if the network driver can accept another packet, we make it happen */
         if (tud_network_can_xmit(p->tot_len)) {
             tud_network_xmit(p, 0 /* unused for this example */);
             return ERR_OK;
         }
+//        else
+//            return ERR_USE;
+//
+//        tud_task();
+        //printf("linkoutput_fn - sleep\n");
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
+
+    return ERR_USE;
+#else
+    if ( !tud_ready()) {
+        return ERR_USE;
+    }
+
+    if (xmt_buff_len != 0) {
+        return ERR_USE;
+    }
+
+    xmt_buff_len = pbuf_copy_partial(p, xmt_buff, p->tot_len, 0);
+    usbd_defer_func(conext_tinyusb_linkoutput, NULL, false);
+
+    return ERR_OK;
+#endif
 }   // linkoutput_fn
 
 
