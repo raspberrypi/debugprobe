@@ -314,7 +314,7 @@ void tud_network_recv_renew(void)
         }
 #endif
         if (ncm_interface.rcv_datagram_size == 0) {
-            printf("--0.0\n");
+            printf("--0.00\n");
             return;
         }
         memcpy(receive_ntb, usb_buffi, ncm_interface.rcv_datagram_size);
@@ -396,7 +396,7 @@ void tud_network_recv_renew(void)
 
 static void handle_incoming_datagram(uint32_t len)
 {
-    //printf("!!!!!!!!!!!!!handle_incoming_datagram(%lu) %d\n", len, ncm_interface.rcv_datagram_size);
+    printf("!!!!!!!!!!!!!handle_incoming_datagram(%lu) %d\n", len, ncm_interface.rcv_datagram_size);
 
 #if 0
     if (len != 0) {
