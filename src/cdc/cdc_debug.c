@@ -43,7 +43,7 @@
 #include "picoprobe_config.h"
 
 
-#define STREAM_PRINTF_SIZE    4096
+#define STREAM_PRINTF_SIZE    32768
 #define STREAM_PRINTF_TRIGGER 32
 
 static TaskHandle_t           task_printf = NULL;
@@ -79,7 +79,7 @@ void cdc_debug_thread(void *ptr)
         if (xStreamBufferIsEmpty(stream_printf)) {
             // -> end of transmission: flush and sleep for a long time (or until new data is available)
             tud_cdc_n_write_flush(CDC_DEBUG_N);
-            xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
+            xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM, pdTRUE, pdFALSE, pdMS_TO_TICKS(1000));
         }
         else {
             size_t cnt;

@@ -152,7 +152,7 @@ bool tud_network_recv_cb(const uint8_t *src, uint16_t size)
  * \return false if the packet buffer was not accepted
  */
 {
-    //printf("tud_network_recv_cb(%p,%u)\n", src, size);
+    printf("tud_network_recv_cb(%p,%u)\n", src, size);
 
 #if 0
     /* this shouldn't happen, but if we get another packet before

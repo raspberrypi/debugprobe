@@ -137,11 +137,15 @@ static void sysview_try_send(void *ctx)
                     sysview_close(m_pcb_client);
                 }
                 
+#if 1
                 if ( !block_call_to_tcp_output  &&  tcp_sndbuf(m_pcb_client) < 3 * TCP_SND_BUF / 4) {
                     printf("sysview_try_send: flush %d %d\n", tcp_sndbuf(m_pcb_client), 3 * TCP_SND_BUF / 4);
                     block_call_to_tcp_output = true;
                     tcp_output(m_pcb_client);
                 }
+#else
+                tcp_output(m_pcb_client);
+#endif
                 
                 if ( !xStreamBufferIsEmpty(stream_sysview_to_host)) {
                     tcpip_callback_with_block(sysview_try_send, NULL, 0);
