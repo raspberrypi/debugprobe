@@ -109,9 +109,7 @@ typedef struct {
     uint8_t rcv_datagram_num;
     uint8_t rcv_datagram_index;
     CFG_TUSB_MEM_ALIGN uint8_t rcv_datagram[CFG_TUD_NCM_OUT_NTB_MAX_SIZE+400];
-
     uint16_t rcv_usb_datagram_size;
-    CFG_TUSB_MEM_ALIGN uint8_t rcv_usb_datagram[CFG_TUD_NCM_OUT_NTB_MAX_SIZE + 400];     // this buffer receives the data from USB
 
     enum {
         REPORT_SPEED, REPORT_CONNECTED, REPORT_DONE
@@ -292,18 +290,13 @@ void tud_network_recv_renew(void)
             return;
         }
 #else
-        if (ncm_interface.rcv_usb_datagram_size != 0) {
-            memcpy(ncm_interface.rcv_datagram, ncm_interface.rcv_usb_datagram, ncm_interface.rcv_usb_datagram_size);
-            // now ncm_interface.rcv_usb_datagram can actually be reused, but this does not work.  We have to wait
-        }
-        else
-        {
+        if (ncm_interface.rcv_usb_datagram_size == 0) {
             if (usbd_edpt_busy(0, ncm_interface.ep_out)) {
                 printf("--0.1\n");
                 return;
             }
             else {
-                bool r = usbd_edpt_xfer(0, ncm_interface.ep_out, ncm_interface.rcv_usb_datagram, sizeof(ncm_interface.rcv_usb_datagram));
+                bool r = usbd_edpt_xfer(0, ncm_interface.ep_out, ncm_interface.rcv_datagram, sizeof(ncm_interface.rcv_datagram));
                 if ( !r) {
                     printf("--0.2\n");
                     return;
@@ -395,14 +388,7 @@ static void handle_incoming_datagram(uint32_t len)
 {
     //printf("!!!!!!!!!!!!!handle_incoming_datagram(%lu) %d\n", len, ncm_interface.rcv_usb_datagram_size);
 
-#if 0
-    if (len != 0) {
-        usbd_edpt_xfer(0, ncm_interface.ep_out, ncm_interface.rcv_usb_datagram, sizeof(ncm_interface.rcv_usb_datagram));
-        ncm_interface.rcv_usb_datagram_size = len;
-    }
-#else
     ncm_interface.rcv_usb_datagram_size = len;
-#endif
 
     tud_network_recv_renew();
 }
