@@ -137,15 +137,11 @@ static void sysview_try_send(void *ctx)
                     sysview_close(m_pcb_client);
                 }
                 
-#if 1
                 if ( !block_call_to_tcp_output  &&  tcp_sndbuf(m_pcb_client) < 3 * TCP_SND_BUF / 4) {
-                    printf("sysview_try_send: flush %d %d\n", tcp_sndbuf(m_pcb_client), 3 * TCP_SND_BUF / 4);
+                    //printf("sysview_try_send: flush %d %d\n", tcp_sndbuf(m_pcb_client), 3 * TCP_SND_BUF / 4);
                     block_call_to_tcp_output = true;
                     tcp_output(m_pcb_client);
                 }
-#else
-                tcp_output(m_pcb_client);
-#endif
                 
                 if ( !xStreamBufferIsEmpty(stream_sysview_to_host)) {
                     tcpip_callback_with_block(sysview_try_send, NULL, 0);
@@ -153,7 +149,7 @@ static void sysview_try_send(void *ctx)
             }
         }
         else {
-            printf("sysview_try_send: no tcp_sndbuf!!!!\n");
+            //printf("sysview_try_send: no tcp_sndbuf!!!!\n");
             if ( !block_call_to_tcp_output) {
                 printf("sysview_try_send: flush\n");
                 block_call_to_tcp_output = true;
@@ -167,7 +163,7 @@ static void sysview_try_send(void *ctx)
 
 static err_t sysview_sent(void *arg, struct tcp_pcb *tpcb, uint16_t len)
 {
-    printf("sysview_sent(%p,%p,%d) %d\n", arg, tpcb, len, m_state);
+    //printf("sysview_sent(%p,%p,%d) %d\n", arg, tpcb, len, m_state);
 
     block_call_to_tcp_output = false;
 
@@ -262,7 +258,7 @@ static err_t sysview_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t
 
 err_t sysview_poll(void *arg, struct tcp_pcb *tpcb)
 {
-    printf("sysview_poll(%p,%p) %d\n", arg, tpcb, m_state);
+    //printf("sysview_poll(%p,%p) %d\n", arg, tpcb, m_state);
 
     //sysview_try_send(NULL);
     tcpip_callback_with_block(sysview_try_send, NULL, 0);

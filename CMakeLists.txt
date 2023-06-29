@@ -25,7 +25,7 @@ else()
 endif()
 
 option(OPT_CMSIS_DAPV1         "Enable CMSIS-DAPv1"                     0)
-option(OPT_CMSIS_DAPV2         "Enable CMSIS-DAPv2"                     0)
+option(OPT_CMSIS_DAPV2         "Enable CMSIS-DAPv2"                     1)
 option(OPT_TARGET_UART         "Enable CDC for target UART I/O"         1)
 option(OPT_PROBE_DEBUG_OUT     "Enable CDC for probe debug output"      ${DEFAULT_OPT_PROBE_DEBUG_OUT})
 option(OPT_SIGROK              "Enable sigrok"                          0)
@@ -265,7 +265,7 @@ if(NOT OPT_NET STREQUAL "")
     else()
         # NCM: use own copy of ncm_device, original one must be outcommented
         target_sources(${PROJECT} PRIVATE
-            src/net/tinyusb/ncm_device.c
+            src/net/tinyusb/ncm_device_simple.c
         )
     endif()
     
@@ -332,8 +332,8 @@ pico_generate_pio_header(${PROJECT} ${CMAKE_CURRENT_LIST_DIR}/src/probe.pio)
 target_include_directories(${PROJECT} PRIVATE src)
 
 target_compile_definitions (${PROJECT} PRIVATE
-	PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
-	PICO_RP2040_USB_DEVICE_UFRAME_FIX=1
+	#PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
+	#PICO_RP2040_USB_DEVICE_UFRAME_FIX=1
 )
 
 target_link_libraries(${PROJECT} PRIVATE

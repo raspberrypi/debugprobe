@@ -152,7 +152,7 @@ bool tud_network_recv_cb(const uint8_t *src, uint16_t size)
  * \return false if the packet buffer was not accepted
  */
 {
-    printf("tud_network_recv_cb(%p,%u)\n", src, size);
+    //printf("tud_network_recv_cb(%p,%u)\n", src, size);
 
 #if 0
     /* this shouldn't happen, but if we get another packet before
@@ -237,8 +237,8 @@ uint16_t tud_network_xmit_cb(uint8_t *dst, void *ref, uint16_t arg)
 static void context_tinyusb_linkoutput(void *param)
 {
     if ( !tud_network_can_xmit(xmt_buff_len)) {
-        printf("context_tinyusb_linkoutput: sleep\n");
-        vTaskDelay(pdMS_TO_TICKS(10));
+        //printf("context_tinyusb_linkoutput: sleep\n");
+        vTaskDelay(pdMS_TO_TICKS(5));
         usbd_defer_func(context_tinyusb_linkoutput, NULL, false);
     }
     else {
