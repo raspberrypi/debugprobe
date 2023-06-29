@@ -258,8 +258,14 @@ if(NOT OPT_NET STREQUAL "")
     )
 
     if(NOT OPT_NET STREQUAL "NCM")
+        # !NCM
         target_sources(${PROJECT} PRIVATE
             ${PICO_TINYUSB_PATH}/lib/networking/rndis_reports.c
+        )
+    else()
+        # NCM: use own copy of ncm_device, original one must be outcommented
+        target_sources(${PROJECT} PRIVATE
+            src/net/tinyusb/ncm_device.c
         )
     endif()
     
