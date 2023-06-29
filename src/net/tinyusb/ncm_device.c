@@ -237,7 +237,7 @@ tu_static struct ecm_notify_struct ncm_notify_speed_change = {
 
 
 
-static uint8_t buffi[CFG_TUD_NCM_OUT_NTB_MAX_SIZE+400];
+static uint8_t usb_buffi[CFG_TUD_NCM_OUT_NTB_MAX_SIZE+400];
 
 void tud_network_recv_renew(void)
 /**
@@ -291,13 +291,13 @@ void tud_network_recv_renew(void)
             return;
         }
 #elif 1
-        //memset(buffi, 0, sizeof(buffi));  // this will not work!
-        r = usbd_edpt_xfer(0, ncm_interface.ep_out, buffi, sizeof(buffi));
+        //memset(usb_buffi, 0, sizeof(usb_buffi));  // this will not work!
+        r = usbd_edpt_xfer(0, ncm_interface.ep_out, usb_buffi, sizeof(usb_buffi));
         if ( !r) {
             printf("--0.0\n");
             return;
         }
-        memcpy(receive_ntb, buffi, sizeof(receive_ntb));
+        memcpy(receive_ntb, usb_buffi, sizeof(receive_ntb));
 #else
 #if 1
         {
@@ -305,7 +305,7 @@ void tud_network_recv_renew(void)
 
             if ( !inited) {
                 inited = true;
-                r = usbd_edpt_xfer(0, ncm_interface.ep_out, buffi, sizeof(buffi));
+                r = usbd_edpt_xfer(0, ncm_interface.ep_out, usb_buffi, sizeof(usb_buffi));
                 if ( !r) {
                     printf("--0.0\n");
                     return;
@@ -317,7 +317,7 @@ void tud_network_recv_renew(void)
             printf("--0.0\n");
             return;
         }
-        memcpy(receive_ntb, buffi, ncm_interface.rcv_datagram_size);
+        memcpy(receive_ntb, usb_buffi, ncm_interface.rcv_datagram_size);
         ncm_interface.rcv_datagram_size = 0;
 #endif
 
@@ -400,7 +400,7 @@ static void handle_incoming_datagram(uint32_t len)
 
 #if 0
     if (len != 0) {
-        usbd_edpt_xfer(0, ncm_interface.ep_out, buffi, sizeof(buffi));
+        usbd_edpt_xfer(0, ncm_interface.ep_out, usb_buffi, sizeof(usb_buffi));
         ncm_interface.rcv_datagram_size = len;
     }
 #else
@@ -502,7 +502,7 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16
 
     TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &ncm_interface.ep_out, &ncm_interface.ep_in));
 
-    //usbd_edpt_xfer(0, ncm_interface.ep_out, buffi, sizeof(buffi));
+    //usbd_edpt_xfer(0, ncm_interface.ep_out, usb_buffi, sizeof(usb_buffi));
 
     drv_len += 2 * sizeof(tusb_desc_endpoint_t);
 
