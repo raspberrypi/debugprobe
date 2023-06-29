@@ -123,7 +123,7 @@ typedef struct {
 
     uint16_t nth_sequence;          // Sequence number counter for transmitted NTBs
 
-    bool transferring;
+    bool xmt_running;
 
 } ncm_interface_t;
 
@@ -168,15 +168,17 @@ static void ncm_prepare_for_tx(void)
     memset(transmit_ntb + ncm_interface.current_ntb, 0, sizeof(transmit_ntb_t));
 }
 
+
+
 /*
  * If not already transmitting, start sending the current NTB to the host and swap buffers
  * to start filling the other one with datagrams.
  */
 static void ncm_start_tx(void)
 {
-    //printf("ncm_start_tx() - %d %d\n", ncm_interface.transferring, ncm_interface.datagram_count);
+    //printf("ncm_start_tx() - %d %d\n", ncm_interface.xmt_running, ncm_interface.datagram_count);
 
-    if (ncm_interface.transferring) {
+    if (ncm_interface.xmt_running) {
         return;
     }
 
@@ -199,7 +201,7 @@ static void ncm_start_tx(void)
 
     // Kick off an endpoint transfer
     usbd_edpt_xfer(0, ncm_interface.ep_in, ntb->data, ntb_length);
-    ncm_interface.transferring = true;
+    ncm_interface.xmt_running = true;
 
     // Swap to the other NTB and clear it out
     ncm_interface.current_ntb = 1 - ncm_interface.current_ntb;
@@ -237,6 +239,7 @@ tu_static struct ecm_notify_struct ncm_notify_speed_change = {
 
 
 
+/** this buffer receives the data from USB */
 static uint8_t usb_rcv_buff[CFG_TUD_NCM_OUT_NTB_MAX_SIZE + 400];
 
 void tud_network_recv_renew(void)
@@ -293,16 +296,18 @@ void tud_network_recv_renew(void)
 #else
         if (ncm_interface.rcv_datagram_size != 0) {
             memcpy(receive_ntb, usb_rcv_buff, ncm_interface.rcv_datagram_size);
+            // now usb_rcv_buff can actually be reused, but this does not work.  We have to wait
         }
-        else {
+        else
+        {
             if (usbd_edpt_busy(0, ncm_interface.ep_out)) {
-                printf("--0.0\n");
+                printf("--0.1\n");
                 return;
             }
             else {
                 bool r = usbd_edpt_xfer(0, ncm_interface.ep_out, usb_rcv_buff, sizeof(usb_rcv_buff));
                 if ( !r) {
-                    printf("--0.1\n");
+                    printf("--0.2\n");
                     return;
                 }
             }
@@ -636,12 +641,9 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
 
     /* data transmission finished */
     if (ep_addr == ncm_interface.ep_in) {
-        //printf("  EP_IN %d %d %d\n", ncm_interface.transferring, ncm_interface.datagram_count,
+        //printf("  EP_IN %d %d %d\n", ncm_interface.xmt_running, ncm_interface.datagram_count,
                 //ncm_interface.itf_data_alt);
-        if (ncm_interface.transferring) {
-            ncm_interface.transferring = false;
-            //tud_network_recv_renew();
-        }
+        ncm_interface.xmt_running = false;
 
         // If there are datagrams queued up that we tried to send while this NTB was being emitted, send them now
         if (ncm_interface.datagram_count && ncm_interface.itf_data_alt == 1) {
