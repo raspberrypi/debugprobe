@@ -99,7 +99,7 @@ containing the steps from installation until debugging in VSCode.
 |yes 
 |`openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c "adapter speed 25000"    -c "program {firmware.elf}  verify reset; shutdown;"`
 
-|pyOCD 0.34.x
+|pyOCD 0.34 & 0.35
 |yes
 |yes
 |`pyocd flash -f 400000 -t nrf52840 firmware.elf`
