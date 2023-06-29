@@ -117,6 +117,8 @@ Monitor performance/errors with Wireshark.
 * is there multicore a problem!?  I have seen retries with multicore even with 
   `wNtbOutMaxDatagrams = 1`
 * I think it is assumed, that TinyUSB and lwIP are running in the same task (but in my scenario they don't)
+* if removing debug messages, then the receive path seems to work better, which
+  indicates a race condition somewhere
 
 
 ### Remarks about Functionality

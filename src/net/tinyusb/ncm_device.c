@@ -143,7 +143,7 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static const ntb_parameters_t ntb_par
         .wNdbOutDivisor = 4,
         .wNdbOutPayloadRemainder = 0,
         .wNdbOutAlignment = CFG_TUD_NCM_ALIGNMENT,
-        .wNtbOutMaxDatagrams = 1                                     // 0=no limit
+        .wNtbOutMaxDatagrams = 1                                     // 0=no limit TODO set to 0
 };
 
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static transmit_ntb_t transmit_ntb[2];
@@ -244,10 +244,10 @@ void tud_network_recv_renew(void)
  * context: lwIP & TinyUSB
  */
 {
-    printf("tud_network_recv_renew() - %d [%p]\n", ncm_interface.rcv_datagram_num, xTaskGetCurrentTaskHandle());
+    //printf("tud_network_recv_renew() - %d [%p]\n", ncm_interface.rcv_datagram_num, xTaskGetCurrentTaskHandle());
     if (ncm_interface.rcv_datagram_index >= ncm_interface.rcv_datagram_num) {
 
-        printf("--0\n");
+        //printf("--0\n");
 #if 0
         // funny effect with "iperf -c 192.168.14.1 -e -i 1 -l 22 -M 200"
         // receive_ntb is overwritten!
@@ -309,15 +309,15 @@ void tud_network_recv_renew(void)
         }
 #endif
 
-        printf("--1\n");
+        //printf("--1\n");
 
         const nth16_t *hdr = (const nth16_t*)receive_ntb;
-        if (ncm_interface.rcv_datagram_size <= sizeof(nth16_t) + sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)) {
-            printf("--1.1.1 %d\n", ncm_interface.rcv_datagram_size);
+        if (ncm_interface.rcv_datagram_size < sizeof(nth16_t) + sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)) {
+            //printf("--1.1.1 %d\n", ncm_interface.rcv_datagram_size);
             return;
         }
         if (hdr->dwSignature != NTH16_SIGNATURE) {
-            printf("--1.1.2 0x%lx\n", hdr->dwSignature);
+            printf("--1.1.2 0x%lx %d\n", hdr->dwSignature, ncm_interface.rcv_datagram_size);
             return;
         }
         if (hdr->wNdpIndex < sizeof(nth16_t)) {
@@ -335,11 +335,11 @@ void tud_network_recv_renew(void)
             return;
         }
         if (ndp->dwSignature != NDP16_SIGNATURE_NCM0  &&  ndp->dwSignature != NDP16_SIGNATURE_NCM1) {
-            printf("--1.2.2 0x%lx\n", ndp->dwSignature);
+            printf("--1.2.2 0x%lx %d\n", ndp->dwSignature, ncm_interface.rcv_datagram_size);
             return;
         }
 
-        printf("--2\n");
+        //printf("--2\n");
 
         int max_rcv_datagrams = (ndp->wLength - 8) / 4;
         ncm_interface.rcv_datagram_index = 0;
@@ -347,7 +347,7 @@ void tud_network_recv_renew(void)
         ncm_interface.rcv_ndp = ndp;
         while (ncm_interface.rcv_datagram_num < max_rcv_datagrams)
         {
-#if 1
+#if 0
             printf("  %d %d %d\n", ncm_interface.rcv_datagram_num,
                     ndp->datagram[ncm_interface.rcv_datagram_num].wDatagramIndex,
                     ndp->datagram[ncm_interface.rcv_datagram_num].wDatagramLength);
@@ -359,7 +359,7 @@ void tud_network_recv_renew(void)
             ++ncm_interface.rcv_datagram_num;
         }
 
-#if 1
+#if 0
         printf("tud_network_recv_renew: %d 0x%08lx %d %d\n", ncm_interface.rcv_datagram_num, ndp->dwSignature, ndp->wLength,
                 ndp->wNextNdpIndex);
 #endif
@@ -373,13 +373,15 @@ void tud_network_recv_renew(void)
 
     const ndp16_t *ndp = ncm_interface.rcv_ndp;
 
+#if 0
     printf("tud_network_recv_renew->: %d %p %d %d\n", ncm_interface.rcv_datagram_index,
             ndp, ndp->datagram[ncm_interface.rcv_datagram_index].wDatagramIndex,
             ndp->datagram[ncm_interface.rcv_datagram_index].wDatagramLength);
+#endif
 
     if (tud_network_recv_cb(receive_ntb + ndp->datagram[ncm_interface.rcv_datagram_index].wDatagramIndex,
                             ndp->datagram[ncm_interface.rcv_datagram_index].wDatagramLength)) {
-        printf("!!!!!!!!!!!!!!!!!!!!\n");
+        //printf("!!!!!!!!!!!!!!!!!!!!\n");
         ++ncm_interface.rcv_datagram_index;
     }
 }
@@ -388,7 +390,7 @@ void tud_network_recv_renew(void)
 
 static void handle_incoming_datagram(uint32_t len)
 {
-    printf("!!!!!!!!!!!!!handle_incoming_datagram(%lu) %d\n", len, ncm_interface.rcv_datagram_size);
+    //printf("!!!!!!!!!!!!!handle_incoming_datagram(%lu) %d\n", len, ncm_interface.rcv_datagram_size);
 
 #if 0
     if (len != 0) {
@@ -624,11 +626,11 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     (void) rhport;
     (void) result;
 
-    printf("netd_xfer_cb(%d,%d,%d,%lu) [%p]\n", rhport, ep_addr, result, xferred_bytes, xTaskGetCurrentTaskHandle());
+    //printf("netd_xfer_cb(%d,%d,%d,%lu) [%p]\n", rhport, ep_addr, result, xferred_bytes, xTaskGetCurrentTaskHandle());
 
     /* new datagram receive_ntb */
     if (ep_addr == ncm_interface.ep_out) {
-        printf("  EP_OUT\n");
+        //printf("  EP_OUT\n");
         handle_incoming_datagram(xferred_bytes);
     }
 

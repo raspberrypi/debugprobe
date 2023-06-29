@@ -54,7 +54,7 @@
 #endif
 
 #ifndef CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB
-#define CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB 1
+#define CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB 1            // TODO should be 8 or so
 #endif
 
 #ifndef CFG_TUD_NCM_ALIGNMENT
