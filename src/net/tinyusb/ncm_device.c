@@ -323,22 +323,24 @@ void tud_network_recv_renew(void)
 
         printf("--1\n");
 
-        const nth16_t *hdr = (const nth16_t*) receive_ntb;
-        const ndp16_t *ndp = (const ndp16_t*) (receive_ntb + hdr->wNdpIndex);
-
 #if 0
+        const nth16_t *hdr = (const nth16_t*) receive_ntb;
         TU_ASSERT(hdr->dwSignature == NTH16_SIGNATURE,);
         //TU_ASSERT(hdr->wNdpIndex >= sizeof(nth16_t) && (hdr->wNdpIndex + sizeof(ndp16_t)) <= ncm_interface.rcv_datagram_size,);
 
+        const ndp16_t *ndp = (const ndp16_t*) (receive_ntb + hdr->wNdpIndex);
         TU_ASSERT(ndp->dwSignature == NDP16_SIGNATURE_NCM0 || ndp->dwSignature == NDP16_SIGNATURE_NCM1,);
         //TU_ASSERT(hdr->wNdpIndex + ndp->wLength <= ncm_interface.rcv_datagram_size,);
 #else
+        const nth16_t *hdr = (const nth16_t*) receive_ntb;
         if (hdr->dwSignature != NTH16_SIGNATURE) {
-            printf("--1.1 0x%x\n", hdr->dwSignature);
+            printf("--1.1 0x%lx\n", hdr->dwSignature);
             return;
         }
+
+        const ndp16_t *ndp = (const ndp16_t*) (receive_ntb + hdr->wNdpIndex);
         if (ndp->dwSignature != NDP16_SIGNATURE_NCM0  &&  ndp->dwSignature != NDP16_SIGNATURE_NCM1) {
-            printf("--1.2 0x%x\n", ndp->dwSignature);
+            printf("--1.2 0x%lx\n", ndp->dwSignature);
             return;
         }
 #endif
@@ -394,46 +396,15 @@ void tud_network_recv_renew(void)
 
 static void handle_incoming_datagram(uint32_t len)
 {
-    uint32_t size = len;
-
-    printf("!!!!!!!!!!!!!handle_incoming_datagram(%lu) %d\n", len, ncm_interface.rcv_datagram_size);
+    //printf("!!!!!!!!!!!!!handle_incoming_datagram(%lu) %d\n", len, ncm_interface.rcv_datagram_size);
 
 #if 0
     if (len != 0) {
-        usbd_edpt_xfer(0, ncm_interface.ep_out, buffi, len);
+        usbd_edpt_xfer(0, ncm_interface.ep_out, buffi, sizeof(buffi));
         ncm_interface.rcv_datagram_size = len;
     }
 #else
     ncm_interface.rcv_datagram_size = len;
-#endif
-
-    if (len == 0) {
-        //return;
-    }
-
-#if 0
-    TU_ASSERT(size >= sizeof(nth16_t),);
-
-    const nth16_t *hdr = (const nth16_t*) receive_ntb;
-    TU_ASSERT(hdr->dwSignature == NTH16_SIGNATURE,);
-    TU_ASSERT(hdr->wNdpIndex >= sizeof(nth16_t) && (hdr->wNdpIndex + sizeof(ndp16_t)) <= len,);
-
-    const ndp16_t *ndp = (const ndp16_t*) (receive_ntb + hdr->wNdpIndex);
-    TU_ASSERT(ndp->dwSignature == NDP16_SIGNATURE_NCM0 || ndp->dwSignature == NDP16_SIGNATURE_NCM1,);
-    TU_ASSERT(hdr->wNdpIndex + ndp->wLength <= len,);
-
-    int max_rcv_datagrams = (ndp->wLength - 12) / 4;
-    ncm_interface.rcv_datagram_index = 0;
-    ncm_interface.rcv_datagram_num = 0;
-    ncm_interface.ndp = ndp;
-    for (int i = 0; i < max_rcv_datagrams && ndp->datagram[i].wDatagramIndex && ndp->datagram[i].wDatagramLength; i++) {
-        ncm_interface.rcv_datagram_num++;
-    }
-
-#if 1
-    printf("handle_incoming_datagram: %d 0x%08lx %d %d\n", ncm_interface.rcv_datagram_num, ndp->dwSignature, ndp->wLength,
-            ndp->wNextNdpIndex);
-#endif
 #endif
 
     tud_network_recv_renew();
