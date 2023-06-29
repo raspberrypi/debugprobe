@@ -237,7 +237,7 @@ tu_static struct ecm_notify_struct ncm_notify_speed_change = {
 
 
 
-static uint8_t usb_buffi[CFG_TUD_NCM_OUT_NTB_MAX_SIZE+400];
+static uint8_t usb_rcv_buff[CFG_TUD_NCM_OUT_NTB_MAX_SIZE + 400];
 
 void tud_network_recv_renew(void)
 /**
@@ -291,8 +291,8 @@ void tud_network_recv_renew(void)
             return;
         }
 #else
-        memcpy(receive_ntb, usb_buffi, ncm_interface.rcv_datagram_size);
-        r = usbd_edpt_xfer(0, ncm_interface.ep_out, usb_buffi, sizeof(usb_buffi));
+        memcpy(receive_ntb, usb_rcv_buff, ncm_interface.rcv_datagram_size);
+        r = usbd_edpt_xfer(0, ncm_interface.ep_out, usb_rcv_buff, sizeof(usb_rcv_buff));
         if ( !r) {
             printf("--0.0\n");
             return;
@@ -375,7 +375,7 @@ static void handle_incoming_datagram(uint32_t len)
 
 #if 0
     if (len != 0) {
-        usbd_edpt_xfer(0, ncm_interface.ep_out, usb_buffi, sizeof(usb_buffi));
+        usbd_edpt_xfer(0, ncm_interface.ep_out, usb_rcv_buff, sizeof(usb_rcv_buff));
         ncm_interface.rcv_datagram_size = len;
     }
 #else
