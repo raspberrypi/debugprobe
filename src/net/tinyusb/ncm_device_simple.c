@@ -150,10 +150,10 @@ void tud_network_recv_renew(void)
  * context: lwIP & TinyUSB
  */
 {
-    printf("tud_network_recv_renew() - %d [%p]\n", ncm_interface.rcv_datagram_num, xTaskGetCurrentTaskHandle());
+    //printf("tud_network_recv_renew() - %d [%p]\n", ncm_interface.rcv_datagram_num, xTaskGetCurrentTaskHandle());
     if (ncm_interface.rcv_datagram_index >= ncm_interface.rcv_datagram_num) {
 
-        printf("--0\n");
+        //printf("--0\n");
 
         if (ncm_interface.rcv_usb_datagram_size == 0) {
             if (usbd_edpt_busy(0, ncm_interface.ep_out)) {
@@ -169,11 +169,11 @@ void tud_network_recv_renew(void)
             }
         }
 
-        printf("--1\n");
+        //printf("--1\n");
 
         const nth16_t *hdr = (const nth16_t*)ncm_interface.rcv_datagram;
         if (ncm_interface.rcv_usb_datagram_size < sizeof(nth16_t) + sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)) {
-            printf("--1.1.1 %d\n", ncm_interface.rcv_usb_datagram_size);
+            //printf("--1.1.1 %d\n", ncm_interface.rcv_usb_datagram_size);
             return;
         }
         if (hdr->dwSignature != NTH16_SIGNATURE) {
@@ -199,7 +199,7 @@ void tud_network_recv_renew(void)
             return;
         }
 
-        printf("--2\n");
+        //printf("--2\n");
 
         int max_rcv_datagrams = (ndp->wLength - 8) / 4;
         ncm_interface.rcv_datagram_index = 0;
@@ -207,7 +207,7 @@ void tud_network_recv_renew(void)
         ncm_interface.rcv_ndp = ndp;
         while (ncm_interface.rcv_datagram_num < max_rcv_datagrams)
         {
-#if 1
+#if 0
             printf("  %d %d %d\n", ncm_interface.rcv_datagram_num,
                     ndp->datagram[ncm_interface.rcv_datagram_num].wDatagramIndex,
                     ndp->datagram[ncm_interface.rcv_datagram_num].wDatagramLength);
@@ -219,7 +219,7 @@ void tud_network_recv_renew(void)
             ++ncm_interface.rcv_datagram_num;
         }
 
-#if 1
+#if 0
         printf("tud_network_recv_renew: %d 0x%08lx %d %d\n", ncm_interface.rcv_datagram_num, ndp->dwSignature, ndp->wLength,
                 ndp->wNextNdpIndex);
 #endif
@@ -233,7 +233,7 @@ void tud_network_recv_renew(void)
 
     const ndp16_t *ndp = ncm_interface.rcv_ndp;
 
-#if 1
+#if 0
     printf("tud_network_recv_renew->: %d %p %d %d\n", ncm_interface.rcv_datagram_index,
             ndp, ndp->datagram[ncm_interface.rcv_datagram_index].wDatagramIndex,
             ndp->datagram[ncm_interface.rcv_datagram_index].wDatagramLength);
@@ -258,7 +258,7 @@ static void do_in_xfer(uint8_t *buf, uint16_t len)
 
 static void handle_incoming_datagram(uint32_t len)
 {
-    printf("!!!!!!!!!!!!!handle_incoming_datagram(%lu) %d\n", len, ncm_interface.rcv_usb_datagram_size);
+    //printf("!!!!!!!!!!!!!handle_incoming_datagram(%lu) %d\n", len, ncm_interface.rcv_usb_datagram_size);
 
     ncm_interface.rcv_usb_datagram_size = len;
 
@@ -486,17 +486,17 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     (void) rhport;
     (void) result;
 
-    printf("netd_xfer_cb(%d,%d,%d,%lu) [%p]\n", rhport, ep_addr, result, xferred_bytes, xTaskGetCurrentTaskHandle());
+    //printf("netd_xfer_cb(%d,%d,%d,%lu) [%p]\n", rhport, ep_addr, result, xferred_bytes, xTaskGetCurrentTaskHandle());
 
     /* new datagram rcv_datagram */
     if (ep_addr == ncm_interface.ep_out) {
-        printf("  EP_OUT\n");
+        //printf("  EP_OUT\n");
         handle_incoming_datagram(xferred_bytes);
     }
 
     /* data transmission finished */
     if (ep_addr == ncm_interface.ep_in) {
-        printf("  EP_IN %d %d\n", ncm_interface.can_xmit, ncm_interface.itf_data_alt);
+        //printf("  EP_IN %d %d\n", ncm_interface.can_xmit, ncm_interface.itf_data_alt);
         if (xferred_bytes != 0   &&  xferred_bytes % CFG_TUD_NET_ENDPOINT_SIZE == 0)
         {
             do_in_xfer(NULL, 0); /* a ZLP is needed */
@@ -527,7 +527,7 @@ bool tud_network_can_xmit(uint16_t size)
  *
  */
 {
-    printf("tud_network_can_xmit() %d [%p]\n", ncm_interface.can_xmit, xTaskGetCurrentTaskHandle());
+    //printf("tud_network_can_xmit() %d [%p]\n", ncm_interface.can_xmit, xTaskGetCurrentTaskHandle());
     return ncm_interface.can_xmit;
 }   // tud_network_can_xmit
 
@@ -540,7 +540,7 @@ void tud_network_xmit(void *ref, uint16_t arg)
 {
     transmit_ntb_t *ntb = &transmit_ntb;
 
-    printf("tud_network_xmit(%p,%d) %d [%p]\n", ref, arg, ncm_interface.can_xmit, xTaskGetCurrentTaskHandle());
+    //printf("tud_network_xmit(%p,%d) %d [%p]\n", ref, arg, ncm_interface.can_xmit, xTaskGetCurrentTaskHandle());
 
     if ( !ncm_interface.can_xmit) {
         return;
