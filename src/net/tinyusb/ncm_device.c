@@ -323,15 +323,6 @@ void tud_network_recv_renew(void)
 
         printf("--1\n");
 
-#if 0
-        const nth16_t *hdr = (const nth16_t*) receive_ntb;
-        TU_ASSERT(hdr->dwSignature == NTH16_SIGNATURE,);
-        //TU_ASSERT(hdr->wNdpIndex >= sizeof(nth16_t) && (hdr->wNdpIndex + sizeof(ndp16_t)) <= ncm_interface.rcv_datagram_size,);
-
-        const ndp16_t *ndp = (const ndp16_t*) (receive_ntb + hdr->wNdpIndex);
-        TU_ASSERT(ndp->dwSignature == NDP16_SIGNATURE_NCM0 || ndp->dwSignature == NDP16_SIGNATURE_NCM1,);
-        //TU_ASSERT(hdr->wNdpIndex + ndp->wLength <= ncm_interface.rcv_datagram_size,);
-#else
         const nth16_t *hdr = (const nth16_t*) receive_ntb;
         if (hdr->dwSignature != NTH16_SIGNATURE) {
             printf("--1.1 0x%lx\n", hdr->dwSignature);
@@ -343,7 +334,6 @@ void tud_network_recv_renew(void)
             printf("--1.2 0x%lx\n", ndp->dwSignature);
             return;
         }
-#endif
 
         printf("--2\n");
 
