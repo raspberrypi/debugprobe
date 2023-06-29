@@ -105,8 +105,9 @@ typedef struct {
     uint8_t ep_in;
     uint8_t ep_out;
 
-    const ndp16_t *ndp;
-    uint8_t rcv_datagram_num, rcv_datagram_index;
+    const ndp16_t *rcv_ndp;
+    uint8_t rcv_datagram_num;
+    uint8_t rcv_datagram_index;
     uint16_t rcv_datagram_size;
 
     enum {
@@ -236,6 +237,8 @@ tu_static struct ecm_notify_struct ncm_notify_speed_change = {
 
 
 
+static uint8_t buffi[CFG_TUD_NCM_OUT_NTB_MAX_SIZE+400];
+
 void tud_network_recv_renew(void)
 /**
  * context: lwIP & TinyUSB
@@ -287,33 +290,65 @@ void tud_network_recv_renew(void)
             printf("--0.0\n");
             return;
         }
-#else
-        static uint8_t buffi[CFG_TUD_NCM_OUT_NTB_MAX_SIZE+400];
-
+#elif 1
+        //memset(buffi, 0, sizeof(buffi));  // this will not work!
         r = usbd_edpt_xfer(0, ncm_interface.ep_out, buffi, sizeof(buffi));
         if ( !r) {
             printf("--0.0\n");
             return;
         }
         memcpy(receive_ntb, buffi, sizeof(receive_ntb));
+#else
+#if 1
+        {
+            static bool inited;
+
+            if ( !inited) {
+                inited = true;
+                r = usbd_edpt_xfer(0, ncm_interface.ep_out, buffi, sizeof(buffi));
+                if ( !r) {
+                    printf("--0.0\n");
+                    return;
+                }
+            }
+        }
+#endif
+        if (ncm_interface.rcv_datagram_size == 0) {
+            printf("--0.0\n");
+            return;
+        }
+        memcpy(receive_ntb, buffi, ncm_interface.rcv_datagram_size);
+        ncm_interface.rcv_datagram_size = 0;
 #endif
 
         printf("--1\n");
 
         const nth16_t *hdr = (const nth16_t*) receive_ntb;
+        const ndp16_t *ndp = (const ndp16_t*) (receive_ntb + hdr->wNdpIndex);
+
+#if 0
         TU_ASSERT(hdr->dwSignature == NTH16_SIGNATURE,);
         //TU_ASSERT(hdr->wNdpIndex >= sizeof(nth16_t) && (hdr->wNdpIndex + sizeof(ndp16_t)) <= ncm_interface.rcv_datagram_size,);
 
-        const ndp16_t *ndp = (const ndp16_t*) (receive_ntb + hdr->wNdpIndex);
         TU_ASSERT(ndp->dwSignature == NDP16_SIGNATURE_NCM0 || ndp->dwSignature == NDP16_SIGNATURE_NCM1,);
         //TU_ASSERT(hdr->wNdpIndex + ndp->wLength <= ncm_interface.rcv_datagram_size,);
+#else
+        if (hdr->dwSignature != NTH16_SIGNATURE) {
+            printf("--1.1 0x%x\n", hdr->dwSignature);
+            return;
+        }
+        if (ndp->dwSignature != NDP16_SIGNATURE_NCM0  &&  ndp->dwSignature != NDP16_SIGNATURE_NCM1) {
+            printf("--1.2 0x%x\n", ndp->dwSignature);
+            return;
+        }
+#endif
 
         printf("--2\n");
 
         int max_rcv_datagrams = (ndp->wLength - 12) / 4;
         ncm_interface.rcv_datagram_index = 0;
         ncm_interface.rcv_datagram_num = 0;
-        ncm_interface.ndp = ndp;
+        ncm_interface.rcv_ndp = ndp;
 #if 0
         for (int i = 0;  i < max_rcv_datagrams  &&  ndp->datagram[i].wDatagramIndex != 0  &&  ndp->datagram[i].wDatagramLength != 0; i++)
         {
@@ -343,7 +378,7 @@ void tud_network_recv_renew(void)
         return;
     }
 
-    const ndp16_t *ndp = ncm_interface.ndp;
+    const ndp16_t *ndp = ncm_interface.rcv_ndp;
     const int i = ncm_interface.rcv_datagram_index;
     ncm_interface.rcv_datagram_index++;
 
@@ -361,9 +396,16 @@ static void handle_incoming_datagram(uint32_t len)
 {
     uint32_t size = len;
 
-    printf("handle_incoming_datagram(%lu)\n", len);
+    printf("!!!!!!!!!!!!!handle_incoming_datagram(%lu) %d\n", len, ncm_interface.rcv_datagram_size);
 
+#if 0
+    if (len != 0) {
+        usbd_edpt_xfer(0, ncm_interface.ep_out, buffi, len);
+        ncm_interface.rcv_datagram_size = len;
+    }
+#else
     ncm_interface.rcv_datagram_size = len;
+#endif
 
     if (len == 0) {
         //return;
@@ -488,6 +530,8 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16
     TU_ASSERT(TUSB_DESC_ENDPOINT == tu_desc_type(p_desc), 0);
 
     TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &ncm_interface.ep_out, &ncm_interface.ep_in));
+
+    //usbd_edpt_xfer(0, ncm_interface.ep_out, buffi, sizeof(buffi));
 
     drv_len += 2 * sizeof(tusb_desc_endpoint_t);
 
@@ -619,11 +663,11 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     (void) rhport;
     (void) result;
 
-    //printf("netd_xfer_cb(%d,%d,%d,%lu) [%p]\n", rhport, ep_addr, result, xferred_bytes, xTaskGetCurrentTaskHandle());
+    printf("netd_xfer_cb(%d,%d,%d,%lu) [%p]\n", rhport, ep_addr, result, xferred_bytes, xTaskGetCurrentTaskHandle());
 
     /* new datagram receive_ntb */
     if (ep_addr == ncm_interface.ep_out) {
-        //printf("  EP_OUT\n");
+        printf("  EP_OUT\n");
         handle_incoming_datagram(xferred_bytes);
     }
 
