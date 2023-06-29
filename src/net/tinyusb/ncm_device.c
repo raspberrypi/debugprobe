@@ -290,35 +290,14 @@ void tud_network_recv_renew(void)
             printf("--0.0\n");
             return;
         }
-#elif 1
-        //memset(usb_buffi, 0, sizeof(usb_buffi));  // this will not work!
+#else
+        memcpy(receive_ntb, usb_buffi, ncm_interface.rcv_datagram_size);
+        ncm_interface.rcv_datagram_size = 0;
         r = usbd_edpt_xfer(0, ncm_interface.ep_out, usb_buffi, sizeof(usb_buffi));
         if ( !r) {
             printf("--0.0\n");
             return;
         }
-        memcpy(receive_ntb, usb_buffi, sizeof(receive_ntb));
-#else
-#if 1
-        {
-            static bool inited;
-
-            if ( !inited) {
-                inited = true;
-                r = usbd_edpt_xfer(0, ncm_interface.ep_out, usb_buffi, sizeof(usb_buffi));
-                if ( !r) {
-                    printf("--0.0\n");
-                    return;
-                }
-            }
-        }
-#endif
-        if (ncm_interface.rcv_datagram_size == 0) {
-            printf("--0.00\n");
-            return;
-        }
-        memcpy(receive_ntb, usb_buffi, ncm_interface.rcv_datagram_size);
-        ncm_interface.rcv_datagram_size = 0;
 #endif
 
         printf("--1\n");
@@ -337,27 +316,21 @@ void tud_network_recv_renew(void)
 
         printf("--2\n");
 
-        int max_rcv_datagrams = (ndp->wLength - 12) / 4;
+        int max_rcv_datagrams = (ndp->wLength - 8) / 4;
         ncm_interface.rcv_datagram_index = 0;
         ncm_interface.rcv_datagram_num = 0;
         ncm_interface.rcv_ndp = ndp;
-#if 0
-        for (int i = 0;  i < max_rcv_datagrams  &&  ndp->datagram[i].wDatagramIndex != 0  &&  ndp->datagram[i].wDatagramLength != 0; i++)
+        while (ncm_interface.rcv_datagram_num < max_rcv_datagrams)
         {
-            ncm_interface.rcv_datagram_num++;
-        }
-#else
-        int i = 0;
-        while (i <= max_rcv_datagrams)
-        {
-            printf("  %d %d %d\n", ncm_interface.rcv_datagram_num, ndp->datagram[i].wDatagramIndex, ndp->datagram[i].wDatagramLength);
-            if (ndp->datagram[i].wDatagramIndex == 0  &&  ndp->datagram[i].wDatagramLength == 0) {
+            printf("  %d %d %d\n", ncm_interface.rcv_datagram_num,
+                    ndp->datagram[ncm_interface.rcv_datagram_num].wDatagramIndex,
+                    ndp->datagram[ncm_interface.rcv_datagram_num].wDatagramLength);
+            if (    ndp->datagram[ncm_interface.rcv_datagram_num].wDatagramIndex == 0
+                &&  ndp->datagram[ncm_interface.rcv_datagram_num].wDatagramLength == 0) {
                 break;
             }
-            ++i;
-            ncm_interface.rcv_datagram_num++;
+            ++ncm_interface.rcv_datagram_num;
         }
-#endif
 
 #if 1
         printf("tud_network_recv_renew: %d 0x%08lx %d %d\n", ncm_interface.rcv_datagram_num, ndp->dwSignature, ndp->wLength,
@@ -491,8 +464,6 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16
     TU_ASSERT(TUSB_DESC_ENDPOINT == tu_desc_type(p_desc), 0);
 
     TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &ncm_interface.ep_out, &ncm_interface.ep_in));
-
-    //usbd_edpt_xfer(0, ncm_interface.ep_out, usb_buffi, sizeof(usb_buffi));
 
     drv_len += 2 * sizeof(tusb_desc_endpoint_t);
 
