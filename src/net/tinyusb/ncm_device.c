@@ -670,8 +670,6 @@ bool tud_network_can_xmit(uint16_t size)
 {
     TU_VERIFY(ncm_interface.itf_data_alt == 1);
 
-    size_t next_datagram_offset = ncm_interface.next_datagram_offset;
-
 #if 0
     printf("tud_network_can_xmit(%d) %d %d - %d %d [%p]\n", size, ncm_interface.datagram_count, ncm_interface.max_datagrams_per_ntb,
             next_datagram_offset, ncm_interface.ntb_in_size, xTaskGetCurrentTaskHandle());
@@ -683,7 +681,7 @@ bool tud_network_can_xmit(uint16_t size)
         return false ;
     }
 
-    if (next_datagram_offset + size > ncm_interface.ntb_in_size) {
+    if (ncm_interface.next_datagram_offset + size > ncm_interface.ntb_in_size) {
         // this happens
         printf("ntb full [by size]\r\n");
         return false ;
@@ -700,23 +698,20 @@ void tud_network_xmit(void *ref, uint16_t arg)
  */
 {
     transmit_ntb_t *ntb = &transmit_ntb[ncm_interface.current_ntb];
-    size_t next_datagram_offset = ncm_interface.next_datagram_offset;
 
     //printf("tud_network_xmit(%p,%d) [%p]\n", ref, arg, xTaskGetCurrentTaskHandle());
 
-    uint16_t size = tud_network_xmit_cb(ntb->data + next_datagram_offset, ref, arg);
+    uint16_t size = tud_network_xmit_cb(ntb->data + ncm_interface.next_datagram_offset, ref, arg);
 
     ntb->ndp.datagram[ncm_interface.datagram_count].wDatagramIndex = ncm_interface.next_datagram_offset;
     ntb->ndp.datagram[ncm_interface.datagram_count].wDatagramLength = size;
 
     ncm_interface.datagram_count++;
-    next_datagram_offset += size;
+    ncm_interface.next_datagram_offset += size;
 
     // round up so the next datagram is aligned correctly
-    next_datagram_offset += (CFG_TUD_NCM_ALIGNMENT - 1);
-    next_datagram_offset -= (next_datagram_offset % CFG_TUD_NCM_ALIGNMENT);
-
-    ncm_interface.next_datagram_offset = next_datagram_offset;
+    ncm_interface.next_datagram_offset += (CFG_TUD_NCM_ALIGNMENT - 1);
+    ncm_interface.next_datagram_offset -= (ncm_interface.next_datagram_offset % CFG_TUD_NCM_ALIGNMENT);
 
     ncm_start_tx();
 }
