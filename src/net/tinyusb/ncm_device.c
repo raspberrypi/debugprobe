@@ -245,8 +245,7 @@ void tud_network_recv_renew(void)
  */
 {
     printf("tud_network_recv_renew() - %d [%p]\n", ncm_interface.rcv_datagram_num, xTaskGetCurrentTaskHandle());
-    if (ncm_interface.rcv_datagram_index >= ncm_interface.rcv_datagram_num) {   //   &&  ncm_interface.rcv_datagram_size != 0) {
-        bool r;
+    if (ncm_interface.rcv_datagram_index >= ncm_interface.rcv_datagram_num) {
 
         printf("--0\n");
 #if 0
@@ -285,33 +284,48 @@ void tud_network_recv_renew(void)
         //        [10:37:42.350546 0.000717] 38.046 (  2) - handle_incoming_datagram(2136)
         //        [10:37:42.351156 0.000611] 38.046 (  0) - tud_network_recv_renew() - 11 [20020120]
         //        [10:37:42.351867 0.000711] 38.046 (  0) - tud_network_recv_renew->: 9 200103D8 0 0            FAIL & DEAD
+        bool r;
         r = usbd_edpt_xfer(0, ncm_interface.ep_out, receive_ntb, sizeof(receive_ntb));
         if ( !r) {
             printf("--0.0\n");
             return;
         }
 #else
-        memcpy(receive_ntb, usb_rcv_buff, ncm_interface.rcv_datagram_size);
-        r = usbd_edpt_xfer(0, ncm_interface.ep_out, usb_rcv_buff, sizeof(usb_rcv_buff));
-        if ( !r) {
-            printf("--0.0\n");
-            return;
+        if (ncm_interface.rcv_datagram_size != 0) {
+            memcpy(receive_ntb, usb_rcv_buff, ncm_interface.rcv_datagram_size);
+        }
+        else {
+            if (usbd_edpt_busy(0, ncm_interface.ep_out)) {
+                printf("--0.0\n");
+                return;
+            }
+            else {
+                bool r = usbd_edpt_xfer(0, ncm_interface.ep_out, usb_rcv_buff, sizeof(usb_rcv_buff));
+                if ( !r) {
+                    printf("--0.1\n");
+                    return;
+                }
+            }
         }
 #endif
 
         printf("--1\n");
 
-        const nth16_t *hdr = (const nth16_t*) receive_ntb;
-        if (hdr->wNdpIndex < sizeof(nth16_t)) {
-            printf("--1.1.1 %d\n", hdr->wNdpIndex);
-            return;
-        }
-        if (hdr->wNdpIndex + sizeof(ndp16_t) > ncm_interface.rcv_datagram_size) {
-            printf("--1.1.2 %d %d\n", hdr->wNdpIndex + sizeof(ndp16_t), ncm_interface.rcv_datagram_size);
+        const nth16_t *hdr = (const nth16_t*)receive_ntb;
+        if (ncm_interface.rcv_datagram_size <= sizeof(nth16_t) + sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)) {
+            printf("--1.1.1 %d\n", ncm_interface.rcv_datagram_size);
             return;
         }
         if (hdr->dwSignature != NTH16_SIGNATURE) {
-            printf("--1.1.3 0x%lx\n", hdr->dwSignature);
+            printf("--1.1.2 0x%lx\n", hdr->dwSignature);
+            return;
+        }
+        if (hdr->wNdpIndex < sizeof(nth16_t)) {
+            printf("--1.1.3 %d\n", hdr->wNdpIndex);
+            return;
+        }
+        if (hdr->wNdpIndex + sizeof(ndp16_t) > ncm_interface.rcv_datagram_size) {
+            printf("--1.1.4 %d %d\n", hdr->wNdpIndex + sizeof(ndp16_t), ncm_interface.rcv_datagram_size);
             return;
         }
 
@@ -333,9 +347,11 @@ void tud_network_recv_renew(void)
         ncm_interface.rcv_ndp = ndp;
         while (ncm_interface.rcv_datagram_num < max_rcv_datagrams)
         {
+#if 1
             printf("  %d %d %d\n", ncm_interface.rcv_datagram_num,
                     ndp->datagram[ncm_interface.rcv_datagram_num].wDatagramIndex,
                     ndp->datagram[ncm_interface.rcv_datagram_num].wDatagramLength);
+#endif
             if (    ndp->datagram[ncm_interface.rcv_datagram_num].wDatagramIndex == 0
                 &&  ndp->datagram[ncm_interface.rcv_datagram_num].wDatagramLength == 0) {
                 break;
@@ -356,14 +372,15 @@ void tud_network_recv_renew(void)
     }
 
     const ndp16_t *ndp = ncm_interface.rcv_ndp;
-    const int i = ncm_interface.rcv_datagram_index;
-    ncm_interface.rcv_datagram_index++;
 
-    printf("tud_network_recv_renew->: %d %p %d %d\n", i, ndp, ndp->datagram[i].wDatagramIndex, ndp->datagram[i].wDatagramLength);
+    printf("tud_network_recv_renew->: %d %p %d %d\n", ncm_interface.rcv_datagram_index,
+            ndp, ndp->datagram[ncm_interface.rcv_datagram_index].wDatagramIndex,
+            ndp->datagram[ncm_interface.rcv_datagram_index].wDatagramLength);
 
-    if ( !tud_network_recv_cb(receive_ntb + ndp->datagram[i].wDatagramIndex, ndp->datagram[i].wDatagramLength)) {
+    if (tud_network_recv_cb(receive_ntb + ndp->datagram[ncm_interface.rcv_datagram_index].wDatagramIndex,
+                            ndp->datagram[ncm_interface.rcv_datagram_index].wDatagramLength)) {
         printf("!!!!!!!!!!!!!!!!!!!!\n");
-        ncm_interface.rcv_datagram_index--;
+        ++ncm_interface.rcv_datagram_index;
     }
 }
 
