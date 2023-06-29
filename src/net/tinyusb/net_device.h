@@ -28,6 +28,7 @@
 #ifndef _TUSB_NET_DEVICE_H_
 #define _TUSB_NET_DEVICE_H_
 
+#include <stdint.h>
 #include "class/cdc/cdc.h"
 
 #if CFG_TUD_ECM_RNDIS && CFG_TUD_NCM

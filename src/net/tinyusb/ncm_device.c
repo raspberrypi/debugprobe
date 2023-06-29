@@ -28,7 +28,11 @@
 
 #include "tusb_option.h"
 
-#if 1  // ECLIPSE_GUI || ( CFG_TUD_ENABLED && CFG_TUD_NCM )
+#if ECLIPSE_GUI || ( CFG_TUD_ENABLED && CFG_TUD_NCM )
+
+#if ECLIPSE_GUI
+    #define tu_static static
+#endif
 
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
@@ -126,14 +130,20 @@ typedef struct {
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 
-CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static const ntb_parameters_t ntb_parameters = { .wLength =
-        sizeof(ntb_parameters_t),
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static const ntb_parameters_t ntb_parameters = {
+        .wLength = sizeof(ntb_parameters_t),
         .bmNtbFormatsSupported = 0x01,                                 // 16-bit NTB supported
-        .dwNtbInMaxSize = CFG_TUD_NCM_IN_NTB_MAX_SIZE+400, .wNdbInDivisor = 4, .wNdbInPayloadRemainder = 0,
-        .wNdbInAlignment = CFG_TUD_NCM_ALIGNMENT, .wReserved = 0, .dwNtbOutMaxSize = CFG_TUD_NCM_OUT_NTB_MAX_SIZE,
-        .wNdbOutDivisor = 4, .wNdbOutPayloadRemainder = 0, .wNdbOutAlignment = CFG_TUD_NCM_ALIGNMENT,
-        .wNtbOutMaxDatagrams = 16                                     // 0=no limit
-        };
+        .dwNtbInMaxSize = CFG_TUD_NCM_IN_NTB_MAX_SIZE+400,
+        .wNdbInDivisor = 4,
+        .wNdbInPayloadRemainder = 0,
+        .wNdbInAlignment = CFG_TUD_NCM_ALIGNMENT,
+        .wReserved = 0,
+        .dwNtbOutMaxSize = CFG_TUD_NCM_OUT_NTB_MAX_SIZE,
+        .wNdbOutDivisor = 4,
+        .wNdbOutPayloadRemainder = 0,
+        .wNdbOutAlignment = CFG_TUD_NCM_ALIGNMENT,
+        .wNtbOutMaxDatagrams = 1                                     // 0=no limit
+};
 
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static transmit_ntb_t transmit_ntb[2];
 
@@ -197,13 +207,32 @@ static void ncm_start_tx(void)
 
 
 
-tu_static struct ecm_notify_struct ncm_notify_connected = { .header = { .bmRequestType_bit = { .recipient =
-        TUSB_REQ_RCPT_INTERFACE, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_IN }, .bRequest =
-        CDC_NOTIF_NETWORK_CONNECTION, .wValue = 1 /* Connected */, .wLength = 0, }, };
+tu_static struct ecm_notify_struct ncm_notify_connected = {
+        .header = {
+                .bmRequestType_bit = {
+                        .recipient = TUSB_REQ_RCPT_INTERFACE,
+                        .type = TUSB_REQ_TYPE_CLASS,
+                        .direction = TUSB_DIR_IN
+                },
+                .bRequest = CDC_NOTIF_NETWORK_CONNECTION,
+                .wValue = 1 /* Connected */,
+                .wLength = 0,
+        },
+};
 
-tu_static struct ecm_notify_struct ncm_notify_speed_change = { .header = { .bmRequestType_bit = { .recipient =
-        TUSB_REQ_RCPT_INTERFACE, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_IN }, .bRequest =
-        CDC_NOTIF_CONNECTION_SPEED_CHANGE, .wLength = 8, }, .downlink = 1000000, .uplink = 1000000, };
+tu_static struct ecm_notify_struct ncm_notify_speed_change = {
+        .header = {
+                .bmRequestType_bit = {
+                        .recipient = TUSB_REQ_RCPT_INTERFACE,
+                        .type = TUSB_REQ_TYPE_CLASS,
+                        .direction = TUSB_DIR_IN
+                },
+                .bRequest = CDC_NOTIF_CONNECTION_SPEED_CHANGE,
+                .wLength = 8,
+        },
+        .downlink = 1000000,
+        .uplink = 1000000,
+};
 
 
 
@@ -218,6 +247,41 @@ void tud_network_recv_renew(void)
 
         printf("--0\n");
 #if 0
+        // funny effect with "iperf -c 192.168.14.1 -e -i 1 -l 22 -M 200"
+        // receive_ntb is overwritten!
+        //        [10:37:42.330968 0.000287] 38.039 (  0) -   0 90 54
+        //        [10:37:42.331361 0.000394] 38.039 (  0) -   1 146 114
+        //        [10:37:42.331770 0.000409] 38.039 (  0) -   2 262 254
+        //        [10:37:42.332156 0.000386] 38.039 (  0) -   3 518 254
+        //        [10:37:42.332566 0.000410] 38.039 (  0) -   4 774 254
+        //        [10:37:42.332979 0.000412] 38.039 (  0) -   5 1030 254
+        //        [10:37:42.333436 0.000457] 38.040 (  1) -   6 1286 254
+        //        [10:37:42.333871 0.000435] 38.040 (  0) -   7 1542 254
+        //        [10:37:42.334303 0.000432] 38.040 (  0) -   8 1798 254
+        //        [10:37:42.334732 0.000429] 38.040 (  0) -   9 2054 254
+        //        [10:37:42.335162 0.000431] 38.040 (  0) -   10 2310 254
+        //        [10:37:42.335614 0.000452] 38.040 (  0) -   11 0 0
+        //        [10:37:42.335992 0.000378] 38.040 (  0) - tud_network_recv_renew: 11 0x304d434e 56 0
+        //        [10:37:42.336912 0.000919] 38.040 (  0) - tud_network_recv_renew->: 0 200103D8 90 54          OK
+        //        [10:37:42.337755 0.000844] 38.041 (  1) - tud_network_recv_renew() - 11 [20020120]
+        //        [10:37:42.338528 0.000773] 38.041 (  0) - tud_network_recv_renew->: 1 200103D8 146 114        OK
+        //        [10:37:42.339365 0.000837] 38.041 (  0) - tud_network_recv_renew() - 11 [20020120]
+        //        [10:37:42.340137 0.000771] 38.041 (  0) - tud_network_recv_renew->: 2 200103D8 262 254        OK
+        //        [10:37:42.340965 0.000828] 38.042 (  1) - tud_network_recv_renew() - 11 [20020120]
+        //        [10:37:42.341748 0.000783] 38.042 (  0) - tud_network_recv_renew->: 3 200103D8 518 254        OK
+        //        [10:37:42.342572 0.000824] 38.042 (  0) - tud_network_recv_renew() - 11 [20020120]
+        //        [10:37:42.343345 0.000773] 38.042 (  0) - tud_network_recv_renew->: 4 200103D8 774 254        OK
+        //        [10:37:42.344172 0.000827] 38.043 (  1) - tud_network_recv_renew() - 11 [20020120]
+        //        [10:37:42.344932 0.000760] 38.043 (  0) - tud_network_recv_renew->: 5 200103D8 1030 254       OK
+        //        [10:37:42.345778 0.000847] 38.043 (  0) - tud_network_recv_renew() - 11 [20020120]
+        //        [10:37:42.346567 0.000788] 38.043 (  0) - tud_network_recv_renew->: 6 200103D8 1626 254       FAIL
+        //        [10:37:42.347423 0.000856] 38.044 (  1) - tud_network_recv_renew() - 11 [20020120]
+        //        [10:37:42.348195 0.000772] 38.044 (  0) - tud_network_recv_renew->: 7 200103D8 1882 254       FAIL
+        //        [10:37:42.349037 0.000842] 38.044 (  0) - tud_network_recv_renew() - 11 [20020120]
+        //        [10:37:42.349828 0.000792] 38.044 (  0) - tud_network_recv_renew->: 8 200103D8 0 0            FAIL
+        //        [10:37:42.350546 0.000717] 38.046 (  2) - handle_incoming_datagram(2136)
+        //        [10:37:42.351156 0.000611] 38.046 (  0) - tud_network_recv_renew() - 11 [20020120]
+        //        [10:37:42.351867 0.000711] 38.046 (  0) - tud_network_recv_renew->: 9 200103D8 0 0            FAIL & DEAD
         r = usbd_edpt_xfer(0, ncm_interface.ep_out, receive_ntb, sizeof(receive_ntb));
         if ( !r) {
             printf("--0.0\n");
