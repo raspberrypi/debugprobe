@@ -292,7 +292,6 @@ void tud_network_recv_renew(void)
         }
 #else
         memcpy(receive_ntb, usb_buffi, ncm_interface.rcv_datagram_size);
-        ncm_interface.rcv_datagram_size = 0;
         r = usbd_edpt_xfer(0, ncm_interface.ep_out, usb_buffi, sizeof(usb_buffi));
         if ( !r) {
             printf("--0.0\n");
@@ -303,14 +302,26 @@ void tud_network_recv_renew(void)
         printf("--1\n");
 
         const nth16_t *hdr = (const nth16_t*) receive_ntb;
+        if (hdr->wNdpIndex < sizeof(nth16_t)) {
+            printf("--1.1.1 %d\n", hdr->wNdpIndex);
+            return;
+        }
+        if (hdr->wNdpIndex + sizeof(ndp16_t) > ncm_interface.rcv_datagram_size) {
+            printf("--1.1.2 %d %d\n", hdr->wNdpIndex + sizeof(ndp16_t), ncm_interface.rcv_datagram_size);
+            return;
+        }
         if (hdr->dwSignature != NTH16_SIGNATURE) {
-            printf("--1.1 0x%lx\n", hdr->dwSignature);
+            printf("--1.1.3 0x%lx\n", hdr->dwSignature);
             return;
         }
 
         const ndp16_t *ndp = (const ndp16_t*) (receive_ntb + hdr->wNdpIndex);
+        if (hdr->wNdpIndex + ndp->wLength > ncm_interface.rcv_datagram_size) {
+            printf("--1.2.1 %d %d\n", hdr->wNdpIndex + ndp->wLength, ncm_interface.rcv_datagram_size);
+            return;
+        }
         if (ndp->dwSignature != NDP16_SIGNATURE_NCM0  &&  ndp->dwSignature != NDP16_SIGNATURE_NCM1) {
-            printf("--1.2 0x%lx\n", ndp->dwSignature);
+            printf("--1.2.2 0x%lx\n", ndp->dwSignature);
             return;
         }
 
@@ -337,6 +348,7 @@ void tud_network_recv_renew(void)
                 ndp->wNextNdpIndex);
 #endif
 
+        ncm_interface.rcv_datagram_size = 0;
     }
 
     if (ncm_interface.rcv_datagram_num == 0) {
