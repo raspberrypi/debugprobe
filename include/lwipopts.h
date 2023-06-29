@@ -69,8 +69,12 @@
 #define TCP_MSS                         (1500 - 20 - 20)          // MTU minus header sizes (best value til now)
 #define TCP_SND_BUF                     (4 * TCP_MSS)             //   good tuning
 
-//#define TCP_WND                         TCP_SND_BUF
-//#define TCP_OVERSIZE                    (TCP_MSS / 4)             // til now no good value found
+//#define TCP_WND                         (2 * TCP_MSS)
+//#define TCP_OVERSIZE                    TCP_MSS             // til now no good value found
+
+//#define TCP_TMR_INTERVAL                50                  // TODO just a test (default: 250)
+//#define TCP_FAST_INTERVAL               250
+//#define TCP_SLOW_INTERVAL               100
 
 //--------------------------------------
 // memory
@@ -108,7 +112,7 @@
 #define API_LIB_DEBUG                   LWIP_DBG_OFF
 #define API_MSG_DEBUG                   LWIP_DBG_OFF
 #define AUTOIP_DEBUG                    LWIP_DBG_OFF
-#define DHCP_DEBUG                      LWIP_DBG_ON
+#define DHCP_DEBUG                      LWIP_DBG_OFF
 #define DNS_DEBUG                       LWIP_DBG_OFF
 #define ETHARP_DEBUG                    LWIP_DBG_OFF
 #define ICMP_DEBUG                      LWIP_DBG_OFF
@@ -125,7 +129,7 @@
 #define TCP_INPUT_DEBUG                 LWIP_DBG_OFF
 #define TCP_FR_DEBUG                    LWIP_DBG_OFF
 #define TCP_RTO_DEBUG                   LWIP_DBG_OFF
-#define TCP_CWND_DEBUG                  LWIP_DBG_OFF
+#define TCP_CWND_DEBUG                  LWIP_DBG_ON
 #define TCP_WND_DEBUG                   LWIP_DBG_OFF
 #define TCP_RST_DEBUG                   LWIP_DBG_OFF
 #define TCP_OUTPUT_DEBUG                LWIP_DBG_OFF

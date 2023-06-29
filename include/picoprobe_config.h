@@ -66,7 +66,7 @@
 #if 0
 #define PROBE_CPU_CLOCK_KHZ      ((120 + 2*24) * 1000)             // overclocked, even 264MHz seems to be no problem
 #else
-#define PROBE_CPU_CLOCK_KHZ      ((120 + 0*24) * 1000)             // overclocked, even 264MHz seems to be no problem
+#define PROBE_CPU_CLOCK_KHZ      ((120 + 5*24) * 1000)             // overclocked, even 264MHz seems to be no problem
 #endif
 
 
