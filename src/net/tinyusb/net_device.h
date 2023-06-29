@@ -35,8 +35,6 @@
 #error "Cannot enable both ECM_RNDIS and NCM network drivers"
 #endif
 
-#include "ncm.h"
-
 /* declared here, NOT in usb_descriptors.c, so that the driver can intelligently ZLP as needed */
 #define CFG_TUD_NET_ENDPOINT_SIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
 
@@ -45,21 +43,6 @@
 #define CFG_TUD_NET_MTU           1514
 #endif
 
-#ifndef CFG_TUD_NCM_IN_NTB_MAX_SIZE
-#define CFG_TUD_NCM_IN_NTB_MAX_SIZE 3200
-#endif
-
-#ifndef CFG_TUD_NCM_OUT_NTB_MAX_SIZE
-#define CFG_TUD_NCM_OUT_NTB_MAX_SIZE 3200
-#endif
-
-#ifndef CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB
-#define CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB 1            // TODO should be 8 or so
-#endif
-
-#ifndef CFG_TUD_NCM_ALIGNMENT
-#define CFG_TUD_NCM_ALIGNMENT 4
-#endif
 
 #ifdef __cplusplus
  extern "C" {

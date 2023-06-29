@@ -37,6 +37,7 @@
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
 #include "net_device.h"
+#include "ncm.h"
 #include <stdio.h>
 
 #include "task.h"
@@ -44,58 +45,6 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
-
-#define NTH16_SIGNATURE      0x484D434E
-#define NDP16_SIGNATURE_NCM0 0x304D434E
-#define NDP16_SIGNATURE_NCM1 0x314D434E
-
-typedef struct TU_ATTR_PACKED {
-    uint16_t wLength;
-    uint16_t bmNtbFormatsSupported;
-    uint32_t dwNtbInMaxSize;
-    uint16_t wNdbInDivisor;
-    uint16_t wNdbInPayloadRemainder;
-    uint16_t wNdbInAlignment;
-    uint16_t wReserved;
-    uint32_t dwNtbOutMaxSize;
-    uint16_t wNdbOutDivisor;
-    uint16_t wNdbOutPayloadRemainder;
-    uint16_t wNdbOutAlignment;
-    uint16_t wNtbOutMaxDatagrams;
-} ntb_parameters_t;
-
-typedef struct TU_ATTR_PACKED {
-    uint32_t dwSignature;
-    uint16_t wHeaderLength;
-    uint16_t wSequence;
-    uint16_t wBlockLength;
-    uint16_t wNdpIndex;
-} nth16_t;
-
-typedef struct TU_ATTR_PACKED {
-    uint16_t wDatagramIndex;
-    uint16_t wDatagramLength;
-} ndp16_datagram_t;
-
-typedef struct TU_ATTR_PACKED {
-    uint32_t dwSignature;
-    uint16_t wLength;
-    uint16_t wNextNdpIndex;
-    ndp16_datagram_t datagram[];
-} ndp16_t;
-
-typedef union TU_ATTR_PACKED {
-    struct {
-        nth16_t nth;
-        ndp16_t ndp;
-    };
-    uint8_t data[CFG_TUD_NCM_IN_NTB_MAX_SIZE];
-} transmit_ntb_t;
-
-struct ecm_notify_struct {
-    tusb_control_request_t header;
-    uint32_t downlink, uplink;
-};
 
 typedef struct {
     uint8_t itf_num;      // Index number of Management Interface, +1 for Data Interface
@@ -209,7 +158,7 @@ static void ncm_start_tx(void)
 
 
 
-tu_static struct ecm_notify_struct ncm_notify_connected = {
+tu_static struct ncm_notify_struct ncm_notify_connected = {
         .header = {
                 .bmRequestType_bit = {
                         .recipient = TUSB_REQ_RCPT_INTERFACE,
@@ -222,7 +171,7 @@ tu_static struct ecm_notify_struct ncm_notify_connected = {
         },
 };
 
-tu_static struct ecm_notify_struct ncm_notify_speed_change = {
+tu_static struct ncm_notify_struct ncm_notify_speed_change = {
         .header = {
                 .bmRequestType_bit = {
                         .recipient = TUSB_REQ_RCPT_INTERFACE,
@@ -247,49 +196,7 @@ void tud_network_recv_renew(void)
     if (ncm_interface.rcv_datagram_index >= ncm_interface.rcv_datagram_num) {
 
         //printf("--0\n");
-#if 0
-        // funny effect with "iperf -c 192.168.14.1 -e -i 1 -l 22 -M 200"
-        // rcv_datagram is overwritten!
-        //        [10:37:42.330968 0.000287] 38.039 (  0) -   0 90 54
-        //        [10:37:42.331361 0.000394] 38.039 (  0) -   1 146 114
-        //        [10:37:42.331770 0.000409] 38.039 (  0) -   2 262 254
-        //        [10:37:42.332156 0.000386] 38.039 (  0) -   3 518 254
-        //        [10:37:42.332566 0.000410] 38.039 (  0) -   4 774 254
-        //        [10:37:42.332979 0.000412] 38.039 (  0) -   5 1030 254
-        //        [10:37:42.333436 0.000457] 38.040 (  1) -   6 1286 254
-        //        [10:37:42.333871 0.000435] 38.040 (  0) -   7 1542 254
-        //        [10:37:42.334303 0.000432] 38.040 (  0) -   8 1798 254
-        //        [10:37:42.334732 0.000429] 38.040 (  0) -   9 2054 254
-        //        [10:37:42.335162 0.000431] 38.040 (  0) -   10 2310 254
-        //        [10:37:42.335614 0.000452] 38.040 (  0) -   11 0 0
-        //        [10:37:42.335992 0.000378] 38.040 (  0) - tud_network_recv_renew: 11 0x304d434e 56 0
-        //        [10:37:42.336912 0.000919] 38.040 (  0) - tud_network_recv_renew->: 0 200103D8 90 54          OK
-        //        [10:37:42.337755 0.000844] 38.041 (  1) - tud_network_recv_renew() - 11 [20020120]
-        //        [10:37:42.338528 0.000773] 38.041 (  0) - tud_network_recv_renew->: 1 200103D8 146 114        OK
-        //        [10:37:42.339365 0.000837] 38.041 (  0) - tud_network_recv_renew() - 11 [20020120]
-        //        [10:37:42.340137 0.000771] 38.041 (  0) - tud_network_recv_renew->: 2 200103D8 262 254        OK
-        //        [10:37:42.340965 0.000828] 38.042 (  1) - tud_network_recv_renew() - 11 [20020120]
-        //        [10:37:42.341748 0.000783] 38.042 (  0) - tud_network_recv_renew->: 3 200103D8 518 254        OK
-        //        [10:37:42.342572 0.000824] 38.042 (  0) - tud_network_recv_renew() - 11 [20020120]
-        //        [10:37:42.343345 0.000773] 38.042 (  0) - tud_network_recv_renew->: 4 200103D8 774 254        OK
-        //        [10:37:42.344172 0.000827] 38.043 (  1) - tud_network_recv_renew() - 11 [20020120]
-        //        [10:37:42.344932 0.000760] 38.043 (  0) - tud_network_recv_renew->: 5 200103D8 1030 254       OK
-        //        [10:37:42.345778 0.000847] 38.043 (  0) - tud_network_recv_renew() - 11 [20020120]
-        //        [10:37:42.346567 0.000788] 38.043 (  0) - tud_network_recv_renew->: 6 200103D8 1626 254       FAIL
-        //        [10:37:42.347423 0.000856] 38.044 (  1) - tud_network_recv_renew() - 11 [20020120]
-        //        [10:37:42.348195 0.000772] 38.044 (  0) - tud_network_recv_renew->: 7 200103D8 1882 254       FAIL
-        //        [10:37:42.349037 0.000842] 38.044 (  0) - tud_network_recv_renew() - 11 [20020120]
-        //        [10:37:42.349828 0.000792] 38.044 (  0) - tud_network_recv_renew->: 8 200103D8 0 0            FAIL
-        //        [10:37:42.350546 0.000717] 38.046 (  2) - handle_incoming_datagram(2136)
-        //        [10:37:42.351156 0.000611] 38.046 (  0) - tud_network_recv_renew() - 11 [20020120]
-        //        [10:37:42.351867 0.000711] 38.046 (  0) - tud_network_recv_renew->: 9 200103D8 0 0            FAIL & DEAD
-        bool r;
-        r = usbd_edpt_xfer(0, ncm_interface.ep_out, rcv_datagram, sizeof(rcv_datagram));
-        if ( !r) {
-            printf("--0.0\n");
-            return;
-        }
-#else
+
         if (ncm_interface.rcv_usb_datagram_size == 0) {
             if (usbd_edpt_busy(0, ncm_interface.ep_out)) {
                 printf("--0.1\n");
@@ -303,7 +210,6 @@ void tud_network_recv_renew(void)
                 }
             }
         }
-#endif
 
         //printf("--1\n");
 
