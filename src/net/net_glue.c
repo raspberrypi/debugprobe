@@ -152,7 +152,7 @@ bool tud_network_recv_cb(const uint8_t *src, uint16_t size)
  * \return false if the packet buffer was not accepted
  */
 {
-    //printf("!!!!!!!!!!!!!!tud_network_recv_cb(%p,%u)\n", src, size);
+    //printf("tud_network_recv_cb(%p,%u)\n", src, size);
 
 #if 0
     /* this shouldn't happen, but if we get another packet before
@@ -190,7 +190,11 @@ bool tud_network_recv_cb(const uint8_t *src, uint16_t size)
 
 uint16_t tud_network_xmit_cb(uint8_t *dst, void *ref, uint16_t arg)
 /**
+ * This does the actual copy operation into a TinyUSB buffer.
+ * Called by tud_network_xmit().
+ *
  * (application ->) lwIP -> TinyUSB (-> host)
+ *
  * \return number of bytes copied
  */
 {
@@ -230,17 +234,17 @@ uint16_t tud_network_xmit_cb(uint8_t *dst, void *ref, uint16_t arg)
 
 
 
-static void conext_tinyusb_linkoutput(void *param)
+static void context_tinyusb_linkoutput(void *param)
 {
     if ( !tud_network_can_xmit(xmt_buff_len)) {
-        printf("conext_tinyusb_linkoutput: sleep\n");
+        printf("context_tinyusb_linkoutput: sleep\n");
         vTaskDelay(pdMS_TO_TICKS(10));
-        usbd_defer_func(conext_tinyusb_linkoutput, NULL, false);
+        usbd_defer_func(context_tinyusb_linkoutput, NULL, false);
     }
     else {
         tud_network_xmit(xmt_buff, 0);
     }
-}   // conext_tinyusb_linkoutput
+}   // context_tinyusb_linkoutput
 
 
 
@@ -286,7 +290,7 @@ static err_t linkoutput_fn(struct netif *netif, struct pbuf *p)
     }
 
     xmt_buff_len = pbuf_copy_partial(p, xmt_buff, p->tot_len, 0);
-    usbd_defer_func(conext_tinyusb_linkoutput, NULL, false);
+    usbd_defer_func(context_tinyusb_linkoutput, NULL, false);
 
     return ERR_OK;
 #endif
