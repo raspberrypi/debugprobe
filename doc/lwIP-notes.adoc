@@ -130,6 +130,12 @@ Monitor performance/errors with Wireshark.
 
 ## Log
 
+### 2023-06-30
+
+* for debugging purposes reimplemented `ncm_device_simple.c` which can hold only
+  one ethernet frame per NTB (NCM Transfer Block).  This unfortunately requires
+  that the original `ncm_device.c` must be outcommented via `#if` on top.
+ 
 ### 2023-06-26
 
 * after some changes to `rtt_console.c`, `net_sysview.c` and `net_glue.c`

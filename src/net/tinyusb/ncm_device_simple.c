@@ -166,46 +166,77 @@ static void do_in_xfer(uint8_t *buf, uint16_t len)
 
 
 static void handle_incoming_datagram(uint32_t len)
+/**
+ * Handle an incoming NTP.
+ * Most is checking validity of the frame.  If the frame is not valid, it is rejected.
+ * Input NTP is in \a ncm_interface.rcv_datagram.
+ */
 {
+    bool ok = true;
+
     //printf("!!!!!!!!!!!!!handle_incoming_datagram(%lu)\n", len);
 
     const nth16_t *hdr = (const nth16_t*)ncm_interface.rcv_datagram;
+    const ndp16_t *ndp = NULL;
+
     if (len < sizeof(nth16_t) + sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)) {
         printf("--1.1.1 %ld\n", len);
-        tud_network_recv_renew();
-        return;
+        ok = false;
     }
-    if (hdr->dwSignature != NTH16_SIGNATURE) {
+    else if (hdr->dwSignature != NTH16_SIGNATURE) {
         printf("--1.1.2 0x%lx %ld\n", hdr->dwSignature, len);
-        return;
+        ok = false;
     }
-    if (hdr->wNdpIndex < sizeof(nth16_t)) {
+    else if (hdr->wNdpIndex < sizeof(nth16_t)) {
         printf("--1.1.3 %d\n", hdr->wNdpIndex);
-        return;
+        ok = false;
     }
-    if (hdr->wNdpIndex + sizeof(ndp16_t) > len) {
+    else if (hdr->wNdpIndex + sizeof(ndp16_t) > len) {
         printf("--1.1.4 %d %ld\n", hdr->wNdpIndex + sizeof(ndp16_t), len);
-        return;
+        ok = false;
     }
 
-    const ndp16_t *ndp = (const ndp16_t*) (ncm_interface.rcv_datagram + hdr->wNdpIndex);
-    if (hdr->wNdpIndex + ndp->wLength > len) {
-        printf("--1.2.1 %d %ld\n", hdr->wNdpIndex + ndp->wLength, len);
-        return;
-    }
-    if (ndp->dwSignature != NDP16_SIGNATURE_NCM0  &&  ndp->dwSignature != NDP16_SIGNATURE_NCM1) {
-        printf("--1.2.2 0x%lx %ld\n", ndp->dwSignature, len);
-        return;
+    if (ok) {
+        ndp = (const ndp16_t*) (ncm_interface.rcv_datagram + hdr->wNdpIndex);
+
+        if (hdr->wNdpIndex + ndp->wLength > len) {
+            printf("--1.2.1 %d %ld\n", hdr->wNdpIndex + ndp->wLength, len);
+            ok = false;
+        }
+        else if (ndp->dwSignature != NDP16_SIGNATURE_NCM0  &&  ndp->dwSignature != NDP16_SIGNATURE_NCM1) {
+            printf("--1.2.2 0x%lx %ld\n", ndp->dwSignature, len);
+            ok = false;
+        }
     }
 
-    //printf("--2\n");
+    if (ok) {
+        if (ndp->datagram[1].wDatagramIndex != 0  ||  ndp->datagram[1].wDatagramLength != 0) {
+            printf("--1.3.1 %d %d\n", ndp->datagram[1].wDatagramIndex, ndp->datagram[1].wDatagramLength);
+            ok = false;
+        }
+        else if (ndp->wNextNdpIndex != 0) {
+            printf("--1.3.2 %d\n", ndp->wNextNdpIndex);
+            ok = false;
+        }
+        else if (ndp->datagram[0].wDatagramIndex + ndp->datagram[0].wDatagramLength > len) {
+            printf("--1.3.3 %d %d %ld\n", ndp->datagram[0].wDatagramIndex, ndp->datagram[0].wDatagramLength, len);
+            ok = false;
+        }
+    }
 
-    if ( !tud_network_recv_cb(ncm_interface.rcv_datagram + ndp->datagram[0].wDatagramIndex,
-                              ndp->datagram[0].wDatagramLength)) {
-        //printf("!!!!!!!!!!!!!!!!!!!!\n");
+    if (ok) {
+        if ( !tud_network_recv_cb(ncm_interface.rcv_datagram + ndp->datagram[0].wDatagramIndex,
+                                  ndp->datagram[0].wDatagramLength)) {
+            ok = false;
+        }
+    }
+
+    if ( !ok) {
+        // receiver must be reenabled to get a chance to recover
+        printf("!!!!!!!!!!!!!!!!!!!!\n");
         tud_network_recv_renew();
     }
-}
+}   // handle_incoming_datagram
 
 
 
