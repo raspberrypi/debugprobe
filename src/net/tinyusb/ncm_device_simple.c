@@ -1,6 +1,7 @@
 /*
  * The MIT License (MIT)
  *
+ * Copyright (c) 2023 Hardy Griech
  * Copyright (c) 2020 Jacob Berg Potter
  * Copyright (c) 2020 Peter Lawrence
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -37,6 +38,8 @@
 #include <stdio.h>
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
+
+// TODO CFG_TUD_NCM_OUT_NTB_MAX_SIZE set correctly (it is too big currently)
 #include "net_device.h"
 #include "ncm.h"
 
@@ -52,14 +55,14 @@ typedef struct {
     uint8_t ep_in;
     uint8_t ep_out;
 
-    CFG_TUSB_MEM_ALIGN uint8_t rcv_datagram[CFG_TUD_NCM_OUT_NTB_MAX_SIZE+400];
+    CFG_TUSB_MEM_ALIGN uint8_t rcv_ntb[CFG_TUD_NCM_OUT_NTB_MAX_SIZE+400];
 
     enum {
-        REPORT_SPEED, REPORT_CONNECTED, REPORT_DONE
+        REPORT_SPEED,
+        REPORT_CONNECTED,
+        REPORT_DONE
     } report_state;
     bool report_pending;
-
-    uint16_t next_datagram_offset;  // Offset in transmit_ntb[current_ntb].data to place the next datagram
 
     uint16_t nth_sequence;          // Sequence number counter for transmitted NTBs
 
@@ -97,12 +100,9 @@ static void ncm_prepare_for_tx(void)
  */
 {
     //printf("ncm_prepare_for_tx()\n");
-    // datagrams start after all the headers
-    ncm_interface.next_datagram_offset =   sizeof(nth16_t) + sizeof(ndp16_t)
-                                         + ((1 + 1) * sizeof(ndp16_datagram_t));
     memset(&transmit_ntb, 0, sizeof(transmit_ntb_t));
     ncm_interface.can_xmit = true;
-}
+}   // ncm_prepare_for_tx
 
 
 
@@ -147,7 +147,7 @@ void tud_network_recv_renew(void)
         return;
     }
     else {
-        bool r = usbd_edpt_xfer(0, ncm_interface.ep_out, ncm_interface.rcv_datagram, sizeof(ncm_interface.rcv_datagram));
+        bool r = usbd_edpt_xfer(0, ncm_interface.ep_out, ncm_interface.rcv_ntb, sizeof(ncm_interface.rcv_ntb));
         if ( !r) {
             printf("--0.2\n");
             return;
@@ -169,14 +169,14 @@ static void handle_incoming_datagram(uint32_t len)
 /**
  * Handle an incoming NTP.
  * Most is checking validity of the frame.  If the frame is not valid, it is rejected.
- * Input NTP is in \a ncm_interface.rcv_datagram.
+ * Input NTP is in \a ncm_interface.rcv_ntb.
  */
 {
     bool ok = true;
 
     //printf("!!!!!!!!!!!!!handle_incoming_datagram(%lu)\n", len);
 
-    const nth16_t *hdr = (const nth16_t*)ncm_interface.rcv_datagram;
+    const nth16_t *hdr = (const nth16_t*)ncm_interface.rcv_ntb;
     const ndp16_t *ndp = NULL;
 
     if (len < sizeof(nth16_t) + sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)) {
@@ -197,7 +197,7 @@ static void handle_incoming_datagram(uint32_t len)
     }
 
     if (ok) {
-        ndp = (const ndp16_t*) (ncm_interface.rcv_datagram + hdr->wNdpIndex);
+        ndp = (const ndp16_t*) (ncm_interface.rcv_ntb + hdr->wNdpIndex);
 
         if (hdr->wNdpIndex + ndp->wLength > len) {
             printf("--1.2.1 %d %ld\n", hdr->wNdpIndex + ndp->wLength, len);
@@ -225,7 +225,7 @@ static void handle_incoming_datagram(uint32_t len)
     }
 
     if (ok) {
-        if ( !tud_network_recv_cb(ncm_interface.rcv_datagram + ndp->datagram[0].wDatagramIndex,
+        if ( !tud_network_recv_cb(ncm_interface.rcv_ntb + ndp->datagram[0].wDatagramIndex,
                                   ndp->datagram[0].wDatagramLength)) {
             ok = false;
         }
@@ -459,7 +459,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
 
     //printf("netd_xfer_cb(%d,%d,%d,%lu) [%p]\n", rhport, ep_addr, result, xferred_bytes, xTaskGetCurrentTaskHandle());
 
-    /* new datagram rcv_datagram */
+    /* new datagram rcv_ntb */
     if (ep_addr == ncm_interface.ep_out) {
         //printf("  EP_OUT\n");
         handle_incoming_datagram(xferred_bytes);
@@ -470,6 +470,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         //printf("  EP_IN %d %d\n", ncm_interface.can_xmit, ncm_interface.itf_data_alt);
         if (xferred_bytes != 0   &&  xferred_bytes % CFG_TUD_NET_ENDPOINT_SIZE == 0)
         {
+            // TODO check when ZLP is really needed
             do_in_xfer(NULL, 0); /* a ZLP is needed */
         }
         else
@@ -510,6 +511,8 @@ void tud_network_xmit(void *ref, uint16_t arg)
  */
 {
     transmit_ntb_t *ntb = &transmit_ntb;
+    uint16_t next_datagram_offset = sizeof(nth16_t) + sizeof(ndp16_t)
+                                    + ((1 + 1) * sizeof(ndp16_datagram_t));
 
     //printf("tud_network_xmit(%p,%d) %d [%p]\n", ref, arg, ncm_interface.can_xmit, xTaskGetCurrentTaskHandle());
 
@@ -517,33 +520,29 @@ void tud_network_xmit(void *ref, uint16_t arg)
         return;
     }
 
-    uint16_t size = tud_network_xmit_cb(ntb->data + ncm_interface.next_datagram_offset, ref, arg);
+    uint16_t size = tud_network_xmit_cb(ntb->data + next_datagram_offset, ref, arg);
 
-    ntb->ndp.datagram[0].wDatagramIndex = ncm_interface.next_datagram_offset;
+    ntb->ndp.datagram[0].wDatagramIndex  = next_datagram_offset;
     ntb->ndp.datagram[0].wDatagramLength = size;
 
-    ncm_interface.next_datagram_offset += size;
-
-    // round up so the next datagram is aligned correctly
-    ncm_interface.next_datagram_offset += (CFG_TUD_NCM_ALIGNMENT - 1);
-    ncm_interface.next_datagram_offset -= (ncm_interface.next_datagram_offset % CFG_TUD_NCM_ALIGNMENT);
+    next_datagram_offset += size;
 
     // Fill in NTB header
-    ntb->nth.dwSignature = NTH16_SIGNATURE;
+    ntb->nth.dwSignature   = NTH16_SIGNATURE;
     ntb->nth.wHeaderLength = sizeof(nth16_t);
-    ntb->nth.wSequence = ncm_interface.nth_sequence++;
-    ntb->nth.wBlockLength = ncm_interface.next_datagram_offset;
-    ntb->nth.wNdpIndex = sizeof(nth16_t);
+    ntb->nth.wSequence     = ncm_interface.nth_sequence++;
+    ntb->nth.wBlockLength  = next_datagram_offset;
+    ntb->nth.wNdpIndex     = sizeof(nth16_t);
 
     // Fill in NDP16 header and terminator
-    ntb->ndp.dwSignature = NDP16_SIGNATURE_NCM0;
-    ntb->ndp.wLength = sizeof(ndp16_t) + (2) * sizeof(ndp16_datagram_t);
+    ntb->ndp.dwSignature   = NDP16_SIGNATURE_NCM0;
+    ntb->ndp.wLength       = sizeof(ndp16_t) + (2) * sizeof(ndp16_datagram_t);
     ntb->ndp.wNextNdpIndex = 0;
-    ntb->ndp.datagram[1].wDatagramIndex = 0;
+    ntb->ndp.datagram[1].wDatagramIndex  = 0;
     ntb->ndp.datagram[1].wDatagramLength = 0;
 
     // Kick off an endpoint transfer
-    do_in_xfer(ntb->data, ncm_interface.next_datagram_offset);
+    do_in_xfer(ntb->data, next_datagram_offset);
 }   // tud_network_xmit
 
 #endif
