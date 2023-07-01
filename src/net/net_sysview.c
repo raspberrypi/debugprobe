@@ -137,7 +137,7 @@ static void sysview_try_send(void *ctx)
                     sysview_close(m_pcb_client);
                 }
                 
-                if ( !block_call_to_tcp_output  &&  tcp_sndbuf(m_pcb_client) < 3 * TCP_SND_BUF / 4) {
+                if ( !block_call_to_tcp_output  &&  tcp_sndbuf(m_pcb_client) < 2 * TCP_SND_BUF / 4) {
                     //printf("sysview_try_send: flush %d %d\n", tcp_sndbuf(m_pcb_client), 3 * TCP_SND_BUF / 4);
                     block_call_to_tcp_output = true;
                     tcp_output(m_pcb_client);
@@ -149,7 +149,7 @@ static void sysview_try_send(void *ctx)
             }
         }
         else {
-            //printf("sysview_try_send: no tcp_sndbuf!!!!\n");
+            printf("sysview_try_send: no tcp_sndbuf!!!!\n");
             if ( !block_call_to_tcp_output) {
                 printf("sysview_try_send: flush\n");
                 block_call_to_tcp_output = true;

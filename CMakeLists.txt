@@ -261,7 +261,7 @@ if(NOT OPT_NET STREQUAL "")
         # NCM: use own copy of ncm_device, original one is removed from target_sources() with a trick
         message("--------- " ${PICO_TINYUSB_PATH})
         target_sources(${PROJECT} PRIVATE
-            src/net/tinyusb/ncm_device.c
+            src/net/tinyusb/ncm_device_simple.c
         )
         set_source_files_properties(
             ${PICO_TINYUSB_PATH}/src/class/net/ncm_device.c
@@ -337,8 +337,8 @@ pico_generate_pio_header(${PROJECT} ${CMAKE_CURRENT_LIST_DIR}/src/probe.pio)
 target_include_directories(${PROJECT} PRIVATE src)
 
 target_compile_definitions (${PROJECT} PRIVATE
-	#PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
-	#PICO_RP2040_USB_DEVICE_UFRAME_FIX=1
+	PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
+	PICO_RP2040_USB_DEVICE_UFRAME_FIX=1
 )
 
 target_link_libraries(${PROJECT} PRIVATE
