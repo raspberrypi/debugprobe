@@ -39,8 +39,16 @@
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
 
-// TODO CFG_TUD_NCM_OUT_NTB_MAX_SIZE set correctly (it is too big currently)
 #include "net_device.h"
+
+#ifndef CFG_TUD_NCM_IN_NTB_MAX_SIZE
+    #define CFG_TUD_NCM_IN_NTB_MAX_SIZE        (CFG_TUD_NET_MTU)
+#endif
+
+#ifndef CFG_TUD_NCM_OUT_NTB_MAX_SIZE
+    #define CFG_TUD_NCM_OUT_NTB_MAX_SIZE       (CFG_TUD_NET_MTU+200)
+#endif
+
 #include "ncm.h"
 
 //--------------------------------------------------------------------+
@@ -55,7 +63,7 @@ typedef struct {
     uint8_t ep_in;
     uint8_t ep_out;
 
-    CFG_TUSB_MEM_ALIGN uint8_t rcv_ntb[CFG_TUD_NCM_OUT_NTB_MAX_SIZE+400];
+    CFG_TUSB_MEM_ALIGN uint8_t rcv_ntb[CFG_TUD_NCM_OUT_NTB_MAX_SIZE];
 
     enum {
         REPORT_SPEED,
@@ -76,7 +84,7 @@ typedef struct {
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static const ntb_parameters_t ntb_parameters = {
         .wLength = sizeof(ntb_parameters_t),
         .bmNtbFormatsSupported = 0x01,                                 // 16-bit NTB supported
-        .dwNtbInMaxSize = CFG_TUD_NCM_IN_NTB_MAX_SIZE+400,
+        .dwNtbInMaxSize = CFG_TUD_NCM_IN_NTB_MAX_SIZE,
         .wNdbInDivisor = 4,
         .wNdbInPayloadRemainder = 0,
         .wNdbInAlignment = CFG_TUD_NCM_ALIGNMENT,
@@ -147,7 +155,7 @@ void tud_network_recv_renew(void)
         return;
     }
     else {
-        bool r = usbd_edpt_xfer(0, ncm_interface.ep_out, ncm_interface.rcv_ntb, sizeof(ncm_interface.rcv_ntb));
+        bool r = usbd_edpt_xfer(0, ncm_interface.ep_out, ncm_interface.rcv_ntb, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
         if ( !r) {
             printf("--0.2\n");
             return;
@@ -461,7 +469,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
 
     /* new datagram rcv_ntb */
     if (ep_addr == ncm_interface.ep_out) {
-        //printf("  EP_OUT\n");
+        //printf("  EP_OUT %d %d %d %lu\n", rhport, ep_addr, result, xferred_bytes);
         handle_incoming_datagram(xferred_bytes);
     }
 
