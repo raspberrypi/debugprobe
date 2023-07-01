@@ -42,7 +42,7 @@
 #include "net_device.h"
 
 #ifndef CFG_TUD_NCM_IN_NTB_MAX_SIZE
-    #define CFG_TUD_NCM_IN_NTB_MAX_SIZE        (CFG_TUD_NET_MTU)
+    #define CFG_TUD_NCM_IN_NTB_MAX_SIZE        (CFG_TUD_NET_MTU+200)
 #endif
 
 #ifndef CFG_TUD_NCM_OUT_NTB_MAX_SIZE
@@ -93,7 +93,7 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static const ntb_parameters_t ntb_par
         .wNdbOutDivisor = 4,
         .wNdbOutPayloadRemainder = 0,
         .wNdbOutAlignment = CFG_TUD_NCM_ALIGNMENT,
-        .wNtbOutMaxDatagrams = 1                                     // 0=no limit TODO set to 0
+        .wNtbOutMaxDatagrams = 1                                       // 0=no limit TODO set to 0
 };
 
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static transmit_ntb_t transmit_ntb;
