@@ -401,7 +401,7 @@ static void ncm_report(void)
  * called on init
  */
 {
-    //printf("ncm_report - %d\n", ncm_interface.report_state);
+    printf("ncm_report - %d\n", ncm_interface.report_state);
     uint8_t const rhport = 0;
     if (ncm_interface.report_state == REPORT_SPEED) {
         ncm_notify_speed_change.header.wIndex = ncm_interface.itf_num;
@@ -529,18 +529,25 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
 
     /* data transmission finished */
     if (ep_addr == ncm_interface.ep_in) {
-        //printf("  EP_IN %d %d %d\n", ncm_interface.xmt_running, ncm_interface.datagram_count,
-                //ncm_interface.itf_data_alt);
+        //printf("  EP_IN %d %d %d\n", ncm_interface.xmt_running, ncm_interface.datagram_count, ncm_interface.itf_data_alt);
         ncm_interface.xmt_running = false;
 
-        // If there are datagrams queued up that we tried to send while this NTB was being emitted, send them now
-        if (ncm_interface.datagram_count && ncm_interface.itf_data_alt == 1) {
-            ncm_start_tx();
+        if (xferred_bytes != 0  &&  xferred_bytes % CFG_TUD_NET_ENDPOINT_SIZE == 0)
+        {
+            // TODO check when ZLP is really needed
+            ncm_interface.xmt_running = true;
+            usbd_edpt_xfer(0, ncm_interface.ep_in, NULL, 0);
+        }
+        else {
+            // If there are datagrams queued up that we tried to send while this NTB was being emitted, send them now
+            if (ncm_interface.datagram_count && ncm_interface.itf_data_alt == 1) {
+                ncm_start_tx();
+            }
         }
     }
 
     if (ep_addr == ncm_interface.ep_notif) {
-        //printf("  EP_NOTIF\n");
+        printf("  EP_NOTIF\n");
         ncm_interface.report_pending = false;
         ncm_report();
     }
@@ -562,7 +569,7 @@ bool tud_network_can_xmit(uint16_t size)
 
 #if 0
     printf("tud_network_can_xmit(%d) %d %d - %d %d [%p]\n", size, ncm_interface.datagram_count, ncm_interface.max_datagrams_per_ntb,
-            next_datagram_offset, ncm_interface.ntb_in_size, xTaskGetCurrentTaskHandle());
+            ncm_interface.next_datagram_offset, ncm_interface.ntb_in_size, xTaskGetCurrentTaskHandle());
 #endif
 
     if (ncm_interface.datagram_count >= ncm_interface.max_datagrams_per_ntb) {

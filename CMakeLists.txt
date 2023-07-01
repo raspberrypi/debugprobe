@@ -61,6 +61,8 @@ pico_sdk_init()
 #    message("--------- " ${PICO_LWIP_PATH})
 #    message("--------- " ${PICO_LWIP_CONTRIB_PATH})
 #    message("--------- " ${PICO_TINYUSB_PATH})
+message("---------" ${tinyusb_device_base})
+
 
 #
 # set some things inherited from Makefile / command line
@@ -265,7 +267,7 @@ if(NOT OPT_NET STREQUAL "")
     else()
         # NCM: use own copy of ncm_device, original one must be outcommented
         target_sources(${PROJECT} PRIVATE
-            src/net/tinyusb/ncm_device_simple.c
+            src/net/tinyusb/ncm_device.c
         )
     endif()
     

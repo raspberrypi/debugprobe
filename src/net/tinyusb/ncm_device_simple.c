@@ -468,7 +468,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     /* data transmission finished */
     if (ep_addr == ncm_interface.ep_in) {
         //printf("  EP_IN %d %d\n", ncm_interface.can_xmit, ncm_interface.itf_data_alt);
-        if (xferred_bytes != 0   &&  xferred_bytes % CFG_TUD_NET_ENDPOINT_SIZE == 0)
+        if (xferred_bytes != 0  &&  xferred_bytes % CFG_TUD_NET_ENDPOINT_SIZE == 0)
         {
             // TODO check when ZLP is really needed
             do_in_xfer(NULL, 0); /* a ZLP is needed */
