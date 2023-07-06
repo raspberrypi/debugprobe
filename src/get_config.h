@@ -80,6 +80,7 @@
     #endif
 #else
     #define __OPT_NET
+    #define __OPT_NET_CONF            ""
 #endif
 #if OPT_NET_SYSVIEW_SERVER
     #define __OPT_NET_SYSVIEW_SERVER  " [Net: SysView]"
