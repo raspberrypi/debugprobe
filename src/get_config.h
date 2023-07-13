@@ -102,7 +102,7 @@
 /**
  * CONFIG_FEATURES
  */
-#define CONFIG_FEATURES()  __OPT_CMSIS_DAPV1 __OPT_CMSIS_DAPV2 __OPT_MSC __OPT_TARGET_UART __OPT_TARGET_UART      \
+#define CONFIG_FEATURES()  __OPT_CMSIS_DAPV1 __OPT_CMSIS_DAPV2 __OPT_MSC __OPT_TARGET_UART __OPT_SIGROK           \
                            __OPT_PROBE_DEBUG_OUT __OPT_CDC_SYSVIEW                                                \
                            __OPT_NET_CONF __OPT_NET_SYSVIEW_SERVER __OPT_NET_ECHO_SERVER __OPT_NET_IPERF_SERVER
 
