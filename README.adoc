@@ -420,7 +420,7 @@ The driver needs to be installed manually.  Procedure is roughly as follows:
 * "Microsoft"
 * "UsbNcm Host Device" - if this is not available, then the version of Win10 is not ready for USB-NCM
 * confirm any dialog boxes
-* if `ipconfig` on a command line shows`192.168.14.2` for an Ethernet adapter, the procedure has most likely
+* if `ipconfig` on a command line shows `192.168.14.2` for an Ethernet adapter, the procedure has most likely
   succeeded and SystemView is ready for operation
 
 #### Win11
