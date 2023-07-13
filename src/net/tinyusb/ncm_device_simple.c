@@ -348,7 +348,7 @@ static void ncm_report(void)
  * called on init
  */
 {
-    printf("ncm_report - %d\n", ncm_interface.report_state);
+//    printf("ncm_report - %d\n", ncm_interface.report_state);
     uint8_t const rhport = 0;
     if (ncm_interface.report_state == REPORT_SPEED) {
         ncm_notify_speed_change.header.wIndex = ncm_interface.itf_num;
@@ -373,8 +373,7 @@ TU_ATTR_WEAK void tud_network_link_state_cb(bool state)
  * context: TinyUSB
  */
 {
-    (void) state;
-    printf("tud_network_link_state_cb(%d) [%p]\n", state, xTaskGetCurrentTaskHandle());
+//    printf("tud_network_link_state_cb(%d) [%p]\n", state, xTaskGetCurrentTaskHandle());
 }
 
 
@@ -388,7 +387,7 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
  * context: TinyUSB
  */
 {
-    printf("netd_control_xfer_cb(%d, %d, %p) [%p]\n", rhport, stage, request, xTaskGetCurrentTaskHandle());
+//    printf("netd_control_xfer_cb(%d, %d, %p) [%p]\n", rhport, stage, request, xTaskGetCurrentTaskHandle());
 
     if (stage != CONTROL_STAGE_SETUP)
         return true ;
@@ -489,7 +488,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     }
 
     if (ep_addr == ncm_interface.ep_notif) {
-        printf("  EP_NOTIF\n");
+//        printf("  EP_NOTIF\n");
         ncm_interface.report_pending = false;
         ncm_report();
     }
