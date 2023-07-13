@@ -172,7 +172,7 @@ static bool rtt_check_channel_from_target(uint32_t rtt_cb, uint16_t channel, SEG
     ok = ok  &&  (aUp->SizeOfBuffer > 0  &&  aUp->SizeOfBuffer < TARGET_RAM_END - TARGET_RAM_START);
     ok = ok  &&  ((uint32_t)aUp->pBuffer >= TARGET_RAM_START  &&  (uint32_t)aUp->pBuffer + aUp->SizeOfBuffer <= TARGET_RAM_END);
     if (ok) {
-        picoprobe_info("rtt_check_channel_from_target: %u %p %u %u %u\n", channel, aUp->pBuffer, aUp->SizeOfBuffer, aUp->RdOff, aUp->WrOff);
+        picoprobe_info("rtt_check_channel_from_target: %u %p %4u %4u %4u\n", channel, aUp->pBuffer, aUp->SizeOfBuffer, aUp->RdOff, aUp->WrOff);
     }
     return ok;
 }   // rtt_check_channel_from_target
@@ -191,7 +191,7 @@ static bool rtt_check_channel_to_target(uint32_t rtt_cb, uint16_t channel, SEGGE
     ok = ok  &&  (aDown->SizeOfBuffer > 0  &&  aDown->SizeOfBuffer < TARGET_RAM_END - TARGET_RAM_START);
     ok = ok  &&  ((uint32_t)aDown->pBuffer >= TARGET_RAM_START  &&  (uint32_t)aDown->pBuffer + aDown->SizeOfBuffer <= TARGET_RAM_END);
     if (ok) {
-        picoprobe_info("rtt_check_channel_to_target: %u %p %u %u %u\n", channel, aDown->pBuffer, aDown->SizeOfBuffer, aDown->RdOff, aDown->WrOff);
+        picoprobe_info("rtt_check_channel_to_target  : %u %p %4u %4u %4u\n", channel, aDown->pBuffer, aDown->SizeOfBuffer, aDown->RdOff, aDown->WrOff);
     }
     return ok;
 }   // rtt_check_channel_to_target
