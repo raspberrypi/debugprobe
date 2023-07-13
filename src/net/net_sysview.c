@@ -149,7 +149,7 @@ static void sysview_try_send(void *ctx)
             }
         }
         else {
-            printf("sysview_try_send: no tcp_sndbuf!!!!\n");
+//            printf("sysview_try_send: no tcp_sndbuf!!!!\n");
             if ( !block_call_to_tcp_output) {
                 printf("sysview_try_send: flush\n");
                 block_call_to_tcp_output = true;
@@ -286,6 +286,13 @@ static err_t sysview_accept(void *arg, struct tcp_pcb *newpcb, err_t err)
 
 
 
+bool net_sysview_is_connected(void)
+{
+    return m_state == SVS_READY;
+}   // net_sysview_is_connected
+
+
+
 uint32_t net_sysview_send(const uint8_t *buf, uint32_t cnt)
 /**
  * Send characters from SysView RTT channel into stream.
@@ -306,7 +313,7 @@ uint32_t net_sysview_send(const uint8_t *buf, uint32_t cnt)
         r = xStreamBufferSpacesAvailable(stream_sysview_to_host);
     }
     else {
-        if (m_state != SVS_READY)
+        if ( !net_sysview_is_connected())
         {
             xStreamBufferReset(stream_sysview_to_host);
         }

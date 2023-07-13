@@ -34,7 +34,7 @@
 
 void net_sysview_init(void);
 uint32_t net_sysview_send(const uint8_t *buf, uint32_t cnt);
-
+bool net_sysview_is_connected(void);
 
 #ifdef __cplusplus
     }

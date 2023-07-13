@@ -137,8 +137,8 @@ tu_static struct ncm_notify_struct ncm_notify_speed_change = {
                 .bRequest = CDC_NOTIF_CONNECTION_SPEED_CHANGE,
                 .wLength = 8,
         },
-        .downlink = 1000000,
-        .uplink = 1000000,
+        .downlink = 10000000,
+        .uplink = 10000000,
 };
 
 

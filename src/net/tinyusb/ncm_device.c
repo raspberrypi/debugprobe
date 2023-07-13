@@ -91,7 +91,7 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static const ntb_parameters_t ntb_par
         .wNdbOutDivisor = 4,
         .wNdbOutPayloadRemainder = 0,
         .wNdbOutAlignment = CFG_TUD_NCM_ALIGNMENT,
-        .wNtbOutMaxDatagrams = 0                                     // 0=no limit TODO set to 0
+        .wNtbOutMaxDatagrams = 0                                       // 0=no limit TODO set to 0
 };
 
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static transmit_ntb_t transmit_ntb[2];
@@ -523,7 +523,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
 
     /* new datagram rcv_datagram */
     if (ep_addr == ncm_interface.ep_out) {
-        printf("  EP_OUT %d %d %d %lu\n", rhport, ep_addr, result, xferred_bytes);
+        //printf("  EP_OUT %d %d %d %lu\n", rhport, ep_addr, result, xferred_bytes);
         handle_incoming_datagram(xferred_bytes);
     }
 

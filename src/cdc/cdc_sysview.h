@@ -30,13 +30,13 @@
 #include <stdbool.h>
 #include "tusb.h"
 
-#if OPT_CDC_SYSVIEW
-    uint32_t net_sysview_send(const uint8_t *buf, uint32_t cnt);
-    void cdc_sysview_init(uint32_t task_prio);
+void cdc_sysview_init(uint32_t task_prio);
 
-    void cdc_sysview_line_state_cb(bool dtr, bool rts);
-    void cdc_sysview_tx_complete_cb(void);
-    void cdc_sysview_rx_cb(void);
-#endif
+uint32_t net_sysview_send(const uint8_t *buf, uint32_t cnt);
+bool net_sysview_is_connected(void);
+
+void cdc_sysview_line_state_cb(bool dtr, bool rts);
+void cdc_sysview_tx_complete_cb(void);
+void cdc_sysview_rx_cb(void);
 
 #endif

@@ -387,7 +387,7 @@ void print_task_stat(void *ptr)
     TaskStatus_t task_status[TASK_MAX_CNT];
     uint32_t total_run_time;
 
-    vTaskDelay(pdMS_TO_TICKS(100));
+    vTaskDelay(pdMS_TO_TICKS(5000));
 
     timer_task_stat = xTimerCreate("task stat", pdMS_TO_TICKS(10000), pdTRUE, NULL, trigger_task_stat);   // just for fun: exact period of 10s
     events_task_stat = xEventGroupCreate();
@@ -414,8 +414,8 @@ void print_task_stat(void *ptr)
             static uint32_t total_sum_tick_ms;
             uint32_t cnt;
             uint32_t all_delta_tick_sum_us;
-            uint32_t percent_sum;
-            uint32_t percent_total_sum;
+            uint32_t permille_sum;
+            uint32_t permille_total_sum;
 
             cnt = uxTaskGetSystemState(task_status, TASK_MAX_CNT, &total_run_time);
             all_delta_tick_sum_us = 0;
@@ -436,11 +436,11 @@ void print_task_stat(void *ptr)
             all_delta_tick_sum_us /= configNUM_CORES;
             total_sum_tick_ms += (all_delta_tick_sum_us + 500) / 1000;
 
-            percent_sum = 0;
-            percent_total_sum = 0;
+            permille_sum = 0;
+            permille_total_sum = 0;
             for (uint32_t n = 0;  n < cnt;  ++n) {
-                uint32_t percent;
-                uint32_t percent_total;
+                uint32_t permille;
+                uint32_t permille_total;
                 uint32_t curr_tick;
                 uint32_t delta_tick;
                 uint32_t task_ndx = task_status[n].xTaskNumber;
@@ -448,17 +448,17 @@ void print_task_stat(void *ptr)
                 curr_tick = task_status[n].ulRunTimeCounter;
                 delta_tick = curr_tick - prev_tick_us[task_ndx];
 
-                percent = (delta_tick + all_delta_tick_sum_us / 2000) / (all_delta_tick_sum_us / 1000);
-                percent_total = (1000 * sum_tick_ms[task_ndx] + total_sum_tick_ms / 2) / total_sum_tick_ms;
-                percent_sum += percent;
-                percent_total_sum += percent_total;
+                permille = (delta_tick + all_delta_tick_sum_us / 2000) / (all_delta_tick_sum_us / 1000);
+                permille_total = (sum_tick_ms[task_ndx] + total_sum_tick_ms / 2000) / (total_sum_tick_ms / 1000);
+                permille_sum += permille;
+                permille_total_sum += permille_total;
 
 #if defined(configUSE_CORE_AFFINITY)  &&  configUSE_CORE_AFFINITY != 0
                 printf("%3lu  %2lu  %c/%2d %4lu %4lu %5lu  %s\n",
                                task_status[n].xTaskNumber,
                                task_status[n].uxCurrentPriority,
                                task_state(task_status[n].eCurrentState), (int)task_status[n].uxCoreAffinityMask,
-                               percent, percent_total,
+                               permille, permille_total,
                                task_status[n].usStackHighWaterMark,
                                task_status[n].pcTaskName);
 #else
@@ -466,7 +466,7 @@ void print_task_stat(void *ptr)
                                task_status[n].xTaskNumber,
                                task_status[n].uxCurrentPriority,
                                task_state(task_status[n].eCurrentState), 1,
-                               percent, percent_total,
+                               permille, permille_total,
                                task_status[n].usStackHighWaterMark,
                                task_status[n].pcTaskName);
 #endif
@@ -474,7 +474,7 @@ void print_task_stat(void *ptr)
                 prev_tick_us[task_ndx] = curr_tick;
             }
             printf("---------------------------------------\n");
-            printf("              %4lu %4lu\n", percent_sum, percent_total_sum);
+            printf("              %4lu %4lu\n", permille_sum, permille_total_sum);
         }
         printf("---------------------------------------\n");
 
@@ -554,7 +554,7 @@ void usb_thread(void *ptr)
     //
     // This is the only place to set task affinity.
     // TODO ATTENTION core affinity
-    // Currently only RTT_FROM is running on an extra core (and RTT_FROM is a real hack).  This is because
+    // Currently only "RTT-From" is running on an extra core (and "RTT-From" is a real hack).  This is because
     // if RTT is running on a different thread than tinyusb/lwip (not sure), the probe is crashing very
     // fast on SystemView events in net_sysview_send()
     //
@@ -570,8 +570,8 @@ void usb_thread(void *ptr)
 
         for (uint32_t n = 0;  n < cnt;  ++n) {
             if (    strcmp(task_status[n].pcTaskName, "IDLE1") == 0
-                ||  strcmp(task_status[n].pcTaskName, "RTT_FROM") == 0
-                ||  strcmp(task_status[n].pcTaskName, "RTTxxx") == 0
+                ||  strcmp(task_status[n].pcTaskName, "RTT-From") == 0
+                ||  strcmp(task_status[n].pcTaskName, "RTT-IO-Dont-Do-That") == 0
             ) {
                 // set it to core 1
                 vTaskCoreAffinitySet(task_status[n].xHandle, 1 << 1);
