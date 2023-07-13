@@ -222,10 +222,6 @@ static unsigned rtt_get_write_space(SEGGER_RTT_BUFFER_DOWN *pRing)
 
 
 
-#define USE_EXTRA_THREAD_FOR_FROM_TARGET
-
-#ifdef USE_EXTRA_THREAD_FOR_FROM_TARGET
-
 static SEGGER_RTT_BUFFER_UP *ft_aUp;
 static uint16_t ft_channel;
 static uint32_t ft_rtt_cb;
@@ -235,6 +231,7 @@ static bool ft_ok;
 
 static void rtt_from_target_thread(void *)
 /**
+ * Fetch RTT data from target.
  * Data transfer is CPU intensive, because SWD access is blocking the CPU.
  * So the idea is to put this task in an extra thread with affinity to the second core.
  * Core affinity is set in \a main.c
@@ -275,14 +272,11 @@ static void rtt_from_target_thread(void *)
     }
 }   // rtt_from_target_thread
 
-#endif
-
 
 
 static bool rtt_from_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER_UP *aUp,
                             rtt_data_to_host data_to_host, bool *worked)
 {
-#ifdef USE_EXTRA_THREAD_FOR_FROM_TARGET
     ft_cnt = data_to_host(NULL, 0);
     if (ft_cnt < sizeof(ft_buf) / 4) {
         //printf("no space in stream %d: %d\n", channel, ft_cnt);
@@ -305,54 +299,6 @@ static bool rtt_from_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER
         }
     }
     return ft_ok;
-#else
-    bool ok = true;
-    uint8_t buf[256];
-    uint32_t cnt;
-
-    assert(data_to_host != NULL);
-
-    cnt = data_to_host(NULL, 0);
-    if (cnt < sizeof(buf) / 4) {
-        //printf("no space in stream %d: %d\n", channel, cnt);
-        //*worked = true;
-    }
-    else {
-//        ft_aUp = aUp;
-//        ft_channel = channel;
-//        ft_rtt_cb = rtt_cb;
-
-        xEventGroupSetBits(events, EV_RTT_FROM_TARGET_STRT);
-        xEventGroupWaitBits(events, EV_RTT_FROM_TARGET_END, pdTRUE, pdFALSE, portMAX_DELAY);
-
-        ok = ok  &&  swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[channel].WrOff), (uint32_t *)&(aUp->WrOff));
-
-        if (ok  &&  aUp->WrOff != aUp->RdOff) {
-            //
-            // fetch data from target
-            //
-            if (aUp->WrOff > aUp->RdOff) {
-                cnt = MIN(cnt, aUp->WrOff - aUp->RdOff);
-            }
-            else {
-                cnt = MIN(cnt, aUp->SizeOfBuffer - aUp->RdOff);
-            }
-            cnt = MIN(cnt, sizeof(buf));
-
-            memset(buf, 0, sizeof(buf));
-            ok = ok  &&  swd_read_memory((uint32_t)aUp->pBuffer + aUp->RdOff, buf, cnt);
-            aUp->RdOff = (aUp->RdOff + cnt) % aUp->SizeOfBuffer;
-            ok = ok  &&  swd_write_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[channel].RdOff), aUp->RdOff);
-
-            // direct received data to host
-            data_to_host(buf, cnt);
-
-            led_state(LS_RTT_RX_DATA);
-            *worked = true;
-        }
-    }
-    return ok;
-#endif
 }   // rtt_from_target
 
 
@@ -475,7 +421,7 @@ static void do_rtt_io(uint32_t rtt_cb)
 #endif
 
 #if INCLUDE_SYSVIEW
-        {
+        if (net_sysview_is_connected()) {
             bool working_sysview = false;
 
             if (ok_sysview_from_target)
@@ -545,7 +491,7 @@ void rtt_io_thread(void *ptr)
     bool target_online = false;
 
     for (;;) {
-        sw_lock("RTT", false);
+        sw_lock("RTT-IO", false);
         // post: we have the interface
 
         if ( !target_online) {
@@ -592,7 +538,7 @@ void rtt_io_thread(void *ptr)
             target_disconnect();
             vTaskDelay(pdMS_TO_TICKS(200));        // some guard time after disconnect
         }
-        sw_unlock("RTT");
+        sw_unlock("RTT-IO");
         vTaskDelay(pdMS_TO_TICKS(300));            // give the other task the opportunity to catch sw_lock();
     }
 }   // rtt_io_thread
@@ -668,17 +614,15 @@ void rtt_console_init(uint32_t task_prio)
     }
 #endif
 
-    xTaskCreate(rtt_io_thread, "RTT", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_rtt_console);
+    xTaskCreate(rtt_io_thread, "RTT-IO", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_rtt_console);
     if (task_rtt_console == NULL)
     {
         picoprobe_error("rtt_console_init: cannot create task_rtt_console\n");
     }
 
-#ifdef USE_EXTRA_THREAD_FOR_FROM_TARGET
-    xTaskCreate(rtt_from_target_thread, "RTT_FROM", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_rtt_from_target_thread);
+    xTaskCreate(rtt_from_target_thread, "RTT-From", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_rtt_from_target_thread);
     if (task_rtt_from_target_thread == NULL)
     {
         picoprobe_error("rtt_console_init: cannot create task_rtt_from_target_thread\n");
     }
-#endif
 }   // rtt_console_init
