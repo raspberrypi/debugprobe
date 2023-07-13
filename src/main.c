@@ -37,6 +37,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <time.h>
 #include "hardware/vreg.h"
 
 #include "bsp/board.h"
@@ -118,16 +119,16 @@ static uint8_t RxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZ
 
 // prios are critical and determine throughput
 // there is one more task prio in lwipopts.h
-#define PRINT_STATUS_TASK_PRIO      (tskIDLE_PRIORITY + 30)       // high prio to get status output in (almost) any case
-#define TUD_TASK_PRIO               (tskIDLE_PRIORITY + 20)       // uses one core continuously (no longer valid with FreeRTOS usage)
+#define PRINT_STATUS_TASK_PRIO      (tskIDLE_PRIORITY + 30)       // high prio to get status output transferred in (almost) any case
+#define TUD_TASK_PRIO               (tskIDLE_PRIORITY + 20)       // high prio for TinyUSB
 #define LED_TASK_PRIO               (tskIDLE_PRIORITY + 12)       // simple task which may interrupt everything else for periodic blinking
 #define SIGROK_TASK_PRIO            (tskIDLE_PRIORITY + 9)        // Sigrok digital/analog signals (does nothing at the moment)
 #define MSC_WRITER_THREAD_PRIO      (tskIDLE_PRIORITY + 8)        // this is only running on writing UF2 files
-#define SYSVIEW_TASK_PRIO           (tskIDLE_PRIORITY + 6)        // target -> host via SysView
-#define UART_TASK_PRIO              (tskIDLE_PRIORITY + 5)        // target -> host via UART
-#define CDC_DEBUG_TASK_PRIO         (tskIDLE_PRIORITY + 4)        // probe debugging output
-#define DAP_TASK_PRIO               (tskIDLE_PRIORITY + 3)        // DAP execution, during connection this takes the other core
-#define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 1)        // target -> host via RTT, ATTENTION: this task can fully load the CPU
+#define SYSVIEW_TASK_PRIO           (tskIDLE_PRIORITY + 6)        // target -> host via SysView (CDC)
+#define UART_TASK_PRIO              (tskIDLE_PRIORITY + 5)        // target -> host via UART (CDC)
+#define CDC_DEBUG_TASK_PRIO         (tskIDLE_PRIORITY + 4)        // probe debugging output (CDC)
+#define DAPV2_TASK_PRIO             (tskIDLE_PRIORITY + 3)        // DAPv2 execution
+#define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 1)        // target -> host via RTT, ATTENTION: this task can fully load the CPU depending on target RTT output
 
 static TaskHandle_t tud_taskhandle;
 static TaskHandle_t dap_taskhandle;
@@ -428,6 +429,7 @@ void print_task_stat(void *ptr)
                 all_delta_tick_sum_us += ticks_us;
                 sum_tick_ms[task_ndx] += (ticks_us + 500) / 1000;
             }
+            printf("uptime [s]      : %lu\n", clock() / CLOCKS_PER_SEC);
             printf("delta tick sum  : %lu\n", all_delta_tick_sum_us);
 
             printf("NUM PRI  S/AM  CPU  TOT STACK  NAME\n");
@@ -540,7 +542,7 @@ void usb_thread(void *ptr)
 #endif
 
 #if OPT_CMSIS_DAPV2
-    xTaskCreate(dap_task, "CMSIS-DAPv2", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);
+    xTaskCreate(dap_task, "CMSIS-DAPv2", configMINIMAL_STACK_SIZE, NULL, DAPV2_TASK_PRIO, &dap_taskhandle);
 #endif
 
 #if configGENERATE_RUN_TIME_STATS
