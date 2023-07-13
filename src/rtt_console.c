@@ -241,7 +241,12 @@ static void rtt_from_target_thread(void *)
  */
 {
     for (;;) {
-        xEventGroupWaitBits(events, EV_RTT_FROM_TARGET_STRT, pdTRUE, pdFALSE, portMAX_DELAY);
+        EventBits_t ev;
+
+        ev = xEventGroupWaitBits(events, EV_RTT_FROM_TARGET_STRT, pdTRUE, pdFALSE, portMAX_DELAY);
+        if (ev == 0) {
+            continue;
+        }
 
         ft_ok = swd_read_word(ft_rtt_cb + offsetof(SEGGER_RTT_CB, aUp[ft_channel].WrOff), (uint32_t *)&(ft_aUp->WrOff));
 
@@ -281,6 +286,7 @@ static bool rtt_from_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER
     ft_cnt = data_to_host(NULL, 0);
     if (ft_cnt < sizeof(ft_buf) / 4) {
         //printf("no space in stream %d: %d\n", channel, ft_cnt);
+        *worked = true;
     }
     else {
         ft_aUp = aUp;
@@ -291,7 +297,7 @@ static bool rtt_from_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER
         xEventGroupWaitBits(events, EV_RTT_FROM_TARGET_END, pdTRUE, pdFALSE, portMAX_DELAY);
 
         if (ft_cnt != 0) {
-            // direct received data to host
+            // redirect received data to host
             data_to_host(ft_buf, ft_cnt);
 
             led_state(LS_RTT_RX_DATA);
@@ -312,9 +318,9 @@ static bool rtt_from_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER
         //*worked = true;
     }
     else {
-        ft_aUp = aUp;
-        ft_channel = channel;
-        ft_rtt_cb = rtt_cb;
+//        ft_aUp = aUp;
+//        ft_channel = channel;
+//        ft_rtt_cb = rtt_cb;
 
         xEventGroupSetBits(events, EV_RTT_FROM_TARGET_STRT);
         xEventGroupWaitBits(events, EV_RTT_FROM_TARGET_END, pdTRUE, pdFALSE, portMAX_DELAY);
@@ -444,24 +450,24 @@ static void do_rtt_io(uint32_t rtt_cb)
 
 #if OPT_TARGET_UART
         {
-            static bool worked_uart = false;
+            static bool working_uart = false;
             static TickType_t lastTimeWorked;
 
-            if ( !worked_uart  &&  xTaskGetTickCount() - lastTimeWorked < pdMS_TO_TICKS(RTT_CONSOLE_POLL_INT_MS)) {
+            if ( !working_uart  &&  xTaskGetTickCount() - lastTimeWorked < pdMS_TO_TICKS(RTT_CONSOLE_POLL_INT_MS)) {
                 //
                 // pause console IO for a longer time to let SysView the interface
                 //
             }
             else {
-                worked_uart = false;
+                working_uart = false;
 
                 if (ok_console_from_target)
-                    ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aUpConsole, cdc_uart_write, &worked_uart);
+                    ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aUpConsole, cdc_uart_write, &working_uart);
 
                 if (ok_console_to_target)
-                    ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_console_to_target, RTT_CHANNEL_CONSOLE, &aDownConsole, &worked_uart);
+                    ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_console_to_target, RTT_CHANNEL_CONSOLE, &aDownConsole, &working_uart);
 
-                probe_rtt_cb = probe_rtt_cb  &&  !worked_uart;
+                probe_rtt_cb = probe_rtt_cb  &&  !working_uart;
 
                 lastTimeWorked = xTaskGetTickCount();
             }
@@ -470,18 +476,19 @@ static void do_rtt_io(uint32_t rtt_cb)
 
 #if INCLUDE_SYSVIEW
         {
-            bool worked_sysview = false;
+            bool working_sysview = false;
 
             if (ok_sysview_from_target)
-                ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView, net_sysview_send, &worked_sysview);
+                ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView, net_sysview_send, &working_sysview);
 
             if (ok_sysview_to_target)
-                ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_sysview_to_target, RTT_CHANNEL_SYSVIEW, &aDownSysView, &worked_sysview);
+                ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_sysview_to_target, RTT_CHANNEL_SYSVIEW, &aDownSysView, &working_sysview);
 
-            probe_rtt_cb = probe_rtt_cb  &&  !worked_sysview;
+            probe_rtt_cb = probe_rtt_cb  &&  !working_sysview;
         }
 #endif
 
+        //printf("%d %d\n", ok, probe_rtt_cb);
         if (ok  &&  probe_rtt_cb) {
             // did nothing -> check if RTT channels appeared
             #if OPT_TARGET_UART
@@ -667,9 +674,11 @@ void rtt_console_init(uint32_t task_prio)
         picoprobe_error("rtt_console_init: cannot create task_rtt_console\n");
     }
 
+#ifdef USE_EXTRA_THREAD_FOR_FROM_TARGET
     xTaskCreate(rtt_from_target_thread, "RTT_FROM", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_rtt_from_target_thread);
     if (task_rtt_from_target_thread == NULL)
     {
         picoprobe_error("rtt_console_init: cannot create task_rtt_from_target_thread\n");
     }
+#endif
 }   // rtt_console_init
