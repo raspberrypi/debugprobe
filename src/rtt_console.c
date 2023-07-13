@@ -87,8 +87,6 @@ static EventGroupHandle_t       events;
     #define RTT_CHANNEL_SYSVIEW 1
     #define RTT_POLL_INT_MS     1                                              // faster polling
     static StreamBufferHandle_t stream_rtt_sysview_to_target;                  // small stream for host->probe->target sysview communication
-    static bool ok_sysview_from_target = false;
-    static bool ok_sysview_to_target = false;
 #else
     #define RTT_POLL_INT_MS     RTT_CONSOLE_POLL_INT_MS
 #endif
@@ -274,6 +272,20 @@ static void rtt_from_target_thread(void *)
 
 
 
+static void rtt_from_target_reset(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER_UP *aUp)
+/**
+ * Reset an upstream buffer.
+ */
+{
+//    printf("rtt_from_target_reset(%lx,%d,%p)\n", rtt_cb, channel, aUp);
+
+    swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[channel].WrOff), (uint32_t *)&(aUp->WrOff));
+    aUp->RdOff = aUp->WrOff;
+    swd_write_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[channel].RdOff), aUp->RdOff);
+}   // rtt_from_target_reset
+
+
+
 static bool rtt_from_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER_UP *aUp,
                             rtt_data_to_host data_to_host, bool *worked)
 {
@@ -376,8 +388,9 @@ static void do_rtt_io(uint32_t rtt_cb)
 #if INCLUDE_SYSVIEW
     SEGGER_RTT_BUFFER_UP   aUpSysView;       // Up buffer, transferring information up from target via debug probe to host
     SEGGER_RTT_BUFFER_DOWN aDownSysView;     // Down buffer, transferring information from host via debug probe to target
-    ok_sysview_from_target = false;
-    ok_sysview_to_target = false;
+    bool ok_sysview_from_target = false;
+    bool ok_sysview_to_target = false;
+    bool net_sysview_was_connected = false;
 #endif
     bool ok = true;
 
@@ -424,6 +437,10 @@ static void do_rtt_io(uint32_t rtt_cb)
         if (net_sysview_is_connected()) {
             bool working_sysview = false;
 
+            if ( !net_sysview_was_connected) {
+                net_sysview_was_connected = true;
+                rtt_from_target_reset(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView);
+            }
             if (ok_sysview_from_target)
                 ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView, net_sysview_send, &working_sysview);
 
@@ -431,6 +448,9 @@ static void do_rtt_io(uint32_t rtt_cb)
                 ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_sysview_to_target, RTT_CHANNEL_SYSVIEW, &aDownSysView, &working_sysview);
 
             probe_rtt_cb = probe_rtt_cb  &&  !working_sysview;
+        }
+        else {
+            net_sysview_was_connected = false;
         }
 #endif
 
