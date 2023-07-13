@@ -259,7 +259,7 @@ void netd_init(void)
  * context: TinyUSB
  */
 {
-    printf("netd_init() [%p]\n", xTaskGetCurrentTaskHandle());
+//    printf("netd_init() [%p]\n", xTaskGetCurrentTaskHandle());
 
     tu_memclr(&ncm_interface, sizeof(ncm_interface));
     ncm_prepare_for_tx();
@@ -276,7 +276,7 @@ void netd_reset(uint8_t rhport)
 {
     (void) rhport;
 
-    printf("netd_reset(%d) [%p]\n", rhport, xTaskGetCurrentTaskHandle());
+//    printf("netd_reset(%d) [%p]\n", rhport, xTaskGetCurrentTaskHandle());
 
     netd_init();
 }
@@ -293,7 +293,7 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16
     // confirm interface hasn't already been allocated
     TU_ASSERT(0 == ncm_interface.ep_notif, 0);
 
-    printf("netd_open(%d,%p,%d) [%p]\n", rhport, itf_desc, max_len, xTaskGetCurrentTaskHandle());
+//    printf("netd_open(%d,%p,%d) [%p]\n", rhport, itf_desc, max_len, xTaskGetCurrentTaskHandle());
 
     //------------- Management Interface -------------//
     ncm_interface.itf_num = itf_desc->bInterfaceNumber;
