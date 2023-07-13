@@ -371,6 +371,7 @@ SUBSYSTEM=="usb", ATTR{idVendor}=="2e8a", ATTR{idProduct}=="000c", MODE:="0666"
 ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-UART",    MODE:="0666", SYMLINK+="ttyPicoTarget"
 ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-DEBUG",   MODE:="0666", SYMLINK+="ttyPicoProbe"
 ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-SIGROK",  MODE:="0666", SYMLINK+="ttyPicoSigRok
+ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-SysView", MODE:="0666", SYMLINK+="ttyPicoSysView"
 
 # mount Picoprobe to /media/picoprobe
 ACTION=="add", SUBSYSTEMS=="usb", SUBSYSTEM=="block", ENV{ID_FS_USAGE}=="filesystem", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000c", RUN+="/usr/bin/logger --tag picoprobe-mount Mounting what seems to be a Raspberry Pi Picoprobe", RUN+="/usr/bin/systemd-mount --no-block --collect --fsck=0 -o uid=hardy,gid=hardy,flush $devnode /media/picoprobe"
