@@ -43,7 +43,7 @@
 #include "picoprobe_config.h"
 
 
-#define STREAM_PRINTF_SIZE    32768
+#define STREAM_PRINTF_SIZE    4096
 #define STREAM_PRINTF_TRIGGER 32
 
 static TaskHandle_t           task_printf = NULL;
