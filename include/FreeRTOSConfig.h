@@ -78,7 +78,7 @@
 /* Memory allocation related definitions. */
 #define configSUPPORT_STATIC_ALLOCATION         1
 #define configSUPPORT_DYNAMIC_ALLOCATION        1
-#define configTOTAL_HEAP_SIZE                   (150*1024)
+#define configTOTAL_HEAP_SIZE                   (90*1024)
 #define configAPPLICATION_ALLOCATED_HEAP        0
 
 /* Hook function related definitions. */
@@ -97,6 +97,9 @@
     #warning "configGENERATE_RUN_TIME_STATS is set"
     #define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS()        do {} while( 0 )
     #define portALT_GET_RUN_TIME_COUNTER_VALUE( dest )      ( dest = *((uint32_t *)(TF_TIMER_BASE + TF_TIMER_TIMERAWL_OFFSET)) )
+
+    #undef configUSE_TRACE_FACILITY
+    #define configUSE_TRACE_FACILITY            1
 #endif
 
 /* Co-routine related definitions. */

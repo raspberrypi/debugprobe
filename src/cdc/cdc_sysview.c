@@ -144,7 +144,7 @@ void cdc_sysview_line_state_cb(bool dtr, bool rts)
  * This seems to be necessary to survive e.g. a restart of the host (Linux)
  */
 {
-    printf("cdc_sysview_line_state_cb(%d,%d)\n", dtr, rts);
+    //printf("cdc_sysview_line_state_cb(%d,%d)\n", dtr, rts);
 
     tud_cdc_n_write_clear(CDC_SYSVIEW_N);
     tud_cdc_n_read_flush(CDC_SYSVIEW_N);
@@ -171,6 +171,13 @@ void cdc_sysview_rx_cb()
 
 
 
+bool net_sysview_is_connected(void)
+{
+    return m_connected;
+}   // net_sysview_is_connected
+
+
+
 uint32_t net_sysview_send(const uint8_t *buf, uint32_t cnt)
 /**
  * Send characters from SysView RTT channel into stream.
@@ -188,7 +195,7 @@ uint32_t net_sysview_send(const uint8_t *buf, uint32_t cnt)
         r = xStreamBufferSpacesAvailable(stream_sysview);
     }
     else {
-        if ( !m_connected) {
+        if ( !net_sysview_is_connected()) {
             xStreamBufferReset(stream_sysview);
         }
         else {
@@ -212,6 +219,6 @@ void cdc_sysview_init(uint32_t task_prio)
         picoprobe_error("cdc_sysview_init: cannot create stream_sysview\n");
     }
 
-    xTaskCreate(cdc_thread, "CDC_SysView", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_sysview);
+    xTaskCreate(cdc_thread, "CDC-SysViewUart", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_sysview);
     cdc_sysview_line_state_cb(false, false);
 }   // cdc_sysview_init

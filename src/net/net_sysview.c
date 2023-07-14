@@ -23,6 +23,12 @@
  *
  */
 
+//----------------------------------------------------------------------------------------------------------------------
+//
+// TCP server for SystemView
+// - using NCM because it is driver free for Windows / Linux / iOS
+// - we leave the IPv6 stuff outside
+//
 
 #include "FreeRTOS.h"
 #include "stream_buffer.h"
@@ -131,12 +137,14 @@ static void sysview_try_send(void *ctx)
             if (cnt != 0) {
                 // the write has either 512 bytes (so send it) or the stream is empty (so send it as well)
                 err = tcp_write(m_pcb_client, tx_buf, cnt, TCP_WRITE_FLAG_COPY);
+                //printf("sysview_try_send: %d %d\n", cnt, block_call_to_tcp_output);
                 if (err != ERR_OK) {
                     picoprobe_error("sysview_try_send/a: %d\n", err);
                     sysview_close(m_pcb_client);
                 }
                 
-                if ( !block_call_to_tcp_output  &&  tcp_sndbuf(m_pcb_client) < TCP_SND_BUF / 2) {
+                if ( !block_call_to_tcp_output  &&  tcp_sndbuf(m_pcb_client) < 2 * TCP_SND_BUF / 4) {
+                    //printf("sysview_try_send: flush %d %d\n", tcp_sndbuf(m_pcb_client), 3 * TCP_SND_BUF / 4);
                     block_call_to_tcp_output = true;
                     tcp_output(m_pcb_client);
                 }
@@ -144,6 +152,14 @@ static void sysview_try_send(void *ctx)
                 if ( !xStreamBufferIsEmpty(stream_sysview_to_host)) {
                     tcpip_callback_with_block(sysview_try_send, NULL, 0);
                 }
+            }
+        }
+        else {
+//            printf("sysview_try_send: no tcp_sndbuf!!!!\n");
+            if ( !block_call_to_tcp_output) {
+                //printf("sysview_try_send: flush\n");
+                block_call_to_tcp_output = true;
+                tcp_output(m_pcb_client);
             }
         }
     }
@@ -250,7 +266,8 @@ err_t sysview_poll(void *arg, struct tcp_pcb *tpcb)
 {
     //printf("sysview_poll(%p,%p) %d\n", arg, tpcb, m_state);
 
-    sysview_try_send(NULL);
+    //sysview_try_send(NULL);
+    tcpip_callback_with_block(sysview_try_send, NULL, 0);
     return ERR_OK;
 }   // sysview_poll
 
@@ -273,6 +290,14 @@ static err_t sysview_accept(void *arg, struct tcp_pcb *newpcb, err_t err)
     return ERR_OK;
 }   // sysview_accept
 
+// TODO recheck here
+
+
+bool net_sysview_is_connected(void)
+{
+    return m_state == SVS_READY;
+}   // net_sysview_is_connected
+
 
 
 uint32_t net_sysview_send(const uint8_t *buf, uint32_t cnt)
@@ -281,7 +306,7 @@ uint32_t net_sysview_send(const uint8_t *buf, uint32_t cnt)
  *
  * \param buf  pointer to the buffer to be sent, if NULL then remaining space in stream is returned
  * \param cnt  number of bytes to be sent
- * \return if \buf is NULL the remaining space in stream is returned, otherwise the number of bytes
+ * \return if \buf is NULL the remaining space in stream is returned, otherwise the number of bytes sent
  */
 {
     uint32_t r = 0;
@@ -295,7 +320,7 @@ uint32_t net_sysview_send(const uint8_t *buf, uint32_t cnt)
         r = xStreamBufferSpacesAvailable(stream_sysview_to_host);
     }
     else {
-        if (m_state != SVS_READY)
+        if ( !net_sysview_is_connected())
         {
             xStreamBufferReset(stream_sysview_to_host);
         }

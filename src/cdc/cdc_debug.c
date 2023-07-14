@@ -79,7 +79,7 @@ void cdc_debug_thread(void *ptr)
         if (xStreamBufferIsEmpty(stream_printf)) {
             // -> end of transmission: flush and sleep for a long time (or until new data is available)
             tud_cdc_n_write_flush(CDC_DEBUG_N);
-            xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
+            xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM, pdTRUE, pdFALSE, pdMS_TO_TICKS(1000));
         }
         else {
             size_t cnt;
@@ -255,7 +255,7 @@ void cdc_debug_init(uint32_t task_prio)
         panic("cdc_debug_init: cannot create sema_printf\n");
     }
 
-    xTaskCreate(cdc_debug_thread, "CDC_DEBUG", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_printf);
+    xTaskCreate(cdc_debug_thread, "CDC-ProbeUart", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_printf);
     cdc_debug_line_state_cb(false, false);
 
     stdio_set_driver_enabled(&stdio_cdc, true);

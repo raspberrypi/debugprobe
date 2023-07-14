@@ -31,7 +31,8 @@ option(OPT_PROBE_DEBUG_OUT     "Enable CDC for probe debug output"      ${DEFAUL
 option(OPT_SIGROK              "Enable sigrok"                          0)
 option(OPT_MSC                 "Enable Mass Storage Device"             1)
 option(OPT_MSC_RAM_UF2         "Enable file 'RAM.UF2' on Mass Storage"  1)
-set(OPT_NET                    "NCM" CACHE STRING "Enable lwIP on the Pico via ECM/NCM/RNDIS")
+set(OPT_MCU_OVERCLOCK_MHZ      "240" CACHE STRING "Set processor frequency. Should be a multiple of 24MHz, disable with empty string (=120MHz)")
+set(OPT_NET                    "NCM" CACHE STRING "Enable lwIP on the Pico via NCM/ECM/RNDIS, disable NET with empty string")
 set(OPT_NET_192_168            14 CACHE STRING "Set the subnet of 192.168.x")
 option(OPT_NET_ECHO_SERVER     "Enable echo server for testing"         1)
 option(OPT_NET_IPERF_SERVER    "Enable iperf server for tuning"         1)
@@ -95,6 +96,9 @@ add_definitions(
         -DTARGET_BOARD_${PICO_BOARD_UPPER}
         -DOPT_SPECIAL_CLK_FOR_PIO=${OPT_SPECIAL_CLK_FOR_PIO}
 )
+if(NOT OPT_MCU_OVERCLOCK_MHZ STREQUAL "")
+    add_compile_definitions(OPT_MCU_OVERCLOCK_MHZ=${OPT_MCU_OVERCLOCK_MHZ})
+endif()
 
 # set version string to "x.yy"
 # there are perhaps smarter ways...
@@ -257,7 +261,18 @@ if(NOT OPT_NET STREQUAL "")
         ${PICO_TINYUSB_PATH}/lib/networking/dhserver.c
     )
 
-    if(NOT OPT_NET STREQUAL "NCM")
+    if(OPT_NET STREQUAL "NCM")
+        # NCM: use own copy of ncm_device, original one is removed from target_sources() with a trick
+        message("--------- " ${PICO_TINYUSB_PATH})
+        target_sources(${PROJECT} PRIVATE
+            src/net/tinyusb/ncm_device_simple.c
+        )
+        set_source_files_properties(
+            ${PICO_TINYUSB_PATH}/src/class/net/ncm_device.c
+            PROPERTIES HEADER_FILE_ONLY ON
+        )
+    else()
+        # !NCM
         target_sources(${PROJECT} PRIVATE
             ${PICO_TINYUSB_PATH}/lib/networking/rndis_reports.c
         )

@@ -87,8 +87,6 @@ static EventGroupHandle_t       events;
     #define RTT_CHANNEL_SYSVIEW 1
     #define RTT_POLL_INT_MS     1                                              // faster polling
     static StreamBufferHandle_t stream_rtt_sysview_to_target;                  // small stream for host->probe->target sysview communication
-    static bool ok_sysview_from_target = false;
-    static bool ok_sysview_to_target = false;
 #else
     #define RTT_POLL_INT_MS     RTT_CONSOLE_POLL_INT_MS
 #endif
@@ -174,7 +172,7 @@ static bool rtt_check_channel_from_target(uint32_t rtt_cb, uint16_t channel, SEG
     ok = ok  &&  (aUp->SizeOfBuffer > 0  &&  aUp->SizeOfBuffer < TARGET_RAM_END - TARGET_RAM_START);
     ok = ok  &&  ((uint32_t)aUp->pBuffer >= TARGET_RAM_START  &&  (uint32_t)aUp->pBuffer + aUp->SizeOfBuffer <= TARGET_RAM_END);
     if (ok) {
-        picoprobe_info("rtt_check_channel_from_target: %u %p %u %u %u\n", channel, aUp->pBuffer, aUp->SizeOfBuffer, aUp->RdOff, aUp->WrOff);
+        picoprobe_info("rtt_check_channel_from_target: %u %p %5u %5u %5u\n", channel, aUp->pBuffer, aUp->SizeOfBuffer, aUp->RdOff, aUp->WrOff);
     }
     return ok;
 }   // rtt_check_channel_from_target
@@ -193,7 +191,7 @@ static bool rtt_check_channel_to_target(uint32_t rtt_cb, uint16_t channel, SEGGE
     ok = ok  &&  (aDown->SizeOfBuffer > 0  &&  aDown->SizeOfBuffer < TARGET_RAM_END - TARGET_RAM_START);
     ok = ok  &&  ((uint32_t)aDown->pBuffer >= TARGET_RAM_START  &&  (uint32_t)aDown->pBuffer + aDown->SizeOfBuffer <= TARGET_RAM_END);
     if (ok) {
-        picoprobe_info("rtt_check_channel_to_target: %u %p %u %u %u\n", channel, aDown->pBuffer, aDown->SizeOfBuffer, aDown->RdOff, aDown->WrOff);
+        picoprobe_info("rtt_check_channel_to_target  : %u %p %5u %5u %5u\n", channel, aDown->pBuffer, aDown->SizeOfBuffer, aDown->RdOff, aDown->WrOff);
     }
     return ok;
 }   // rtt_check_channel_to_target
@@ -222,10 +220,6 @@ static unsigned rtt_get_write_space(SEGGER_RTT_BUFFER_DOWN *pRing)
 
 
 
-#define USE_EXTRA_THREAD_FOR_FROM_TARGET
-
-#ifdef USE_EXTRA_THREAD_FOR_FROM_TARGET
-
 static SEGGER_RTT_BUFFER_UP *ft_aUp;
 static uint16_t ft_channel;
 static uint32_t ft_rtt_cb;
@@ -235,13 +229,19 @@ static bool ft_ok;
 
 static void rtt_from_target_thread(void *)
 /**
+ * Fetch RTT data from target.
  * Data transfer is CPU intensive, because SWD access is blocking the CPU.
  * So the idea is to put this task in an extra thread with affinity to the second core.
  * Core affinity is set in \a main.c
  */
 {
     for (;;) {
-        xEventGroupWaitBits(events, EV_RTT_FROM_TARGET_STRT, pdTRUE, pdFALSE, portMAX_DELAY);
+        EventBits_t ev;
+
+        ev = xEventGroupWaitBits(events, EV_RTT_FROM_TARGET_STRT, pdTRUE, pdFALSE, portMAX_DELAY);
+        if (ev == 0) {
+            continue;
+        }
 
         ft_ok = swd_read_word(ft_rtt_cb + offsetof(SEGGER_RTT_CB, aUp[ft_channel].WrOff), (uint32_t *)&(ft_aUp->WrOff));
 
@@ -270,17 +270,29 @@ static void rtt_from_target_thread(void *)
     }
 }   // rtt_from_target_thread
 
-#endif
+
+
+static void rtt_from_target_reset(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER_UP *aUp)
+/**
+ * Reset an upstream buffer.
+ */
+{
+//    printf("rtt_from_target_reset(%lx,%d,%p)\n", rtt_cb, channel, aUp);
+
+    swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[channel].WrOff), (uint32_t *)&(aUp->WrOff));
+    aUp->RdOff = aUp->WrOff;
+    swd_write_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[channel].RdOff), aUp->RdOff);
+}   // rtt_from_target_reset
 
 
 
 static bool rtt_from_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER_UP *aUp,
                             rtt_data_to_host data_to_host, bool *worked)
 {
-#ifdef USE_EXTRA_THREAD_FOR_FROM_TARGET
     ft_cnt = data_to_host(NULL, 0);
     if (ft_cnt < sizeof(ft_buf) / 4) {
         //printf("no space in stream %d: %d\n", channel, ft_cnt);
+        *worked = true;
     }
     else {
         ft_aUp = aUp;
@@ -291,7 +303,7 @@ static bool rtt_from_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER
         xEventGroupWaitBits(events, EV_RTT_FROM_TARGET_END, pdTRUE, pdFALSE, portMAX_DELAY);
 
         if (ft_cnt != 0) {
-            // direct received data to host
+            // redirect received data to host
             data_to_host(ft_buf, ft_cnt);
 
             led_state(LS_RTT_RX_DATA);
@@ -299,54 +311,6 @@ static bool rtt_from_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER
         }
     }
     return ft_ok;
-#else
-    bool ok = true;
-    uint8_t buf[256];
-    uint32_t cnt;
-
-    assert(data_to_host != NULL);
-
-    cnt = data_to_host(NULL, 0);
-    if (cnt < sizeof(buf) / 4) {
-        //printf("no space in stream %d: %d\n", channel, cnt);
-        //*worked = true;
-    }
-    else {
-        ft_aUp = aUp;
-        ft_channel = channel;
-        ft_rtt_cb = rtt_cb;
-
-        xEventGroupSetBits(events, EV_RTT_FROM_TARGET_STRT);
-        xEventGroupWaitBits(events, EV_RTT_FROM_TARGET_END, pdTRUE, pdFALSE, portMAX_DELAY);
-
-        ok = ok  &&  swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[channel].WrOff), (uint32_t *)&(aUp->WrOff));
-
-        if (ok  &&  aUp->WrOff != aUp->RdOff) {
-            //
-            // fetch data from target
-            //
-            if (aUp->WrOff > aUp->RdOff) {
-                cnt = MIN(cnt, aUp->WrOff - aUp->RdOff);
-            }
-            else {
-                cnt = MIN(cnt, aUp->SizeOfBuffer - aUp->RdOff);
-            }
-            cnt = MIN(cnt, sizeof(buf));
-
-            memset(buf, 0, sizeof(buf));
-            ok = ok  &&  swd_read_memory((uint32_t)aUp->pBuffer + aUp->RdOff, buf, cnt);
-            aUp->RdOff = (aUp->RdOff + cnt) % aUp->SizeOfBuffer;
-            ok = ok  &&  swd_write_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[channel].RdOff), aUp->RdOff);
-
-            // direct received data to host
-            data_to_host(buf, cnt);
-
-            led_state(LS_RTT_RX_DATA);
-            *worked = true;
-        }
-    }
-    return ok;
-#endif
 }   // rtt_from_target
 
 
@@ -424,8 +388,9 @@ static void do_rtt_io(uint32_t rtt_cb)
 #if INCLUDE_SYSVIEW
     SEGGER_RTT_BUFFER_UP   aUpSysView;       // Up buffer, transferring information up from target via debug probe to host
     SEGGER_RTT_BUFFER_DOWN aDownSysView;     // Down buffer, transferring information from host via debug probe to target
-    ok_sysview_from_target = false;
-    ok_sysview_to_target = false;
+    bool ok_sysview_from_target = false;
+    bool ok_sysview_to_target = false;
+    bool net_sysview_was_connected = false;
 #endif
     bool ok = true;
 
@@ -444,24 +409,24 @@ static void do_rtt_io(uint32_t rtt_cb)
 
 #if OPT_TARGET_UART
         {
-            static bool worked_uart = false;
+            static bool working_uart = false;
             static TickType_t lastTimeWorked;
 
-            if ( !worked_uart  &&  xTaskGetTickCount() - lastTimeWorked < pdMS_TO_TICKS(RTT_CONSOLE_POLL_INT_MS)) {
+            if ( !working_uart  &&  xTaskGetTickCount() - lastTimeWorked < pdMS_TO_TICKS(RTT_CONSOLE_POLL_INT_MS)) {
                 //
                 // pause console IO for a longer time to let SysView the interface
                 //
             }
             else {
-                worked_uart = false;
+                working_uart = false;
 
                 if (ok_console_from_target)
-                    ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aUpConsole, cdc_uart_write, &worked_uart);
+                    ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aUpConsole, cdc_uart_write, &working_uart);
 
                 if (ok_console_to_target)
-                    ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_console_to_target, RTT_CHANNEL_CONSOLE, &aDownConsole, &worked_uart);
+                    ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_console_to_target, RTT_CHANNEL_CONSOLE, &aDownConsole, &working_uart);
 
-                probe_rtt_cb = probe_rtt_cb  &&  !worked_uart;
+                probe_rtt_cb = probe_rtt_cb  &&  !working_uart;
 
                 lastTimeWorked = xTaskGetTickCount();
             }
@@ -469,19 +434,27 @@ static void do_rtt_io(uint32_t rtt_cb)
 #endif
 
 #if INCLUDE_SYSVIEW
-        {
-            bool worked_sysview = false;
+        if (net_sysview_is_connected()) {
+            bool working_sysview = false;
 
+            if ( !net_sysview_was_connected) {
+                net_sysview_was_connected = true;
+                rtt_from_target_reset(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView);
+            }
             if (ok_sysview_from_target)
-                ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView, net_sysview_send, &worked_sysview);
+                ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView, net_sysview_send, &working_sysview);
 
             if (ok_sysview_to_target)
-                ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_sysview_to_target, RTT_CHANNEL_SYSVIEW, &aDownSysView, &worked_sysview);
+                ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_sysview_to_target, RTT_CHANNEL_SYSVIEW, &aDownSysView, &working_sysview);
 
-            probe_rtt_cb = probe_rtt_cb  &&  !worked_sysview;
+            probe_rtt_cb = probe_rtt_cb  &&  !working_sysview;
+        }
+        else {
+            net_sysview_was_connected = false;
         }
 #endif
 
+        //printf("%d %d\n", ok, probe_rtt_cb);
         if (ok  &&  probe_rtt_cb) {
             // did nothing -> check if RTT channels appeared
             #if OPT_TARGET_UART
@@ -538,7 +511,7 @@ void rtt_io_thread(void *ptr)
     bool target_online = false;
 
     for (;;) {
-        sw_lock("RTT", false);
+        sw_lock("RTT-IO", false);
         // post: we have the interface
 
         if ( !target_online) {
@@ -585,7 +558,7 @@ void rtt_io_thread(void *ptr)
             target_disconnect();
             vTaskDelay(pdMS_TO_TICKS(200));        // some guard time after disconnect
         }
-        sw_unlock("RTT");
+        sw_unlock("RTT-IO");
         vTaskDelay(pdMS_TO_TICKS(300));            // give the other task the opportunity to catch sw_lock();
     }
 }   // rtt_io_thread
@@ -661,13 +634,13 @@ void rtt_console_init(uint32_t task_prio)
     }
 #endif
 
-    xTaskCreate(rtt_io_thread, "RTT", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_rtt_console);
+    xTaskCreate(rtt_io_thread, "RTT-IO", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_rtt_console);
     if (task_rtt_console == NULL)
     {
         picoprobe_error("rtt_console_init: cannot create task_rtt_console\n");
     }
 
-    xTaskCreate(rtt_from_target_thread, "RTT_FROM", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_rtt_from_target_thread);
+    xTaskCreate(rtt_from_target_thread, "RTT-From", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_rtt_from_target_thread);
     if (task_rtt_from_target_thread == NULL)
     {
         picoprobe_error("rtt_console_init: cannot create task_rtt_from_target_thread\n");

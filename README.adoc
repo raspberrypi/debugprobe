@@ -99,7 +99,7 @@ containing the steps from installation until debugging in VSCode.
 |yes 
 |`openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c "adapter speed 25000"    -c "program {firmware.elf}  verify reset; shutdown;"`
 
-|pyOCD 0.34.x
+|pyOCD 0.34 & 0.35
 |yes
 |yes
 |`pyocd flash -f 400000 -t nrf52840 firmware.elf`
@@ -371,6 +371,7 @@ SUBSYSTEM=="usb", ATTR{idVendor}=="2e8a", ATTR{idProduct}=="000c", MODE:="0666"
 ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-UART",    MODE:="0666", SYMLINK+="ttyPicoTarget"
 ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-DEBUG",   MODE:="0666", SYMLINK+="ttyPicoProbe"
 ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-SIGROK",  MODE:="0666", SYMLINK+="ttyPicoSigRok
+ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-SysView", MODE:="0666", SYMLINK+="ttyPicoSysView"
 
 # mount Picoprobe to /media/picoprobe
 ACTION=="add", SUBSYSTEMS=="usb", SUBSYSTEM=="block", ENV{ID_FS_USAGE}=="filesystem", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000c", RUN+="/usr/bin/logger --tag picoprobe-mount Mounting what seems to be a Raspberry Pi Picoprobe", RUN+="/usr/bin/systemd-mount --no-block --collect --fsck=0 -o uid=hardy,gid=hardy,flush $devnode /media/picoprobe"
@@ -383,8 +384,11 @@ ACTION=="remove", SUBSYSTEMS=="usb", SUBSYSTEM=="block", ENV{ID_FS_USAGE}=="file
 
 ### Network Configuration
 
-SystemView connectivity over TCP/IP is on most systems not configuration free.  On Debian the configuration
-is as follows:
+SystemView connectivity over TCP/IP is on most systems not configuration free.  
+
+#### Debian
+
+On Debian the configuration is as follows:
 
 * after connecting the probe with the host, `ip a` shows its network interface, e.g. `enxfe<your-probe>`.
   If the network interface already shows an IP address everything is fine and you are ready
@@ -401,6 +405,27 @@ On my system this unfortunately leads to error messages (which are harmless) if 
 
 The default address of the probe is 192.168.14.1.  If there is a collision with the current setup of the
 host, the probe firmware has to be rebuilt with `-DOPT_NET_192_168=<subnet>`.
+
+#### Win10
+
+A certain version of Win10 is required for USB-NCM connectivity.  Exact version is unknown.
+
+The driver needs to be installed manually.  Procedure is roughly as follows:
+
+* in "Device Manager" search for `YaPicoprobe NCM` with an exclamation mark
+* "Update Driver"
+* "Browse my computer for drivers"
+* "Let me pick..."
+* "Network adapters"
+* "Microsoft"
+* "UsbNcm Host Device" - if this is not available, then the version of Win10 is not ready for USB-NCM
+* confirm any dialog boxes
+* if `ipconfig` on a command line shows `192.168.14.2` for an Ethernet adapter, the procedure has most likely
+  succeeded and SystemView is ready for operation
+
+#### Win11
+
+It is said, that USB-NCM is working out of the box.  This is not tested.
 
 
 ### PlatformIO [[platformio]]

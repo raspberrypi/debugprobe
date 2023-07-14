@@ -37,6 +37,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <time.h>
 #include "hardware/vreg.h"
 
 #include "bsp/board.h"
@@ -117,20 +118,21 @@ static uint8_t RxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZ
 
 
 // prios are critical and determine throughput
-// there is one more task prio in lwipopts.h
-#define TUD_TASK_PRIO               (tskIDLE_PRIORITY + 20)       // uses one core continuously (no longer valid with FreeRTOS usage)
-#define LED_TASK_PRIO               (tskIDLE_PRIORITY + 12)       // simple task which may interrupt everything else for periodic blinking
+#define LED_TASK_PRIO               (tskIDLE_PRIORITY + 30)       // simple task which may interrupt everything else for periodic blinking
+#define TUD_TASK_PRIO               (tskIDLE_PRIORITY + 28)       // high prio for TinyUSB
+//#define TCPIP_THREAD_PRIO           (27)                        // defined in lwipopts.h
+#define CDC_DEBUG_TASK_PRIO         (tskIDLE_PRIORITY + 26)       // probe debugging output (CDC)
+#define PRINT_STATUS_TASK_PRIO      (tskIDLE_PRIORITY + 24)       // high prio to get status output transferred in (almost) any case
 #define SIGROK_TASK_PRIO            (tskIDLE_PRIORITY + 9)        // Sigrok digital/analog signals (does nothing at the moment)
 #define MSC_WRITER_THREAD_PRIO      (tskIDLE_PRIORITY + 8)        // this is only running on writing UF2 files
-#define SYSVIEW_TASK_PRIO           (tskIDLE_PRIORITY + 6)        // target -> host via SysView
-#define UART_TASK_PRIO              (tskIDLE_PRIORITY + 5)        // target -> host via UART
-#define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 4)        // target -> host via RTT
-#define CDC_DEBUG_TASK_PRIO         (tskIDLE_PRIORITY + 4)        // probe debugging output
-#define DAP_TASK_PRIO               (tskIDLE_PRIORITY + 2)        // DAP execution, during connection this takes the other core
+#define SYSVIEW_TASK_PRIO           (tskIDLE_PRIORITY + 6)        // target -> host via SysView (CDC)
+#define UART_TASK_PRIO              (tskIDLE_PRIORITY + 5)        // target -> host via UART (CDC)
+#define DAPV2_TASK_PRIO             (tskIDLE_PRIORITY + 3)        // DAPv2 execution
+#define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 1)        // target -> host via RTT, ATTENTION: this task can fully load the CPU depending on target RTT output
 
 static TaskHandle_t tud_taskhandle;
 static TaskHandle_t dap_taskhandle;
-static EventGroupHandle_t events;
+static EventGroupHandle_t dap_events;
 
 
 
@@ -224,7 +226,7 @@ void tud_cdc_tx_complete_cb(uint8_t itf)
 void tud_vendor_rx_cb(uint8_t itf)
 {
     if (itf == 0) {
-        xEventGroupSetBits(events, 0x01);
+        xEventGroupSetBits(dap_events, 0x01);
     }
 }   // tud_vendor_rx_cb
 #endif
@@ -272,7 +274,7 @@ void dap_task(void *ptr)
             tool = DAP_FingerprintTool(NULL, 0);
         }
 
-        xEventGroupWaitBits(events, 0x01, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));  // TODO "pyocd reset -f 500000" does otherwise not disconnect
+        xEventGroupWaitBits(dap_events, 0x01, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));  // TODO "pyocd reset -f 500000" does otherwise not disconnect
 
         if (tud_vendor_available())
         {
@@ -306,7 +308,7 @@ void dap_task(void *ptr)
                     //
                     // initiate SWD connect / disconnect
                     //
-                    if ( !swd_connected  &&  RxDataBuffer[0] == ID_DAP_Connect) {
+                    if ( !swd_connected  &&  RxDataBuffer[0] != ID_DAP_Info) {
                         if (sw_lock("DAPv2", true)) {
                             swd_connected = true;
                             picoprobe_info("=================================== DAPv2 connect target, host %s\n",
@@ -386,7 +388,7 @@ void print_task_stat(void *ptr)
     TaskStatus_t task_status[TASK_MAX_CNT];
     uint32_t total_run_time;
 
-    vTaskDelay(pdMS_TO_TICKS(100));
+    vTaskDelay(pdMS_TO_TICKS(5000));
 
     timer_task_stat = xTimerCreate("task stat", pdMS_TO_TICKS(10000), pdTRUE, NULL, trigger_task_stat);   // just for fun: exact period of 10s
     events_task_stat = xEventGroupCreate();
@@ -395,6 +397,14 @@ void print_task_stat(void *ptr)
 
     for (;;) {
         printf("---------------------------------------\n");
+
+#if LWIP_STATS
+        {
+            extern void stats_display(void);
+            stats_display();
+            printf("---------------------------------------\n");
+        }
+#endif
 
         printf("TinyUSB counter : %lu\n", tusb_count - prev_tusb_count);
         prev_tusb_count = tusb_count;
@@ -413,8 +423,8 @@ void print_task_stat(void *ptr)
             static uint32_t total_sum_tick_ms;
             uint32_t cnt;
             uint32_t all_delta_tick_sum_us;
-            uint32_t percent_sum;
-            uint32_t percent_total_sum;
+            uint32_t permille_sum;
+            uint32_t permille_total_sum;
 
             cnt = uxTaskGetSystemState(task_status, TASK_MAX_CNT, &total_run_time);
             all_delta_tick_sum_us = 0;
@@ -427,6 +437,7 @@ void print_task_stat(void *ptr)
                 all_delta_tick_sum_us += ticks_us;
                 sum_tick_ms[task_ndx] += (ticks_us + 500) / 1000;
             }
+            printf("uptime [s]      : %lu\n", clock() / CLOCKS_PER_SEC);
             printf("delta tick sum  : %lu\n", all_delta_tick_sum_us);
 
             printf("NUM PRI  S/AM  CPU  TOT STACK  NAME\n");
@@ -435,11 +446,11 @@ void print_task_stat(void *ptr)
             all_delta_tick_sum_us /= configNUM_CORES;
             total_sum_tick_ms += (all_delta_tick_sum_us + 500) / 1000;
 
-            percent_sum = 0;
-            percent_total_sum = 0;
+            permille_sum = 0;
+            permille_total_sum = 0;
             for (uint32_t n = 0;  n < cnt;  ++n) {
-                uint32_t percent;
-                uint32_t percent_total;
+                uint32_t permille;
+                uint32_t permille_total;
                 uint32_t curr_tick;
                 uint32_t delta_tick;
                 uint32_t task_ndx = task_status[n].xTaskNumber;
@@ -447,17 +458,17 @@ void print_task_stat(void *ptr)
                 curr_tick = task_status[n].ulRunTimeCounter;
                 delta_tick = curr_tick - prev_tick_us[task_ndx];
 
-                percent = (delta_tick + all_delta_tick_sum_us / 2000) / (all_delta_tick_sum_us / 1000);
-                percent_total = (1000 * sum_tick_ms[task_ndx] + total_sum_tick_ms / 2) / total_sum_tick_ms;
-                percent_sum += percent;
-                percent_total_sum += percent_total;
+                permille = (delta_tick + all_delta_tick_sum_us / 2000) / (all_delta_tick_sum_us / 1000);
+                permille_total = (sum_tick_ms[task_ndx] + total_sum_tick_ms / 2000) / (total_sum_tick_ms / 1000);
+                permille_sum += permille;
+                permille_total_sum += permille_total;
 
 #if defined(configUSE_CORE_AFFINITY)  &&  configUSE_CORE_AFFINITY != 0
                 printf("%3lu  %2lu  %c/%2d %4lu %4lu %5lu  %s\n",
                                task_status[n].xTaskNumber,
                                task_status[n].uxCurrentPriority,
                                task_state(task_status[n].eCurrentState), (int)task_status[n].uxCoreAffinityMask,
-                               percent, percent_total,
+                               permille, permille_total,
                                task_status[n].usStackHighWaterMark,
                                task_status[n].pcTaskName);
 #else
@@ -465,7 +476,7 @@ void print_task_stat(void *ptr)
                                task_status[n].xTaskNumber,
                                task_status[n].uxCurrentPriority,
                                task_state(task_status[n].eCurrentState), 1,
-                               percent, percent_total,
+                               permille, permille_total,
                                task_status[n].usStackHighWaterMark,
                                task_status[n].pcTaskName);
 #endif
@@ -473,7 +484,7 @@ void print_task_stat(void *ptr)
                 prev_tick_us[task_ndx] = curr_tick;
             }
             printf("---------------------------------------\n");
-            printf("              %4lu %4lu\n", percent_sum, percent_total_sum);
+            printf("              %4lu %4lu\n", permille_sum, permille_total_sum);
         }
         printf("---------------------------------------\n");
 
@@ -539,13 +550,13 @@ void usb_thread(void *ptr)
 #endif
 
 #if OPT_CMSIS_DAPV2
-    xTaskCreate(dap_task, "CMSIS-DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);
+    xTaskCreate(dap_task, "CMSIS-DAPv2", configMINIMAL_STACK_SIZE, NULL, DAPV2_TASK_PRIO, &dap_taskhandle);
 #endif
 
 #if configGENERATE_RUN_TIME_STATS
     {
         TaskHandle_t task_stat_handle;
-        xTaskCreate(print_task_stat, "Print Task Stat", configMINIMAL_STACK_SIZE, NULL, 30, &task_stat_handle);
+        xTaskCreate(print_task_stat, "Print Task Stat", configMINIMAL_STACK_SIZE, NULL, PRINT_STATUS_TASK_PRIO, &task_stat_handle);
     }
 #endif
 
@@ -553,7 +564,7 @@ void usb_thread(void *ptr)
     //
     // This is the only place to set task affinity.
     // TODO ATTENTION core affinity
-    // Currently only RTT_FROM is running on an extra core (and RTT_FROM is a real hack).  This is because
+    // Currently only "RTT-From" is running on an extra core (and "RTT-From" is a real hack).  This is because
     // if RTT is running on a different thread than tinyusb/lwip (not sure), the probe is crashing very
     // fast on SystemView events in net_sysview_send()
     //
@@ -569,8 +580,8 @@ void usb_thread(void *ptr)
 
         for (uint32_t n = 0;  n < cnt;  ++n) {
             if (    strcmp(task_status[n].pcTaskName, "IDLE1") == 0
-                ||  strcmp(task_status[n].pcTaskName, "RTT_FROM") == 0
-                ||  strcmp(task_status[n].pcTaskName, "RTTxxx") == 0
+                ||  strcmp(task_status[n].pcTaskName, "RTT-From") == 0
+                ||  strcmp(task_status[n].pcTaskName, "RTT-IO-Dont-Do-That") == 0
             ) {
                 // set it to core 1
                 vTaskCoreAffinitySet(task_status[n].xHandle, 1 << 1);
@@ -623,7 +634,7 @@ int main(void)
     picoprobe_info("  %s\n", CONFIG_BOARD());
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
-    events = xEventGroupCreate();
+    dap_events = xEventGroupCreate();
 
     // it seems that TinyUSB does not like affinity setting in its thread, so the affinity of the USB thread is corrected in the task itself
     xTaskCreate(usb_thread, "TinyUSB Main", 4096, NULL, TUD_TASK_PRIO, &tud_taskhandle);
@@ -690,7 +701,7 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
     //
     // initiate SWD connect / disconnect
     //
-    if ( !hid_swd_connected  &&  RxDataBuffer[0] == ID_DAP_Connect) {
+    if ( !hid_swd_connected  &&  RxDataBuffer[0] != ID_DAP_Info) {
         if (sw_lock("DAPv1", true)) {
             hid_swd_connected = true;
             picoprobe_info("=================================== DAPv1 connect target\n");
