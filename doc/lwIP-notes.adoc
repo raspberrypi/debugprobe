@@ -9,8 +9,9 @@
 ## Some lwIP Notes
 
 lwIP is used for creation of a network interface of YAPicoprobe to avoid
-an uncountable number of additional CDC com ports. +
-Currently just a Segger SysView server is listening on port 19111.
+an uncountable number of additional CDC COM ports.
+
+Currently a Segger SysView server is listening on port 19111.
 But I guess there is more to come.
 
 
@@ -64,19 +65,7 @@ messages even when the device has `allow-hotplug`.
   Unfortunately RNDIS seems to manipulate routing in a way that the
   default route on my Linux wants to go through the probe.  Not
   really what I want...
-  
-* *NCM*: is said to be the best choice.  I did not manage to get an
-  acceptable throughput.  Transfer seems to get stuck from time to time
-  and SystemView aborts.  So also not the favorite. +
-  `iperf` is running fast, it seems that `ncm_device.c` output is triggered
-  by incoming packets.
 
-* *ECM*: works good, packets are transferred continuously, throughput
-  also seems to be ok.  So this is the way to go. +
-  Unfortunately there is no driver integrated into Win10, so possible 
-  extra trouble appears.  Yes... extra trouble: cannot find a driver
-  for Win10.
-     
 [NOTE]
 ====
 RNDIS on Win10 works only, if RNDIS on the probe is the only USB class selected.
@@ -84,6 +73,20 @@ So it is possible to create a special probe firmware which provides only feature
 like SystemView, but you cannot have a probe which does SystemView and CMSIS-DAP. +
 This is not a fault of lwIP, it is a bug in the Win10 driver(?).
 ====
+
+* *ECM*: works good, packets are transferred continuously, throughput
+  also seems to be ok.  So this is the way to go. +
+  Unfortunately there is no driver integrated into Win10, so possible 
+  extra trouble appears.  Yes... extra trouble: cannot find a driver
+  for Win10.
+     
+* *NCM*: is said to be the best choice.  And in fact it is.
+  At least after creation of a `ncm_device_simple.c` driver which is a
+  stripped down version of `ncm_simple.c` which revealed as very buggy. +
+  Now thoughput under Linux and Windows is ok.  Operation with SystemView
+  works without glitches, `iperf` tests sometimes crashes the probe.
+  So consider this driver as beta and work in progress.
+
 
 
 ## Performance
@@ -104,9 +107,29 @@ Good test cases are the following command lines:
 Monitor performance/errors with Wireshark.
 
 
-## Some words about ncm_device.c and net_glue.c
+## Some words about...
 
-### Remarks about possible Bugs
+### ... `net_glue.c`
+
+I'm really trying hard to switch context betwenn lwIP and TinyUSB correctly.  This leads
+to some kind of delayed call chains and also does not make the code neither nice nor
+very much maintainable.
+
+
+### ... `ncm_device_simple.c`
+
+`ncm_device_simple.c` is actually a mixture of `ecm_rndis_device.c` and `ncm_device.c`.
+From `ecm_rndis_device.c` the structure has been inherited and from `ncm_device.c` the 
+functionality. +
+The driver can be considered work in progress, because in conjunction with `iperf`
+crashes sometimes happen.  But for operation with SystemView quality seems to be good enough.
+
+
+### ... possible Bugs in `ncm_device.c`
+
+This is more or less obsoleted by `ncm_device_simple.c`.  But as a short summary: the original
+driver is very buggy.  Perhaps it is working in certain scenarios, but for sure not together with
+SystemView.
 
 * not sure, but perhaps it is best to call all functions within ncm_device in the FreeRTOS
   context of TinyUSB
@@ -116,21 +139,22 @@ Monitor performance/errors with Wireshark.
 ** `wNtbOutMaxDatagrams == 0` generates a lot of retries with iperf
 * I guess that the *major problem* lies within handle_incoming_datagram() because it changes values
   on an incoming packet although tud_network_recv_renew() is still handling the old one
-* is there multicore a problem!?  I have seen retries with multicore even with 
+* is there multicore a problem!? (14.7.2023: no!)  I have seen retries with multicore even with 
   `wNtbOutMaxDatagrams = 1`
 * I think it is assumed, that TinyUSB and lwIP are running in the same task (but in my scenario they don't)
 * if removing debug messages, then the receive path seems to work better, which
   indicates a race condition somewhere
 
-
-### Remarks about Functionality
-
-* tud_network_xmit() puts the data to be transmitted into a buffer (out of two).
-  After copying the contents, it tries to start transmission via ncm_start_tx()
-  which checks if there is an ongoing transmission
+There is an open issue in the TinyUSB repo for this issue: https://github.com/hathach/tinyusb/issues/2068
 
 
 ## Log
+
+### 2023-07-14
+
+* did some performance tuning with lwIP and TinyUSB
+* stripped sources
+* BUG: `ncm_device_simple` sometimes crashes with `iperf`
 
 ### 2023-06-30
 
