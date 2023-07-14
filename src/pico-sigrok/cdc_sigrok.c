@@ -71,12 +71,10 @@ void cdc_sigrok_line_state_cb(bool dtr, bool rts)
  * This seems to be necessary to survive e.g. a restart of the host (Linux)
  */
 {
-#if CFG_TUD_CDC_SIGROK
     tud_cdc_n_write_clear(CDC_SIGROK_N);
     tud_cdc_n_read_flush(CDC_SIGROK_N);
     m_connected = (dtr  ||  rts);;
     xEventGroupSetBits(events, EV_STREAM);
-#endif
 }   // cdc_uart_line_state_cb
 
 
@@ -114,7 +112,6 @@ void cdc_sigrok_write(const char *buf, int length)
 
 
 
-#if CFG_TUD_CDC_SIGROK
 //Process incoming character stream
 //Return true if the device rspstr has a response to send to host
 //Be sure that rspstr does not have \n  or \r.
@@ -302,7 +299,6 @@ static bool process_char(sr_device_t *d, char charin)
     //default return 0 means to not send any kind of response
     return ret;
 }   // process_char
-#endif
 
 
 
@@ -317,7 +313,6 @@ void cdc_sigrok_thread()
 {
 
     for (;;) {
-#if CFG_TUD_CDC_SIGROK
         static uint8_t cdc_tx_buf[CFG_TUD_CDC_TX_BUFSIZE];
         EventBits_t ev = EV_RX | EV_TX | EV_STREAM;
         size_t cdc_rx_chars;
@@ -395,9 +390,6 @@ void cdc_sigrok_thread()
             }
         }
         tud_cdc_n_write_flush(CDC_SIGROK_N);
-#else
-        xEventGroupWaitBits(events, EV_RX | EV_TX | EV_STREAM | EV_RX, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
-#endif
     }
 }   // cdc_sigrok_thread
 
@@ -407,5 +399,5 @@ void cdc_sigrok_init(uint32_t task_prio)
 {
     events = xEventGroupCreate();
     stream_sigrok = xStreamBufferCreate(STREAM_SIGROK_SIZE, STREAM_SIGROK_TRIGGER);
-    xTaskCreateAffinitySet(cdc_sigrok_thread, "CDC_SIGROK", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_cdc_sigrok);
+    xTaskCreate(cdc_sigrok_thread, "CDC_SIGROK", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_cdc_sigrok);
 }   // cdc_sigrok_init

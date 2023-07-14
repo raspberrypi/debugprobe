@@ -36,7 +36,9 @@
 #endif
 
 
-void sigrok_init(uint32_t task_prio);
+#if OPT_SIGROK
+    void sigrok_init(uint32_t task_prio);
+#endif
 
 
 #ifdef __cplusplus

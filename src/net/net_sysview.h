@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2021 Federico Zuccardi Merli
+ * Copyright (c) 2021 Raspberry Pi (Trading) Ltd.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,13 +23,22 @@
  *
  */
 
-#ifndef GET_SERIAL_H_
-#define GET_SERIAL_H_
+#ifndef _NET_SYSVIEW_H
+#define _NET_SYSVIEW_H
 
-/* Contains unique serial number string (NUL terminated) after call to init_usb_serial */
-extern char usb_serial[];
 
-/* Fills unique_serial with the flash unique id */
-extern void usb_serial_init(void);
+#ifdef __cplusplus
+    extern "C" {
+#endif
+
+
+void net_sysview_init(void);
+uint32_t net_sysview_send(const uint8_t *buf, uint32_t cnt);
+bool net_sysview_is_connected(void);
+
+#ifdef __cplusplus
+    }
+#endif
+
 
 #endif

@@ -76,12 +76,11 @@ static EventGroupHandle_t     events;
 
 
 
-void cdc_thread(void *ptr)
+static void cdc_thread(void *ptr)
 {
     static uint8_t cdc_tx_buf[CFG_TUD_CDC_TX_BUFSIZE];
 
     for (;;) {
-#if CFG_TUD_CDC_UART
         uint32_t cdc_rx_chars;
 
         if ( !m_connected) {
@@ -170,15 +169,11 @@ void cdc_thread(void *ptr)
                 }
             }
         }
-#else
-        xStreamBufferReceive(stream_uart, cdc_tx_buf, sizeof(cdc_tx_buf), pdMS_TO_TICKS(500));
-#endif
     }
 }   // cdc_thread
 
 
 
-#if CFG_TUD_CDC_UART
 void cdc_uart_line_coding_cb(cdc_line_coding_t const* line_coding)
 /**
  * CDC bitrate updates are reflected on \a PICOPROBE_UART_INTERFACE
@@ -186,7 +181,6 @@ void cdc_uart_line_coding_cb(cdc_line_coding_t const* line_coding)
 {
     uart_set_baudrate(PICOPROBE_UART_INTERFACE, line_coding->bit_rate);
 }   // cdc_uart_line_coding_cb
-#endif
 
 
 
@@ -196,12 +190,10 @@ void cdc_uart_line_state_cb(bool dtr, bool rts)
  * This seems to be necessary to survive e.g. a restart of the host (Linux)
  */
 {
-#if CFG_TUD_CDC_UART
     tud_cdc_n_write_clear(CDC_UART_N);
     tud_cdc_n_read_flush(CDC_UART_N);
     m_connected = (dtr  ||  rts);
     xEventGroupSetBits(events, EV_TX_COMPLETE);
-#endif
 }   // cdc_uart_line_state_cb
 
 
@@ -220,11 +212,13 @@ void cdc_uart_rx_cb()
 
 
 
-static void cdc_uart_put_into_stream(const void *data, size_t len, bool in_isr)
+static uint32_t cdc_uart_put_into_stream(const void *data, size_t len, bool in_isr)
 /**
  * Write into stream.  If not connected use the stream as a FIFO and drop old content.
  */
 {
+    uint32_t r = 0;
+
     if ( !m_connected) {
         size_t available = xStreamBufferSpacesAvailable(stream_uart);
         for (;;) {
@@ -247,11 +241,13 @@ static void cdc_uart_put_into_stream(const void *data, size_t len, bool in_isr)
         }
     }
     if (in_isr) {
-        xStreamBufferSendFromISR(stream_uart, data, len, NULL);
+        r = xStreamBufferSendFromISR(stream_uart, data, len, NULL);
     }
     else {
-        xStreamBufferSend(stream_uart, data, len, 0);
+        r = xStreamBufferSend(stream_uart, data, len, 0);     // drop characters in worst case
     }
+
+    return r;
 }   // cdc_uart_put_into_stream
 
 
@@ -288,10 +284,26 @@ void on_uart_rx(void)
 
 
 
-void cdc_uart_write(const uint8_t *buf, uint32_t cnt)
+uint32_t cdc_uart_write(const uint8_t *buf, uint32_t cnt)
+/**
+ * Send characters from console RTT channel into stream.
+ *
+ * \param buf  pointer to the buffer to be sent, if NULL then remaining space in stream is returned
+ * \param cnt  number of bytes to be sent
+ * \return if \buf is NULL the remaining space in stream is returned, otherwise the number of bytes
+ */
 {
-    cdc_uart_put_into_stream(buf, cnt, false);
-    xEventGroupSetBits(events, EV_STREAM);
+    uint32_t r = 0;
+
+    if (buf == NULL) {
+        r = xStreamBufferSpacesAvailable(stream_uart);
+    }
+    else {
+        r = cdc_uart_put_into_stream(buf, cnt, false);
+        xEventGroupSetBits(events, EV_STREAM);
+    }
+
+    return r;
 }   // cdc_uart_write
 
 
@@ -320,6 +332,6 @@ void cdc_uart_init(uint32_t task_prio)
     uart_set_irq_enables(PICOPROBE_UART_INTERFACE, true, false);
 
     /* UART needs to preempt USB as if we don't, characters get lost */
-    xTaskCreateAffinitySet(cdc_thread, "CDC_UART", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_uart);
+    xTaskCreate(cdc_thread, "CDC-TargetUart", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_uart);
     cdc_uart_line_state_cb(false, false);
 }   // cdc_uart_init

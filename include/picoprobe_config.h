@@ -28,34 +28,33 @@
 
 
 #define INCLUDE_RTT_CONSOLE
-#define INCLUDE_SIGROK
 
 
-#if !defined(NDEBUG)
+#if OPT_PROBE_DEBUG_OUT
     #define picoprobe_info_out(format,args...) printf(format, ## args)
 #else
     #define picoprobe_info_out(format,...) ((void)0)
 #endif
 
-#if !defined(NDEBUG)
+#if OPT_PROBE_DEBUG_OUT
     #define picoprobe_info(format,args...) printf("(II) " format, ## args)
 #else
     #define picoprobe_info(format,...) ((void)0)
 #endif
 
-#if 0  &&  !defined(NDEBUG)
+#if 0  &&  OPT_PROBE_DEBUG_OUT
     #define picoprobe_debug(format,args...) printf("(DD) " format, ## args)
 #else
     #define picoprobe_debug(format,...) ((void)0)
 #endif
 
-#if 0  &&  !defined(NDEBUG)
+#if 0  &&  OPT_PROBE_DEBUG_OUT
     #define picoprobe_dump(format,args...) printf("(..) " format, ## args)
 #else
     #define picoprobe_dump(format,...) ((void)0)
 #endif
 
-#if 1  &&  !defined(NDEBUG)
+#if 1  &&  OPT_PROBE_DEBUG_OUT
     #define picoprobe_error(format,args...) printf("(EE) " format, ## args)
 #else
     #define picoprobe_error(format,...) ((void)0)
@@ -64,7 +63,11 @@
 
 // Base value of sys_clk in khz.  Must be <=125Mhz per RP2040 spec and a multiple of 24Mhz
 // to support integer divisors of the PIO clock and ADC clock (for sigrok)
-#define PROBE_CPU_CLOCK_KHZ      ((120 + 2*24) * 1000)             // overclocked, even 264MHz seems to be no problem
+#ifdef OPT_MCU_OVERCLOCK_MHZ
+    #define PROBE_CPU_CLOCK_KHZ      ((OPT_MCU_OVERCLOCK_MHZ) * 1000)     // overclocked, even 264MHz seems to be no problem
+#else
+    #define PROBE_CPU_CLOCK_KHZ      ((120 + 0*24) * 1000)
+#endif
 
 
 // pin configurations can be found in include/boards/*.h

@@ -32,8 +32,9 @@ Finally there is **Y**et **A**nother **Picoprobe** around, the YAPicoprobe.
 ** UART connection between target and probe is redirected
 ** RTT terminal channel is automatically redirected into this CDC (if there is no
    CMSIS-DAPv2/MSC connection)
-* CDC - virtual com port for logging of the probe
-* CDC sigrok probe - data collection on eight digital and three analog channels
+* https://www.segger.com/products/development-tools/systemview/[SystemView] support over TCP/IP (NCM/ECM/RNDIS)
+* CDC - virtual com port for (debug) logging of the probe
+* optional CDC sigrok probe - data collection on eight digital and three analog channels
   (logic analyzer and oscilloscope) with auto-trigger capability
 * LED for state indication
 * Other Benefits
@@ -80,6 +81,8 @@ For information about cabling between Pico Debug Probe and target refer to the c
 https://www.raspberrypi.com/documentation/microcontrollers/debug-probe.html[documentation].
 
 For details about probe pin assignments see the link:doc/hardware.adoc[hardware section].
+Ochamodev wrote a nice https://github.com/ochamodev/raspberry_pico_setup_guide[setup guide],
+containing the steps from installation until debugging in VSCode. 
 
 
 
@@ -96,7 +99,7 @@ For details about probe pin assignments see the link:doc/hardware.adoc[hardware 
 |yes 
 |`openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c "adapter speed 25000"    -c "program {firmware.elf}  verify reset; shutdown;"`
 
-|pyOCD 0.34.x
+|pyOCD 0.34 & 0.35
 |yes
 |yes
 |`pyocd flash -f 400000 -t nrf52840 firmware.elf`
@@ -106,6 +109,9 @@ For details about probe pin assignments see the link:doc/hardware.adoc[hardware 
 |yes
 |`cp firmware.uf2 /media/picoprobe`
 |===
+
+NOTE: For best RP2040 support, OpenOCD bundled with PlatformIO is recommended. 
+      See <<platformio>>
 
 
 #### Parameter Optimization
@@ -143,7 +149,7 @@ Unfortunately DAP converts internally the frequency into delays which are always
 That means that actual clock speeds are `125MHz / (2*n)`, `n>=3` -> 20833kHz, 12500kHz, 10417kHz, ...
 
 Normally the requested frequency is rounded down according to the possible values from above.  But if the specified frequency 
-is completely out of range, the allowed maximum SWD frequency of the RP2040 is used, which is 24MHz.
+is completely out of range, the allowed maximum target SWD frequency is used, e.g. for the RP2040 24MHz.
 
 Actually usable frequency depends on cabling and the DAP speed.  If the DAP cannot access memory with speed determined by the host, it responds
 with WAIT and the host needs to retry.
@@ -189,17 +195,16 @@ Because CMSIS-DAP access should be generic, flashing of other SWD compatible dev
 
 ### RTT - Real Time Transfer
 https://www.segger.com/products/debug-probes/j-link/technology/about-real-time-transfer/[RTT]
-allows transfer from the target to the host in "realtime".  YAPicoprobe currently reads
-channel 0 of the targets RTT and sends it into the CDC of the target.  Effectively this
-allows RTT debug output into a terminal.
+allows transfer from the target to the host in "realtime" via the SWD interface.
 
-If an RTT control block has been detected, characters received via the target CDC are transmitted
-with RTT to the target.
+The RTT control block on the target is automatically detected.  Currently channels 0 and 1 are supported.
+
+To get the RTT channels running, code on the target has to be either instrumented or adopted.
 
 [NOTE]
 ====
 * only the devices RAM is scanned for an RTT control block, for unknown devices
-  RAM in the range 0x20000000-0x2003ffff is assumed
+  RAM the range 0x20000000-0x2003ffff is assumed
 * don't be too overwhelmed about Seggers numbers in
   the above mentioned document.  The data must still be
   transferred which is not taken into account in the diagram
@@ -211,11 +216,34 @@ with RTT to the target.
 ====
 
 
+#### Terminal I/O
+
+RTT channel 0 is used for bidirectional console communication.  This channel is directed into the UART CDC
+of the target device.
+
+Communication is birectional, but don't expect high transfer rates from host to target.
+
+
+#### SystemView
+
+RTT channel 1 is used for communication with Seggers https://www.segger.com/products/development-tools/systemview/[SystemView].
+YAPicoprobe provides the data over TCP at port 19111 which is the default for SystemView communication.
+Default IP address of the probe (if not built otherwise) is 192.168.14.1.
+
+[NOTE]
+====
+SystemView communication via TCP/IP had been chosen to spare you from another CDC port and also
+because SystemView over COM port works on my Linux device just until v3.30 (Segger promises
+a fix for > 3.50a, nevertheless TCP/IP is used...)
+====
+
+
 ### Sigrok - Data Collection
 
 [IMPORTANT]
 ====
-Sigrok is disabled on the Pico Debug Probe.
+Sigrok is no longer compiled per default into the probe firmware.  If you want sigrok support,
+the <<how-to-build,build instructions>> have to be checked.
 ====
 
 The probe allows data collection for a https://sigrok.org/[sigrok] compatible
@@ -327,9 +355,9 @@ The Pico Debug Probe has four additional LEDs.  Assignment is as follows:
 ====
 
 
-### Configuration
+## Configuration
 
-#### udev rules for MSC and CMSIS-DAP
+### udev rules
 
 Under Linux one wants to use the following udev rules for convenience.
 
@@ -343,6 +371,7 @@ SUBSYSTEM=="usb", ATTR{idVendor}=="2e8a", ATTR{idProduct}=="000c", MODE:="0666"
 ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-UART",    MODE:="0666", SYMLINK+="ttyPicoTarget"
 ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-DEBUG",   MODE:="0666", SYMLINK+="ttyPicoProbe"
 ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-SIGROK",  MODE:="0666", SYMLINK+="ttyPicoSigRok
+ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-SysView", MODE:="0666", SYMLINK+="ttyPicoSysView"
 
 # mount Picoprobe to /media/picoprobe
 ACTION=="add", SUBSYSTEMS=="usb", SUBSYSTEM=="block", ENV{ID_FS_USAGE}=="filesystem", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000c", RUN+="/usr/bin/logger --tag picoprobe-mount Mounting what seems to be a Raspberry Pi Picoprobe", RUN+="/usr/bin/systemd-mount --no-block --collect --fsck=0 -o uid=hardy,gid=hardy,flush $devnode /media/picoprobe"
@@ -353,7 +382,53 @@ ACTION=="add", SUBSYSTEMS=="usb", SUBSYSTEM=="block", ENV{ID_FS_USAGE}=="filesys
 ACTION=="remove", SUBSYSTEMS=="usb", SUBSYSTEM=="block", ENV{ID_FS_USAGE}=="filesystem", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="0003", RUN+="/usr/bin/logger --tag rpi-pico-mount Unmounting what seems to be a Raspberry Pi Pico", RUN+="/usr/bin/systemd-umount /media/pico"
 ----
 
-#### PlatformIO
+### Network Configuration
+
+SystemView connectivity over TCP/IP is on most systems not configuration free.  
+
+#### Debian
+
+On Debian the configuration is as follows:
+
+* after connecting the probe with the host, `ip a` shows its network interface, e.g. `enxfe<your-probe>`.
+  If the network interface already shows an IP address everything is fine and you are ready
+* if not, then you can get the IP address with `sudo dhclient enxfe<your-probe>`
+* to make the permanent add the following lines to `/etc/network/interfaces`:
+
+[source]
+----
+allow-hotplug enxfe<your-probe>
+iface enxfe<your-probe> inet dhcp
+----
+
+On my system this unfortunately leads to error messages (which are harmless) if the probe is not connected.
+
+The default address of the probe is 192.168.14.1.  If there is a collision with the current setup of the
+host, the probe firmware has to be rebuilt with `-DOPT_NET_192_168=<subnet>`.
+
+#### Win10
+
+A certain version of Win10 is required for USB-NCM connectivity.  Exact version is unknown.
+
+The driver needs to be installed manually.  Procedure is roughly as follows:
+
+* in "Device Manager" search for `YaPicoprobe NCM` with an exclamation mark
+* "Update Driver"
+* "Browse my computer for drivers"
+* "Let me pick..."
+* "Network adapters"
+* "Microsoft"
+* "UsbNcm Host Device" - if this is not available, then the version of Win10 is not ready for USB-NCM
+* confirm any dialog boxes
+* if `ipconfig` on a command line shows `192.168.14.2` for an Ethernet adapter, the procedure has most likely
+  succeeded and SystemView is ready for operation
+
+#### Win11
+
+It is said, that USB-NCM is working out of the box.  This is not tested.
+
+
+### PlatformIO [[platformio]]
 https://platformio.org/[PlatformIO] configuration in `platformio.ini` is pretty straight forward:
 
 .PlatformIO configuration
@@ -384,12 +459,12 @@ upload_command = cp .pio/build/pico_cp/firmware.uf2 /media/picoprobe
 
 I'm sure there are smarter ways to specify the image path.
 
-There is also a special PlatformIO handling in the probe: it ignores the defensive 1MHz clock setting which is used by
+Optional: there is also a special PlatformIO handling in the probe: it ignores the defensive 1MHz clock setting which is used by
 the above contained OpenOCD.  Standard clock is thus 15MHz.  If this is too fast, set the frequency with
 `pyocd reset -f 1100000 -t rp2040` or similar.  If this is too slow, use `pyocd reset -f 50000000 -t rp2040`.
 
 
-##### RTT
+#### RTT
 To use RTT for debug/console output the following has to be done:
 
 * in `platformio.ini`:
@@ -427,7 +502,7 @@ rtt.println("sub module");
 
 ## Internals
 
-### Building from Source
+### Building from Source [[how-to-build]]
 
 Building from source is done with the help of a stub Makefile which eases integration into Eclipse (but can be
 used from command line as well).  The Makefile creates via cmake a `build.ninja` which is responsible for
@@ -435,6 +510,8 @@ the actual build process.
 
 To build the project, there must be somewhere a recent https://github.com/raspberrypi/pico-sdk[Pico SDK] and
 the environment variable `PICO_SDK_PATH` must point to it.
+
+If you want to adopt YAPicoprobe options to your needs, check CMakeLists.txt and invoke cmake accordingly.
 
 Requirements:
 
@@ -453,10 +530,10 @@ git submodule update --init
 .General build sequence
 [source,bash]
 ----
-# create build/ninja.build for a debug target
+# create _build/ninja.build for a debug target
 make cmake-create-debug
 
-# build yapicoprobe, output in build/picoprobe.uf2
+# build yapicoprobe, output in _build/picoprobe.uf2
 make all
 
 # clean build files
@@ -476,6 +553,19 @@ make all
 ----
 make create-images
 ----
+
+.Bare call of cmake
+[source,bash]
+----
+mkdir _build; cd _build
+cmake .. -D<option>=<value> -DPICO_BOARD=pico_w
+cmake --build .
+# output in picoprobe.elf/uf2/hex/bin
+----
+
+If you want to know the several options use the one liner in the build directory:
+`cmake -LH . | sed -n -e '/OPT_/{x;1!p;g;$!N;p;D;}' -e h`. +
+Or use simply `make show-options` in the projects root.
 
 
 ### Code Inherited
@@ -521,6 +611,9 @@ make create-images
 | https://github.com/openocd-org/openocd[OpenOCD on github]
 | https://openocd.org/[Official Homepage]
 
+| https://wiki.segger.com/Use_SystemView_without_RTOS[Use SystemView without RTOS]
+|
+
 |===
 
 
@@ -539,3 +632,4 @@ make create-images
 * an incomplete list of link:doc/TODO.adoc[TODOs], more on https://github.com/rgrr/yapicoprobe/issues[github]
 * some link:doc/optimizations.adoc[optimizations]
 * some link:doc/benchmarks.adoc[benchmarks]
+* link:doc/lwIP-notes.adoc[adventures with lwIP], Ethernet over USB and operating system compatibility

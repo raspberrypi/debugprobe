@@ -23,14 +23,21 @@
  *
  */
 
-#ifndef CDC_DEBUG_H
-#define CDC_DEBUG_H
+#ifndef _NET_ECHO_H
+#define _NET_ECHO_H
 
-#include <stdint.h>
-#include <stdbool.h>
 
-void cdc_debug_init(uint32_t task_prio);
-void cdc_debug_line_state_cb(bool dtr, bool rts);
-void cdc_debug_tx_complete_cb(void);
+#ifdef __cplusplus
+    extern "C" {
+#endif
+
+
+void net_echo_init(void);
+
+
+#ifdef __cplusplus
+    }
+#endif
+
 
 #endif

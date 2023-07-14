@@ -1,0 +1,178 @@
+:imagesdir: png
+:source-highlighter: rouge
+:toc:
+:toclevels: 5
+
+
+
+
+## Some lwIP Notes
+
+lwIP is used for creation of a network interface of YAPicoprobe to avoid
+an uncountable number of additional CDC COM ports.
+
+Currently a Segger SysView server is listening on port 19111.
+But I guess there is more to come.
+
+
+## Pitfalls
+
+lwIP had some traps waiting for me.  Despite reading the official
+https://www.nongnu.org/lwip/2_1_x/pitfalls.html[Common Pitfalls]
+I took some of them.
+
+
+### MAC
+
+Do not use a random MAC!  At least not for the first byte.
+I was "lucky" choosing one with an odd first byte.  Unfortunately
+bit 0 marks a group address.  At least Linux rejects such MAC
+addresses with a more or less useless error message in the syslog.
+Took a while until I found out that the MAC address was the culprit
+for no communication. +
+Finally I have used 0xfe as the first byte and the remaining five
+bytes of the MAC address are copied from the last bytes of Picos serial number
+(which actually is the serial number of the external flash).
+   
+### OS Mode
+
+*really* take it serious what they are writing about "raw" APIs
+and only using the TCPIP thread for any calls to it. +
+Use `tcpip_callback_with_block(<func>, <void-arg>, 0)` for
+non-blocking invocations of some function.  This also saves you
+from creating extra simple threads for communication tasks line
+in the TineUSB/lwIP glue code.  That was my first idea and it took
+a while until I found out how bad that idea was. +
+Same was true for the thread(!) which stuffed data for SysView into
+it's server:  bad idea! +
+Effect of wrong API handling were random crashes or connection
+disruptions.
+
+
+### RNDIS/ECM/NCM
+
+To be honest, I'm very confused about the system behaviour of RNDIS/ECM/NCM.
+Sometimes the host gets "disconnected", because the DNS in `/etc/resolv.conf`
+are changed, sometimes not.  Sometimes the probe needs `dhclient` to get
+the TCP/IP connection, sometimes not.  Sometimes the probe has an IPv6 address, sometimes
+not.  And this all just on my Linux host.  Interoperation with Windows
+makes things even worse. +
+And `/etc/network/interfaces` generates error
+messages even when the device has `allow-hotplug`.
+
+* *RNDIS*: this was my former favorite, because it is supported by all
+  relevant OSs.  Also throughput seemed to be good. 
+  Unfortunately RNDIS seems to manipulate routing in a way that the
+  default route on my Linux wants to go through the probe.  Not
+  really what I want...
+
+[NOTE]
+====
+RNDIS on Win10 works only, if RNDIS on the probe is the only USB class selected.
+So it is possible to create a special probe firmware which provides only features
+like SystemView, but you cannot have a probe which does SystemView and CMSIS-DAP. +
+This is not a fault of lwIP, it is a bug in the Win10 driver(?).
+====
+
+* *ECM*: works good, packets are transferred continuously, throughput
+  also seems to be ok.  So this is the way to go. +
+  Unfortunately there is no driver integrated into Win10, so possible 
+  extra trouble appears.  Yes... extra trouble: cannot find a driver
+  for Win10.
+     
+* *NCM*: is said to be the best choice.  And in fact it is.
+  At least after creation of a `ncm_device_simple.c` driver which is a
+  stripped down version of `ncm_simple.c` which revealed as very buggy. +
+  Now thoughput under Linux and Windows is ok.  Operation with SystemView
+  works without glitches, `iperf` tests sometimes crashes the probe.
+  So consider this driver as beta and work in progress.
+
+
+
+## Performance
+
+To measure performance, `iperf` is used (which implies, that `OPT_NET_IPERF_SERVER`
+must be set on built).  Good command line for measurement:
+
+  iperf -c 192.168.14.1 -e -i 1 -l 1024
+
+## Testing
+
+Good test cases are the following command lines:
+
+  for MSS in 90 100 200 300 400 500 600 700 800 900 1000 1100 1200 1300 1400 1459 1460 1500; do iperf -c 192.168.14.1 -e -i 1 -l 1024 -M $MSS; sleep 10; done
+  
+  for LEN in 40000 16000 1400 1024 800 200 80 22 8 2 1; do for MSS in 90 93 100 150 200 255 256 300 400 500 511 512 600 700 800 900 1000 1100 1200 1300 1400 1450 1459 1460 1500; do iperf -c 192.168.14.1 -e -i 1 -l $LEN -M $MSS; sleep 2; done; done
+
+Monitor performance/errors with Wireshark.
+
+
+## Some words about...
+
+### ... `net_glue.c`
+
+I'm really trying hard to switch context betwenn lwIP and TinyUSB correctly.  This leads
+to some kind of delayed call chains and also does not make the code neither nice nor
+very much maintainable.
+
+
+### ... `ncm_device_simple.c`
+
+`ncm_device_simple.c` is actually a mixture of `ecm_rndis_device.c` and `ncm_device.c`.
+From `ecm_rndis_device.c` the structure has been inherited and from `ncm_device.c` the 
+functionality. +
+The driver can be considered work in progress, because in conjunction with `iperf`
+crashes sometimes happen.  But for operation with SystemView quality seems to be good enough.
+
+
+### ... possible Bugs in `ncm_device.c`
+
+This is more or less obsoleted by `ncm_device_simple.c`.  But as a short summary: the original
+driver is very buggy.  Perhaps it is working in certain scenarios, but for sure not together with
+SystemView.
+
+* not sure, but perhaps it is best to call all functions within ncm_device in the FreeRTOS
+  context of TinyUSB
+* `wNtbOutMaxDatagrams` must be set to 1 [2023-06-27]
+** iperf runs then
+** Systemview still has problems
+** `wNtbOutMaxDatagrams == 0` generates a lot of retries with iperf
+* I guess that the *major problem* lies within handle_incoming_datagram() because it changes values
+  on an incoming packet although tud_network_recv_renew() is still handling the old one
+* is there multicore a problem!? (14.7.2023: no!)  I have seen retries with multicore even with 
+  `wNtbOutMaxDatagrams = 1`
+* I think it is assumed, that TinyUSB and lwIP are running in the same task (but in my scenario they don't)
+* if removing debug messages, then the receive path seems to work better, which
+  indicates a race condition somewhere
+
+There is an open issue in the TinyUSB repo for this issue: https://github.com/hathach/tinyusb/issues/2068
+
+
+## Log
+
+### 2023-07-14
+
+* did some performance tuning with lwIP and TinyUSB
+* stripped sources
+* BUG: `ncm_device_simple` sometimes crashes with `iperf`
+
+### 2023-06-30
+
+* for debugging purposes reimplemented `ncm_device_simple.c` which can hold only
+  one ethernet frame per NTB (NCM Transfer Block).  This unfortunately requires
+  that the original `ncm_device.c` must be outcommented via `#if` on top.
+ 
+### 2023-06-26
+
+* after some changes to `rtt_console.c`, `net_sysview.c` and `net_glue.c`
+  ECM is working again as expected
+ 
+### 2023-05-12
+
+* for unknown reasons the probe is even with ECM in stutter mode, don't know
+  why, that worked before smoothly.  Transfer rate is bad
+* systemview test program (NoOS) on the target:
+** it already worked with around 10000 events/s, now the limit is ~3000
+** if there is a SysTick ISR then SystemView is completely messed up.
+   Checked that locking is included.  Seems to be so.
+

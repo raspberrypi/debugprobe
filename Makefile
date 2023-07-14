@@ -4,9 +4,9 @@
 #
 
 VERSION_MAJOR        := 1
-VERSION_MINOR        := 14
+VERSION_MINOR        := 15
 
-BUILD_DIR            := build
+BUILD_DIR            := _build
 PROJECT              := picoprobe
 
 
@@ -45,7 +45,7 @@ details: all
 
 .PHONY: cmake-create-debug
 cmake-create-debug:
-	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) $(CMAKE_FLAGS)
+	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) $(if $(OPT_SIGROK),-DOPT_SIGROK=$(OPT_SIGROK)) $(CMAKE_FLAGS)
     # don't know if this is required
 	@cd $(BUILD_DIR) && sed -i 's/arm-none-eabi-gcc/gcc/' compile_commands.json
 
@@ -73,16 +73,16 @@ flash: all
 .PHONY: create-images
 create-images:
 	$(MAKE) clean-build
-	$(MAKE) cmake-create-debug PICO_BOARD=pico
+	$(MAKE) cmake-create-release PICO_BOARD=pico OPT_SIGROK=0
 	$(MAKE) all
 	mkdir -p images
 	cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-pico-$(GIT_HASH).uf2
 	#
-	$(MAKE) cmake-create-debug PICO_BOARD=pico_w
+	$(MAKE) cmake-create-release PICO_BOARD=pico_w OPT_SIGROK=0
 	$(MAKE) all
 	cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-picow-$(GIT_HASH).uf2
 	#
-	$(MAKE) cmake-create-debug PICO_BOARD=pico_debug_probe
+	$(MAKE) cmake-create-release PICO_BOARD=pico_debug_probe OPT_SIGROK=0
 	$(MAKE) all
 	cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-picodebugprobe-$(GIT_HASH).uf2
 
@@ -91,3 +91,8 @@ create-images:
 check-clang:
 	# clang-tidy has its limit if another target is used...
 	@cd $(BUILD_DIR) && run-clang-tidy -checks='-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling'
+
+.PHONY: show-options
+show-options:
+	@cd $(BUILD_DIR) && cmake -LH . | sed -n -e '/OPT_/{x;1!p;g;$!N;p;D;}' -e h
+

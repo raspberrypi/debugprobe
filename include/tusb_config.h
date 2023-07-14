@@ -26,6 +26,8 @@
 #ifndef _TUSB_CONFIG_H_
 #define _TUSB_CONFIG_H_
 
+#include <stdint.h>
+
 #ifdef __cplusplus
  extern "C" {
 #endif
@@ -62,6 +64,8 @@
     #define CFG_TUD_ENDPOINT0_SIZE    64
 #endif
 
+#define CFG_TUD_TASK_QUEUE_SZ         64
+
 //------------- CLASS -------------//
 
 //**********************************************
@@ -70,41 +74,87 @@
 // This will change in the future.
 //**********************************************
 
-#define CFG_TUD_CDC_UART              1            // CDC for target UART IO
-#if !defined(TARGET_BOARD_PICO_DEBUG_PROBE)
-    #define CFG_TUD_CDC_SIGROK        1            // CDC for sigrok IO
+#if OPT_TARGET_UART                                // CDC for target UART IO
+    #define CFG_TUD_CDC_UART          1
 #else
-    #define CFG_TUD_CDC_SIGROK        0            // no sigrok for debug probe
+    #define CFG_TUD_CDC_UART          0
 #endif
-#if !defined(NDEBUG)
+#if OPT_SIGROK                                     // CDC for sigrok IO
+    #define CFG_TUD_CDC_SIGROK        1
+#else
+    #define CFG_TUD_CDC_SIGROK        0
+#endif
+#if OPT_PROBE_DEBUG_OUT
     #define CFG_TUD_CDC_DEBUG         1            // CDC for debug output of the probe
 #else
     #define CFG_TUD_CDC_DEBUG         0
 #endif
+#if OPT_CDC_SYSVIEW                                // CDC for SysView
+    #define CFG_TUD_CDC_SYSVIEW       1
+#else
+    #define CFG_TUD_CDC_SYSVIEW       0
+#endif
 
-#define CFG_TUD_HID                   1            // CMSIS-DAPv1
-#define CFG_TUD_VENDOR                1            // CMSIS-DAPv2
-#define CFG_TUD_MSC                   1            // DAPLink drive
-#define CFG_TUD_CDC                   (CFG_TUD_CDC_UART + CFG_TUD_CDC_SIGROK + CFG_TUD_CDC_DEBUG)
-
+#if OPT_CMSIS_DAPV1                                // CMSIS-DAPv1
+    #define CFG_TUD_HID               1
+#else
+    #define CFG_TUD_HID               0
+#endif
+#if OPT_CMSIS_DAPV2                                // CMSIS-DAPv2
+    #define CFG_TUD_VENDOR            1
+#else
+    #define CFG_TUD_VENDOR            0
+#endif
+#if OPT_MSC                                        // DAPLink drive
+    #define CFG_TUD_MSC               1
+#else
+    #define CFG_TUD_MSC               0
+#endif
+#define CFG_TUD_CDC                   (CFG_TUD_CDC_UART + CFG_TUD_CDC_SIGROK + CFG_TUD_CDC_DEBUG + CFG_TUD_CDC_SYSVIEW)
+#if OPT_NET
+    #if OPT_NET_PROTO_ECM  ||  OPT_NET_PROTO_RNDIS
+        #define CFG_TUD_ECM_RNDIS     1            // RNDIS under Windows works only if it's the only class, so we try NCM for Linux
+        #define CFG_TUD_NCM           0
+    #elif OPT_NET_PROTO_NCM
+        #define CFG_TUD_ECM_RNDIS     0
+        #define CFG_TUD_NCM           1
+    #else
+        #error "Illegal OPT_NET_PROTO definition"
+    #endif
+#else
+    #define CFG_TUD_ECM_RNDIS         0
+    #define CFG_TUD_NCM               0
+#endif
 
 // CDC numbering (must go 0.. consecutive)
 #define CDC_UART_N                    (CFG_TUD_CDC_UART - 1)
-#define CDC_SIGROK_N                  (CFG_TUD_CDC_UART + CFG_TUD_CDC_SIGROK - 1)
+#if OPT_SIGROK
+    #define CDC_SIGROK_N              (CFG_TUD_CDC_UART + CFG_TUD_CDC_SIGROK - 1)
+#endif
 #define CDC_DEBUG_N                   (CFG_TUD_CDC_UART + CFG_TUD_CDC_SIGROK + CFG_TUD_CDC_DEBUG - 1)
+#if OPT_CDC_SYSVIEW
+    #define CDC_SYSVIEW_N             (CFG_TUD_CDC_UART + CFG_TUD_CDC_SIGROK + CFG_TUD_CDC_DEBUG + CFG_TUD_CDC_SYSVIEW - 1)
+#endif
 
 //------------- BUFFER SIZES -------------//
 
 #define CFG_TUD_CDC_RX_BUFSIZE        64
-#define CFG_TUD_CDC_TX_BUFSIZE        256
+#define CFG_TUD_CDC_TX_BUFSIZE        512
 
 // these numbers must be in the range 64..1024 (and the same)
 #define CFG_TUD_VENDOR_RX_BUFSIZE     1024
 #define CFG_TUD_VENDOR_TX_BUFSIZE     CFG_TUD_VENDOR_RX_BUFSIZE
 
- // note: this is optimized for DAPLink write speed
-#define CFG_TUD_MSC_EP_BUFSIZE        512
+#if OPT_MSC
+    // note: this is optimized for DAPLink write speed
+    #define CFG_TUD_MSC_EP_BUFSIZE    512
+#endif
 
+#if OPT_NET
+    #define CFG_TUD_NET_MTU           1514
+    
+    extern uint8_t tud_network_mac_address[6];
+#endif
 
 #ifdef __cplusplus
  }

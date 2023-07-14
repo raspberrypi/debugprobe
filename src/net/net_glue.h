@@ -23,11 +23,11 @@
  *
  */
 
-#ifndef CDC_SIGROK_H
-#define CDC_SIGROK_H
+#ifndef _NET_GLUE_H
+#define _NET_GLUE_H
+
 
 #include <stdint.h>
-#include <stdbool.h>
 
 
 #ifdef __cplusplus
@@ -35,19 +35,12 @@
 #endif
 
 
-#if OPT_SIGROK
-    void cdc_sigrok_init(uint32_t task_prio);
-    void cdc_sigrok_write(const char *buf, int length);
-    void cdc_sigrok_rx_cb(void);
-    void cdc_sigrok_tx_complete_cb(void);
-    void cdc_sigrok_line_state_cb(bool dtr, bool rts);
-
-    void core1_code();
-#endif
+void net_glue_init(void);
 
 
 #ifdef __cplusplus
     }
 #endif
+
 
 #endif

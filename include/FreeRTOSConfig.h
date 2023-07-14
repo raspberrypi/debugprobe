@@ -78,26 +78,28 @@
 /* Memory allocation related definitions. */
 #define configSUPPORT_STATIC_ALLOCATION         1
 #define configSUPPORT_DYNAMIC_ALLOCATION        1
-#define configTOTAL_HEAP_SIZE                   (105*1024)
+#define configTOTAL_HEAP_SIZE                   (90*1024)
 #define configAPPLICATION_ALLOCATED_HEAP        0
 
 /* Hook function related definitions. */
-#define configCHECK_FOR_STACK_OVERFLOW          0
+#define configCHECK_FOR_STACK_OVERFLOW          1
 #define configUSE_MALLOC_FAILED_HOOK            1
 #define configUSE_DAEMON_TASK_STARTUP_HOOK      0
 
 /* Run time and task stats gathering related definitions. */
-#define configUSE_TRACE_FACILITY                0                                // switch on task status output
-#define configGENERATE_RUN_TIME_STATS           configUSE_TRACE_FACILITY
+#define configGENERATE_RUN_TIME_STATS           0                                // switch on task status output
 #define configUSE_STATS_FORMATTING_FUNCTIONS    0
 
-#if configUSE_TRACE_FACILITY
+#if configGENERATE_RUN_TIME_STATS
     #define TF_TIMER_BASE            _u(0x40054000)
     #define TF_TIMER_TIMERAWL_OFFSET _u(0x00000028)
 
-    #warning "configUSE_TRACE_FACILITY is set"
+    #warning "configGENERATE_RUN_TIME_STATS is set"
     #define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS()        do {} while( 0 )
     #define portALT_GET_RUN_TIME_COUNTER_VALUE( dest )      ( dest = *((uint32_t *)(TF_TIMER_BASE + TF_TIMER_TIMERAWL_OFFSET)) )
+
+    #undef configUSE_TRACE_FACILITY
+    #define configUSE_TRACE_FACILITY            1
 #endif
 
 /* Co-routine related definitions. */
@@ -121,7 +123,11 @@
 #define configNUM_CORES                         2
 #define configTICK_CORE                         1
 #define configRUN_MULTIPLE_PRIORITIES           1
-#define configUSE_CORE_AFFINITY                 1
+#if configNUM_CORES != 1
+    #define configUSE_CORE_AFFINITY             1
+    #undef configUSE_TRACE_FACILITY
+    #define configUSE_TRACE_FACILITY            1                                // required for setup of core affinity
+#endif
 
 /* RP2040 specific */
 #define configSUPPORT_PICO_SYNC_INTEROP         1
@@ -140,7 +146,7 @@ to exclude the API function. */
 #define INCLUDE_vTaskDelayUntil                 0
 #define INCLUDE_vTaskDelay                      1
 #define INCLUDE_xTaskGetSchedulerState          0
-#define INCLUDE_xTaskGetCurrentTaskHandle       0
+#define INCLUDE_xTaskGetCurrentTaskHandle       1
 #define INCLUDE_uxTaskGetStackHighWaterMark     0
 #define INCLUDE_xTaskGetIdleTaskHandle          0
 #define INCLUDE_eTaskGetState                   0

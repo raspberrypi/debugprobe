@@ -68,7 +68,6 @@ void cdc_debug_thread(void *ptr)
  */
 {
     for (;;) {
-#if CFG_TUD_CDC_DEBUG
         if ( !m_connected) {
             // wait here until connected (and until my terminal program is ready)
             while ( !m_connected) {
@@ -80,7 +79,7 @@ void cdc_debug_thread(void *ptr)
         if (xStreamBufferIsEmpty(stream_printf)) {
             // -> end of transmission: flush and sleep for a long time (or until new data is available)
             tud_cdc_n_write_flush(CDC_DEBUG_N);
-            xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM, pdTRUE, pdFALSE, pdMS_TO_TICKS(10000));
+            xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM, pdTRUE, pdFALSE, pdMS_TO_TICKS(1000));
         }
         else {
             size_t cnt;
@@ -108,10 +107,6 @@ void cdc_debug_thread(void *ptr)
 
             tud_cdc_n_read(CDC_UART_N, &ch, sizeof(ch));
         }
-
-#else
-        xStreamBufferReceive(stream_printf, cdc_debug_buf, sizeof(cdc_debug_buf), pdMS_TO_TICKS(500));
-#endif
     }
 }   // cdc_debug_thread
 
@@ -123,12 +118,10 @@ void cdc_debug_line_state_cb(bool dtr, bool rts)
  * This seems to be necessary to survive e.g. a restart of the host (Linux)
  */
 {
-#if CFG_TUD_CDC_DEBUG
     tud_cdc_n_write_clear(CDC_DEBUG_N);
     tud_cdc_n_read_flush(CDC_DEBUG_N);
     m_connected = (dtr  ||  rts);
     xEventGroupSetBits(events, EV_TX_COMPLETE);
-#endif
 }   // cdc_debug_line_state_cb
 
 
@@ -262,7 +255,7 @@ void cdc_debug_init(uint32_t task_prio)
         panic("cdc_debug_init: cannot create sema_printf\n");
     }
 
-    xTaskCreateAffinitySet(cdc_debug_thread, "CDC_DEBUG", configMINIMAL_STACK_SIZE, NULL, task_prio, 1, &task_printf);
+    xTaskCreate(cdc_debug_thread, "CDC-ProbeUart", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_printf);
     cdc_debug_line_state_cb(false, false);
 
     stdio_set_driver_enabled(&stdio_cdc, true);

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2021 Federico Zuccardi Merli
+ * Copyright (c) 2021 Raspberry Pi (Trading) Ltd.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,29 +23,21 @@
  *
  */
 
+#ifndef CDC_UART_H
+#define CDC_UART_H
+
 #include <stdint.h>
-#include "pico.h"
-#include "pico/unique_id.h"
-#include "get_serial.h"
+#include <stdbool.h>
+#include "tusb.h"
 
-/* C string for iSerialNumber in USB Device Descriptor, two chars per byte + terminating NUL */
-char usb_serial[PICO_UNIQUE_BOARD_ID_SIZE_BYTES * 2 + 1];
+#if OPT_TARGET_UART
+    uint32_t cdc_uart_write(const uint8_t *buf, uint32_t cnt);
+    void cdc_uart_init(uint32_t task_prio);
 
-/* Why a uint8_t[8] array inside a struct instead of an uint64_t an inquiring mind might wonder */
-static pico_unique_board_id_t uID;
+    void cdc_uart_line_state_cb(bool dtr, bool rts);
+    void cdc_uart_line_coding_cb(cdc_line_coding_t const* line_coding);
+    void cdc_uart_tx_complete_cb(void);
+    void cdc_uart_rx_cb(void);
+#endif
 
-void usb_serial_init(void)
-{
-    pico_get_unique_board_id(&uID);
-
-    for (int i = 0; i < PICO_UNIQUE_BOARD_ID_SIZE_BYTES * 2; i++)
-    {
-        /* Byte index inside the uid array */
-        int bi = i / 2;
-        /* Use high nibble first to keep memory order (just cosmetics) */
-        uint8_t nibble = (uID.id[bi] >> 4) & 0x0F;
-        uID.id[bi] <<= 4;
-        /* Binary to hex digit */
-        usb_serial[i] = nibble < 10 ? nibble + '0' : nibble + 'A' - 10;
-    }
-}
+#endif

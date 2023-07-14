@@ -43,12 +43,8 @@
 
 #include "probe.h"
 #include "msc_utils.h"
+#include "get_config.h"
 
-
-#define INCLUDE_RAM_UF2
-
-
-#if CFG_TUD_MSC
 
 #define ADWORD(X)       (X) & 0xff, ((X) & 0xff00) >> 8, ((X) & 0xff0000) >> 16, ((X) & 0xff000000) >> 24
 #define AWORD(X)        (X) & 0xff, ((X) & 0xff00) >> 8
@@ -64,11 +60,22 @@
     #define GIT_HASH
 #endif
 
+#if OPT_MSC_RAM_UF2
+    #define __OPT_MSC_RAM_UF2 "- RAM.UF2 mirrors the RAM content of the target\r\n"
+#else
+    #define __OPT_MSC_RAM_UF2
+#endif
+
 #define README_CONTENTS \
-"This is Yet Another Picoprobe v" PICOPROBE_VERSION_STRING  _GIT_HASH ".\r\n\r\n\
-- CURRENT.UF2 mirrors the flash content of the target\r\n\
-- INFO_UF2.TXT holds some information about probe and target\r\n\
-- drop a UF2 file to flash the target device\r\n"
+"This is Yet Another Picoprobe v" PICOPROBE_VERSION_STRING  _GIT_HASH ".\r\n\r\n" \
+"Features:\r\n"                                                                   \
+" " CONFIG_FEATURES() "\r\n"                                                      \
+"Board:\r\n"                                                                      \
+"  " CONFIG_BOARD() "\r\n\r\n"                                                    \
+"- CURRENT.UF2 mirrors the flash content of the target\r\n"                       \
+__OPT_MSC_RAM_UF2                                                                 \
+"- INFO_UF2.TXT holds some information about probe and target\r\n"                \
+"- drop a UF2 file to flash the target device\r\n"
 #define README_SIZE            (sizeof(README_CONTENTS) - 1)
 
 #define INDEXHTM_CONTENTS \
@@ -88,7 +95,7 @@ Board-ID: %s\r\n"
 
 #define BPB_BytsPerSec              512UL
 #define BPB_BytsPerClus             65536UL
-#define BPB_TotSec                  (128*1024*2+20)                             // 16MB + some offset for FAT overhead
+#define BPB_TotSec                  (128*1024*2+20)                             // 128MB + some offset for FAT overhead
 
 #if (BPB_TotSec < 65536)
     const uint16_t BPB_TotSec16     = BPB_TotSec;
@@ -123,7 +130,7 @@ const uint32_t c_DataStartSector    = c_RootDirStartSector + c_RootDirSectors;
 #define TARGET_FLASH_IMG_SIZE       (g_board_info.target_cfg->flash_regions[0].end - g_board_info.target_cfg->flash_regions[0].start)
 #define TARGET_FLASH_UF2_SIZE       (2 * TARGET_FLASH_IMG_SIZE)
 
-#ifdef INCLUDE_RAM_UF2
+#if OPT_MSC_RAM_UF2
     #define TARGET_RAM_IMG_BASE     (g_board_info.target_cfg->ram_regions[0].start)
     #define TARGET_RAM_IMG_SIZE     (g_board_info.target_cfg->ram_regions[0].end - g_board_info.target_cfg->ram_regions[0].start)
     #define TARGET_RAM_UF2_SIZE     (2 * TARGET_RAM_IMG_SIZE)
@@ -153,7 +160,7 @@ const uint32_t f_IndexHtmSectors = BPB_SecPerClus * f_IndexHtmClusters;
 #define f_CurrentUF2StartSector       (c_FirstSectorofCluster(f_CurrentUF2StartCluster))
 #define f_CurrentUF2Sectors           (BPB_SecPerClus * f_CurrentUF2Clusters)
 
-#ifdef INCLUDE_RAM_UF2
+#if OPT_MSC_RAM_UF2
     #define f_RAMUF2StartCluster      (f_CurrentUF2StartCluster + f_CurrentUF2Clusters)
     #define f_RAMUF2Clusters          (CLUSTERS(TARGET_RAM_UF2_SIZE))
     #define f_RAMUF2StartSector       (c_FirstSectorofCluster(f_RAMUF2StartCluster))
@@ -507,7 +514,7 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
             insert_fat_entry(buffer, block_no * BPB_BytsPerSec,
                              cluster, cluster < (f_CurrentUF2StartCluster + f_CurrentUF2Clusters - 1) ? cluster + 1 : 0xfff);
         }
-#ifdef INCLUDE_RAM_UF2
+#if OPT_MSC_RAM_UF2
         for (uint16_t cluster = f_RAMUF2StartCluster;  cluster < f_RAMUF2StartCluster + f_RAMUF2Clusters;  ++cluster) {
             insert_fat_entry(buffer, block_no * BPB_BytsPerSec,
                              cluster, cluster < (f_RAMUF2StartCluster + f_RAMUF2Clusters - 1) ? cluster + 1 : 0xfff);
@@ -521,7 +528,7 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
 //        picoprobe_info("  ROOTDIR\n");
         r = read_sector_from_buffer(buffer, rootdirsector, sizeof(rootdirsector), lba - c_RootDirStartSector);
         append_dir_entry(buffer, "CURRENT UF2", f_CurrentUF2StartCluster, TARGET_FLASH_UF2_SIZE);
-#ifdef INCLUDE_RAM_UF2
+#if OPT_MSC_RAM_UF2
         append_dir_entry(buffer, "RAM     UF2", f_RAMUF2StartCluster, TARGET_RAM_UF2_SIZE);
 #endif
     }
@@ -566,7 +573,7 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
             }
         }
     }
-#ifdef INCLUDE_RAM_UF2
+#if OPT_MSC_RAM_UF2
     else if (lba >= f_RAMUF2StartSector  &&  lba < f_RAMUF2StartSector + f_RAMUF2Sectors) {
         const uint32_t payload_size = 256;
         const uint32_t num_blocks   = f_RAMUF2Sectors;
@@ -691,5 +698,3 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, u
 
     return resplen;
 }   // tud_msc_scsi_cb
-
-#endif

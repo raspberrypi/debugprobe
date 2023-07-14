@@ -49,9 +49,9 @@ This information includes:
 #include <hardware/gpio.h>
 
 #include "cmsis_compiler.h"
+#include "get_config.h"
 #include "picoprobe_config.h"
 #include "probe.h"
-#include "get_serial.h"
 #include "target_board.h"
 
 /// Processor Clock of the Cortex-M MCU used in the Debug Unit.

@@ -25,30 +25,67 @@
  *
  */
 
+#include <get_config.h>
 #include "tusb.h"
-#include "get_serial.h"
 #include "picoprobe_config.h"
+
+
+//--------------------------------------------------------------------+
+// String enums
+//--------------------------------------------------------------------+
+
+enum
+{
+    STRID_LANGID = 0,
+    STRID_MANUFACTURER,
+    STRID_PRODUCT,
+    STRID_SERIAL,
+    STRID_INTERFACE_DAP2,
+    STRID_INTERFACE_DAP1,
+    STRID_INTERFACE_MSC,
+    STRID_INTERFACE_CDC_UART,
+#if OPT_SIGROK
+    STRID_INTERFACE_CDC_SIGROK,
+#endif
+    STRID_INTERFACE_CDC_DEBUG,
+#if OPT_NET
+    STRID_INTERFACE_NET,
+    STRID_MAC,
+#endif
+#if OPT_CDC_SYSVIEW
+    STRID_INTERFACE_CDC_SYSVIEW,
+#endif
+};
+
 
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
+
 tusb_desc_device_t const desc_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
-    .bcdUSB             = 0x0210, // USB Specification version 2.1 for BOS
-    .bDeviceClass       = 0x00, // Each interface specifies its own
-    .bDeviceSubClass    = 0x00, // Each interface specifies its own
-    .bDeviceProtocol    = 0x00,
+#if OPT_CMSIS_DAPV2                                     // USB Specification version 2.1 for BOS (DAPv2) under Windows
+    .bcdUSB             = 0x0210,
+#else
+    .bcdUSB             = 0x0200,
+#endif
+
+    // Use Interface Association Descriptor (IAD) device class
+    .bDeviceClass       = TUSB_CLASS_MISC,
+    .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
+    .bDeviceProtocol    = MISC_PROTOCOL_IAD,
+
     .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
 
     .idVendor           = 0x2E8A, // Pi
     .idProduct          = 0x000c, // CMSIS-DAP adapter
     .bcdDevice          = (PICOPROBE_VERSION_MAJOR << 8) + (16*(PICOPROBE_VERSION_MINOR / 10)) + PICOPROBE_VERSION_MINOR % 10,
-    .iManufacturer      = 0x01,
-    .iProduct           = 0x02,
-    .iSerialNumber      = 0x03,
-    .bNumConfigurations = 0x01
+    .iManufacturer      = STRID_MANUFACTURER,
+    .iProduct           = STRID_PRODUCT,
+    .iSerialNumber      = STRID_SERIAL,
+    .bNumConfigurations = 1,
 };
 
 // Invoked when received GET DEVICE DESCRIPTOR
@@ -58,32 +95,44 @@ uint8_t const * tud_descriptor_device_cb(void)
     return (uint8_t const *) &desc_device;
 }
 
+
 //--------------------------------------------------------------------+
 // Configuration Descriptor
 //--------------------------------------------------------------------+
 
 enum
 {
-#if CFG_TUD_VENDOR
+#if OPT_CMSIS_DAPV2
     ITF_NUM_PROBE_VENDOR,               // Old versions of Keil MDK only look at interface 0
 #endif
-#if CFG_TUD_HID
+#if OPT_CMSIS_DAPV1
     ITF_NUM_PROBE_HID,
 #endif
-#if CFG_TUD_CDC_UART
-    ITF_NUM_CDC_COM,
-    ITF_NUM_CDC_DATA,
+#if OPT_TARGET_UART
+    ITF_NUM_CDC_UART_COM,
+    ITF_NUM_CDC_UART_DATA,
 #endif
-#if CFG_TUD_CDC_SIGROK
+#if OPT_SIGROK
     ITF_NUM_CDC_SIGROK_COM,
     ITF_NUM_CDC_SIGROK_DATA,
 #endif
-#if CFG_TUD_MSC
+#if OPT_MSC
     ITF_NUM_MSC,
 #endif
-#if CFG_TUD_CDC_DEBUG
+#if OPT_NET_PROTO_ECM  ||  OPT_NET_PROTO_RNDIS
+    ITF_NUM_CDC_RNDIS_COM,
+    ITF_NUM_CDC_RNDIS_DATA,
+#elif OPT_NET_PROTO_NCM
+    ITF_NUM_CDC_NCM_COM,
+    ITF_NUM_CDC_NCM_DATA,
+#endif
+#if OPT_PROBE_DEBUG_OUT
     ITF_NUM_CDC_DEBUG_COM,
     ITF_NUM_CDC_DEBUG_DATA,
+#endif
+#if OPT_CDC_SYSVIEW
+    ITF_NUM_CDC_SYSVIEW_COM,
+    ITF_NUM_CDC_SYSVIEW_DATA,
 #endif
     ITF_NUM_TOTAL
 };
@@ -93,117 +142,154 @@ enum
 enum
 {
     DUMMY_CNT = 0,
-#if CFG_TUD_VENDOR
+#if OPT_CMSIS_DAPV2
     PROBE_VENDOR_OUT_EP_CNT,
     PROBE_VENDOR_IN_EP_CNT,
 #endif
-#if CFG_TUD_HID
+#if OPT_CMSIS_DAPV1
     PROBE_HID_OUT_EP_CNT,
     PROBE_HID_IN_EP_CNT,
 #endif
-#if CFG_TUD_CDC_UART
-    CDC_NOTIFICATION_EP_CNT,
-    CDC_DATA_OUT_EP_CNT,
-    CDC_DATA_IN_EP_CNT,
+#if OPT_TARGET_UART
+    CDC_UART_NOTIFICATION_EP_CNT,
+    CDC_UART_DATA_EP_CNT,
 #endif
-#if CFG_TUD_CDC_SIGROK
+#if OPT_SIGROK
     CDC_SIGROK_NOTIFICATION_EP_CNT,
-    CDC_SIGROK_DATA_OUT_EP_CNT,
-    CDC_SIGROK_DATA_IN_EP_CNT,
+    CDC_SIGROK_DATA_EP_CNT,
 #endif
-#if CFG_TUD_MSC
+#if OPT_MSC
     MSC_OUT_EP_CNT,
     MSC_IN_EP_CNT,
 #endif
-#if CFG_TUD_CDC_DEBUG
+#if OPT_NET_PROTO_ECM  ||  OPT_NET_PROTO_RNDIS
+    CDC_RNDIS_NOTIFICATION_EP_CNT,
+    CDC_RNDIS_DATA_EP_CNT,
+#elif OPT_NET_PROTO_NCM
+    CDC_NCM_NOTIFICATION_EP_CNT,
+    CDC_NCM_DATA_EP_CNT,
+#endif
+#if OPT_PROBE_DEBUG_OUT
     CDC_DEBUG_NOTIFICATION_EP_CNT,
-    CDC_DEBUG_DATA_OUT_EP_CNT,
-    CDC_DEBUG_DATA_IN_EP_CNT,
+    CDC_DEBUG_DATA_EP_CNT,
+#endif
+#if OPT_CDC_SYSVIEW
+    CDC_SYSVIEW_NOTIFICATION_EP_CNT,
+    CDC_SYSVIEW_DATA_EP_CNT,
 #endif
 };
 
-#if CFG_TUD_VENDOR
+
+#if OPT_CMSIS_DAPV2
     #define PROBE_VENDOR_OUT_EP_NUM         (PROBE_VENDOR_OUT_EP_CNT + 0x00)
     #define PROBE_VENDOR_IN_EP_NUM          (PROBE_VENDOR_IN_EP_CNT + 0x80)
 #endif
-#if CFG_TUD_HID
+#if OPT_CMSIS_DAPV1
     #define PROBE_HID_OUT_EP_NUM            (PROBE_HID_OUT_EP_CNT + 0x00)
     #define PROBE_HID_IN_EP_NUM             (PROBE_HID_IN_EP_CNT + 0x80)
 #endif
-#if CFG_TUD_CDC_UART
-    #define CDC_NOTIFICATION_EP_NUM         (CDC_NOTIFICATION_EP_CNT + 0x80)
-    #define CDC_DATA_OUT_EP_NUM             (CDC_DATA_OUT_EP_CNT + 0x00)
-    #define CDC_DATA_IN_EP_NUM              (CDC_DATA_IN_EP_CNT + 0x80)
+#if OPT_TARGET_UART
+    #define CDC_UART_NOTIFICATION_EP_NUM    (CDC_UART_NOTIFICATION_EP_CNT + 0x80)
+    #define CDC_UART_DATA_OUT_EP_NUM        (CDC_UART_DATA_EP_CNT + 0x00)
+    #define CDC_UART_DATA_IN_EP_NUM         (CDC_UART_DATA_EP_CNT + 0x80)
 #endif
-#if CFG_TUD_CDC_SIGROK
+#if OPT_SIGROK
     #define CDC_SIGROK_NOTIFICATION_EP_NUM  (CDC_SIGROK_NOTIFICATION_EP_CNT + 0x80)
-    #define CDC_SIGROK_DATA_OUT_EP_NUM      (CDC_SIGROK_DATA_OUT_EP_CNT + 0x00)
-    #define CDC_SIGROK_DATA_IN_EP_NUM       (CDC_SIGROK_DATA_IN_EP_CNT + 0x80)
+    #define CDC_SIGROK_DATA_OUT_EP_NUM      (CDC_SIGROK_DATA_EP_CNT + 0x00)
+    #define CDC_SIGROK_DATA_IN_EP_NUM       (CDC_SIGROK_DATA_EP_CNT + 0x80)
 #endif
-#if CFG_TUD_MSC
+#if OPT_MSC
     #define MSC_OUT_EP_NUM                  (MSC_OUT_EP_CNT + 0x00)
     #define MSC_IN_EP_NUM                   (MSC_IN_EP_CNT + 0x80)
 #endif
-#if CFG_TUD_CDC_DEBUG
+#if OPT_NET_PROTO_ECM  ||  OPT_NET_PROTO_RNDIS
+    #define CDC_RNDIS_NOTIFICATION_EP_NUM   (CDC_RNDIS_NOTIFICATION_EP_CNT + 0x80)
+    #define CDC_RNDIS_DATA_OUT_EP_NUM       (CDC_RNDIS_DATA_EP_CNT + 0x00)
+    #define CDC_RNDIS_DATA_IN_EP_NUM        (CDC_RNDIS_DATA_EP_CNT + 0x80)
+#elif OPT_NET_PROTO_NCM
+    #define CDC_NCM_NOTIFICATION_EP_NUM     (CDC_NCM_NOTIFICATION_EP_CNT + 0x80)
+    #define CDC_NCM_DATA_OUT_EP_NUM         (CDC_NCM_DATA_EP_CNT + 0x00)
+    #define CDC_NCM_DATA_IN_EP_NUM          (CDC_NCM_DATA_EP_CNT + 0x80)
+#endif
+#if OPT_PROBE_DEBUG_OUT
     #define CDC_DEBUG_NOTIFICATION_EP_NUM   (CDC_DEBUG_NOTIFICATION_EP_CNT + 0x80)
-    #define CDC_DEBUG_DATA_OUT_EP_NUM       (CDC_DEBUG_DATA_OUT_EP_CNT + 0x00)
-    #define CDC_DEBUG_DATA_IN_EP_NUM        (CDC_DEBUG_DATA_IN_EP_CNT + 0x80)
+    #define CDC_DEBUG_DATA_OUT_EP_NUM       (CDC_DEBUG_DATA_EP_CNT + 0x00)
+    #define CDC_DEBUG_DATA_IN_EP_NUM        (CDC_DEBUG_DATA_EP_CNT + 0x80)
+#endif
+#if OPT_CDC_SYSVIEW
+    #define CDC_SYSVIEW_NOTIFICATION_EP_NUM (CDC_SYSVIEW_NOTIFICATION_EP_CNT + 0x80)
+    #define CDC_SYSVIEW_DATA_OUT_EP_NUM     (CDC_SYSVIEW_DATA_EP_CNT + 0x00)
+    #define CDC_SYSVIEW_DATA_IN_EP_NUM      (CDC_SYSVIEW_DATA_EP_CNT + 0x80)
 #endif
 
-#define CONFIG_TOTAL_LEN   (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + CFG_TUD_VENDOR*TUD_VENDOR_DESC_LEN + CFG_TUD_HID*TUD_HID_INOUT_DESC_LEN + CFG_TUD_MSC*TUD_MSC_DESC_LEN)
 
-
-#if CFG_TUD_HID
-static uint8_t const desc_hid_report[] =
-{
-    TUD_HID_REPORT_DESC_GENERIC_INOUT(CFG_TUD_HID_EP_BUFSIZE)
-};
-
-uint8_t const * tud_hid_descriptor_report_cb(uint8_t itf)
-{
-    (void)itf;
-    return desc_hid_report;
-}
+#if OPT_NET_PROTO_RNDIS
+    #define CONFIG_TOTAL_LEN   (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + CFG_TUD_VENDOR*TUD_VENDOR_DESC_LEN \
+                                + CFG_TUD_HID*TUD_HID_INOUT_DESC_LEN + CFG_TUD_MSC*TUD_MSC_DESC_LEN                     \
+                                + CFG_TUD_ECM_RNDIS*TUD_RNDIS_DESC_LEN                                                  \
+                                + CFG_TUD_NCM*TUD_CDC_NCM_DESC_LEN)
+#else
+    #define CONFIG_TOTAL_LEN   (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC*TUD_CDC_DESC_LEN + CFG_TUD_VENDOR*TUD_VENDOR_DESC_LEN \
+                                + CFG_TUD_HID*TUD_HID_INOUT_DESC_LEN + CFG_TUD_MSC*TUD_MSC_DESC_LEN                     \
+                                + CFG_TUD_ECM_RNDIS*TUD_CDC_ECM_DESC_LEN                                                \
+                                + CFG_TUD_NCM*TUD_CDC_NCM_DESC_LEN)
 #endif
+
+#if OPT_CMSIS_DAPV1
+    static uint8_t const desc_hid_report[] =
+    {
+        TUD_HID_REPORT_DESC_GENERIC_INOUT(CFG_TUD_HID_EP_BUFSIZE)
+    };
+
+    uint8_t const * tud_hid_descriptor_report_cb(uint8_t itf)
+    {
+        (void)itf;
+        return desc_hid_report;
+    }
+#endif
+
 
 
 //
 // note that there is a 64byte packet limit for full speed!
 //
-uint8_t const desc_configuration[] =
+#define CURR_MA 200
+
+static uint8_t const desc_configuration[] =
 {
-    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 500),
-
-#if CFG_TUD_VENDOR
-    // Interface 0: Bulk (named interface), CMSIS-DAPv2
-    TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE_VENDOR, 4, PROBE_VENDOR_OUT_EP_NUM, PROBE_VENDOR_IN_EP_NUM, 64),
+    // Config number, interface count, string index, total length, attribute, power in mA
+    //TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 500),
+    TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0, CURR_MA),
+#if OPT_CMSIS_DAPV2
+    TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE_VENDOR, STRID_INTERFACE_DAP2, PROBE_VENDOR_OUT_EP_NUM, PROBE_VENDOR_IN_EP_NUM, 64),
 #endif
-
-#if CFG_TUD_HID
-    // Interface 1: HID (named interface), CMSIS-DAP v1
-    TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_PROBE_HID, 5, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), PROBE_HID_OUT_EP_NUM, PROBE_HID_IN_EP_NUM, CFG_TUD_HID_EP_BUFSIZE, 1),
+#if OPT_CMSIS_DAPV1
+    TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_PROBE_HID, STRID_INTERFACE_DAP1, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), PROBE_HID_OUT_EP_NUM, PROBE_HID_IN_EP_NUM, CFG_TUD_HID_EP_BUFSIZE, 1),
 #endif
-
-#if CFG_TUD_CDC_UART
-    // Interface 2 + 3: CDC UART (target)
-    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_COM, 7, CDC_NOTIFICATION_EP_NUM, 64, CDC_DATA_OUT_EP_NUM, CDC_DATA_IN_EP_NUM, 64),
+#if OPT_TARGET_UART
+    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_UART_COM, STRID_INTERFACE_CDC_UART, CDC_UART_NOTIFICATION_EP_NUM, 64, CDC_UART_DATA_OUT_EP_NUM, CDC_UART_DATA_IN_EP_NUM, 64),
 #endif
-
-#if CFG_TUD_CDC_SIGROK
-    // Interface 4 + 5: CDC SIGROK
-    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_SIGROK_COM, 8, CDC_SIGROK_NOTIFICATION_EP_NUM, 64, CDC_SIGROK_DATA_OUT_EP_NUM, CDC_SIGROK_DATA_IN_EP_NUM, 64),
+#if OPT_SIGROK
+    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_SIGROK_COM, STRID_INTERFACE_CDC_SIGROK, CDC_SIGROK_NOTIFICATION_EP_NUM, 64, CDC_SIGROK_DATA_OUT_EP_NUM, CDC_SIGROK_DATA_IN_EP_NUM, 64),
 #endif
-
-    // Interface 6: MSC
-#if CFG_TUD_MSC
-    TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 6, MSC_OUT_EP_NUM, MSC_IN_EP_NUM, 64),
+#if OPT_MSC
+    TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, STRID_INTERFACE_MSC, MSC_OUT_EP_NUM, MSC_IN_EP_NUM, 64),
 #endif
-
-#if CFG_TUD_CDC_DEBUG
-    // Interface 7 + 8: CDC DEBUG (internal)
-    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_DEBUG_COM, 9, CDC_DEBUG_NOTIFICATION_EP_NUM, 64, CDC_DEBUG_DATA_OUT_EP_NUM, CDC_DEBUG_DATA_IN_EP_NUM, 64),
+#if OPT_NET_PROTO_RNDIS
+    TUD_RNDIS_DESCRIPTOR(ITF_NUM_CDC_RNDIS_COM, STRID_INTERFACE_NET, CDC_RNDIS_NOTIFICATION_EP_NUM, 8, CDC_RNDIS_DATA_OUT_EP_NUM, CDC_RNDIS_DATA_IN_EP_NUM, 64),
+#elif OPT_NET_PROTO_ECM
+    TUD_CDC_ECM_DESCRIPTOR(ITF_NUM_CDC_RNDIS_COM, STRID_INTERFACE_NET, STRID_MAC, CDC_RNDIS_NOTIFICATION_EP_NUM, 64, CDC_RNDIS_DATA_OUT_EP_NUM, CDC_RNDIS_DATA_IN_EP_NUM, 64, CFG_TUD_NET_MTU),
+#elif OPT_NET_PROTO_NCM
+    TUD_CDC_NCM_DESCRIPTOR(ITF_NUM_CDC_NCM_COM, STRID_INTERFACE_NET, STRID_MAC, CDC_NCM_NOTIFICATION_EP_NUM, 64, CDC_NCM_DATA_OUT_EP_NUM, CDC_NCM_DATA_IN_EP_NUM, 64, CFG_TUD_NET_MTU),
+#endif
+#if OPT_PROBE_DEBUG_OUT
+    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_DEBUG_COM, STRID_INTERFACE_CDC_DEBUG, CDC_DEBUG_NOTIFICATION_EP_NUM, 64, CDC_DEBUG_DATA_OUT_EP_NUM, CDC_DEBUG_DATA_IN_EP_NUM, 64),
+#endif
+#if OPT_CDC_SYSVIEW
+    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_SYSVIEW_COM, STRID_INTERFACE_CDC_SYSVIEW, CDC_SYSVIEW_NOTIFICATION_EP_NUM, 64, CDC_SYSVIEW_DATA_OUT_EP_NUM, CDC_SYSVIEW_DATA_IN_EP_NUM, 64),
 #endif
 };
+
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
 // Application return pointer to descriptor
@@ -212,25 +298,41 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
     (void)index; // for multiple configurations
     return desc_configuration;
-}
+}   // tud_descriptor_configuration_cb
+
 
 //--------------------------------------------------------------------+
 // String Descriptors
 //--------------------------------------------------------------------+
 
 // array of pointer to string descriptors
-char const* string_desc_arr [] =
+static char const* string_desc_arr[] =
 {
-  (const char[]) { 0x09, 0x04 },       // 0: is supported language is English (0x0409)
-  "RaspberryPi",                       // 1: Manufacturer
-  "YAPicoprobe CMSIS-DAP",             // 2: Product,                                 **MUST** contain "CMSIS-DAP" to enable "CMSIS-DAP v1"
-  usb_serial,                          // 3: Serial, uses flash unique ID
-  "YAPicoprobe CMSIS-DAP v2",          // 4: Interface descriptor for Bulk transport, **MUST** contain "CMSIS-DAP" to enable "CMSIS-DAP v2"
-  "YAPicoprobe CMSIS-DAP v1",          // 5: Interface descriptor for HID transport
-  "YAPicoprobe Flash Drive",           // 6: Interface descriptor for MSC interface
-  "YAPicoprobe CDC-UART",              // 7: Interface descriptor for CDC UART (from target)
-  "YAPicoprobe CDC-SIGROK",            // 8: Interface descriptor for CDC SIGROK
-  "YAPicoprobe CDC-DEBUG",             // 9: Interface descriptor for CDC DEBUG
+    [STRID_LANGID]                 = (const char[]) { 0x09, 0x04 },       // is supported language is English (0x0409)
+    [STRID_MANUFACTURER]           = "RaspberryPi",                       // Manufacturer
+    [STRID_PRODUCT]                = "YAPicoprobe CMSIS-DAP",             // Product,                                 **MUST** contain "CMSIS-DAP" to enable "CMSIS-DAP v1"
+    [STRID_SERIAL]                 = usb_serial,                          // Serial, uses flash unique ID
+    [STRID_INTERFACE_DAP2]         = "YAPicoprobe CMSIS-DAP v2",          // Interface descriptor for Bulk transport, **MUST** contain "CMSIS-DAP" to enable "CMSIS-DAP v2"
+    [STRID_INTERFACE_DAP1]         = "YAPicoprobe CMSIS-DAP v1",          // Interface descriptor for HID transport
+    [STRID_INTERFACE_MSC]          = "YAPicoprobe Flash Drive",           // Interface descriptor for MSC interface
+    [STRID_INTERFACE_CDC_UART]     = "YAPicoprobe CDC-UART",              // Interface descriptor for CDC UART (from target)
+#if OPT_SIGROK
+    [STRID_INTERFACE_CDC_SIGROK]   = "YAPicoprobe CDC-SIGROK",            // Interface descriptor for CDC SIGROK
+#endif
+    [STRID_INTERFACE_CDC_DEBUG]    = "YAPicoprobe CDC-DEBUG",             // Interface descriptor for CDC DEBUG
+#if OPT_NET_PROTO_RNDIS
+    [STRID_INTERFACE_NET]          = "YAPicoprobe RNDIS",                 // Interface descriptor for SysView RNDIS
+#elif OPT_NET_PROTO_ECM
+    [STRID_INTERFACE_NET]          = "YAPicoprobe ECM",                   // Interface descriptor for SysView RNDIS
+#elif OPT_NET_PROTO_NCM
+    [STRID_INTERFACE_NET]          = "YAPicoprobe NCM",                   // Interface descriptor for SysView NCM
+#endif
+#if OPT_NET
+    [STRID_MAC]                    = "",
+#endif
+#if OPT_CDC_SYSVIEW
+    [STRID_INTERFACE_CDC_SYSVIEW]  = "YAPicoprobe CDC-SysView",           // Interface descriptor for SysView CDC
+#endif
 };
 
 static uint16_t _desc_str[32];
@@ -241,12 +343,21 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 {
     (void)langid;
 
-    uint8_t chr_count;
+    uint8_t chr_count = 0;
 
-    if (index == 0) {
-        memcpy(&_desc_str[1], string_desc_arr[0], 2);
+    if (index == STRID_LANGID) {
+        memcpy( &_desc_str[1], string_desc_arr[0], 2);
         chr_count = 1;
     }
+#if OPT_NET
+    else if (index == STRID_MAC) {
+        // Convert MAC address into UTF-16
+        for (unsigned i = 0;  i < sizeof(tud_network_mac_address);  ++i) {
+            _desc_str[1+chr_count++] = "0123456789ABCDEF"[(tud_network_mac_address[i] >> 4) & 0xf];
+            _desc_str[1+chr_count++] = "0123456789ABCDEF"[(tud_network_mac_address[i] >> 0) & 0xf];
+        }
+    }
+#endif
     else {
         // Convert ASCII string into UTF-16
 
@@ -272,7 +383,7 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 }
 
 
-#if CFG_TUD_VENDOR
+#if OPT_CMSIS_DAPV2
 /* [incoherent gibbering to make Windows happy] */
 
 //--------------------------------------------------------------------+
