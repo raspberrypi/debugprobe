@@ -32,7 +32,7 @@ Finally there is **Y**et **A**nother **Picoprobe** around, the YAPicoprobe.
 ** UART connection between target and probe is redirected
 ** RTT terminal channel is automatically redirected into this CDC (if there is no
    CMSIS-DAPv2/MSC connection)
-* https://www.segger.com/products/development-tools/systemview/[SystemView] support over TCP/IP (ECM/NCM/RNDIS)
+* https://www.segger.com/products/development-tools/systemview/[SystemView] support over TCP/IP (NCM/ECM/RNDIS)
 * CDC - virtual com port for (debug) logging of the probe
 * optional CDC sigrok probe - data collection on eight digital and three analog channels
   (logic analyzer and oscilloscope) with auto-trigger capability
@@ -357,7 +357,7 @@ The Pico Debug Probe has four additional LEDs.  Assignment is as follows:
 
 ## Configuration
 
-### udev rules for MSC and CMSIS-DAP
+### udev rules
 
 Under Linux one wants to use the following udev rules for convenience.
 
@@ -530,10 +530,10 @@ git submodule update --init
 .General build sequence
 [source,bash]
 ----
-# create build/ninja.build for a debug target
+# create _build/ninja.build for a debug target
 make cmake-create-debug
 
-# build yapicoprobe, output in build/picoprobe.uf2
+# build yapicoprobe, output in _build/picoprobe.uf2
 make all
 
 # clean build files
@@ -563,8 +563,9 @@ cmake --build .
 # output in picoprobe.elf/uf2/hex/bin
 ----
 
-If you want to know the several options use the one liner
-`cmake -LH .. | sed -n -e '/OPT_/{x;1!p;g;$!N;p;D;}' -e h`.
+If you want to know the several options use the one liner in the build directory:
+`cmake -LH . | sed -n -e '/OPT_/{x;1!p;g;$!N;p;D;}' -e h`. +
+Or use simply `make show-options` in the projects root.
 
 
 ### Code Inherited
