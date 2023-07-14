@@ -118,9 +118,9 @@ static uint8_t RxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZ
 
 
 // prios are critical and determine throughput
-// there is one more task prio in lwipopts.h
 #define LED_TASK_PRIO               (tskIDLE_PRIORITY + 30)       // simple task which may interrupt everything else for periodic blinking
 #define TUD_TASK_PRIO               (tskIDLE_PRIORITY + 28)       // high prio for TinyUSB
+//#define TCPIP_THREAD_PRIO           (27)                        // defined in lwipopts.h
 #define CDC_DEBUG_TASK_PRIO         (tskIDLE_PRIORITY + 26)       // probe debugging output (CDC)
 #define PRINT_STATUS_TASK_PRIO      (tskIDLE_PRIORITY + 24)       // high prio to get status output transferred in (almost) any case
 #define SIGROK_TASK_PRIO            (tskIDLE_PRIORITY + 9)        // Sigrok digital/analog signals (does nothing at the moment)
