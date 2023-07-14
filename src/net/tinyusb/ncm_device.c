@@ -28,6 +28,8 @@
 
 #include "tusb_option.h"
 
+#warning "Don't use this driver because it is (very) buggy.  It is for reference only."
+
 #if ECLIPSE_GUI || ( CFG_TUD_ENABLED && CFG_TUD_NCM )
 
 #if ECLIPSE_GUI

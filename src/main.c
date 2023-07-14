@@ -398,6 +398,14 @@ void print_task_stat(void *ptr)
     for (;;) {
         printf("---------------------------------------\n");
 
+#if LWIP_STATS
+        {
+            extern void stats_display(void);
+            stats_display();
+            printf("---------------------------------------\n");
+        }
+#endif
+
         printf("TinyUSB counter : %lu\n", tusb_count - prev_tusb_count);
         prev_tusb_count = tusb_count;
         vPortGetHeapStats( &heap_status);

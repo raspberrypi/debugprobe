@@ -157,7 +157,7 @@ static void sysview_try_send(void *ctx)
         else {
 //            printf("sysview_try_send: no tcp_sndbuf!!!!\n");
             if ( !block_call_to_tcp_output) {
-                printf("sysview_try_send: flush\n");
+                //printf("sysview_try_send: flush\n");
                 block_call_to_tcp_output = true;
                 tcp_output(m_pcb_client);
             }
