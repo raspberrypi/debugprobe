@@ -119,14 +119,14 @@ static uint8_t RxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZ
 
 // prios are critical and determine throughput
 // there is one more task prio in lwipopts.h
-#define PRINT_STATUS_TASK_PRIO      (tskIDLE_PRIORITY + 30)       // high prio to get status output transferred in (almost) any case
-#define TUD_TASK_PRIO               (tskIDLE_PRIORITY + 20)       // high prio for TinyUSB
-#define LED_TASK_PRIO               (tskIDLE_PRIORITY + 12)       // simple task which may interrupt everything else for periodic blinking
+#define LED_TASK_PRIO               (tskIDLE_PRIORITY + 30)       // simple task which may interrupt everything else for periodic blinking
+#define TUD_TASK_PRIO               (tskIDLE_PRIORITY + 28)       // high prio for TinyUSB
+#define CDC_DEBUG_TASK_PRIO         (tskIDLE_PRIORITY + 26)       // probe debugging output (CDC)
+#define PRINT_STATUS_TASK_PRIO      (tskIDLE_PRIORITY + 24)       // high prio to get status output transferred in (almost) any case
 #define SIGROK_TASK_PRIO            (tskIDLE_PRIORITY + 9)        // Sigrok digital/analog signals (does nothing at the moment)
 #define MSC_WRITER_THREAD_PRIO      (tskIDLE_PRIORITY + 8)        // this is only running on writing UF2 files
 #define SYSVIEW_TASK_PRIO           (tskIDLE_PRIORITY + 6)        // target -> host via SysView (CDC)
 #define UART_TASK_PRIO              (tskIDLE_PRIORITY + 5)        // target -> host via UART (CDC)
-#define CDC_DEBUG_TASK_PRIO         (tskIDLE_PRIORITY + 4)        // probe debugging output (CDC)
 #define DAPV2_TASK_PRIO             (tskIDLE_PRIORITY + 3)        // DAPv2 execution
 #define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 1)        // target -> host via RTT, ATTENTION: this task can fully load the CPU depending on target RTT output
 
