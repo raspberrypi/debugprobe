@@ -82,18 +82,18 @@ typedef struct {
 //--------------------------------------------------------------------+
 
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static const ntb_parameters_t ntb_parameters = {
-        .wLength = sizeof(ntb_parameters_t),
-        .bmNtbFormatsSupported = 0x01,                                 // 16-bit NTB supported
-        .dwNtbInMaxSize = CFG_TUD_NCM_IN_NTB_MAX_SIZE,
-        .wNdbInDivisor = 4,
-        .wNdbInPayloadRemainder = 0,
-        .wNdbInAlignment = CFG_TUD_NCM_ALIGNMENT,
-        .wReserved = 0,
-        .dwNtbOutMaxSize = CFG_TUD_NCM_OUT_NTB_MAX_SIZE,
-        .wNdbOutDivisor = 4,
+        .wLength                 = sizeof(ntb_parameters_t),
+        .bmNtbFormatsSupported   = 0x01,                                 // 16-bit NTB supported
+        .dwNtbInMaxSize          = CFG_TUD_NCM_IN_NTB_MAX_SIZE,
+        .wNdbInDivisor           = 4,
+        .wNdbInPayloadRemainder  = 0,
+        .wNdbInAlignment         = CFG_TUD_NCM_ALIGNMENT,
+        .wReserved               = 0,
+        .dwNtbOutMaxSize         = CFG_TUD_NCM_OUT_NTB_MAX_SIZE,
+        .wNdbOutDivisor          = 4,
         .wNdbOutPayloadRemainder = 0,
-        .wNdbOutAlignment = CFG_TUD_NCM_ALIGNMENT,
-        .wNtbOutMaxDatagrams = 1                                       // 0=no limit TODO set to 0
+        .wNdbOutAlignment        = CFG_TUD_NCM_ALIGNMENT,
+        .wNtbOutMaxDatagrams     = 1                                     // 0=no limit TODO set to 0
 };
 
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static transmit_ntb_t transmit_ntb;
@@ -118,12 +118,12 @@ tu_static struct ncm_notify_struct ncm_notify_connected = {
         .header = {
                 .bmRequestType_bit = {
                         .recipient = TUSB_REQ_RCPT_INTERFACE,
-                        .type = TUSB_REQ_TYPE_CLASS,
+                        .type      = TUSB_REQ_TYPE_CLASS,
                         .direction = TUSB_DIR_IN
                 },
                 .bRequest = CDC_NOTIF_NETWORK_CONNECTION,
-                .wValue = 1 /* Connected */,
-                .wLength = 0,
+                .wValue   = 1 /* Connected */,
+                .wLength  = 0,
         },
 };
 
@@ -131,21 +131,21 @@ tu_static struct ncm_notify_struct ncm_notify_speed_change = {
         .header = {
                 .bmRequestType_bit = {
                         .recipient = TUSB_REQ_RCPT_INTERFACE,
-                        .type = TUSB_REQ_TYPE_CLASS,
+                        .type      = TUSB_REQ_TYPE_CLASS,
                         .direction = TUSB_DIR_IN
                 },
                 .bRequest = CDC_NOTIF_CONNECTION_SPEED_CHANGE,
-                .wLength = 8,
+                .wLength  = 8,
         },
         .downlink = 10000000,
-        .uplink = 10000000,
+        .uplink   = 10000000,
 };
 
 
 
 void tud_network_recv_renew(void)
 /**
- * context: lwIP & TinyUSB
+ * context: TinyUSB
  */
 {
     // printf("tud_network_recv_renew() - [%p]\n", xTaskGetCurrentTaskHandle());
@@ -440,10 +440,9 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
 
             //printf("netd_control_xfer_cb/TUSB_REQ_TYPE_CLASS: %d\n", request->bRequest);
 
-            if (NCM_GET_NTB_PARAMETERS == request->bRequest) {
+            if (request->bRequest == NCM_GET_NTB_PARAMETERS) {
                 tud_control_xfer(rhport, request, (void*) (uintptr_t) &ntb_parameters, sizeof(ntb_parameters));
             }
-
             break;
 
             // unsupported request
@@ -502,8 +501,7 @@ bool tud_network_can_xmit(uint16_t size)
 /**
  * poll network driver for its ability to accept another packet to transmit
  *
- * context: lwIP
- *
+ * context: TinyUSB
  */
 {
     //printf("tud_network_can_xmit() %d [%p]\n", ncm_interface.can_xmit, xTaskGetCurrentTaskHandle());
@@ -514,7 +512,7 @@ bool tud_network_can_xmit(uint16_t size)
 
 void tud_network_xmit(void *ref, uint16_t arg)
 /**
- * context: lwIP.
+ * context: TinyUSB.
  */
 {
     transmit_ntb_t *ntb = &transmit_ntb;
