@@ -65,45 +65,49 @@
 
 
 //--------------------------------------
-// performance tuning (do not change without extensive testing, optimized for ECM)
-#define TCP_MSS                         (1500 - 20 - 20)          // MTU minus header sizes (best value til now)
-#define TCP_SND_BUF                     (4 * TCP_MSS)             //   good tuning
+// performance tuning (do not change without extensive testing, optimized for ECM/NCM)
+#define TCP_MSS                                (1500 - 20 - 20)    // MTU minus header sizes (best value til now)
+#define TCP_SND_BUF                            (8 * TCP_MSS)       //   good tuning
 
-//#define TCP_WND                         (2 * TCP_MSS)
-//#define TCP_OVERSIZE                    TCP_MSS             // til now no good value found
-
-//#define TCP_TMR_INTERVAL                50                  // TODO just a test (default: 250)
-//#define TCP_FAST_INTERVAL               250
-//#define TCP_SLOW_INTERVAL               100
+//#define TCP_WND                                TCP_SND_BUF         // til now no good value found
+#define TCP_SND_QUEUELEN                       16
+#define TCP_SNDQUEUELOWAT                      (TCP_SND_QUEUELEN / 2)
+#define MEMP_NUM_TCP_SEG                       32
 
 //--------------------------------------
 // memory
-#define MEM_SIZE                        20000
-//#define MEM_LIBC_MALLOC                 1
-//#define MEMP_MEM_MALLOC                 1
+#define MEM_SIZE                               20000
+//#define MEMP_OVERFLOW_CHECK                    1
 //#define LWIP_ALLOW_MEM_FREE_FROM_OTHER_CONTEXT 1
 
 
 //--------------------------------------
 // for freertos mode
-#define TCPIP_MBOX_SIZE                 64
-#define TCPIP_THREAD_STACKSIZE          8192
-#define TCPIP_THREAD_PRIO               11
+#define TCPIP_MBOX_SIZE                        64
+#define TCPIP_THREAD_STACKSIZE                 8192
+#define TCPIP_THREAD_PRIO                      11
 
 
 //--------------------------------------
 // trying...
 #define LWIP_PROVIDE_ERRNO              1
 #if LWIP_SOCKET
-    #define LWIP_TIMEVAL_PRIVATE        0      // required for LWIP_SOCKET
+    #define LWIP_TIMEVAL_PRIVATE        0                          // required for LWIP_SOCKET
 #endif
 
 
 //--------------------------------------
 // statistics
-//#define LWIP_STATS                      1
-//#define LWIP_STATS_DISPLAY              1
-//#define LINK_STATS                      1
+// use stats_display() for display
+#define LWIP_STATS                      0
+#define LWIP_STATS_DISPLAY              0
+#define ETHARP_STATS                    0                          // do not display the topics below
+#define ICMP_STATS                      0
+#define IPFRAG_STATS                    0
+#define LINK_STATS                      0
+#define MEMP_STATS                      0
+#define SYS_STATS                       0
+#define UDP_STATS                       0
 
 
 //--------------------------------------
