@@ -23,6 +23,12 @@
  *
  */
 
+//----------------------------------------------------------------------------------------------------------------------
+//
+// TCP server for SystemView
+// - using NCM because it is driver free for Windows / Linux / iOS
+// - we leave the IPv6 stuff outside
+//
 
 #include "FreeRTOS.h"
 #include "stream_buffer.h"
@@ -284,6 +290,7 @@ static err_t sysview_accept(void *arg, struct tcp_pcb *newpcb, err_t err)
     return ERR_OK;
 }   // sysview_accept
 
+// TODO recheck here
 
 
 bool net_sysview_is_connected(void)
