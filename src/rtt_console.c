@@ -287,14 +287,33 @@ static void rtt_from_target_reset(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_
 
 
 static bool rtt_from_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER_UP *aUp,
-                            rtt_data_to_host data_to_host, bool *worked)
+                            rtt_data_to_host data_to_host, bool check_host_buffer, bool *worked)
+/**
+ * Fetch data via RTT from target.
+ *
+ * \param rtt_cb             address of RTT control block
+ * \param channel            RTT channel number
+ * \param aUp                copy of RTT up channel
+ * \param data_to_host       function to transfer data to host
+ * \param check_host_buffer  check if the host can receive this amount of data
+ * \param worked             mark as true if there was no failure
+ */
 {
-    ft_cnt = data_to_host(NULL, 0);
-    if (ft_cnt < sizeof(ft_buf) / 4) {
-        //printf("no space in stream %d: %d\n", channel, ft_cnt);
-        *worked = true;
+    bool send_data_to_host = true;
+
+    if (check_host_buffer) {
+        ft_cnt = data_to_host(NULL, 0);
+        if (ft_cnt < sizeof(ft_buf) / 4) {
+            //printf("no space in stream %d: %d\n", channel, ft_cnt);
+            send_data_to_host = false;
+            *worked = true;
+        }
     }
     else {
+        ft_cnt = sizeof(ft_buf);
+    }
+
+    if (send_data_to_host) {
         ft_aUp = aUp;
         ft_channel = channel;
         ft_rtt_cb = rtt_cb;
@@ -421,7 +440,7 @@ static void do_rtt_io(uint32_t rtt_cb)
                 working_uart = false;
 
                 if (ok_console_from_target)
-                    ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aUpConsole, cdc_uart_write, &working_uart);
+                    ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aUpConsole, cdc_uart_write, false, &working_uart);
 
                 if (ok_console_to_target)
                     ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_console_to_target, RTT_CHANNEL_CONSOLE, &aDownConsole, &working_uart);
@@ -442,7 +461,7 @@ static void do_rtt_io(uint32_t rtt_cb)
                 rtt_from_target_reset(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView);
             }
             if (ok_sysview_from_target)
-                ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView, net_sysview_send, &working_sysview);
+                ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView, net_sysview_send, true, &working_sysview);
 
             if (ok_sysview_to_target)
                 ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_sysview_to_target, RTT_CHANNEL_SYSVIEW, &aDownSysView, &working_sysview);
