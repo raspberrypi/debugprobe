@@ -1,0 +1,50 @@
+:imagesdir: png
+:source-highlighter: rouge
+:toc:
+:toclevels: 5
+
+
+## sigrok
+
+sigrok has been removed from the standard build, because the support from sigrok
+side is very poor.  That means there has to be several extra miles to go until sigrok
+is actually working with YaPicoprobe.
+
+Additionally a lot of use cases of sigrok can be covered by SystemView
+in the embedded area.
+
+This document holds some information about how to use sigrok after compiling it
+into your own YaPicoprobe.
+
+ 
+
+### Sigrok - Data Collection
+
+The probe allows data collection for a https://sigrok.org/[sigrok] compatible
+environment.  Meaning the probe can act also as a logic analyzer / oscilloscope backend. 
+The module is based on work taken from https://github.com/pico-coder/sigrok-pico[sigrok-pico].
+This also means, that at the moment https://sigrok.org/wiki/Libsigrok[libsigrok] has to be
+adopted accordingly, see https://github.com/pico-coder/sigrok-pico/blob/main/SigrokBuildNotes.md[here].
+Benefit is, that this allows the Pico as a mixed-signal device and 
+RLE compression of the collected data.
+
+Specification of the module is:
+
+* 8 digital channels at GP10..GP17
+* 3 analog channels at GP26..GP28 with 8bit resolution
+* internal buffer of 100KByte which allows depending on 
+  setup between 25000 and two hundred thousand samples
+  with highest sample speed
+* digital sampling rate can be up to 100MHz for a short period of
+  time, see https://github.com/pico-coder/sigrok-pico/blob/main/AnalyzerDetails.md[here]
+* analog sampling rate can be up to 500kHz with one channel
+* continuous digital sampling can be up to 10MHz depending on
+  data stream and USB connection/load
+* auto-trigger for sampling rates <= 24MHz
+
+Drawbacks:
+
+* digital channel numbering in sigrok is confusing, because D2 corresponds to GP10...
+* for best performance digital channels must be assigned from GP10 consecutively
+* currently no hardware triggering supported
+

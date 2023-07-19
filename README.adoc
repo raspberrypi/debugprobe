@@ -35,7 +35,8 @@ Finally there is **Y**et **A**nother **Picoprobe** around, the YAPicoprobe.
 * https://www.segger.com/products/development-tools/systemview/[SystemView] support over TCP/IP (NCM/ECM/RNDIS)
 * CDC - virtual com port for (debug) logging of the probe
 * optional CDC sigrok probe - data collection on eight digital and three analog channels
-  (logic analyzer and oscilloscope) with auto-trigger capability
+  (logic analyzer and oscilloscope) with auto-trigger capability.
+  See link:doc/sigrok.adoc[here] for more information
 * LED for state indication
 * Other Benefits
 ** on Windows no more Zadig fiddling because the underlying protocols of CMSIS-DAPv1 and v2 are driver-less
@@ -236,43 +237,6 @@ SystemView communication via TCP/IP had been chosen to spare you from another CD
 because SystemView over COM port works on my Linux device just until v3.30 (Segger promises
 a fix for > 3.50a, nevertheless TCP/IP is used...)
 ====
-
-
-### Sigrok - Data Collection
-
-[IMPORTANT]
-====
-Sigrok is no longer compiled per default into the probe firmware.  If you want sigrok support,
-the <<how-to-build,build instructions>> have to be checked.
-====
-
-The probe allows data collection for a https://sigrok.org/[sigrok] compatible
-environment.  Meaning the probe can act also as a logic analyzer / oscilloscope backend. 
-The module is based on work taken from https://github.com/pico-coder/sigrok-pico[sigrok-pico].
-This also means, that at the moment https://sigrok.org/wiki/Libsigrok[libsigrok] has to be
-adopted accordingly, see https://github.com/pico-coder/sigrok-pico/blob/main/SigrokBuildNotes.md[here].
-Benefit is, that this allows the Pico as a mixed-signal device and 
-RLE compression of the collected data.
-
-Specification of the module is:
-
-* 8 digital channels at GP10..GP17
-* 3 analog channels at GP26..GP28 with 8bit resolution
-* internal buffer of 100KByte which allows depending on 
-  setup between 25000 and two hundred thousand samples
-  with highest sample speed
-* digital sampling rate can be up to 100MHz for a short period of
-  time, see https://github.com/pico-coder/sigrok-pico/blob/main/AnalyzerDetails.md[here]
-* analog sampling rate can be up to 500kHz with one channel
-* continuous digital sampling can be up to 10MHz depending on
-  data stream and USB connection/load
-* auto-trigger for sampling rates <= 24MHz
-
-Drawbacks:
-
-* digital channel numbering in sigrok is confusing, because D2 corresponds to GP10...
-* for best performance digital channels must be assigned from GP10 consecutively
-* currently no hardware triggering supported
 
 
 ### LED Indications
@@ -524,7 +488,7 @@ Requirements:
 ----
 git clone https://github.com/rgrr/yapicoprobe.git
 cd yapicoprobe
-git submodule update --init
+git submodule update --init --recursive
 ----
 
 .General build sequence
@@ -612,6 +576,9 @@ Or use simply `make show-options` in the projects root.
 | https://openocd.org/[Official Homepage]
 
 | https://wiki.segger.com/Use_SystemView_without_RTOS[Use SystemView without RTOS]
+|
+
+| https://www.usb.org/document-library/network-control-model-devices-specification-v10-and-errata-and-adopters-agreement[NCM Specification]
 |
 
 |===
