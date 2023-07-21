@@ -209,11 +209,17 @@ void probe_gpio_init()
 		pio_gpio_init(PROBE_PIO, PROBE_PIN_SWCLK);
 		pio_gpio_init(PROBE_PIO, PROBE_PIN_SWDIO);
 		// Make sure SWDIO has a pullup on it. Idle state is high
-		gpio_set_slew_rate(PROBE_PIN_SWCLK, GPIO_SLEW_RATE_FAST);
-		gpio_set_drive_strength(PROBE_PIN_SWCLK, GPIO_DRIVE_STRENGTH_12MA);
 		gpio_pull_up(PROBE_PIN_SWDIO);
+
+    // Adjusting the GPIO slew and drive strength seems to break connectivity
+    // with certain targets, namely the STM32H7xx line of microcontrollers.
+    // For the time being, both parameters remain unset to ensure compatibility
+#if 0
+        gpio_set_slew_rate(PROBE_PIN_SWCLK, GPIO_SLEW_RATE_FAST);
+		gpio_set_drive_strength(PROBE_PIN_SWCLK, GPIO_DRIVE_STRENGTH_12MA);
         gpio_set_slew_rate(PROBE_PIN_SWDIO, GPIO_SLEW_RATE_FAST);
         gpio_set_drive_strength(PROBE_PIN_SWDIO, GPIO_DRIVE_STRENGTH_12MA);
+#endif
 
 		gpio_debug_pins_init();
 #ifdef PICOPROBE_LED_CONNECTED
