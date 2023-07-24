@@ -4,7 +4,7 @@
 #
 
 VERSION_MAJOR        := 1
-VERSION_MINOR        := 15
+VERSION_MINOR        := 16
 
 BUILD_DIR            := _build
 PROJECT              := picoprobe
