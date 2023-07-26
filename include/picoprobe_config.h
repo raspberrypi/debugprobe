@@ -31,31 +31,31 @@
 
 
 #if OPT_PROBE_DEBUG_OUT
-    #define picoprobe_info_out(format,args...) printf(format, ## args)
+    #define picoprobe_info_out(format,args...) printf(format "\r", ## args)
 #else
     #define picoprobe_info_out(format,...) ((void)0)
 #endif
 
 #if OPT_PROBE_DEBUG_OUT
-    #define picoprobe_info(format,args...) printf("(II) \r" format, ## args)
+    #define picoprobe_info(format,args...) printf("(II) " format "\r", ## args)
 #else
     #define picoprobe_info(format,...) ((void)0)
 #endif
 
 #if 0  &&  OPT_PROBE_DEBUG_OUT
-    #define picoprobe_debug(format,args...) printf("(DD) \r" format, ## args)
+    #define picoprobe_debug(format,args...) printf("(DD) " format "\r", ## args)
 #else
     #define picoprobe_debug(format,...) ((void)0)
 #endif
 
 #if 0  &&  OPT_PROBE_DEBUG_OUT
-    #define picoprobe_dump(format,args...) printf("(..) \r" format, ## args)
+    #define picoprobe_dump(format,args...) printf("(..) " format "\r", ## args)
 #else
     #define picoprobe_dump(format,...) ((void)0)
 #endif
 
 #if 1  &&  OPT_PROBE_DEBUG_OUT
-    #define picoprobe_error(format,args...) printf("(EE) \r" format, ## args)
+    #define picoprobe_error(format,args...) printf("(EE) " format "\r", ## args)
 #else
     #define picoprobe_error(format,...) ((void)0)
 #endif
