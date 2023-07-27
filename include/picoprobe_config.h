@@ -29,33 +29,39 @@
 
 #define INCLUDE_RTT_CONSOLE
 
+#if defined(OPT_SERIAL_CRLF)
+    #define PROBE_DEBUG_OPT_CR "\r"
+#else
+    #define PROBE_DEBUG_OPT_CR ""
+#endif
+
 
 #if OPT_PROBE_DEBUG_OUT
-    #define picoprobe_info_out(format,args...) printf(format, ## args)
+    #define picoprobe_info_out(format,args...) printf(format PROBE_DEBUG_OPT_CR, ## args)
 #else
     #define picoprobe_info_out(format,...) ((void)0)
 #endif
 
 #if OPT_PROBE_DEBUG_OUT
-    #define picoprobe_info(format,args...) printf("(II) " format, ## args)
+    #define picoprobe_info(format,args...) printf("(II) " format PROBE_DEBUG_OPT_CR, ## args)
 #else
     #define picoprobe_info(format,...) ((void)0)
 #endif
 
 #if 0  &&  OPT_PROBE_DEBUG_OUT
-    #define picoprobe_debug(format,args...) printf("(DD) " format, ## args)
+    #define picoprobe_debug(format,args...) printf("(DD) " format PROBE_DEBUG_OPT_CR, ## args)
 #else
     #define picoprobe_debug(format,...) ((void)0)
 #endif
 
 #if 0  &&  OPT_PROBE_DEBUG_OUT
-    #define picoprobe_dump(format,args...) printf("(..) " format, ## args)
+    #define picoprobe_dump(format,args...) printf("(..) " format PROBE_DEBUG_OPT_CR, ## args)
 #else
     #define picoprobe_dump(format,...) ((void)0)
 #endif
 
 #if 1  &&  OPT_PROBE_DEBUG_OUT
-    #define picoprobe_error(format,args...) printf("(EE) " format, ## args)
+    #define picoprobe_error(format,args...) printf("(EE) " format PROBE_DEBUG_OPT_CR, ## args)
 #else
     #define picoprobe_error(format,...) ((void)0)
 #endif
