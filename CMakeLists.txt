@@ -38,6 +38,7 @@ option(OPT_NET_ECHO_SERVER     "Enable echo server for testing"         1)
 option(OPT_NET_IPERF_SERVER    "Enable iperf server for tuning"         1)
 option(OPT_NET_SYSVIEW_SERVER  "Enable SysView over TCPIP"              1)
 option(OPT_CDC_SYSVIEW         "Enable SysView over CDC"                0)
+option(OPT_SERIAL_CRLF         "Insert carraige returns after debug print statements" 0)
 
 # extra
 option(OPT_SPECIAL_CLK_FOR_PIO "Ignore clock frequency request of 1MHz (this is for PlatformIO tuning)" 0)
@@ -323,6 +324,16 @@ if(OPT_MSC)
     if(OPT_MSC_RAM_UF2)
         add_compile_definitions(OPT_MSC_RAM_UF2=1)
     endif()
+endif()
+
+#--------------------------------------------------------------------------------------------------
+#
+# Some TTY clients (namely GNU screen) do not automatically insert a carriage return after a
+# newline. This configures the picoprobe's serial print functions to add the carriage return
+# explicitly at the end of each statement
+#
+if (OPT_SERIAL_CRLF)
+    add_compile_definitions(OPT_SERIAL_CRLF=1)
 endif()
 
 #--------------------------------------------------------------------------------------------------
