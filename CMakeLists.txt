@@ -38,7 +38,7 @@ option(OPT_NET_ECHO_SERVER     "Enable echo server for testing"         1)
 option(OPT_NET_IPERF_SERVER    "Enable iperf server for tuning"         1)
 option(OPT_NET_SYSVIEW_SERVER  "Enable SysView over TCPIP"              1)
 option(OPT_CDC_SYSVIEW         "Enable SysView over CDC"                0)
-option(OPT_SERIAL_CRLF         "Insert carraige returns after debug print statements" 0)
+option(OPT_SERIAL_CRLF         "Insert carriage returns after debug print statements" 1)
 
 # extra
 option(OPT_SPECIAL_CLK_FOR_PIO "Ignore clock frequency request of 1MHz (this is for PlatformIO tuning)" 0)
