@@ -29,7 +29,7 @@
 
 #define INCLUDE_RTT_CONSOLE
 
-#if OPT_SERIAL_CRLF
+#if defined(OPT_SERIAL_CRLF)
     #define CRLF "\r"
 #else
     #define CRLF ""
