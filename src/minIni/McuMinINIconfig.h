@@ -16,7 +16,7 @@
 #define McuMinINI_CONFIG_FS_TYPE_LITTLE_FS  (4) /* LittleFS File System */
 
 #ifndef McuMinINI_CONFIG_FS
-  #define McuMinINI_CONFIG_FS      (McuMinINI_CONFIG_FS_TYPE_GENERIC)
+  #define McuMinINI_CONFIG_FS      (McuMinINI_CONFIG_FS_TYPE_FLASH_FS)
     /*!< File System integration used, one of McuMinINI_CONFIG_FS_TYPE_GENERIC, McuMinINI_CONFIG_FS_TYPE_FAT_FS, McuMinINI_CONFIG_FS_TYPE_TINY_FS */
 #endif
 
@@ -73,7 +73,7 @@
 #endif /* McuMinINI_CONFIG_FS_TYPE_FLASH_FS */
 
 #if !defined(McuMinINI_CONFIG_PARSE_COMMAND_ENABLED)
-  #define McuMinINI_CONFIG_PARSE_COMMAND_ENABLED  (1)
+  #define McuMinINI_CONFIG_PARSE_COMMAND_ENABLED  (0)
     /*!< 1: shell support enabled, 0: otherwise */
 #endif
 
