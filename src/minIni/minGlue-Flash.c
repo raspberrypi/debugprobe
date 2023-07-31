@@ -6,16 +6,15 @@
  *
  */
 
-#include "McuMinINIconfig.h" /* MinIni config file */
+#include "minIniConfig.h"
 
-#if McuMinINI_CONFIG_FS==McuMinINI_CONFIG_FS_TYPE_FLASH_FS
 #include "minGlue-Flash.h"
 #include <stddef.h>
 #include <string.h>
-#include "McuLib.h"
-#include "McuLog.h"
-#include "McuUtility.h"
-#include "McuFlash.h"
+//#include "McuLib.h"
+//#include "McuLog.h"
+//#include "McuUtility.h"
+//#include "McuFlash.h"
 
 /* NOTE: we only support one 'file' in FLASH, and only one 'file' in RAM. The one in RAM is for the read-write and temporary one  */
 /* read-only FLASH 'file' is at McuMinINI_CONFIG_FLASH_NVM_ADDR_START */
@@ -23,7 +22,11 @@
   static unsigned char dataBuf[McuMinINI_CONFIG_FLASH_NVM_MAX_DATA_SIZE]; /* ini file for read/write */
 #endif
 
-int ini_openread(const TCHAR *filename, INI_FILETYPE *file) {
+
+
+int ini_openread(const TCHAR *filename, INI_FILETYPE *file)
+{
+#if 0
   /* open file in read-only mode. This will use directly the data in FLASH */
   memset(file, 0, sizeof(INI_FILETYPE));
   file->header = (MinIniFlashFileHeader*)(McuMinINI_CONFIG_FLASH_NVM_ADDR_START);
@@ -37,10 +40,15 @@ int ini_openread(const TCHAR *filename, INI_FILETYPE *file) {
   file->curr = file->data;
   file->isOpen = true;
   file->isReadOnly = true;
+#endif
   return 1; /* ok */
-}
+}   // ini_openread
 
-static bool isTempFile(const TCHAR *filename) {
+
+
+static bool isTempFile(const TCHAR *filename)
+{
+#if 0
   size_t len;
 
   len = McuUtility_strlen(filename);
@@ -50,11 +58,16 @@ static bool isTempFile(const TCHAR *filename) {
   if (filename[len-1]=='~') { /* temporary file name */
     return true;
   }
+#endif
   return false;
-}
+}   // isTempFile
+
+
 
 #if !McuMinINI_CONFIG_READ_ONLY
-int ini_openwrite(const TCHAR *filename, INI_FILETYPE *file) {
+int ini_openwrite(const TCHAR *filename, INI_FILETYPE *file)
+{
+#if 0
   /* create always a new file */
   memset(file, 0, sizeof(INI_FILETYPE)); /* initialize all fields in header */
   memset(dataBuf, 0, sizeof(dataBuf)); /* initialize all data */
@@ -66,11 +79,16 @@ int ini_openwrite(const TCHAR *filename, INI_FILETYPE *file) {
   file->curr = file->data;
   file->isOpen = true;
   file->isReadOnly = false;
+#endif
   return 1; /* ok */
-}
+}   // ini_openwrite
 #endif
 
-int ini_close(INI_FILETYPE *file) {
+
+
+int ini_close(INI_FILETYPE *file)
+{
+#if 0   // TODO
   file->isOpen = false;
   if (!file->isReadOnly  && !isTempFile((const char*)file->header->dataName)) { /* RAM data, and not temp file? */
     /* store data in FLASH */
@@ -78,10 +96,15 @@ int ini_close(INI_FILETYPE *file) {
       return 0; /* failed */
     }
   }
+#endif
   return 1; /* ok */
-}
+}   // ini_close
 
-int ini_read(TCHAR *buffer, size_t size, INI_FILETYPE *file) {
+
+
+int ini_read(TCHAR *buffer, size_t size, INI_FILETYPE *file)
+{
+#if 0
   /* read a string until EOF or '\n' */
   unsigned char ch;
 
@@ -98,11 +121,16 @@ int ini_read(TCHAR *buffer, size_t size, INI_FILETYPE *file) {
       return 1; /* ok */
     }
   }
+#endif
   return 1; /* ok */
-}
+}   // ini_read
+
+
 
 #if !McuMinINI_CONFIG_READ_ONLY
-int ini_write(TCHAR *buffer, INI_FILETYPE *file) {
+int ini_write(TCHAR *buffer, INI_FILETYPE *file)
+{
+#if 0
   size_t len, remaining;
 
   /* write zero terminated string to file */
@@ -122,12 +150,17 @@ int ini_write(TCHAR *buffer, INI_FILETYPE *file) {
     file->header->dataSize = file->curr - file->data; /* update size */
     return 1; /* ok */
   }
+#endif
   return 1; /* ok */
-}
+}   // ini_write
 #endif
 
+
+
 #if !McuMinINI_CONFIG_READ_ONLY
-int ini_remove(const TCHAR *filename) {
+int ini_remove(const TCHAR *filename)
+{
+#if 0
   MinIniFlashFileHeader *hp;
 
   /* check first if we are removing the data in FLASH */
@@ -153,15 +186,20 @@ int ini_remove(const TCHAR *filename) {
     memset(dataBuf, 0, sizeof(dataBuf));
     return 1; /* ok */
   }
-  return 0; /* error */
-}
 #endif
+  return 0; /* error */
+}   // ini_remove
+#endif
+
+
 
 int ini_tell(INI_FILETYPE *file, INI_FILEPOS *pos) {
   /* return the current file pointer (offset into file) */
   *pos = file->curr - file->data;
   return 1; /* ok */
-}
+}   // ini_tell
+
+
 
 int ini_seek(INI_FILETYPE *file, INI_FILEPOS *pos) {
   /* move the file pointer to the given position */
@@ -171,10 +209,14 @@ int ini_seek(INI_FILETYPE *file, INI_FILEPOS *pos) {
     return 0; /* error, EOF */
   }
   return 1; /* ok */
-}
+}   // ini_seek
+
+
 
 #if !McuMinINI_CONFIG_READ_ONLY
-int ini_rename(const TCHAR *source, const TCHAR *dest) {
+int ini_rename(const TCHAR *source, const TCHAR *dest)
+{
+#if 0
   /* e.g. test.in~ -> test.ini: this always will do a store from RAM to FLASH! */
   MinIniFlashFileHeader *hp;
 
@@ -190,16 +232,24 @@ int ini_rename(const TCHAR *source, const TCHAR *dest) {
     }
     memset(dataBuf, 0, sizeof(dataBuf)); /* erase RAM file content */
   }
+#endif
   return 1; /* ok */
-}
+}   // ini_rename
 #endif
 
-int ini_deinit(void) {
-  /* nothing needed */
-  return 0; /* ok */
-}
 
-int ini_init(void) {
+
+int ini_deinit(void)
+{
+    /* nothing needed */
+    return 0; /* ok */
+}   // ini_deinit
+
+
+
+int ini_init(void)
+{
+#if 0
 #if McuLib_CONFIG_CPU_IS_LPC55xx
   if((McuMinINI_CONFIG_FLASH_NVM_MAX_DATA_SIZE%McuFlash_CONFIG_FLASH_BLOCK_SIZE)!=0) {
 #elif McuLib_CONFIG_CPU_VARIANT==McuLib_CONFIG_CPU_VARIANT_RP2040
@@ -220,10 +270,15 @@ int ini_init(void) {
     McuLog_fatal("wrong size of data!");
     for(;;) {}
   }
+#endif
   return 0; /* ok */
-}
+}   // ini_init
 
-static void PrintDataStatus(const McuShell_StdIOType *io, MinIniFlashFileHeader *hp, const unsigned char *dataName) {
+
+
+#if 0 // TODO
+static void PrintDataStatus(const McuShell_StdIOType *io, MinIniFlashFileHeader *hp, const unsigned char *dataName)
+{
   uint8_t buf[48];
 
   if (!McuFlash_IsAccessible(hp, sizeof(MinIniFlashFileHeader))) { /* accessing erased FLASH on LPC55Sxx will cause hard fault! */
@@ -243,9 +298,12 @@ static void PrintDataStatus(const McuShell_StdIOType *io, MinIniFlashFileHeader 
   }
   McuUtility_strcat(buf, sizeof(buf), (unsigned char*)"\r\n");
   McuShell_SendStatusStr(dataName, buf, io->stdOut);
-}
+}   // PrintDataStatus
 
-static uint8_t PrintStatus(const McuShell_StdIOType *io) {
+
+
+static uint8_t PrintStatus(const McuShell_StdIOType *io)
+{
   uint8_t buf[48];
 
   McuShell_SendStatusStr((unsigned char*)"ini", (unsigned char*)"ini flash status\r\n", io->stdOut);
@@ -267,9 +325,12 @@ static uint8_t PrintStatus(const McuShell_StdIOType *io) {
   PrintDataStatus(io, (MinIniFlashFileHeader*)dataBuf, (const unsigned char*)"  ram");
 #endif
   return ERR_OK;
-}
+}   // PrintStatus
 
-static uint8_t DumpData(const McuShell_StdIOType *io) {
+
+
+static uint8_t DumpData(const McuShell_StdIOType *io)
+{
   MinIniFlashFileHeader *hp;
   const unsigned char *p;
 
@@ -292,9 +353,12 @@ static uint8_t DumpData(const McuShell_StdIOType *io) {
     }
   }
   return ERR_OK;
-}
+}   // DumpData
 
-uint8_t ini_ParseCommand(const unsigned char *cmd, bool *handled, const McuShell_StdIOType *io) {
+
+
+uint8_t ini_ParseCommand(const unsigned char *cmd, bool *handled, const McuShell_StdIOType *io)
+{
   if (McuUtility_strcmp((char*)cmd, McuShell_CMD_HELP)==0 || McuUtility_strcmp((char*)cmd, "ini help")==0) {
     McuShell_SendHelpStr((unsigned char*)"ini", (const unsigned char*)"Group of flash ini commands\r\n", io->stdOut);
     McuShell_SendHelpStr((unsigned char*)"  help|status", (unsigned char*)"Print help or status information\r\n", io->stdOut);
@@ -313,6 +377,6 @@ uint8_t ini_ParseCommand(const unsigned char *cmd, bool *handled, const McuShell
     return McuFlash_Erase((void*)McuMinINI_CONFIG_FLASH_NVM_ADDR_START, McuMinINI_CONFIG_FLASH_NVM_NOF_BLOCKS*McuMinINI_CONFIG_FLASH_NVM_BLOCK_SIZE);
   }
   return ERR_OK;
-}
+}   // ini_ParseCommand
 
-#endif /* McuMinINI_CONFIG_FS==McuMinINI_CONFIG_FS_TYPE_KINETIS_FLASH_FS */
+#endif

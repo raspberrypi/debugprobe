@@ -19,9 +19,9 @@
 #ifndef MININI_H
 #define MININI_H
 
-#include "McuMinINIconfig.h" /* MinIni config file */
 #include "minGlue.h"
 #include <stddef.h> /* for size_t */
+#include "minIniConfig.h" /* MinIni config file */
 
 #if (defined _UNICODE || defined __UNICODE__ || defined UNICODE) && !defined INI_ANSIONLY
   #include <tchar.h>

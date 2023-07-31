@@ -9,9 +9,9 @@
 #ifndef _MINGLUE_FLASH_H__
 #define _MINGLUE_FLASH_H__
 
-#include "McuMinINIconfig.h" /* MinIni config file */
 #include <stddef.h>
 #include <stdbool.h>
+#include "minIniConfig.h" /* MinIni config file */
 
 #if McuMinINI_CONFIG_FS==McuMinINI_CONFIG_FS_TYPE_FLASH_FS
 
@@ -56,8 +56,10 @@ int ini_rename(const TCHAR *source, const TCHAR *dest);
   #define ini_atof(string)              (INI_REAL)strtod((string),NULL)
 #endif /* defined INI_REAL */
 
+#if 0
 #include "McuShell.h"
 uint8_t ini_ParseCommand(const unsigned char *cmd, bool *handled, const McuShell_StdIOType *io);
+#endif
 
 /*!
  * \brief Module de-initialization

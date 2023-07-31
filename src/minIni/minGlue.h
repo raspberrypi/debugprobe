@@ -8,8 +8,7 @@
  *  warranties or conditions of any kind, either express or implied.
  */
 
-#include "McuLib.h" /* SDK and API used */
-#include "McuMinINIconfig.h" /* MinIni config file */
+#include "minIniConfig.h" /* MinIni config file */
 
 #if McuMinINI_CONFIG_FS==McuMinINI_CONFIG_FS_TYPE_GENERIC
   /* map required file I/O types and functions to the standard C library */
