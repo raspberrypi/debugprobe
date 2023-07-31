@@ -564,7 +564,7 @@ int ini_browse(INI_CALLBACK Callback, void *UserData, const TCHAR *Filename)
 }
 #endif /* INI_NOBROWSE */
 
-#if !McuMinINI_CONFIG_READ_ONLY
+#if !MININI_CONFIG_READ_ONLY
 static void ini_tempname(TCHAR *dest, const TCHAR *source, int maxlength)
 {
   TCHAR *p;

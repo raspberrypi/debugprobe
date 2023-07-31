@@ -10,7 +10,7 @@
 
 #include "minIniConfig.h" /* MinIni config file */
 
-#if McuMinINI_CONFIG_FS==McuMinINI_CONFIG_FS_TYPE_GENERIC
+#if MININI_CONFIG_FS==MININI_CONFIG_FS_TYPE_GENERIC
   /* map required file I/O types and functions to the standard C library */
   #include <stdio.h>
 
@@ -36,11 +36,11 @@
   int ini_init(void);
   int ini_deinit(void);
 
-#elif McuMinINI_CONFIG_FS==McuMinINI_CONFIG_FS_TYPE_FAT_FS
+#elif MININI_CONFIG_FS==MININI_CONFIG_FS_TYPE_FAT_FS
   #include "minGlue-FatFs.h"
-#elif McuMinINI_CONFIG_FS==McuMinINI_CONFIG_FS_TYPE_FLASH_FS
+#elif MININI_CONFIG_FS==MININI_CONFIG_FS_TYPE_FLASH_FS
   #include "minGlue-Flash.h"
-#elif McuMinINI_CONFIG_FS==McuMinINI_CONFIG_FS_TYPE_LITTLE_FS
+#elif MININI_CONFIG_FS==MININI_CONFIG_FS_TYPE_LITTLE_FS
   #include "minGlue-LittleFS.h"
 #else
   #error "define the type of system"

@@ -13,9 +13,9 @@
 #include <stdbool.h>
 #include "minIniConfig.h" /* MinIni config file */
 
-#if McuMinINI_CONFIG_FS==McuMinINI_CONFIG_FS_TYPE_FLASH_FS
+#if MININI_CONFIG_FS==MININI_CONFIG_FS_TYPE_FLASH_FS
 
-#define INI_BUFFERSIZE   (McuMinINI_CONFIG_BUFFER_SIZE)       /* maximum line length, maximum path length */
+#define INI_BUFFERSIZE   (MININI_CONFIG_BUFFER_SIZE)       /* maximum line length, maximum path length */
 
 #define MININI_FLASH_MAGIC_DATA_NUMBER_ID   (0xFEEDBABE) /* magic ID to mark valid memory */
 typedef struct MinIniFlashFileHeader {
@@ -73,6 +73,6 @@ int ini_deinit(void);
  */
 int ini_init(void);
 
-#endif /* McuMinINI_CONFIG_FS==McuMinINI_CONFIG_FS_TYPE_FLASH_FS */
+#endif /* MININI_CONFIG_FS==MININI_CONFIG_FS_TYPE_FLASH_FS */
 
 #endif /* _MINGLUE_FLASH_H__ */
