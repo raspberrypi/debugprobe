@@ -1,0 +1,10 @@
+:imagesdir: doc/png
+:source-highlighter: rouge
+:toc:
+:toclevels: 5
+
+# Persistent Data Storage with minIni
+
+* original code at https://www.compuphase.com/minini.htm[compuphase]
+* extension to use without file system at 
+  https://mcuoneclipse.com/2021/12/19/key-value-pairs-in-flash-memory-file-system-less-minini/[MCU on Eclipse]
