@@ -71,10 +71,12 @@
 // to support integer divisors of the PIO clock and ADC clock (for sigrok).
 // Can be overridden via configuration.
 #ifdef OPT_MCU_OVERCLOCK_MHZ
-    #define PROBE_CPU_CLOCK_MHZ      (OPT_MCU_OVERCLOCK_MHZ)     // overclocked, even 264MHz seems to be no problem
+    #define PROBE_CPU_CLOCK_MHZ      OPT_MCU_OVERCLOCK_MHZ     // overclocked, even 264MHz seems to be no problem
 #else
     #define PROBE_CPU_CLOCK_MHZ      120
 #endif
+#define PROBE_CPU_CLOCK_MIN_MHZ      (4 * 24)
+#define PROBE_CPU_CLOCK_MAX_MHZ      (11 * 24)
 
 
 // pin configurations can be found in include/boards/*.h

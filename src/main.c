@@ -620,17 +620,15 @@ int main(void)
 
     // set CPU frequency according to configuration
     {
-        uint32_t f_cpu;
-
-        f_cpu = ini_getl(MININI_SECTION, "f_cpu", PROBE_CPU_CLOCK_MHZ, MININI_FILENAME);
-        if (f_cpu < 100  ||  f_cpu > 264) {
-            f_cpu = PROBE_CPU_CLOCK_MHZ;
+        cpu_freq_khz = 1000 * ini_getl(MININI_SECTION, "f_cpu", PROBE_CPU_CLOCK_MHZ, MININI_FILENAME);
+        if (cpu_freq_khz < PROBE_CPU_CLOCK_MIN_MHZ * 1000  ||  cpu_freq_khz > PROBE_CPU_CLOCK_MAX_MHZ * 1000) {
+            cpu_freq_khz = 1000 * PROBE_CPU_CLOCK_MHZ;
         }
-        if (f_cpu >= 150) {
+        if (cpu_freq_khz >= 150 * 1000) {
             // increase voltage on higher frequencies
             vreg_set_voltage(VREG_VOLTAGE_1_20);
         }
-        set_sys_clock_khz(1000 * f_cpu, true);
+        set_sys_clock_khz(cpu_freq_khz, true);
     }
 
     get_config_init();
@@ -650,7 +648,7 @@ int main(void)
     picoprobe_info("Features:\n");
     picoprobe_info(" %s\n", CONFIG_FEATURES());
     picoprobe_info("Probe HW:\n");
-    picoprobe_info("  %s @ %luMHz\n", CONFIG_BOARD(), (clock_get_hz(clk_sys) + 500000) / 1000000);
+    picoprobe_info("  %s @ %luMHz\n", CONFIG_BOARD(), (cpu_freq_khz + 500) / 1000);
 #if OPT_NET
     picoprobe_info("IP:\n");
     picoprobe_info("  192.168.%ld.1\n", ini_getl(MININI_SECTION, "net", OPT_NET_192_168, MININI_FILENAME));

@@ -63,6 +63,7 @@ CU_REGISTER_DEBUG_PINS(probe_timing)
 
 
 uint32_t probe_freq_khz = 0;         // must be global because of a hack in DAPLink
+uint32_t cpu_freq_khz   = 0;         // must be global because of a hack in DAPLink
 
 
 struct _probe {
