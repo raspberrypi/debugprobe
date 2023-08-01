@@ -117,7 +117,7 @@ NOTE: For best RP2040 support, OpenOCD bundled with PlatformIO is recommended.
 
 #### Parameter Optimization
 
-YaPicoprobe tries to identify the connecting tool and sets some internal parameters for best performance.
+YAPicoprobe tries to identify the connecting tool and sets some internal parameters for best performance.
 Those settings are:
 
 .Parameter Optimization
@@ -229,7 +229,7 @@ Communication is birectional, but don't expect high transfer rates from host to 
 
 RTT channel 1 is used for communication with Seggers https://www.segger.com/products/development-tools/systemview/[SystemView].
 YAPicoprobe provides the data over TCP at port 19111 which is the default for SystemView communication.
-Default IP address of the probe (if not built otherwise) is 192.168.14.1.
+Default IP address of the probe (if not configured otherwise) is 192.168.14.1.
 
 [NOTE]
 ====
@@ -321,6 +321,41 @@ The Pico Debug Probe has four additional LEDs.  Assignment is as follows:
 
 ## Configuration
 
+### Runtime Configuration of Probe Parameters
+
+Several parameters can be configured via the Debug CDC of the probe.  These parameters include
+the network selection and CPU/SWCLK frequencies.
+
+Because configuration of the probe is seen as once in a life time, the interface is kept very simple.
+
+Following procedure applies:
+
+* connect with a terminal program to the Debug CDC of the probe
+* unlock configuration thru hitting <enter>, this works as long there is no `pwd`
+* commands: `<cmd>`
+** `lock` - lock the configuration parameters
+** `killall` - kill all current configuration parameters
+** `reset` - restart the probe
+** `show` - shows the current configuration (initially empty)
+* variables: `<variable>=<value>`
+** `net` - set the net of the probes IP address `192.168.<net>.1`
+** `f_cpu` - set CPU frequency in MHz
+** `f_swd` - set SWD frequency in kHz
+** `pwd` - set a password for locking the configuration.  Unlocking is done subsequently
+   with `pwd:<your-pwd>`
+* special characters:
+** CR/LF - end the line
+** BS - backspace one character
+* unknown commands / variables are ignored
+* if configuration is locked, all commands are ignored (except `pwd:<your-pwd>`)
+
+[NOTE]
+====
+* the interface is far from perfect
+* after every configuration change, the probe must restart
+====
+
+
 ### udev rules
 
 Under Linux one wants to use the following udev rules for convenience.
@@ -348,7 +383,10 @@ ACTION=="remove", SUBSYSTEMS=="usb", SUBSYSTEM=="block", ENV{ID_FS_USAGE}=="file
 
 ### Network Configuration
 
-SystemView connectivity over TCP/IP is on most systems not configuration free.  
+SystemView connectivity over TCP/IP is on most systems not configuration free.
+
+If everything is configured fine, the probe has the default address 192.168.14.1 and the host computer
+gets 192.168.14.2.
 
 #### Debian
 
@@ -357,7 +395,7 @@ On Debian the configuration is as follows:
 * after connecting the probe with the host, `ip a` shows its network interface, e.g. `enxfe<your-probe>`.
   If the network interface already shows an IP address everything is fine and you are ready
 * if not, then you can get the IP address with `sudo dhclient enxfe<your-probe>`
-* to make the permanent add the following lines to `/etc/network/interfaces`:
+* to make this permanent add the following lines to `/etc/network/interfaces`:
 
 [source]
 ----
@@ -366,9 +404,6 @@ iface enxfe<your-probe> inet dhcp
 ----
 
 On my system this unfortunately leads to error messages (which are harmless) if the probe is not connected.
-
-The default address of the probe is 192.168.14.1.  If there is a collision with the current setup of the
-host, the probe firmware has to be rebuilt with `-DOPT_NET_192_168=<subnet>`.
 
 #### Win10
 
@@ -389,7 +424,7 @@ The driver needs to be installed manually.  Procedure is roughly as follows:
 
 #### Win11
 
-It is said, that USB-NCM is working out of the box.  This is not tested.
+It is said, that USB-NCM is working out of the box.  This has not been tested.
 
 
 ### PlatformIO [[platformio]]

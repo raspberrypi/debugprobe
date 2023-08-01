@@ -29,6 +29,7 @@
 
 #include <stdarg.h>
 #include <stdbool.h>
+#include <ctype.h>
 #include "pico/stdlib.h"
 #include "pico/stdio/driver.h"
 #include "pico/multicore.h"
@@ -165,31 +166,39 @@ static void cdc_debug_command_if(uint8_t ch)
     static char cmd[20];
     static int ch_cnt;
     static bool unlocked;
+    bool echo_cmd = false;
 
-    if (ch != '\n'  &&  ch != '\r') {
+    if (isprint(ch)) {
+        // put regular characters into buffer
         if (ch_cnt < sizeof(cmd) - 1) {
             cmd[ch_cnt++] = (char)ch;
-            cmd[ch_cnt]   = '\0';
+        }
+        echo_cmd = true;
+    }
+    else if (ch == '\b') {
+        // backspace
+        if (ch_cnt > 0) {
+            --ch_cnt;
+            echo_cmd = true;
         }
     }
     else if (ch_cnt == 0) {
-        if ( !unlocked) {
-            // simple unlock if no pwd set
-            char pwd[20];
+        // simple unlock if no pwd set
+        char pwd[20];
 
-            ini_gets(MININI_SECTION, "pwd", "", pwd, sizeof(pwd), MININI_FILENAME);
-            if (pwd[0] == '\0') {
-                if ( !unlocked) {
-                    picoprobe_info("  unlocked\n");
-                    unlocked = true;
-                }
+        ini_gets(MININI_SECTION, "pwd", "", pwd, sizeof(pwd), MININI_FILENAME);
+        if (pwd[0] == '\0') {
+            if ( !unlocked) {
+                picoprobe_info("unlocked\n");
+                unlocked = true;
             }
         }
     }
-    else {
+    else if (ch == '\r'  ||  ch == '\n') {
+        // line end
         char *p;
 
-        picoprobe_info("cmd: '%s'\n", cmd);
+        picoprobe_info_out("\n");
 
         p = strchr(cmd, ':');
         if (p != NULL) {
@@ -200,7 +209,7 @@ static void cdc_debug_command_if(uint8_t ch)
             if (strcmp(cmd, "pwd") == 0) {
                 ini_gets(MININI_SECTION, "pwd", "", pwd, sizeof(pwd), MININI_FILENAME);
                 unlocked = (strcmp(p, pwd) == 0);
-                picoprobe_info("%s\n", unlocked ? "  unlocked" : "  wrong password");
+                picoprobe_info("%s\n", unlocked ? "unlocked" : "locked: wrong password");
             }
             else {
                 picoprobe_error("unknown cmd: '%s'\n", cmd);
@@ -228,6 +237,7 @@ static void cdc_debug_command_if(uint8_t ch)
                 }
             }
             else if (strcmp(cmd, "lock") == 0) {
+                picoprobe_info("locked\n");
                 unlocked = false;
             }
             else if (strcmp(cmd, "show") == 0) {
@@ -254,6 +264,11 @@ static void cdc_debug_command_if(uint8_t ch)
             picoprobe_error("must be unlocked\n");
         }
         ch_cnt = 0;
+    }
+
+    cmd[ch_cnt] = '\0';
+    if (echo_cmd) {
+        picoprobe_info_out("                  \rcmd: %s        \b\b\b\b\b\b\b\b", cmd);
     }
 }   // cdc_debug_command_if
 
