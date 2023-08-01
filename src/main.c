@@ -63,6 +63,8 @@
 
 #include "target_board.h"    // DAPLink
 
+#include "minIni/minIni.h"
+
 #if OPT_MSC
     #include "msc/msc_utils.h"
 #endif
@@ -185,6 +187,11 @@ void tud_cdc_rx_cb(uint8_t itf)
 #if OPT_TARGET_UART
     if (itf == CDC_UART_N) {
         cdc_uart_rx_cb();
+    }
+#endif
+#if OPT_PROBE_DEBUG_OUT
+    if (itf == CDC_DEBUG_N) {
+        cdc_debug_rx_cb();
     }
 #endif
 #if OPT_CDC_SYSVIEW
@@ -572,7 +579,7 @@ void usb_thread(void *ptr)
         TaskStatus_t task_status[TASK_MAX_CNT];
         uint32_t cnt;
 
-        picoprobe_info("Assign tasks to certain cores\n");
+        //picoprobe_info("Assign tasks to certain cores\n");
         cnt = uxTaskGetSystemState(task_status, TASK_MAX_CNT, NULL);
         if (cnt >= TASK_MAX_CNT) {
             picoprobe_error("TASK_MAX_CNT must be re-adjusted\n");
@@ -608,6 +615,8 @@ void usb_thread(void *ptr)
 int main(void)
 {
     board_init();
+    ini_init();                              // for debugging this must be moved below cdc_debug_init()
+
 #if (PROBE_CPU_CLOCK_KHZ >= 150*1000)
     // increase voltage on higher frequencies
     vreg_set_voltage(VREG_VOLTAGE_1_20);
