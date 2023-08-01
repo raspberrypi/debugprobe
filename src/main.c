@@ -651,6 +651,10 @@ int main(void)
     picoprobe_info(" %s\n", CONFIG_FEATURES());
     picoprobe_info("Probe HW:\n");
     picoprobe_info("  %s @ %luMHz\n", CONFIG_BOARD(), (clock_get_hz(clk_sys) + 500000) / 1000000);
+#if OPT_NET
+    picoprobe_info("IP:\n");
+    picoprobe_info("  192.168.%ld.1\n", ini_getl(MININI_SECTION, "net", OPT_NET_192_168, MININI_FILENAME));
+#endif
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
     dap_events = xEventGroupCreate();

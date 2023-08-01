@@ -26,3 +26,7 @@ and read during startup phase only.
 * total size of the configuration area is 256 bytes (`MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE`)
 * for the Pico this is 0x1fff_f000 (address offset of flash)
 * filename of the ini settings is actually superfluous
+
+WARNING: Due to some limitations in the RP2040 FreeRTOS port, the probe
+must be restarted after every configuration change.
+ 
