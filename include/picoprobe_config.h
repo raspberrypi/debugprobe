@@ -70,7 +70,11 @@
 // Base value of sys_clk in khz.  Must be <=125Mhz per RP2040 spec and a multiple of 24Mhz
 // to support integer divisors of the PIO clock and ADC clock (for sigrok).
 // Can be overridden via configuration.
-#define PROBE_CPU_CLOCK_MHZ      120              // even 264MHz seems to be no problem
+#ifdef OPT_MCU_OVERCLOCK_MHZ
+    #define PROBE_CPU_CLOCK_MHZ      (OPT_MCU_OVERCLOCK_MHZ)     // overclocked, even 264MHz seems to be no problem
+#else
+    #define PROBE_CPU_CLOCK_MHZ      120
+#endif
 
 
 // pin configurations can be found in include/boards/*.h
