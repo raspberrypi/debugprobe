@@ -68,7 +68,7 @@
     #define __OPT_CDC_SYSVIEW
 #endif
 #if OPT_NET
-    #define __OPT_NET_IP              " [Net: 192.168." xxCoNfSTR(OPT_NET_192_168) ".1"
+    #define __OPT_NET_IP              " [Net: 192.168.xx.1"
     #if OPT_NET_PROTO_ECM
         #define __OPT_NET_CONF        __OPT_NET_IP " (ECM)]"
     #elif OPT_NET_PROTO_NCM

@@ -49,6 +49,7 @@
 #include "program_flash_generic.h"
 
 #include "probe.h"
+#include "minIni/minIni.h"
 
 
 
@@ -178,7 +179,7 @@ void pico_prerun_board_config(void)
     bool target_found = false;
 
     target_device = target_device_generic;
-    probe_set_swclk_freq(target_device.rt_swd_khz);                            // slow down during target probing
+    probe_set_swclk_freq(target_device.rt_swd_khz, false);                            // slow down during target probing
 
     if ( !target_found) {
         // check for RP2040
@@ -278,7 +279,16 @@ void pico_prerun_board_config(void)
         }
     }
 
-    probe_set_swclk_freq(target_device.rt_swd_khz);
+    // set the SWCLK either to configured value or from the target structure
+    {
+        int32_t f_khz;
+
+        f_khz = ini_getl(MININI_SECTION, "f_swd", 0, MININI_FILENAME);
+        if (f_khz < PROBE_MIN_FREQ_KHZ  ||  f_khz > target_device.rt_max_swd_khz) {
+            f_khz = target_device.rt_swd_khz;
+        }
+        probe_set_swclk_freq(f_khz, true);
+    }
 
     target_set_state(RESET_RUN);
 }   // pico_prerun_board_config
