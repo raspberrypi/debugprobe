@@ -255,13 +255,6 @@ if(NOT OPT_NET STREQUAL "")
         message(FATAL_ERROR "OPT_NET must be either empty or one of ECM/NCM/RNDIS but is '${OPT_NET}'")
     endif()
     
-    file(STRINGS ${PICO_TINYUSB_PATH}/src/class/net/net_device.h NET_DEVICE_H)
-    string(FIND "${NET_DEVICE_H}" "extern const uint8_t tud_network_mac_address" MAC_CONST_POS)
-    if(${MAC_CONST_POS} GREATER_EQUAL 0)
-        add_compile_definitions(OPT_NET_MAC_CONST_FIX=1)
-        message("!!!!!!!!!!!!!!!!!!")
-    endif()
-    
     add_compile_definitions(OPT_NET=1)
     add_compile_definitions(OPT_NET_192_168=${OPT_NET_192_168})
     

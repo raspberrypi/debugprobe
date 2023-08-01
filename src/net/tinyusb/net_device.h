@@ -76,12 +76,6 @@ uint16_t tud_network_xmit_cb(uint8_t *dst, void *ref, uint16_t arg);
 // client must provide this: initialize any network state back to the beginning
 void tud_network_init_cb(void);
 
-// client must provide this: 48-bit MAC address
-// TODO removed later since it is not part of tinyusb stack
-extern uint8_t tud_network_mac_address[6];
-
-//------------- NCM -------------//
-
 // callback to client providing optional indication of internal state of network driver
 void tud_network_link_state_cb(bool state);
 
