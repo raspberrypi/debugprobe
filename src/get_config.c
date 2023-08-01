@@ -41,6 +41,11 @@ char usb_serial[PICO_UNIQUE_BOARD_ID_SIZE_BYTES * 2 + 1];
 #if OPT_NET
     /**
      * Network MAC address for global access: lwIP, TinyUSB
+     *
+     * \note
+     *    TinyUSB 0.15.0 which has been released with the Pico SDK 1.5.1 declares \a tud_network_mac_address as
+     *    "const".  We define it here as non-const.  The linker silently ignores the "const" in the declaration
+     *    so that the below definition counts.
      */
     uint8_t tud_network_mac_address[6];
 #endif

@@ -227,7 +227,12 @@ static void cdc_debug_command_if(uint8_t ch)
                     ||  strcmp(cmd, "pwd") ==0) {
                     multicore_reset_core1();
                     taskDISABLE_INTERRUPTS();
-                    ini_puts(MININI_SECTION, cmd, p, MININI_FILENAME);
+                    if (*p == '\0') {
+                        ini_puts(MININI_SECTION, cmd, NULL, MININI_FILENAME);
+                    }
+                    else {
+                        ini_puts(MININI_SECTION, cmd, p, MININI_FILENAME);
+                    }
                     watchdog_enable(0, 0);
                     for (;;) {
                     }
