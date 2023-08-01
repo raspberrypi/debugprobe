@@ -38,7 +38,6 @@
 #include <stdbool.h>
 #include <string.h>
 #include <time.h>
-#include "hardware/vreg.h"
 
 #include "bsp/board.h"
 #include "tusb.h"
@@ -62,6 +61,8 @@
 #include "sw_lock.h"
 
 #include "target_board.h"    // DAPLink
+
+#include "minIni/minIni.h"
 
 #if OPT_MSC
     #include "msc/msc_utils.h"
@@ -185,6 +186,11 @@ void tud_cdc_rx_cb(uint8_t itf)
 #if OPT_TARGET_UART
     if (itf == CDC_UART_N) {
         cdc_uart_rx_cb();
+    }
+#endif
+#if OPT_PROBE_DEBUG_OUT
+    if (itf == CDC_DEBUG_N) {
+        cdc_debug_rx_cb();
     }
 #endif
 #if OPT_CDC_SYSVIEW
@@ -572,7 +578,7 @@ void usb_thread(void *ptr)
         TaskStatus_t task_status[TASK_MAX_CNT];
         uint32_t cnt;
 
-        picoprobe_info("Assign tasks to certain cores\n");
+        //picoprobe_info("Assign tasks to certain cores\n");
         cnt = uxTaskGetSystemState(task_status, TASK_MAX_CNT, NULL);
         if (cnt >= TASK_MAX_CNT) {
             picoprobe_error("TASK_MAX_CNT must be re-adjusted\n");
@@ -608,11 +614,10 @@ void usb_thread(void *ptr)
 int main(void)
 {
     board_init();
-#if (PROBE_CPU_CLOCK_KHZ >= 150*1000)
-    // increase voltage on higher frequencies
-    vreg_set_voltage(VREG_VOLTAGE_1_20);
-#endif
-    set_sys_clock_khz(PROBE_CPU_CLOCK_KHZ, true);
+    ini_init();                              // for debugging this must be moved below cdc_debug_init()
+
+    // set CPU frequency according to configuration
+    probe_set_cpu_freq_khz( 1000 * ini_getl(MININI_SECTION, "f_cpu", PROBE_CPU_CLOCK_MHZ, MININI_FILENAME) );
 
     get_config_init();
 
@@ -631,7 +636,11 @@ int main(void)
     picoprobe_info("Features:\n");
     picoprobe_info(" %s\n", CONFIG_FEATURES());
     picoprobe_info("Probe HW:\n");
-    picoprobe_info("  %s\n", CONFIG_BOARD());
+    picoprobe_info("  %s @ %luMHz\n", CONFIG_BOARD(), (probe_get_cpu_freq_khz() + 500) / 1000);
+#if OPT_NET
+    picoprobe_info("IP:\n");
+    picoprobe_info("  192.168.%ld.1\n", ini_getl(MININI_SECTION, "net", OPT_NET_192_168, MININI_FILENAME));
+#endif
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
     dap_events = xEventGroupCreate();

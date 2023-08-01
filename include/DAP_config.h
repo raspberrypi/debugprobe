@@ -57,7 +57,7 @@ This information includes:
 /// Processor Clock of the Cortex-M MCU used in the Debug Unit.
 /// This value is used to calculate the SWD/JTAG clock speed.
 /* Picoprobe actually uses kHz rather than Hz, so just lie about it here */
-#define CPU_CLOCK               (PROBE_CPU_CLOCK_KHZ * 1000)   ///< Specifies the CPU Clock in Hz.
+#define CPU_CLOCK               (probe_get_cpu_freq_khz() * 1000U)   ///< Specifies the CPU Clock in Hz.
 
 /// Number of processor cycles for I/O Port write operations.
 /// This value is used to calculate the SWD/JTAG clock speed that is generated with I/O
@@ -87,8 +87,7 @@ This information includes:
 /// Default communication speed on the Debug Access Port for SWD and JTAG mode.
 /// Used to initialize the default SWD/JTAG clock frequency.
 /// The command \ref DAP_SWJ_Clock can be used to overwrite this default setting.
-extern uint32_t probe_freq_khz;
-#define DAP_DEFAULT_SWJ_CLOCK   (probe_freq_khz * 1000U)  ///< Default SWD/JTAG clock frequency in Hz. (10MHz)
+#define DAP_DEFAULT_SWJ_CLOCK   (probe_get_swclk_freq_khz() * 1000U)  ///< Default SWD/JTAG clock frequency in Hz. (10MHz)
 
 /// Maximum Package Size for Command and Response data.
 /// This configuration settings is used to optimize the communication performance with the

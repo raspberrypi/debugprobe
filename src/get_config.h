@@ -48,7 +48,7 @@
     #define __OPT_MSC
 #endif
 #if OPT_TARGET_UART
-    #define __OPT_TARGET_UART         " [CDC: UART]"
+    #define __OPT_TARGET_UART         " [CDC: target]"
 #else
     #define __OPT_TARGET_UART
 #endif
@@ -68,32 +68,34 @@
     #define __OPT_CDC_SYSVIEW
 #endif
 #if OPT_NET
-    #define __OPT_NET_IP              " [Net: 192.168." xxCoNfSTR(OPT_NET_192_168) ".1"
+    #define __OPT_NET_IP              " [Net-"
     #if OPT_NET_PROTO_ECM
-        #define __OPT_NET_CONF        __OPT_NET_IP " (ECM)]"
+        #define __OPT_NET_CONF        __OPT_NET_IP "ECM"
     #elif OPT_NET_PROTO_NCM
-        #define __OPT_NET_CONF        __OPT_NET_IP " (NCM)]"
+        #define __OPT_NET_CONF        __OPT_NET_IP "NCM"
     #elif OPT_NET_PROTO_RNDIS
-        #define __OPT_NET_CONF        __OPT_NET_IP " (RNDIS)]"
+        #define __OPT_NET_CONF        __OPT_NET_IP "RNDIS"
     #else
         #error "Illegal OPT_NET_PROTO definition"
     #endif
+    #define __OPT_NET_CONF_END        "]"
 #else
     #define __OPT_NET
     #define __OPT_NET_CONF            ""
+    #define __OPT_NET_CONF_END        ""
 #endif
 #if OPT_NET_SYSVIEW_SERVER
-    #define __OPT_NET_SYSVIEW_SERVER  " [Net: SysView]"
+    #define __OPT_NET_SYSVIEW_SERVER  " SysView"
 #else
     #define __OPT_NET_SYSVIEW_SERVER
 #endif
 #if OPT_NET_ECHO_SERVER
-    #define __OPT_NET_ECHO_SERVER     " [Net: Echo]"
+    #define __OPT_NET_ECHO_SERVER     " Echo"
 #else
     #define __OPT_NET_ECHO_SERVER
 #endif
 #if OPT_NET_IPERF_SERVER
-    #define __OPT_NET_IPERF_SERVER    " [Net: IPerf]"
+    #define __OPT_NET_IPERF_SERVER    " IPerf"
 #else
     #define __OPT_NET_IPERF_SERVER
 #endif
@@ -104,34 +106,24 @@
  */
 #define CONFIG_FEATURES()  __OPT_CMSIS_DAPV1 __OPT_CMSIS_DAPV2 __OPT_MSC __OPT_TARGET_UART __OPT_SIGROK           \
                            __OPT_PROBE_DEBUG_OUT __OPT_CDC_SYSVIEW                                                \
-                           __OPT_NET_CONF __OPT_NET_SYSVIEW_SERVER __OPT_NET_ECHO_SERVER __OPT_NET_IPERF_SERVER
+                           __OPT_NET_CONF __OPT_NET_SYSVIEW_SERVER __OPT_NET_ECHO_SERVER __OPT_NET_IPERF_SERVER __OPT_NET_CONF_END
 
 /**
  * CONFIG_BOARD
  */
-#if defined(OPT_MCU_OVERCLOCK_MHZ)
-#define __OPT_MCU_MHZ  " @ " xxCoNfSTR(OPT_MCU_OVERCLOCK_MHZ) "MHz"
-#else
-#define __OPT_MCU_MHZ
-#endif
-
 #if defined(TARGET_BOARD_PICO)
-    #define CONFIG_BOARD() "Pico" __OPT_MCU_MHZ
+    #define CONFIG_BOARD() "Pico"
 #elif defined(TARGET_BOARD_PICO_W)
-    #define CONFIG_BOARD() "Pico_W" __OPT_MCU_MHZ
+    #define CONFIG_BOARD() "Pico_W"
 #elif defined(TARGET_BOARD_PICO_DEBUG_PROBE)
-    #define CONFIG_BOARD() "Pico Debug Probe" __OPT_MCU_MHZ
+    #define CONFIG_BOARD() "Pico Debug Probe"
 #else
-    #define CONFIG_BOARD() "UNKNOWN board" __OPT_MCU_MHZ
+    #define CONFIG_BOARD() "UNKNOWN board"
 #endif
 
 
 /* Contains unique serial number string (NUL terminated) after call to init_usb_serial */
 extern char usb_serial[];
-
-#if OPT_NET
-    extern uint8_t tud_network_mac_address[];
-#endif
 
 void get_config_init(void);
 

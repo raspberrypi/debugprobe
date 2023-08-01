@@ -26,7 +26,13 @@
 #ifndef PROBE_H_
 #define PROBE_H_
 
-void probe_set_swclk_freq(uint32_t freq_khz);
+#define PROBE_MIN_FREQ_KHZ     500
+
+void probe_set_cpu_freq_khz(uint32_t freq_khz);
+uint32_t probe_get_cpu_freq_khz(void);
+
+uint32_t probe_get_swclk_freq_khz(void);
+void probe_set_swclk_freq_khz(uint32_t freq_khz, bool message);
 void probe_write_bits(uint bit_count, uint32_t data);
 uint32_t probe_read_bits(uint bit_count, bool push, bool pull);
 

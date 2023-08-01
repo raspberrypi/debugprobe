@@ -31,14 +31,16 @@ option(OPT_PROBE_DEBUG_OUT     "Enable CDC for probe debug output"      ${DEFAUL
 option(OPT_SIGROK              "Enable sigrok"                          0)
 option(OPT_MSC                 "Enable Mass Storage Device"             1)
 option(OPT_MSC_RAM_UF2         "Enable file 'RAM.UF2' on Mass Storage"  1)
-set(OPT_MCU_OVERCLOCK_MHZ      "240" CACHE STRING "Set processor frequency. Should be a multiple of 24MHz, disable with empty string (=120MHz)")
 set(OPT_NET                    "NCM" CACHE STRING "Enable lwIP on the Pico via NCM/ECM/RNDIS, disable NET with empty string")
-set(OPT_NET_192_168            14 CACHE STRING "Set the subnet of 192.168.x")
 option(OPT_NET_ECHO_SERVER     "Enable echo server for testing"         1)
 option(OPT_NET_IPERF_SERVER    "Enable iperf server for tuning"         1)
 option(OPT_NET_SYSVIEW_SERVER  "Enable SysView over TCPIP"              1)
 option(OPT_CDC_SYSVIEW         "Enable SysView over CDC"                0)
 option(OPT_SERIAL_CRLF         "Insert carriage returns after debug print statements" 0)
+
+# can be reconfigured
+set(OPT_MCU_OVERCLOCK_MHZ      "240" CACHE STRING "Set processor frequency. Should be a multiple of 24MHz, disable with empty string (=120MHz)")
+set(OPT_NET_192_168            14 CACHE STRING "Set the subnet of 192.168.x")
 
 # extra
 option(OPT_SPECIAL_CLK_FOR_PIO "Ignore clock frequency request of 1MHz (this is for PlatformIO tuning)" 0)
@@ -335,6 +337,18 @@ endif()
 if (OPT_SERIAL_CRLF)
     add_compile_definitions(OPT_SERIAL_CRLF=1)
 endif()
+
+#--------------------------------------------------------------------------------------------------
+
+#--------------------------------------------------------------------------------------------------
+#
+# This is for persistent data storage
+#
+
+target_sources(${PROJECT} PRIVATE
+        src/minIni/minIni.c
+        src/minIni/minGlue-Flash.c
+)
 
 #--------------------------------------------------------------------------------------------------
 

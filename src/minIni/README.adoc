@@ -1,0 +1,32 @@
+:imagesdir: doc/png
+:source-highlighter: rouge
+:toc:
+:toclevels: 5
+
+# Persistent Data Storage with minIni
+
+minIni (flash) is a good compromise for storing persistent data.  It is
+compact and easy to use.  Drawbacks are slow performance (so don't
+read/write too often) and that is not fail safe during write operations.  But both
+should not be a problem for configuration data, which is written rarely
+and read during startup phase only.
+
+
+## Links
+
+* original code at https://www.compuphase.com/minini.htm[compuphase]
+* extension to use without file system at 
+  https://mcuoneclipse.com/2021/12/19/key-value-pairs-in-flash-memory-file-system-less-minini/[MCU on Eclipse]
+
+
+## Implementation Details
+
+* one block (the last one) of the RP2040 XIP flash is used
+* flash pages have 4K in size
+* total size of the configuration area is 256 bytes (`MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE`)
+* for the Pico this is 0x1fff_f000 (address offset of flash)
+* filename of the ini settings is actually superfluous
+
+WARNING: Due to some limitations in the RP2040 FreeRTOS port, the probe
+must be restarted after every configuration change.
+ 

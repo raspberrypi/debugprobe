@@ -44,6 +44,8 @@
 #include "device/usbd_pvt.h"             // for usbd_defer_func
 #include "tinyusb/net_device.h"
 
+#include "minIni/minIni.h"
+
 
 /// lwIP context
 static struct netif netif_data;
@@ -60,18 +62,20 @@ static uint16_t xmt_buff_len = 0;
     #define OPT_NET_192_168   14
 #endif
 
+static uint8_t net_192_168;
+
 /* network parameters of this MCU */
-static const ip4_addr_t ipaddr  = IPADDR4_INIT_BYTES(192, 168, OPT_NET_192_168, 1);
+static       ip4_addr_t ipaddr  = IPADDR4_INIT_BYTES(192, 168, 0, 1);     // updated according to configuration
 static const ip4_addr_t netmask = IPADDR4_INIT_BYTES(255, 255, 255, 0);
 static const ip4_addr_t gateway = IPADDR4_INIT_BYTES(0, 0, 0, 0);
 
 /* database IP addresses that can be offered to the host; this must be in RAM to store assigned MAC addresses */
-static dhcp_entry_t entries[] =
+static dhcp_entry_t dhcp_entries[] =
 {
     /* mac ip address                          lease time */
     {
         .mac   = {0},
-        .addr  = IPADDR4_INIT_BYTES(192, 168, OPT_NET_192_168, 2),
+        .addr  = IPADDR4_INIT_BYTES(192, 168, 0, 2),                      // updated according to configuration
         .lease = 24 * 60 * 60
     },
 };
@@ -82,8 +86,8 @@ static const dhcp_config_t dhcp_config =
     .port      = 67,                                // listen port
     .dns       = IPADDR4_INIT_BYTES(0, 0, 0, 0),    // dns server
     .domain    = NULL,                              // dns suffix: specify NULL, otherwise /etc/resolv.conf will be changed
-    .num_entry = TU_ARRAY_SIZE(entries),            // num entry
-    .entries   = entries                            // entries
+    .num_entry = TU_ARRAY_SIZE(dhcp_entries),       // num entry
+    .entries   = dhcp_entries                       // entries
 };
 
 
@@ -266,6 +270,11 @@ void net_glue_init(void)
     struct netif *netif = &netif_data;
 
     tcpip_init(NULL, NULL);
+
+	// fetch IP address from configuration
+    net_192_168 = ini_getl(MININI_SECTION, "net", OPT_NET_192_168, MININI_FILENAME);
+    IP_ADDR4(&ipaddr, 192, 168, net_192_168, 1);
+    IP_ADDR4(&dhcp_entries[0].addr, 192, 168, net_192_168, 2);
 
     /* the lwip virtual MAC address must be different from the host's; to ensure this, we toggle the LSbit */
     netif->hwaddr_len = sizeof(tud_network_mac_address);

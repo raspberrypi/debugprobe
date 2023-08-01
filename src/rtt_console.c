@@ -551,7 +551,7 @@ void rtt_io_thread(void *ptr)
                                g_board_info.target_cfg->ram_regions[0].start,
                                g_board_info.target_cfg->ram_regions[0].end - 1,
                                (g_board_info.target_cfg->ram_regions[0].end - g_board_info.target_cfg->ram_regions[0].start) / 1024);
-                picoprobe_info("SWD frequency     : %ukHz\n", g_board_info.target_cfg->rt_swd_khz);
+                picoprobe_info("SWD frequency     : %lukHz\n", probe_get_swclk_freq_khz());
                 picoprobe_info("SWD max frequency : %ukHz\n", g_board_info.target_cfg->rt_max_swd_khz);
                 picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
             }

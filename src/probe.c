@@ -30,6 +30,7 @@
 
 #include <hardware/clocks.h>
 #include <hardware/gpio.h>
+#include <hardware/vreg.h>
 
 #include "led.h"
 #include "picoprobe_config.h"
@@ -62,7 +63,8 @@ CU_REGISTER_DEBUG_PINS(probe_timing)
 //CU_SELECT_DEBUG_PINS(probe_timing)
 
 
-uint32_t probe_freq_khz = 0;
+static uint32_t probe_freq_khz;
+static uint32_t cpu_freq_khz;
 
 
 struct _probe {
@@ -74,15 +76,55 @@ static struct _probe probe;
 
 
 
+uint32_t probe_get_cpu_freq_khz(void)
+/**
+ * Return current CPU frequency in kHz.
+ */
+{
+    return cpu_freq_khz;
+}   // probe_get_cpu_freq_khz
+
+
+
+void probe_set_cpu_freq_khz(uint32_t freq_khz)
+/**
+ * Set CPU frequency.
+ */
+{
+    if (freq_khz < PROBE_CPU_CLOCK_MIN_MHZ * 1000  ||  freq_khz > PROBE_CPU_CLOCK_MAX_MHZ * 1000) {
+        freq_khz = 1000 * PROBE_CPU_CLOCK_MHZ;
+    }
+
+    if (freq_khz >= 150 * 1000) {
+        // increase voltage on higher frequencies
+        vreg_set_voltage(VREG_VOLTAGE_1_20);
+    }
+    set_sys_clock_khz(freq_khz, true);
+
+    cpu_freq_khz = freq_khz;
+}   // probe_set_cpu_freq_khz
+
+
+
+uint32_t probe_get_swclk_freq_khz(void)
+/**
+ * Return current SWD frequency in kHz.
+ */
+{
+    return probe_freq_khz;
+}   // probe_get_swclk_freq_khz
+
+
+
 /**
  * Set SWD frequency.
  * Frequency is checked against maximum values and stored as a future default.
  *
  * \param freq_khz  new frequency setting
  */
-void probe_set_swclk_freq(uint32_t freq_khz)
+void probe_set_swclk_freq_khz(uint32_t freq_khz, bool message)
 {
-    uint32_t clk_sys_freq_khz = clock_get_hz(clk_sys) / 1000;
+    uint32_t clk_sys_freq_khz = (clock_get_hz(clk_sys) + 500) / 1000;
     uint32_t div_256;
     uint32_t div_int;
     uint32_t div_frac;
@@ -119,9 +161,17 @@ void probe_set_swclk_freq(uint32_t freq_khz)
 
         if (div_256 != prev_div_256) {
             prev_div_256 = div_256;
-            picoprobe_info("SWD clk req   : %lukHz = %lukHz / (6 * (%lu + %lu/256)), eff : %lukHz\n",
-                           freq_khz, clk_sys_freq_khz, div_int, div_frac,
-                           (256 * clk_sys_freq_khz) / (6 * div_256));
+            if (message) {
+                // output diagnose message
+                static uint32_t out_khz;
+
+                if (freq_khz != out_khz) {
+                    picoprobe_info("SWD clk req   : %lukHz = %lukHz / (6 * (%lu + %lu/256)), eff : %lukHz\n",
+                                   freq_khz, clk_sys_freq_khz, div_int, div_frac,
+                                   (256 * clk_sys_freq_khz) / (6 * div_256));
+                    out_khz = freq_khz;
+                }
+            }
         }
     }
 
@@ -137,7 +187,7 @@ void probe_set_swclk_freq(uint32_t freq_khz)
 
     // Worked out with pulseview
     pio_sm_set_clkdiv_int_frac(PROBE_PIO, PROBE_SM, div_int, div_frac);
-}   // probe_set_swclk_freq
+}   // probe_set_swclk_freq_khz
 
 
 
@@ -276,7 +326,7 @@ void probe_init()
         pio_sm_init(PROBE_PIO, PROBE_SM, offset, &sm_config);
 
         // Set up divisor
-        probe_set_swclk_freq(probe_freq_khz);
+        probe_set_swclk_freq_khz(probe_freq_khz, true);
 
         // Enable SM
         pio_sm_set_enabled(PROBE_PIO, PROBE_SM, true);

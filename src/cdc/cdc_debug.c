@@ -29,8 +29,11 @@
 
 #include <stdarg.h>
 #include <stdbool.h>
+#include <ctype.h>
 #include "pico/stdlib.h"
 #include "pico/stdio/driver.h"
+#include "pico/multicore.h"
+#include "hardware/watchdog.h"
 
 #include "FreeRTOS.h"
 #include "semphr.h"
@@ -41,6 +44,7 @@
 #include "tusb.h"
 
 #include "picoprobe_config.h"
+#include "minIni/minIni.h"
 
 
 #define STREAM_PRINTF_SIZE    4096
@@ -52,6 +56,7 @@ static StreamBufferHandle_t   stream_printf;
 
 #define EV_TX_COMPLETE        0x01
 #define EV_STREAM             0x02
+#define EV_RX                 0x04
 
 /// event flags
 static EventGroupHandle_t events;
@@ -60,6 +65,7 @@ static uint8_t cdc_debug_buf[CFG_TUD_CDC_TX_BUFSIZE];
 
 static volatile bool m_connected = false;
 
+static void cdc_debug_command_if(uint8_t ch);
 
 
 void cdc_debug_thread(void *ptr)
@@ -68,18 +74,23 @@ void cdc_debug_thread(void *ptr)
  */
 {
     for (;;) {
+        uint32_t cdc_rx_chars;
+        
         if ( !m_connected) {
             // wait here until connected (and until my terminal program is ready)
             while ( !m_connected) {
-                xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM, pdTRUE, pdFALSE, pdMS_TO_TICKS(1000));
+                xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM | EV_RX, pdTRUE, pdFALSE, pdMS_TO_TICKS(1000));
             }
             vTaskDelay(pdMS_TO_TICKS(100));
         }
 
-        if (xStreamBufferIsEmpty(stream_printf)) {
+		cdc_rx_chars = tud_cdc_n_available(CDC_DEBUG_N);
+        if (cdc_rx_chars == 0  &&  xStreamBufferIsEmpty(stream_printf)) {
             // -> end of transmission: flush and sleep for a long time (or until new data is available)
             tud_cdc_n_write_flush(CDC_DEBUG_N);
-            xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM, pdTRUE, pdFALSE, pdMS_TO_TICKS(1000));
+            xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM | EV_RX, pdTRUE, pdFALSE, pdMS_TO_TICKS(1000));
+        }
+        else if (cdc_rx_chars != 0) {
         }
         else {
             size_t cnt;
@@ -88,7 +99,7 @@ void cdc_debug_thread(void *ptr)
             max_cnt = tud_cdc_n_write_available(CDC_DEBUG_N);
             if (max_cnt == 0) {
                 // -> sleep for a short time, actually wait until data transmitted via USB
-                xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
+                xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM | EV_RX, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
             }
             else {
                 max_cnt = MIN(sizeof(cdc_debug_buf), max_cnt);
@@ -99,13 +110,14 @@ void cdc_debug_thread(void *ptr)
             }
         }
 
-        if (tud_cdc_n_available(CDC_UART_N)) {
+        if (cdc_rx_chars != 0) {
             //
             // eat receive characters (don't know if this has any effects, but who knows)
             //
             uint8_t ch;
 
-            tud_cdc_n_read(CDC_UART_N, &ch, sizeof(ch));
+            tud_cdc_n_read(CDC_DEBUG_N, &ch, sizeof(ch));
+            cdc_debug_command_if(ch);
         }
     }
 }   // cdc_debug_thread
@@ -130,6 +142,135 @@ void cdc_debug_tx_complete_cb(void)
 {
     xEventGroupSetBits(events, EV_TX_COMPLETE);
 }   // cdc_debug_tx_complete_cb
+
+
+
+void cdc_debug_rx_cb(void)
+{
+    xEventGroupSetBits(events, EV_RX);
+}   // cdc_debug_rx_cb
+
+
+
+static void cdc_debug_command_if(uint8_t ch)
+/**
+ * Command interpreter.
+ * Description in README.adoc.
+ *
+ * \note
+ *    Writing / erasing config flash is somehow cumbersome.  After each write operation to the flash,
+ *    the RP2040 has currently be restarted to recover.  Nevertheless, for reconfiguration a restart
+ *    is required anyway, so actually no harm.
+ */
+{
+    static char cmd[20];
+    static int ch_cnt;
+    static bool unlocked;
+    bool echo_cmd = false;
+
+    if (isprint(ch)) {
+        // put regular characters into buffer
+        if (ch_cnt < sizeof(cmd) - 1) {
+            cmd[ch_cnt++] = (char)ch;
+        }
+        echo_cmd = true;
+    }
+    else if (ch == '\b') {
+        // backspace
+        if (ch_cnt > 0) {
+            --ch_cnt;
+            echo_cmd = true;
+        }
+    }
+    else if (ch_cnt == 0) {
+        // simple unlock if no pwd set
+        char pwd[20];
+
+        ini_gets(MININI_SECTION, "pwd", "", pwd, sizeof(pwd), MININI_FILENAME);
+        if (pwd[0] == '\0') {
+            if ( !unlocked) {
+                picoprobe_info("unlocked\n");
+                unlocked = true;
+            }
+        }
+    }
+    else if (ch == '\r'  ||  ch == '\n') {
+        // line end
+        char *p;
+
+        picoprobe_info_out("\n");
+
+        p = strchr(cmd, ':');
+        if (p != NULL) {
+            char pwd[20];
+
+            *p = '\0';
+            ++p;
+            if (strcmp(cmd, "pwd") == 0) {
+                ini_gets(MININI_SECTION, "pwd", "", pwd, sizeof(pwd), MININI_FILENAME);
+                unlocked = (strcmp(p, pwd) == 0);
+                picoprobe_info("%s\n", unlocked ? "unlocked" : "locked: wrong password");
+            }
+            else {
+                picoprobe_error("unknown cmd: '%s'\n", cmd);
+            }
+        }
+        else if (unlocked) {
+            p = strchr(cmd, '=');
+            if (p != NULL) {
+                *p = '\0';
+                ++p;
+
+                if (    strcmp(cmd, "net") == 0
+                    ||  strcmp(cmd, "f_cpu") == 0
+                    ||  strcmp(cmd, "f_swd") == 0
+                    ||  strcmp(cmd, "pwd") ==0) {
+                    multicore_reset_core1();
+                    taskDISABLE_INTERRUPTS();
+                    ini_puts(MININI_SECTION, cmd, p, MININI_FILENAME);
+                    watchdog_enable(0, 0);
+                    for (;;) {
+                    }
+                }
+                else {
+                    picoprobe_error("unknown var: '%s'\n", cmd);
+                }
+            }
+            else if (strcmp(cmd, "lock") == 0) {
+                picoprobe_info("locked\n");
+                unlocked = false;
+            }
+            else if (strcmp(cmd, "show") == 0) {
+                ini_print_all();
+            }
+            else if (strcmp(cmd, "killall") == 0) {
+                multicore_reset_core1();
+                taskDISABLE_INTERRUPTS();
+                ini_remove(MININI_FILENAME);
+                watchdog_enable(0, 0);
+                for (;;) {
+                }
+            }
+            else if (strcmp(cmd, "reset") == 0) {
+                watchdog_enable(0, 0);
+                for (;;) {
+                }
+            }
+            else {
+                picoprobe_error("unknown cmd: '%s'\n", cmd);
+            }
+        }
+        else {
+            picoprobe_error("must be unlocked\n");
+        }
+        ch_cnt = 0;
+    }
+
+    cmd[ch_cnt] = '\0';
+    if (echo_cmd) {
+        picoprobe_info_out("                  \rcmd: %s        \b\b\b\b\b\b\b\b", cmd);
+    }
+}   // cdc_debug_command_if
 
 
 
