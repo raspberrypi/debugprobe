@@ -31,9 +31,8 @@
 
 #if ECLIPSE_GUI || ( CFG_TUD_ENABLED && CFG_TUD_NCM )
 
-#if ECLIPSE_GUI
-    #define tu_static static
-#endif
+// this prevents an obscure compilation bug, see https://github.com/rgrr/yapicoprobe/pull/61
+#define tu_static static
 
 #include <stdio.h>
 #include "device/usbd.h"
