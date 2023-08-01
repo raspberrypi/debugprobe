@@ -338,6 +338,18 @@ endif()
 
 #--------------------------------------------------------------------------------------------------
 
+#--------------------------------------------------------------------------------------------------
+#
+# This is for persistent data storage
+#
+
+target_sources(${PROJECT} PRIVATE
+        src/minIni/minIni.c
+        src/minIni/minGlue-Flash.c
+)
+
+#--------------------------------------------------------------------------------------------------
+
 target_compile_options(${PROJECT} PRIVATE -Wall)
 
 if(DEFINED ENV{PICOPROBE_LED})

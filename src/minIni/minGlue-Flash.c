@@ -20,7 +20,18 @@
 #include "hardware/flash.h"
 
 
-#define ERR_OK   0
+#define DEBUG_ME    0
+#if DEBUG_ME
+    #define DEBUG_PRINTF(...)   printf(__VA_ARGS__)
+#else
+    #define DEBUG_PRINTF(...)
+#endif
+
+#define DEBUG_TEST  0
+
+
+
+#define ERR_OK      0
 
 
 /* NOTE: we only support one 'file' in FLASH, and only one 'file' in RAM. The one in RAM is for the read-write and temporary one  */
@@ -35,7 +46,7 @@ static int McuFlash_Erase(void *dst, uint32_t size)
 {
     uint32_t flash_addr = (uint32_t)dst - MININI_CONFIG_FLASH_ADDR_START;
 
-    printf("McuFlash_Erase(%lx,%lu)\n", flash_addr, size);
+    DEBUG_PRINTF("McuFlash_Erase(%lx,%lu)\n", flash_addr, size);
     flash_range_erase(flash_addr, size);
     return ERR_OK;
 }   // McuFlash_Erase
@@ -46,7 +57,7 @@ static int McuFlash_Program(void *dst, const void *src, uint32_t size)
 {
     uint32_t flash_addr = (uint32_t)dst - MININI_CONFIG_FLASH_ADDR_START;
 
-    printf("McuFlash_Program(%lx,%p,%lu)\n", flash_addr, src, size);
+    DEBUG_PRINTF("McuFlash_Program(%lx,%p,%lu)\n", flash_addr, src, size);
     if (flash_addr % MININI_CONFIG_FLASH_NVM_BLOCK_SIZE == 0) {
         McuFlash_Erase(dst, MININI_CONFIG_FLASH_NVM_BLOCK_SIZE);
     }
@@ -57,18 +68,23 @@ static int McuFlash_Program(void *dst, const void *src, uint32_t size)
 
 
 int ini_openread(const TCHAR *filename, INI_FILETYPE *file)
+/**
+ * open file in read-only mode. This will use directly the data in FLASH
+ */
 {
-    printf("ini_openread(%s,%p)\n", filename, file);
+    DEBUG_PRINTF("ini_openread(%s,%p)\n", filename, file);
 
-    /* open file in read-only mode. This will use directly the data in FLASH */
     memset(file, 0, sizeof(INI_FILETYPE));
     file->header = (MinIniFlashFileHeader*)(MININI_CONFIG_FLASH_NVM_ADDR_START);
     file->data   = (unsigned char*)file->header + sizeof(MinIniFlashFileHeader);
     if (file->header->magicNumber != MININI_FLASH_MAGIC_DATA_NUMBER_ID) {
         return 0; /* failed, magic number does not match */
     }
-    if (strcmp((char*)file->header->dataName, (char*)filename) != 0) {
+    if (strncmp((char *)file->header->dataName, filename, sizeof(file->header->dataName)) != 0) {
         return 0; /* failed, not the file name of the storage */
+    }
+    if (file->header->dataSize > MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE - sizeof(MinIniFlashFileHeader)) {
+        return 0;
     }
     file->curr       = file->data;
     file->isOpen     = true;
@@ -80,11 +96,11 @@ int ini_openread(const TCHAR *filename, INI_FILETYPE *file)
 
 static bool isTempFile(const TCHAR *filename)
 {
-    printf("isTempFile(%s)\n", filename);
-
     size_t len;
 
-    len = strlen(filename);
+    DEBUG_PRINTF("isTempFile(%s)\n", filename);
+
+    len = strnlen(filename, sizeof(((MinIniFlashFileHeader *)0)->dataName));
     if (len == 0) {
         return false; /* illegal file name */
     }
@@ -98,13 +114,15 @@ static bool isTempFile(const TCHAR *filename)
 
 #if !MININI_CONFIG_READ_ONLY
 int ini_openwrite(const TCHAR *filename, INI_FILETYPE *file)
+/**
+ * create (always) a new file
+ */
 {
-    printf("ini_openwrite(%s,%p)\n", filename, file);
+    DEBUG_PRINTF("ini_openwrite(%s,%p)\n", filename, file);
 
-    /* create always a new file */
     memset(file, 0, sizeof(INI_FILETYPE)); /* initialize all fields in header */
-    memset(dataBuf, 0, sizeof(dataBuf)); /* initialize all data */
-    file->header = (MinIniFlashFileHeader*)dataBuf;
+    memset(dataBuf, 0, sizeof(dataBuf));   /* initialize all data */
+    file->header = (MinIniFlashFileHeader *)dataBuf;
     file->data   = (unsigned char*)file->header + sizeof(MinIniFlashFileHeader);
     file->header->magicNumber = MININI_FLASH_MAGIC_DATA_NUMBER_ID;
     strncpy((TCHAR *)file->header->dataName, filename, sizeof(file->header->dataName));
@@ -119,8 +137,11 @@ int ini_openwrite(const TCHAR *filename, INI_FILETYPE *file)
 
 
 int ini_close(INI_FILETYPE *file)
+/**
+ * close file.  If data was written, make it persistent
+ */
 {
-    printf("ini_close(%p)\n", file);
+    DEBUG_PRINTF("ini_close(%p)\n", file);
 
     file->isOpen = false;
     if ( !file->isReadOnly  &&  !isTempFile((const char*)file->header->dataName)) { /* RAM data, and not temp file? */
@@ -135,24 +156,26 @@ int ini_close(INI_FILETYPE *file)
 
 
 int ini_read(TCHAR *buffer, size_t size, INI_FILETYPE *file)
+/**
+ * read a string until EOF or '\n'
+ */
 {
-    printf("ini_read(%p,%d,%p)\n", buffer, size, file);
-
-    /* read a string until EOF or '\n' */
     TCHAR ch[2];
+
+    DEBUG_PRINTF("ini_read(%p,%d,%p)\n", buffer, size, file);
 
     buffer[0] = '\0'; /* zero terminate */
     for(;;) {
-        if (file->curr >= file->data+file->header->dataSize) { /* beyond boundaries? */
-            file->curr = file->data+file->header->dataSize; /* point to max position possible, one byte beyond */
+        if (file->curr >= file->data + file->header->dataSize) { /* beyond boundaries? */
+            file->curr = file->data + file->header->dataSize;    /* point to max position possible, one byte beyond */
             return 0; /* EOF */
         }
-        ch[0] = *file->curr; /* read character */
+        ch[0] = *file->curr;       /* read character */
         ch[1] = '\0';
-        file->curr++; /* move pointer */
+        file->curr++;              /* move pointer */
         strncat(buffer, ch, size); /* add character to buffer */
-        if (ch[0] == '\n') { /* reached end of line */
-            return 1; /* ok */
+        if (ch[0] == '\n') {       /* reached end of line */
+            return 1;              /* ok */
         }
     }
     return 1; /* ok */
@@ -162,14 +185,16 @@ int ini_read(TCHAR *buffer, size_t size, INI_FILETYPE *file)
 
 #if !MININI_CONFIG_READ_ONLY
 int ini_write(TCHAR *buffer, INI_FILETYPE *file)
+/**
+ * write zero terminated string to file
+ */
 {
-    printf("ini_write(%p,%p)\n", buffer, file);
-
     size_t len, remaining;
 
-    /* write zero terminated string to file */
+    DEBUG_PRINTF("ini_write(%p,%p)\n", buffer, file);
+
     if (file->isReadOnly) {
-        return 1; /* error, file is read-only */
+        return 0; /* error, file is read-only */
     }
     /* data is in RAM buffer */
     len = strlen(buffer);
@@ -177,7 +202,7 @@ int ini_write(TCHAR *buffer, INI_FILETYPE *file)
     strncpy((TCHAR *)file->curr, buffer, remaining);
     file->curr += len;
     if (file->curr >= (unsigned char*)file->header + MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE) { /* outside valid memory? */
-        file->curr = (unsigned char*)file->header + MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE; /* set to highest possible location */
+        file->curr = (unsigned char*)file->header + MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE;    /* set to highest possible location */
         return 0; /* error */
     }
     if (file->curr >= file->data + file->header->dataSize) { /* moved beyond current size? file is growing */
@@ -192,10 +217,13 @@ int ini_write(TCHAR *buffer, INI_FILETYPE *file)
 
 #if !MININI_CONFIG_READ_ONLY
 int ini_remove(const TCHAR *filename)
+/**
+ * "remove" ini file, actually erase the data contained and restart.
+ */
 {
-    printf("ini_remove(%s)\n", filename);
-
     MinIniFlashFileHeader *hp;
+
+    DEBUG_PRINTF("ini_remove(%s)\n", filename);
 
     /* check first if we are removing the data in FLASH */
     hp = (MinIniFlashFileHeader*)MININI_CONFIG_FLASH_NVM_ADDR_START;
@@ -228,7 +256,7 @@ int ini_remove(const TCHAR *filename)
 
 int ini_tell(INI_FILETYPE *file, INI_FILEPOS *pos)
 {
-    printf("ini_tell(%p,*%d)\n", file, file->curr - file->data);
+    DEBUG_PRINTF("ini_tell(%p,*%d)\n", file, file->curr - file->data);
 
     /* return the current file pointer (offset into file) */
     *pos = file->curr - file->data;
@@ -239,7 +267,7 @@ int ini_tell(INI_FILETYPE *file, INI_FILEPOS *pos)
 
 int ini_seek(INI_FILETYPE *file, INI_FILEPOS *pos)
 {
-    printf("ini_seek(%p,%d)\n", file, *pos);
+    DEBUG_PRINTF("ini_seek(%p,%d)\n", file, *pos);
 
     /* move the file pointer to the given position */
     file->curr = file->data + *pos; /* move current data pointer */
@@ -254,11 +282,13 @@ int ini_seek(INI_FILETYPE *file, INI_FILEPOS *pos)
 
 #if !MININI_CONFIG_READ_ONLY
 int ini_rename(const TCHAR *source, const TCHAR *dest)
+/**
+ * e.g. test.in~ -> test.ini: this always will do a store from RAM to FLASH!
+ */
 {
-    printf("ini_rename(%s,%s)\n", source, dest);
-
-    /* e.g. test.in~ -> test.ini: this always will do a store from RAM to FLASH! */
     MinIniFlashFileHeader *hp;
+
+    DEBUG_PRINTF("ini_rename(%s,%s)\n", source, dest);
 
     if (isTempFile(source)) { /* store temporary file into flash */
         hp = (MinIniFlashFileHeader*)dataBuf;
@@ -288,81 +318,54 @@ int ini_deinit(void)
 
 int ini_init(void)
 {
-    printf("ini_init()--------\n");
-    if ( !(    MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 64
-           ||  MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 128
-           ||  MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 256
-           ||  MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 512
-           ||  MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 1024
-           ||  MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 2048
-           ||  MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 4096
-           ||  MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 8192)
-    )
-    {
-        /* data size (number of bytes) needs to be 64, 128, 256, 512, 1024 bytes for the flash programming! */
-        // TODO McuLog_fatal("wrong size of data!");
-        for (;;) {}
+    DEBUG_PRINTF("ini_init()--------\n");
+
+    static_assert(    MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 64
+                  ||  MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 128
+                  ||  MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 256
+                  ||  MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 512
+                  ||  MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 1024
+                  ||  MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 2048
+                  ||  MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 4096
+                  ||  MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 8192);
+    static_assert(MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE % 256 == 0);
+
+#if DEBUG_TEST
+    int r;
+
+    printf("-------------------------1\n");
+    long cnt = ini_getl("probe", "bootcnt", 0, MININI_FILENAME);
+    printf("-------------------------2 %ld\n", cnt);
+    r = ini_putl("probe", "bootcnt", cnt + 1, MININI_FILENAME);
+    printf("-------------------------3 %d\n", r);
+
+    if (cnt == 8) {
+        ini_puts("probe", "net", "14", MININI_FILENAME);
     }
 
     {
-        MinIniFlashFileHeader *hp = (MinIniFlashFileHeader*)MININI_CONFIG_FLASH_NVM_ADDR_START;
+        long cnt;
 
-        if (hp->magicNumber != MININI_FLASH_MAGIC_DATA_NUMBER_ID)
-        {
-            McuFlash_Erase((void*)MININI_CONFIG_FLASH_NVM_ADDR_START, MININI_CONFIG_FLASH_NVM_NOF_BLOCKS * MININI_CONFIG_FLASH_NVM_BLOCK_SIZE);
-        }
-
-#if 1
-        int r;
-
-        //ini_puts("probe", "init", "1", "data");
-        printf("-------------------------1\n");
-        long cnt = ini_getl("probe", "bootcnt", 99, "data");
-        printf("-------------------------2 %ld\n", cnt);
-        r = ini_putl("probe", "bootcnt", cnt + 1, "data");
-        printf("-------------------------3 %d\n", r);
-
-        if (cnt == 8) {
-            ini_puts("probe", "net", "14", "data");
-        }
-
-        {
+        cnt = ini_getl("fibo", "cnt", 0, MININI_FILENAME);
+        if (cnt == 0)
+            ini_putl("fibo", "0", 1, MININI_FILENAME);
+        else if (cnt == 1)
+            ini_putl("fibo", "1", 1, MININI_FILENAME);
+        else {
+            char name_pp[20];
+            char name_p[20];
             char name[20];
+            sprintf(name_pp, "%ld", cnt - 2);
+            sprintf(name_p,  "%ld", cnt - 1);
+            sprintf(name,    "%ld", cnt);
 
-            snprintf(name, sizeof(name), "cnt%ld", cnt);
-            r = ini_putl("cnt", name, cnt*2, "data");
-            printf("-------------------------4 %d\n", r);
+            long cnt_pp = ini_getl("fibo", name_pp, 0, MININI_FILENAME);
+            long cnt_p  = ini_getl("fibo", name_p, 0, MININI_FILENAME);
+            ini_putl("fibo", name, cnt_pp + cnt_p, MININI_FILENAME);
         }
-
-        {
-            long cnt;
-
-            cnt = ini_getl("fibo", "cnt", 0, "data");
-            if (cnt == 0)
-                ini_putl("fibo", "0", 1, "data");
-            else if (cnt == 1)
-                ini_putl("fibo", "1", 1, "data");
-            else {
-                char name_pp[20];
-                char name_p[20];
-                char name[20];
-                sprintf(name_pp, "%ld", cnt - 2);
-                sprintf(name_p,  "%ld", cnt - 1);
-                sprintf(name,    "%ld", cnt);
-
-                long cnt_pp = ini_getl("fibo", name_pp, 0, "data");
-                long cnt_p  = ini_getl("fibo", name_p, 0, "data");
-                ini_putl("fibo", name, cnt_pp + cnt_p, "data");
-            }
-            ini_putl("fibo", "cnt", cnt + 1, "data");
-        }
-
-        cnt = ini_getl("probe", "bootcnt2", 99, "data");
-        printf("-------------------------5 %ld\n", cnt);
-        ini_putl("probe", "bootcnt2", cnt + 5, "data");
-        printf("-------------------------6\n");
-#endif
+        ini_putl("fibo", "cnt", cnt + 1, MININI_FILENAME);
     }
+#endif
 
     return 0; /* ok */
 }   // ini_init
@@ -383,42 +386,14 @@ static void PrintDataStatus(MinIniFlashFileHeader *hp, const unsigned char *data
 
 
 
-#if 0
-static uint8_t PrintStatus(const McuShell_StdIOType *io)
-{
-  uint8_t buf[48];
-
-  McuShell_SendStatusStr((unsigned char*)"ini", (unsigned char*)"ini flash status\r\n", io->stdOut);
-  McuUtility_strcpy(buf, sizeof(buf), (unsigned char*)"start 0x");
-  McuUtility_strcatNum32Hex(buf, sizeof(buf), MININI_CONFIG_FLASH_NVM_ADDR_START);
-  McuUtility_strcat(buf, sizeof(buf), (unsigned char*)", block 0x");
-  McuUtility_strcatNum16Hex(buf, sizeof(buf), MININI_CONFIG_FLASH_NVM_BLOCK_SIZE);
-  McuUtility_strcat(buf, sizeof(buf), (unsigned char*)", nof ");
-  McuUtility_strcatNum16u(buf, sizeof(buf), MININI_CONFIG_FLASH_NVM_NOF_BLOCKS);
-  McuUtility_strcat(buf, sizeof(buf), (unsigned char*)"\r\n");
-  McuShell_SendStatusStr((unsigned char*)"  flash", buf, io->stdOut);
-
-  McuUtility_Num32uToStr(buf, sizeof(buf), MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE);
-  McuUtility_strcat(buf, sizeof(buf), (unsigned char*)" bytes\r\n");
-  McuShell_SendStatusStr((unsigned char*)"  max data", buf, io->stdOut);
-
-  PrintDataStatus(io, (MinIniFlashFileHeader*)MININI_CONFIG_FLASH_NVM_ADDR_START, (const unsigned char*)"  data");
-#if !MININI_CONFIG_READ_ONLY
-  PrintDataStatus(io, (MinIniFlashFileHeader*)dataBuf, (const unsigned char*)"  ram");
-#endif
-  return ERR_OK;
-}   // PrintStatus
-#endif
-
-
-
 void ini_print_all(void)
 {
     MinIniFlashFileHeader *hp;
     const unsigned char *p;
 
     hp = (MinIniFlashFileHeader*)MININI_CONFIG_FLASH_NVM_ADDR_START;
-    PrintDataStatus(hp, (const unsigned char*)"data");
+    PrintDataStatus(hp, (const unsigned char*)MININI_FILENAME);
+    picoprobe_info("------------- device configuration\n");
     if (hp->magicNumber == MININI_FLASH_MAGIC_DATA_NUMBER_ID) {
         p = (const unsigned char*)hp + sizeof(MinIniFlashFileHeader);
         for (size_t i = 0;  i < hp->dataSize;  i++) {
@@ -426,40 +401,5 @@ void ini_print_all(void)
             p++;
         }
     }
-    hp = (MinIniFlashFileHeader*)dataBuf;
-    PrintDataStatus(hp, (const unsigned char*)"ram");
-    if (hp->magicNumber == MININI_FLASH_MAGIC_DATA_NUMBER_ID) {
-        p = (const unsigned char*)hp + sizeof(MinIniFlashFileHeader);
-        for (size_t i = 0;  i < hp->dataSize;  i++) {
-            printf("%c", *p);
-            p++;
-        }
-    }
+    picoprobe_info("-------------\n");
 }   // ini_print_all
-
-
-
-#if 0
-uint8_t ini_ParseCommand(const unsigned char *cmd, bool *handled, const McuShell_StdIOType *io)
-{
-  if (McuUtility_strcmp((char*)cmd, McuShell_CMD_HELP)==0 || McuUtility_strcmp((char*)cmd, "ini help")==0) {
-    McuShell_SendHelpStr((unsigned char*)"ini", (const unsigned char*)"Group of flash ini commands\r\n", io->stdOut);
-    McuShell_SendHelpStr((unsigned char*)"  help|status", (unsigned char*)"Print help or status information\r\n", io->stdOut);
-    McuShell_SendHelpStr((unsigned char*)"  dump", (unsigned char*)"Dump data information\r\n", io->stdOut);
-    McuShell_SendHelpStr((unsigned char*)"  erase", (unsigned char*)"Erase data information\r\n", io->stdOut);
-    *handled = TRUE;
-    return ERR_OK;
-  } else if ((McuUtility_strcmp((char*)cmd, McuShell_CMD_STATUS)==0) || (McuUtility_strcmp((char*)cmd, "ini status")==0)) {
-    *handled = TRUE;
-    return PrintStatus(io);
-  } else if (McuUtility_strcmp((char*)cmd, "ini dump")==0) {
-    *handled = TRUE;
-    return DumpData(io);
-  } else if (McuUtility_strcmp((char*)cmd, "ini erase")==0) {
-    *handled = TRUE;
-    return McuFlash_Erase((void*)MININI_CONFIG_FLASH_NVM_ADDR_START, MININI_CONFIG_FLASH_NVM_NOF_BLOCKS*MININI_CONFIG_FLASH_NVM_BLOCK_SIZE);
-  }
-  return ERR_OK;
-}   // ini_ParseCommand
-
-#endif

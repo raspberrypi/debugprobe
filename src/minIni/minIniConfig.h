@@ -9,6 +9,8 @@
 #ifndef __MININI_CONFIG_H
 #define __MININI_CONFIG_H
 
+#include <pico/stdlib.h>
+
 #define MININI_CONFIG_FS_TYPE_GENERIC    (0) /* Generic File System */
 #define MININI_CONFIG_FS_TYPE_FAT_FS     (1) /* FatFS File System */
 #define MININI_CONFIG_FS_TYPE_TINY_FS    (2) /* TinyFS File System */
@@ -39,7 +41,7 @@
         /*!< if ini file handling is read-only */
 
 #ifndef MININI_CONFIG_BUFFER_SIZE
-    #define MININI_CONFIG_BUFFER_SIZE                   (256)
+    #define MININI_CONFIG_BUFFER_SIZE                   (64)
 #endif
         /*!< maximum line length, maximum path length, buffer is allocated on the stack! */
 
@@ -63,11 +65,11 @@
 
     #ifndef MININI_CONFIG_FLASH_ADDR_START
         #define MININI_CONFIG_FLASH_ADDR_START          0x10000000
-            /*!< start address of flash */
+            /*!< start address of flash, this is the base address of the XIP flash of the RP2040 */
     #endif
 
     #ifndef MININI_CONFIG_FLASH_SIZE
-        #define MININI_CONFIG_FLASH_SIZE                (2048 * 1024)
+        #define MININI_CONFIG_FLASH_SIZE                PICO_FLASH_SIZE_BYTES
             /*!< size of flash */
     #endif
 
@@ -77,14 +79,19 @@
     #endif
 
     #ifndef MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE
-        #define MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE   (256)
-            /*!< size for the data, less than MININI_CONFIG_FLASH_NVM_BLOCK_SIZE to save memory. For LPC55Sxx it must be multiple of 0x200! */
+        #define MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE   (1 * 0x100)
+            /*!< size for the data, less than MININI_CONFIG_FLASH_NVM_BLOCK_SIZE to save memory. For RP2040 it must be multiple of 0x100! */
+    #endif
+
+    #ifndef MININI_FILENAME
+        /** "filename" of the the ini settings.  Must be non-zero. */
+        #define MININI_FILENAME                         "config"
+    #endif
+
+    #ifndef MININI_SECTION
+        /** section of the the ini settings */
+        #define MININI_SECTION                          "config"
     #endif
 #endif /* MININI_CONFIG_FS_TYPE_FLASH_FS */
-
-#if !defined(MININI_CONFIG_PARSE_COMMAND_ENABLED)
-    #define MININI_CONFIG_PARSE_COMMAND_ENABLED         (0)
-        /*!< 1: shell support enabled, 0: otherwise */
-#endif
 
 #endif /* __MININI_CONFIG_H */
