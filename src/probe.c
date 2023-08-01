@@ -62,7 +62,7 @@ CU_REGISTER_DEBUG_PINS(probe_timing)
 //CU_SELECT_DEBUG_PINS(probe_timing)
 
 
-uint32_t probe_freq_khz = 0;         // must be global because of a hack in DAPLink
+static uint32_t probe_freq_khz;
 uint32_t cpu_freq_khz   = 0;         // must be global because of a hack in DAPLink
 
 
@@ -75,13 +75,13 @@ static struct _probe probe;
 
 
 
-uint32_t probe_get_swclk_freq(void)
+uint32_t probe_get_swclk_freq_khz(void)
 /**
  * Return current SWD frequency in kHz.
  */
 {
     return probe_freq_khz;
-}   // probe_get_swclk_freq
+}   // probe_get_swclk_freq_khz
 
 
 
@@ -91,7 +91,7 @@ uint32_t probe_get_swclk_freq(void)
  *
  * \param freq_khz  new frequency setting
  */
-void probe_set_swclk_freq(uint32_t freq_khz, bool message)
+void probe_set_swclk_freq_khz(uint32_t freq_khz, bool message)
 {
     uint32_t clk_sys_freq_khz = (clock_get_hz(clk_sys) + 500) / 1000;
     uint32_t div_256;
@@ -156,7 +156,7 @@ void probe_set_swclk_freq(uint32_t freq_khz, bool message)
 
     // Worked out with pulseview
     pio_sm_set_clkdiv_int_frac(PROBE_PIO, PROBE_SM, div_int, div_frac);
-}   // probe_set_swclk_freq
+}   // probe_set_swclk_freq_khz
 
 
 
@@ -295,7 +295,7 @@ void probe_init()
         pio_sm_init(PROBE_PIO, PROBE_SM, offset, &sm_config);
 
         // Set up divisor
-        probe_set_swclk_freq(probe_freq_khz, true);
+        probe_set_swclk_freq_khz(probe_freq_khz, true);
 
         // Enable SM
         pio_sm_set_enabled(PROBE_PIO, PROBE_SM, true);

@@ -179,7 +179,7 @@ void pico_prerun_board_config(void)
     bool target_found = false;
 
     target_device = target_device_generic;
-    probe_set_swclk_freq(target_device.rt_swd_khz, false);                            // slow down during target probing
+    probe_set_swclk_freq_khz(target_device.rt_swd_khz, false);                            // slow down during target probing
 
     if ( !target_found) {
         // check for RP2040
@@ -287,7 +287,7 @@ void pico_prerun_board_config(void)
         if (f_khz < PROBE_MIN_FREQ_KHZ  ||  f_khz > target_device.rt_max_swd_khz) {
             f_khz = target_device.rt_swd_khz;
         }
-        probe_set_swclk_freq(f_khz, true);
+        probe_set_swclk_freq_khz(f_khz, true);
     }
 
     target_set_state(RESET_RUN);

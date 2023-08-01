@@ -46,7 +46,7 @@ void __TIME_CRITICAL_FUNCTION(SWJ_Sequence)(uint32_t count, const uint8_t *data)
     uint32_t n;
 
     if (DAP_Data.clock_delay != cached_delay) {
-        probe_set_swclk_freq(MAKE_KHZ(DAP_Data.fast_clock, DAP_Data.clock_delay), true);
+        probe_set_swclk_freq_khz(MAKE_KHZ(DAP_Data.fast_clock, DAP_Data.clock_delay), true);
         cached_delay = DAP_Data.clock_delay;
     }
     //  picoprobe_debug("SWJ sequence count = %lu FDB=0x%2x\n", count, data[0]);
@@ -74,7 +74,7 @@ void __TIME_CRITICAL_FUNCTION(SWD_Sequence)(uint32_t info, const uint8_t *swdo, 
     uint32_t n;
 
     if (DAP_Data.clock_delay != cached_delay) {
-        probe_set_swclk_freq(MAKE_KHZ(DAP_Data.fast_clock, DAP_Data.clock_delay), true);
+        probe_set_swclk_freq_khz(MAKE_KHZ(DAP_Data.fast_clock, DAP_Data.clock_delay), true);
         cached_delay = DAP_Data.clock_delay;
     }
     n = info & SWD_SEQUENCE_CLK;
@@ -137,7 +137,7 @@ uint8_t __TIME_CRITICAL_FUNCTION(SWD_Transfer)(uint32_t request, uint32_t *data)
 	uint8_t ack;
 
 	if (DAP_Data.clock_delay != cached_delay) {
-		probe_set_swclk_freq(MAKE_KHZ(DAP_Data.fast_clock, DAP_Data.clock_delay), true);
+		probe_set_swclk_freq_khz(MAKE_KHZ(DAP_Data.fast_clock, DAP_Data.clock_delay), true);
 		cached_delay = DAP_Data.clock_delay;
 	}
 	//  picoprobe_debug("SWD_transfer(0x%02lx)\n", request);
