@@ -101,7 +101,7 @@ void sysview_close(struct tcp_pcb *tpcb)
 {
     //printf("sysview_close(%p): %d\n", tpcb, m_state);
 
-    picoprobe_info("SysView connection closed\n");
+    picoprobe_info("=================================== SysView disconnect\n");
 
     tcp_arg(tpcb, NULL);
     tcp_sent(tpcb, NULL);
@@ -277,7 +277,7 @@ err_t sysview_poll(void *arg, struct tcp_pcb *tpcb)
 
 static err_t sysview_accept(void *arg, struct tcp_pcb *newpcb, err_t err)
 {
-    picoprobe_info("SysView connection opened\n");
+    picoprobe_info("=================================== SysView connect\n");
 
     /* commonly observed practice to call tcp_setprio(), why? */
     tcp_setprio(newpcb, TCP_PRIO_MAX);
