@@ -44,6 +44,7 @@
 #define configUSE_PREEMPTION                    1
 #define configUSE_TICKLESS_IDLE                 1
 #define configUSE_IDLE_HOOK                     0
+#define configUSE_MINIMAL_IDLE_HOOK             0
 #define configUSE_TICK_HOOK                     0
 
 // TODO I guess this should be smaller than 1000 (and also a divisor of 1000)
@@ -120,10 +121,10 @@
 */
 
 /* SMP port only */
-#define configNUM_CORES                         2
+#define configNUMBER_OF_CORES                   2
 #define configTICK_CORE                         1
 #define configRUN_MULTIPLE_PRIORITIES           1
-#if configNUM_CORES != 1
+#if configNUMBER_OF_CORES != 1
     #define configUSE_CORE_AFFINITY             1
     #undef configUSE_TRACE_FACILITY
     #define configUSE_TRACE_FACILITY            1                                // required for setup of core affinity

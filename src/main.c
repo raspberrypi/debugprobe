@@ -449,7 +449,7 @@ void print_task_stat(void *ptr)
             printf("NUM PRI  S/AM  CPU  TOT STACK  NAME\n");
             printf("---------------------------------------\n");
 
-            all_delta_tick_sum_us /= configNUM_CORES;
+            all_delta_tick_sum_us /= configNUMBER_OF_CORES;
             total_sum_tick_ms += (all_delta_tick_sum_us + 500) / 1000;
 
             permille_sum = 0;
