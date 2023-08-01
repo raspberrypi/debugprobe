@@ -31,8 +31,10 @@
 
 #if ECLIPSE_GUI || ( CFG_TUD_ENABLED && CFG_TUD_NCM )
 
-// this prevents an obscure compilation bug, see https://github.com/rgrr/yapicoprobe/pull/61
-#define tu_static static
+#if !defined(tu_static)  ||  ECLIPSE_GUI
+    // TinyUSB <=0.15.0 does not know "tu_static"
+    #define tu_static static
+#endif
 
 #include <stdio.h>
 #include "device/usbd.h"
