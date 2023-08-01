@@ -38,8 +38,6 @@
 #include <stdbool.h>
 #include <string.h>
 #include <time.h>
-#include <hardware/clocks.h>
-#include "hardware/vreg.h"
 
 #include "bsp/board.h"
 #include "tusb.h"
@@ -619,17 +617,7 @@ int main(void)
     ini_init();                              // for debugging this must be moved below cdc_debug_init()
 
     // set CPU frequency according to configuration
-    {
-        cpu_freq_khz = 1000 * ini_getl(MININI_SECTION, "f_cpu", PROBE_CPU_CLOCK_MHZ, MININI_FILENAME);
-        if (cpu_freq_khz < PROBE_CPU_CLOCK_MIN_MHZ * 1000  ||  cpu_freq_khz > PROBE_CPU_CLOCK_MAX_MHZ * 1000) {
-            cpu_freq_khz = 1000 * PROBE_CPU_CLOCK_MHZ;
-        }
-        if (cpu_freq_khz >= 150 * 1000) {
-            // increase voltage on higher frequencies
-            vreg_set_voltage(VREG_VOLTAGE_1_20);
-        }
-        set_sys_clock_khz(cpu_freq_khz, true);
-    }
+    probe_set_cpu_freq_khz( 1000 * ini_getl(MININI_SECTION, "f_cpu", PROBE_CPU_CLOCK_MHZ, MININI_FILENAME) );
 
     get_config_init();
 
@@ -648,7 +636,7 @@ int main(void)
     picoprobe_info("Features:\n");
     picoprobe_info(" %s\n", CONFIG_FEATURES());
     picoprobe_info("Probe HW:\n");
-    picoprobe_info("  %s @ %luMHz\n", CONFIG_BOARD(), (cpu_freq_khz + 500) / 1000);
+    picoprobe_info("  %s @ %luMHz\n", CONFIG_BOARD(), (probe_get_cpu_freq_khz() + 500) / 1000);
 #if OPT_NET
     picoprobe_info("IP:\n");
     picoprobe_info("  192.168.%ld.1\n", ini_getl(MININI_SECTION, "net", OPT_NET_192_168, MININI_FILENAME));

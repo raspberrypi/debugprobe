@@ -30,6 +30,7 @@
 
 #include <hardware/clocks.h>
 #include <hardware/gpio.h>
+#include <hardware/vreg.h>
 
 #include "led.h"
 #include "picoprobe_config.h"
@@ -63,7 +64,7 @@ CU_REGISTER_DEBUG_PINS(probe_timing)
 
 
 static uint32_t probe_freq_khz;
-uint32_t cpu_freq_khz   = 0;         // must be global because of a hack in DAPLink
+static uint32_t cpu_freq_khz;
 
 
 struct _probe {
@@ -72,6 +73,36 @@ struct _probe {
 };
 
 static struct _probe probe;
+
+
+
+uint32_t probe_get_cpu_freq_khz(void)
+/**
+ * Return current CPU frequency in kHz.
+ */
+{
+    return cpu_freq_khz;
+}   // probe_get_cpu_freq_khz
+
+
+
+void probe_set_cpu_freq_khz(uint32_t freq_khz)
+/**
+ * Set CPU frequency.
+ */
+{
+    if (freq_khz < PROBE_CPU_CLOCK_MIN_MHZ * 1000  ||  freq_khz > PROBE_CPU_CLOCK_MAX_MHZ * 1000) {
+        freq_khz = 1000 * PROBE_CPU_CLOCK_MHZ;
+    }
+
+    if (freq_khz >= 150 * 1000) {
+        // increase voltage on higher frequencies
+        vreg_set_voltage(VREG_VOLTAGE_1_20);
+    }
+    set_sys_clock_khz(freq_khz, true);
+
+    cpu_freq_khz = freq_khz;
+}   // probe_set_cpu_freq_khz
 
 
 

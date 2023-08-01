@@ -28,7 +28,8 @@
 
 #define PROBE_MIN_FREQ_KHZ     500
 
-extern uint32_t cpu_freq_khz;
+void probe_set_cpu_freq_khz(uint32_t freq_khz);
+uint32_t probe_get_cpu_freq_khz(void);
 
 uint32_t probe_get_swclk_freq_khz(void);
 void probe_set_swclk_freq_khz(uint32_t freq_khz, bool message);
