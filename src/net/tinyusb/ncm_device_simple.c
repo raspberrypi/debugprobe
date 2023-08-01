@@ -31,7 +31,8 @@
 
 #if ECLIPSE_GUI || ( CFG_TUD_ENABLED && CFG_TUD_NCM )
 
-#if ECLIPSE_GUI
+#if !defined(tu_static)  ||  ECLIPSE_GUI
+    // TinyUSB <=0.15.0 does not know "tu_static"
     #define tu_static static
 #endif
 
