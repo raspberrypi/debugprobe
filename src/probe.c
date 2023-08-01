@@ -82,7 +82,7 @@ static struct _probe probe;
  */
 void probe_set_swclk_freq(uint32_t freq_khz)
 {
-    uint32_t clk_sys_freq_khz = clock_get_hz(clk_sys) / 1000;
+    uint32_t clk_sys_freq_khz = (clock_get_hz(clk_sys) + 500) / 1000;
     uint32_t div_256;
     uint32_t div_int;
     uint32_t div_frac;

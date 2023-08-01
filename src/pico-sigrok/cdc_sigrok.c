@@ -143,7 +143,7 @@ static bool process_char(sr_device_t *d, char charin)
             case 'R':
                 // sampling rate
                 tmpint = atol(&(d->cmdstr[1]));
-                if (tmpint >= 5000  &&  tmpint <= 1000 * PROBE_CPU_CLOCK_KHZ + 16) { //Add 16 to support cfg_bits
+                if (tmpint >= 5000  &&  tmpint <= 1000*1000 * PROBE_CPU_CLOCK_MHZ + 16) { //Add 16 to support cfg_bits
                     d->sample_rate = tmpint;
 //                    Dprintf("SMPRATE= %lu\n", d->sample_rate);
                     ret = true;

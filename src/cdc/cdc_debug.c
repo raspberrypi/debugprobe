@@ -46,7 +46,7 @@
 #include "minIni/minIni.h"
 
 
-#define STREAM_PRINTF_SIZE    32768
+#define STREAM_PRINTF_SIZE    4096
 #define STREAM_PRINTF_TRIGGER 32
 
 static TaskHandle_t           task_printf = NULL;
@@ -153,7 +153,8 @@ void cdc_debug_rx_cb(void)
 
 static void cdc_debug_command_if(uint8_t ch)
 /**
- * command interpreter.
+ * Command interpreter.
+ * Description in README.adoc.
  *
  * \note
  *    Writing / erasing config flash is somehow cumbersome.  After each write operation to the flash,
@@ -211,52 +212,16 @@ static void cdc_debug_command_if(uint8_t ch)
                 *p = '\0';
                 ++p;
 
-                if (strcmp(cmd, "net") == 0) {
-#if 0
-                    // does not work
-                    taskENTER_CRITICAL();
-                    ini_puts(MININI_SECTION, cmd, p, MININI_FILENAME);
-                    taskEXIT_CRITICAL();
-#elif 0
-                    // does not work
-                    taskDISABLE_INTERRUPTS();
-                    ini_puts(MININI_SECTION, cmd, p, MININI_FILENAME);
-                    taskENABLE_INTERRUPTS();
-#elif 0
-                    // does not work
-                    uint32_t isrstatus = save_and_disable_interrupts();
-                    ini_puts(MININI_SECTION, cmd, p, MININI_FILENAME);
-                    restore_interrupts(isrstatus);
-#elif 0
-                    // best solution
-                    taskENTER_CRITICAL();
-                    ini_puts(MININI_SECTION, cmd, p, MININI_FILENAME);
-                    watchdog_enable(0, 0);
-                    for (;;) {
-                    }
-#elif 0
-                    // does not work
-                    vTaskSuspendAll();
-                    taskENTER_CRITICAL();
-                    ini_puts(MININI_SECTION, cmd, p, MININI_FILENAME);
-                    taskEXIT_CRITICAL();
-                    xTaskResumeAll();
-#elif 0
-                    // crashes
-                    vTaskEndScheduler();
-                    taskENTER_CRITICAL();
-                    ini_puts(MININI_SECTION, cmd, p, MININI_FILENAME);
-                    watchdog_enable(0, 0);
-                    for (;;) {
-                    }
-#else
+                if (    strcmp(cmd, "net") == 0
+                    ||  strcmp(cmd, "f_cpu") == 0
+                    ||  strcmp(cmd, "f_swd") == 0
+                    ||  strcmp(cmd, "pwd") ==0) {
                     multicore_reset_core1();
                     taskDISABLE_INTERRUPTS();
                     ini_puts(MININI_SECTION, cmd, p, MININI_FILENAME);
                     watchdog_enable(0, 0);
                     for (;;) {
                     }
-#endif
                 }
                 else {
                     picoprobe_error("unknown var: '%s'\n", cmd);
@@ -269,20 +234,12 @@ static void cdc_debug_command_if(uint8_t ch)
                 ini_print_all();
             }
             else if (strcmp(cmd, "killall") == 0) {
-#if 0
-                taskENTER_CRITICAL();
-                ini_remove(MININI_FILENAME);
-                watchdog_enable(0, 0);
-                for (;;) {
-                }
-#else
                 multicore_reset_core1();
                 taskDISABLE_INTERRUPTS();
                 ini_remove(MININI_FILENAME);
                 watchdog_enable(0, 0);
                 for (;;) {
                 }
-#endif
             }
             else if (strcmp(cmd, "reset") == 0) {
                 watchdog_enable(0, 0);

@@ -109,29 +109,19 @@
 /**
  * CONFIG_BOARD
  */
-#if defined(OPT_MCU_OVERCLOCK_MHZ)
-#define __OPT_MCU_MHZ  " @ " xxCoNfSTR(OPT_MCU_OVERCLOCK_MHZ) "MHz"
-#else
-#define __OPT_MCU_MHZ
-#endif
-
 #if defined(TARGET_BOARD_PICO)
-    #define CONFIG_BOARD() "Pico" __OPT_MCU_MHZ
+    #define CONFIG_BOARD() "Pico"
 #elif defined(TARGET_BOARD_PICO_W)
-    #define CONFIG_BOARD() "Pico_W" __OPT_MCU_MHZ
+    #define CONFIG_BOARD() "Pico_W"
 #elif defined(TARGET_BOARD_PICO_DEBUG_PROBE)
-    #define CONFIG_BOARD() "Pico Debug Probe" __OPT_MCU_MHZ
+    #define CONFIG_BOARD() "Pico Debug Probe"
 #else
-    #define CONFIG_BOARD() "UNKNOWN board" __OPT_MCU_MHZ
+    #define CONFIG_BOARD() "UNKNOWN board"
 #endif
 
 
 /* Contains unique serial number string (NUL terminated) after call to init_usb_serial */
 extern char usb_serial[];
-
-#if OPT_NET
-    extern uint8_t tud_network_mac_address[];
-#endif
 
 void get_config_init(void);
 

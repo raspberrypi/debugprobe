@@ -38,6 +38,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <time.h>
+#include <hardware/clocks.h>
 #include "hardware/vreg.h"
 
 #include "bsp/board.h"
@@ -617,11 +618,20 @@ int main(void)
     board_init();
     ini_init();                              // for debugging this must be moved below cdc_debug_init()
 
-#if (PROBE_CPU_CLOCK_KHZ >= 150*1000)
-    // increase voltage on higher frequencies
-    vreg_set_voltage(VREG_VOLTAGE_1_20);
-#endif
-    set_sys_clock_khz(PROBE_CPU_CLOCK_KHZ, true);
+    // set CPU frequency according to configuration
+    {
+        uint32_t f_cpu;
+
+        f_cpu = ini_getl(MININI_SECTION, "f_cpu", PROBE_CPU_CLOCK_MHZ, MININI_FILENAME);
+        if (f_cpu < 100  ||  f_cpu > 264) {
+            f_cpu = PROBE_CPU_CLOCK_MHZ;
+        }
+        if (f_cpu >= 150) {
+            // increase voltage on higher frequencies
+            vreg_set_voltage(VREG_VOLTAGE_1_20);
+        }
+        set_sys_clock_khz(1000 * f_cpu, true);
+    }
 
     get_config_init();
 
@@ -640,7 +650,7 @@ int main(void)
     picoprobe_info("Features:\n");
     picoprobe_info(" %s\n", CONFIG_FEATURES());
     picoprobe_info("Probe HW:\n");
-    picoprobe_info("  %s\n", CONFIG_BOARD());
+    picoprobe_info("  %s @ %luMHz\n", CONFIG_BOARD(), (clock_get_hz(clk_sys) + 500000) / 1000000);
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
     dap_events = xEventGroupCreate();
