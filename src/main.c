@@ -641,6 +641,14 @@ int main(void)
     picoprobe_info("IP:\n");
     picoprobe_info("  192.168.%ld.1\n", ini_getl(MININI_SECTION, "net", OPT_NET_192_168, MININI_FILENAME));
 #endif
+    picoprobe_info("Compiler:\n");
+#if defined(__clang__)
+    picoprobe_info("  clang %d.%d.%d\n", __clang_major__, __clang_minor__, __clang_patchlevel__);
+#elif defined(__GNUC__)
+    picoprobe_info("  gcc %d.%d\n", __GNUC__, __GNUC_MINOR__);
+#else
+    picoprobe_info("  UNKNOWN\n");
+#endif
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
     dap_events = xEventGroupCreate();
