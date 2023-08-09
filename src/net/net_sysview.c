@@ -41,7 +41,7 @@
 
 #include "picoprobe_config.h"
 #include "net_sysview.h"
-#include "rtt_console.h"
+#include "rtt_io.h"
 
 
 /**
