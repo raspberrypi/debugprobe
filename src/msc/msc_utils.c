@@ -441,11 +441,11 @@ void target_writer_thread(void *ptr)
             if (swd_write_memory(TARGET_RP2040_DATA, (uint8_t *)uf2.data, uf2.payload_size)) {
                 rp2040_target_call_function(TARGET_RP2040_FLASH_BLOCK, arg, sizeof(arg) / sizeof(arg[0]), &res);
                 if (res & 0xf0000000) {
-                    picoprobe_error("target_writer_thread: target operation returned 0x%lx\n", res);
+                    picoprobe_error("target_writer_thread: target operation returned 0x%x\n", (unsigned)res);
                 }
             }
             else {
-                picoprobe_error("target_writer_thread: failed to write to 0x%lx/%ld\n", uf2.target_addr, uf2.payload_size);
+                picoprobe_error("target_writer_thread: failed to write to 0x%x/%d\n", (unsigned)uf2.target_addr, (unsigned)uf2.payload_size);
             }
         }
 

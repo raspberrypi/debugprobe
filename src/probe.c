@@ -166,9 +166,9 @@ void probe_set_swclk_freq_khz(uint32_t freq_khz, bool message)
                 static uint32_t out_khz;
 
                 if (freq_khz != out_khz) {
-                    picoprobe_info("SWD clk req   : %lukHz = %lukHz / (6 * (%lu + %lu/256)), eff : %lukHz\n",
-                                   freq_khz, clk_sys_freq_khz, div_int, div_frac,
-                                   (256 * clk_sys_freq_khz) / (6 * div_256));
+                    picoprobe_info("SWD clk req   : %ukHz = %ukHz / (6 * (%u + %u/256)), eff : %ukHz\n",
+                                   (unsigned)freq_khz, (unsigned)clk_sys_freq_khz, (unsigned)div_int, (unsigned)div_frac,
+                                   (unsigned)((256 * clk_sys_freq_khz) / (6 * div_256)));
                     out_khz = freq_khz;
                 }
             }

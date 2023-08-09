@@ -189,11 +189,11 @@ static void handle_incoming_datagram(uint32_t len)
     const ndp16_t *ndp = NULL;
 
     if (len < sizeof(nth16_t) + sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)) {
-        printf("--1.1.1 %ld\n", len);
+        printf("--1.1.1 %u\n", (unsigned)len);
         ok = false;
     }
     else if (hdr->dwSignature != NTH16_SIGNATURE) {
-        printf("--1.1.2 0x%lx %ld\n", hdr->dwSignature, len);
+        printf("--1.1.2 0x%x %u\n", (unsigned)(hdr->dwSignature), (unsigned)len);
         ok = false;
     }
     else if (hdr->wNdpIndex < sizeof(nth16_t)) {
@@ -201,7 +201,7 @@ static void handle_incoming_datagram(uint32_t len)
         ok = false;
     }
     else if (hdr->wNdpIndex + sizeof(ndp16_t) > len) {
-        printf("--1.1.4 %d %ld\n", hdr->wNdpIndex + sizeof(ndp16_t), len);
+        printf("--1.1.4 %d %u\n", hdr->wNdpIndex + sizeof(ndp16_t), (unsigned)len);
         ok = false;
     }
 
@@ -209,11 +209,11 @@ static void handle_incoming_datagram(uint32_t len)
         ndp = (const ndp16_t*) (ncm_interface.rcv_ntb + hdr->wNdpIndex);
 
         if (hdr->wNdpIndex + ndp->wLength > len) {
-            printf("--1.2.1 %d %ld\n", hdr->wNdpIndex + ndp->wLength, len);
+            printf("--1.2.1 %d %u\n", hdr->wNdpIndex + ndp->wLength, (unsigned)len);
             ok = false;
         }
         else if (ndp->dwSignature != NDP16_SIGNATURE_NCM0  &&  ndp->dwSignature != NDP16_SIGNATURE_NCM1) {
-            printf("--1.2.2 0x%lx %ld\n", ndp->dwSignature, len);
+            printf("--1.2.2 0x%x %u\n", (unsigned)(ndp->dwSignature), (unsigned)len);
             ok = false;
         }
     }
@@ -228,7 +228,7 @@ static void handle_incoming_datagram(uint32_t len)
             ok = false;
         }
         else if (ndp->datagram[0].wDatagramIndex + ndp->datagram[0].wDatagramLength > len) {
-            printf("--1.3.3 %d %d %ld\n", ndp->datagram[0].wDatagramIndex, ndp->datagram[0].wDatagramLength, len);
+            printf("--1.3.3 %d %d %u\n", ndp->datagram[0].wDatagramIndex, ndp->datagram[0].wDatagramLength, (unsigned)len);
             ok = false;
         }
     }
