@@ -142,7 +142,9 @@ uint8_t target_set_state(target_state_t state)
                     swd_set_soft_reset(g_board_info.soft_reset_type);
                 } else if (g_target_family->soft_reset_type) {
                     swd_set_soft_reset(g_target_family->soft_reset_type);
-                }
+                } else {
+                    swd_set_soft_reset(SYSRESETREQ);
+	            }
                 return swd_set_target_state_sw(state);
             } else {
                 return 1;

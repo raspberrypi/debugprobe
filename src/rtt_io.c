@@ -561,14 +561,15 @@ void rtt_io_thread(void *ptr)
                 picoprobe_info("Target part       : %s\n", g_board_info.target_cfg->target_part_number);
                 //picoprobe_info("Board vendor      : %s\n", g_board_info.board_vendor);
                 //picoprobe_info("Board name        : %s\n", g_board_info.board_name);
-                picoprobe_info("Flash             : 0x%08lx..0x%08lx (%ldK)\n", g_board_info.target_cfg->flash_regions[0].start,
-                               g_board_info.target_cfg->flash_regions[0].end - 1,
-                               (g_board_info.target_cfg->flash_regions[0].end - g_board_info.target_cfg->flash_regions[0].start) / 1024);
-                picoprobe_info("RAM               : 0x%08lx..0x%08lx (%ldK)\n",
-                               g_board_info.target_cfg->ram_regions[0].start,
-                               g_board_info.target_cfg->ram_regions[0].end - 1,
-                               (g_board_info.target_cfg->ram_regions[0].end - g_board_info.target_cfg->ram_regions[0].start) / 1024);
-                picoprobe_info("SWD frequency     : %lukHz\n", probe_get_swclk_freq_khz());
+                picoprobe_info("Flash             : 0x%08x..0x%08x (%uK)\n",
+                               (unsigned)(g_board_info.target_cfg->flash_regions[0].start),
+                               (unsigned)(g_board_info.target_cfg->flash_regions[0].end - 1),
+                               (unsigned)((g_board_info.target_cfg->flash_regions[0].end - g_board_info.target_cfg->flash_regions[0].start) / 1024));
+                picoprobe_info("RAM               : 0x%08x..0x%08x (%uK)\n",
+                               (unsigned)(g_board_info.target_cfg->ram_regions[0].start),
+                               (unsigned)(g_board_info.target_cfg->ram_regions[0].end - 1),
+                               (unsigned)((g_board_info.target_cfg->ram_regions[0].end - g_board_info.target_cfg->ram_regions[0].start) / 1024));
+                picoprobe_info("SWD frequency     : %ukHz\n", (unsigned)probe_get_swclk_freq_khz());
                 picoprobe_info("SWD max frequency : %ukHz\n", g_board_info.target_cfg->rt_max_swd_khz);
                 picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
                 rtt_cb_alive = false;
@@ -589,7 +590,8 @@ void rtt_io_thread(void *ptr)
             // search for an alive RTT_CB
             uint32_t rtt_cb_cnt = 99;
 
-            picoprobe_info("searching RTT_CB in 0x%08lx..0x%08lx, prev: 0x%08lx\n", TARGET_RAM_START, TARGET_RAM_END - 1, rtt_cb);
+            picoprobe_info("searching RTT_CB in 0x%08x..0x%08x, prev: 0x%08x\n",
+                           (unsigned)TARGET_RAM_START, (unsigned)(TARGET_RAM_END - 1), (unsigned)rtt_cb);
             led_state(LS_TARGET_FOUND);
             target_online = true;
             rtt_cb_alive = false;
@@ -608,14 +610,14 @@ void rtt_io_thread(void *ptr)
                     }
                 }
                 if (rtt_cb != 0) {
-                    picoprobe_info("---- RTT_CB found at 0x%lx\n", rtt_cb);
+                    picoprobe_info("---- RTT_CB found at 0x%x\n", (unsigned)rtt_cb);
                     ++rtt_cb_cnt;
                     led_state(LS_RTT_CB_FOUND);
                     do_rtt_io(rtt_cb, true);
 
                     if ( !rtt_cb_alive) {
                         uint32_t prev_rtt_cb = rtt_cb;
-                        picoprobe_info("---- RTT_CB at 0x%lx seems to be inactive, searching again...\n", rtt_cb);
+                        picoprobe_info("---- RTT_CB at 0x%x seems to be inactive, searching again...\n", (unsigned)rtt_cb);
                         rtt_cb = search_for_rtt_cb(rtt_cb + segger_alignment);
                         if (rtt_cb == 0) {
                             if (rtt_cb_cnt == 1) {

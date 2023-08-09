@@ -360,7 +360,8 @@ void dap_task(void *ptr)
                         {
                             // there is a bug in CMSIS-DAP, see https://github.com/ARM-software/CMSIS_5/pull/1503
                             // but we trust our own length calculation
-                            picoprobe_error("   !!!!!!!! request (%lu) and executed length (%lu) differ\n", request_len, resp_len >> 16);
+                            picoprobe_error("   !!!!!!!! request (%u) and executed length (%u) differ\n",
+                                            (unsigned)request_len, (unsigned)(resp_len >> 16));
                         }
 
                         if (rx_len == request_len)
@@ -649,10 +650,10 @@ int main(void)
     picoprobe_info("Features:\n");
     picoprobe_info(" %s\n", CONFIG_FEATURES());
     picoprobe_info("Probe HW:\n");
-    picoprobe_info("  %s @ %luMHz\n", CONFIG_BOARD(), (probe_get_cpu_freq_khz() + 500) / 1000);
+    picoprobe_info("  %s @ %uMHz\n", CONFIG_BOARD(), (unsigned)((probe_get_cpu_freq_khz() + 500) / 1000));
 #if OPT_NET
     picoprobe_info("IP:\n");
-    picoprobe_info("  192.168.%ld.1\n", ini_getl(MININI_SECTION, "net", OPT_NET_192_168, MININI_FILENAME));
+    picoprobe_info("  192.168.%d.1\n", (int)ini_getl(MININI_SECTION, "net", OPT_NET_192_168, MININI_FILENAME));
 #endif
     picoprobe_info("Compiler:\n");
 #if defined(__clang__)

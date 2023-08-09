@@ -180,7 +180,8 @@ bool rp2040_target_call_function(uint32_t addr, uint32_t args[], int argc, uint3
 
             if (dt_us > timeout_us) {
                 target_core_halt();
-                picoprobe_error("rp2040_target_call_function: execution timed out after %lu ms\n", dt_us / 1000);
+                picoprobe_error("rp2040_target_call_function: execution timed out after %u ms\n",
+                                (unsigned)(dt_us / 1000));
                 interrupted = true;
             }
         }
@@ -211,7 +212,8 @@ bool rp2040_target_call_function(uint32_t addr, uint32_t args[], int argc, uint3
         }
 
         if (r15 != (trampoline_end & 0xfffffffe)) {
-            picoprobe_error("rp2040_target_call_function: invoked target function did not run til end: 0x%0lx != 0x%0lx\n", r15, trampoline_end);
+            picoprobe_error("rp2040_target_call_function: invoked target function did not run til end: 0x%0x != 0x%0x\n",
+                            (unsigned)r15, (unsigned)trampoline_end);
             return false;
         }
     }
