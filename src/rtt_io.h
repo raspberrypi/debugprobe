@@ -23,8 +23,8 @@
  *
  */
 
-#ifndef _RTT_CONSOLE_H
-#define _RTT_CONSOLE_H
+#ifndef _RTT_IO_H
+#define _RTT_IO_H
 
 
 #include <stdint.h>

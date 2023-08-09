@@ -37,7 +37,7 @@
 #include "swd_host.h"
 
 #include "picoprobe_config.h"
-#include "rtt_console.h"
+#include "rtt_io.h"
 #include "sw_lock.h"
 #include "RTT/SEGGER_RTT.h"
 #if OPT_TARGET_UART
@@ -75,6 +75,7 @@ static const uint32_t           segger_alignment = 4;
 static const uint8_t            seggerRTT[16] = "SEGGER RTT\0\0\0\0\0\0";
 static uint32_t                 prev_rtt_cb = 0;
 static bool                     rtt_console_running = false;
+static bool                     rtt_cb_verified = false;
 static bool                     ok_console_from_target = false;
 static bool                     ok_console_to_target = false;
 
@@ -555,13 +556,17 @@ void rtt_io_thread(void *ptr)
                 picoprobe_info("SWD max frequency : %ukHz\n", g_board_info.target_cfg->rt_max_swd_khz);
                 picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
             }
+            rtt_cb_verified = false;
         }
 
         vTaskDelay(pdMS_TO_TICKS(100));            // give the target some time for startup
         if ( !target_connect()) {
             led_state(LS_NO_TARGET);
-            target_online = false;
 
+            if (target_online) {
+                target_online = false;
+                picoprobe_info("=================================== Target lost\n");
+            }
             vTaskDelay(pdMS_TO_TICKS(1000));
         }
         else {
