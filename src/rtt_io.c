@@ -598,9 +598,12 @@ void rtt_io_thread(void *ptr)
                 if (rtt_cb == 0) {
                     rtt_cb = search_for_rtt_cb(0);
                     if (rtt_cb == 0) {
-                        // -> no RTT_CB in memory
-                        picoprobe_debug("---- no RTT_CB found\n");
+                        // -> no RTT_CB in memory, wait until unlock requested
+                        picoprobe_info("---- no RTT_CB found\n");
                         led_state(LS_TARGET_FOUND);
+                        while ( !sw_unlock_requested()) {
+                            vTaskDelay(pdMS_TO_TICKS(100));
+                        }
                         break;
                     }
                 }
