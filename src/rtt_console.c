@@ -227,7 +227,7 @@ static uint8_t ft_buf[256];
 static uint32_t ft_cnt;
 static bool ft_ok;
 
-static void rtt_from_target_thread(void *)
+static void rtt_from_target_thread(void *p)
 /**
  * Fetch RTT data from target.
  * Data transfer is CPU intensive, because SWD access is blocking the CPU.
@@ -413,7 +413,7 @@ static void do_rtt_io(uint32_t rtt_cb)
 #endif
     bool ok = true;
 
-    static_assert(sizeof(uint32_t) == sizeof(unsigned int));    // why doesn't segger use uint32_t?
+    static_assert(sizeof(uint32_t) == sizeof(unsigned int), "uint32_t/unsigned int mix up");    // why doesn't segger use uint32_t?
 
     if (rtt_cb < TARGET_RAM_START  ||  rtt_cb >= TARGET_RAM_END) {
         return;

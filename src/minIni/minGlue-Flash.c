@@ -320,15 +320,13 @@ int ini_init(void)
 {
     DEBUG_PRINTF("ini_init()--------\n");
 
-    static_assert(    MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 64
-                  ||  MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 128
-                  ||  MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 256
+    static_assert(    MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 256
                   ||  MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 512
                   ||  MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 1024
                   ||  MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 2048
                   ||  MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 4096
-                  ||  MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 8192);
-    static_assert(MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE % 256 == 0);
+                  ||  MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE == 8192, "MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE must be a magnitude of 2");
+    static_assert(MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE % 256 == 0, "MININI_CONFIG_FLASH_NVM_MAX_DATA_SIZE must be >= 256");
 
 #if DEBUG_TEST
     int r;

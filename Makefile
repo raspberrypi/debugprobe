@@ -2,9 +2,10 @@
 #
 # ATTENTION: to get the version number & git hash into the image, cmake-create-* has to be invoked.
 #
+.ONESHELL:
 
 VERSION_MAJOR        := 1
-VERSION_MINOR        := 17
+VERSION_MINOR        := 18
 
 BUILD_DIR            := _build
 PROJECT              := picoprobe
@@ -55,6 +56,23 @@ cmake-create-release:
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) $(CMAKE_FLAGS)
     # don't know if this is required
 	@cd $(BUILD_DIR) && sed -i 's/arm-none-eabi-gcc/gcc/' compile_commands.json
+
+
+.PHONY: cmake-create-debug-clang
+cmake-create-debug-clang:
+	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin
+	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
+	         $(if $(OPT_SIGROK),-DOPT_SIGROK=$(OPT_SIGROK)) \
+	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang
+    # don't know if this is required
+	@cd $(BUILD_DIR) && sed -i 's/arm-none-eabi-gcc/gcc/' compile_commands.json
+
+
+.PHONY: cmake-create-release-clang
+cmake-create-release-clang:
+	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin
+	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
+	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang
 
 
 .PHONY: clean-build

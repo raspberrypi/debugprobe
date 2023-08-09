@@ -561,8 +561,8 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
         uint32_t target_addr  = payload_size * block_no + TARGET_FLASH_IMG_BASE;
         struct uf2_block *uf2 = (struct uf2_block *)buffer;
 
-        static_assert(BPB_BytsPerSec == 512);
-        static_assert(payload_size <= sizeof(uf2->data));
+        static_assert(BPB_BytsPerSec == 512, "Sector must have 512 bytes");
+        static_assert(payload_size <= sizeof(uf2->data), "UF2 payload is too big");
         assert(bufsize >= sizeof(*uf2));
 
 //        picoprobe_debug("  CURRENT.UF2 %lu 0x%lx\n", lba, target_addr);
@@ -581,8 +581,8 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
         uint32_t target_addr  = payload_size * block_no + TARGET_RAM_IMG_BASE;
         struct uf2_block *uf2 = (struct uf2_block *)buffer;
 
-        static_assert(BPB_BytsPerSec == 512);
-        static_assert(payload_size <= sizeof(uf2->data));
+        static_assert(BPB_BytsPerSec == 512, "Sector must have 512 bytes");
+        static_assert(payload_size <= sizeof(uf2->data), "UF2 payload is too big");
         assert(bufsize >= sizeof(*uf2));
 
 //        picoprobe_info("  RAM.UF2 0x%lx\n", target_addr);
@@ -657,7 +657,7 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
         if (msc_is_uf2_record(buffer,  bufsize)) {
             if (msc_target_connect(true)) {
                 if (msc_target_write_memory((struct uf2_block *)buffer) != 0) {
-                    static_assert(sizeof(struct uf2_block) == 512);
+                    static_assert(sizeof(struct uf2_block) == 512, "UF2 block must have 512 bytes, otherwise the definition is wrong");
                     r = sizeof(struct uf2_block);
                 }
             }

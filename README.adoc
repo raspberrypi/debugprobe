@@ -55,8 +55,8 @@ Finally there is **Y**et **A**nother **Picoprobe** around, the YAPicoprobe.
 ### Supported Probe Hardware
 * https://www.raspberrypi.com/documentation/microcontrollers/raspberry-pi-pico.html[Raspberry Pi Pico and Pico W] +
   If you have to choose between a Pico and a Pico W, I'ld recommend the simple Pico, because Pico W does not
-  add any features
-* https://www.raspberrypi.com/documentation/microcontrollers/debug-probe.html[Pico Debug Probe] +
+  add any benefits
+* https://www.raspberrypi.com/documentation/microcontrollers/debug-probe.html[Pico Debug Probe]
   
   
 
@@ -512,7 +512,7 @@ the environment variable `PICO_SDK_PATH` must point to it.
 
 NOTE: I'm most of the time on the master branch of TinyUSB which is part of the Pico SDK.  Originally
 TinyUSB 0.15.0 is being used by Pico SDK 1.5.1. +
-So if you experience unexpected behaviour, I recommend to update TineUSB and retry. 
+So if you experience unexpected behaviour, I recommend to update TinyUSB and retry. 
 
 If you want to adopt YAPicoprobe options to your needs, check CMakeLists.txt and invoke cmake accordingly.
 
