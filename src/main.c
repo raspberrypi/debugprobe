@@ -645,7 +645,7 @@ int main(void)
 #if defined(__clang__)
     picoprobe_info("  clang %d.%d.%d\n", __clang_major__, __clang_minor__, __clang_patchlevel__);
 #elif defined(__GNUC__)
-    picoprobe_info("  gcc %d.%d\n", __GNUC__, __GNUC_MINOR__);
+    picoprobe_info("  gcc %d.%d.%d\n", __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__);
 #else
     picoprobe_info("  UNKNOWN\n");
 #endif

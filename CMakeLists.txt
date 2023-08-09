@@ -354,6 +354,14 @@ target_sources(${PROJECT} PRIVATE
 
 target_compile_options(${PROJECT} PRIVATE -Wall)
 
+if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    message("---------------------------------------------- CLANG")
+    target_compile_options(${PROJECT} PRIVATE
+        -Wno-format
+        -Wno-unknown-attributes
+    )
+endif()
+
 if(DEFINED ENV{PICOPROBE_LED})
     message("PICOPROBE_LED is defined as " $ENV{PICOPROBE_LED})
     target_compile_definitions(${PROJECT} PRIVATE PICOPROBE_LED=$ENV{PICOPROBE_LED})

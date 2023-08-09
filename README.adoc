@@ -55,8 +55,8 @@ Finally there is **Y**et **A**nother **Picoprobe** around, the YAPicoprobe.
 ### Supported Probe Hardware
 * https://www.raspberrypi.com/documentation/microcontrollers/raspberry-pi-pico.html[Raspberry Pi Pico and Pico W] +
   If you have to choose between a Pico and a Pico W, I'ld recommend the simple Pico, because Pico W does not
-  add any features
-* https://www.raspberrypi.com/documentation/microcontrollers/debug-probe.html[Pico Debug Probe] +
+  add any benefits
+* https://www.raspberrypi.com/documentation/microcontrollers/debug-probe.html[Pico Debug Probe]
   
   
 

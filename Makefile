@@ -60,7 +60,7 @@ cmake-create-release:
 
 .PHONY: cmake-create-debug-clang
 cmake-create-debug-clang:
-	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi-14.0.0/bin
+	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
 	         $(if $(OPT_SIGROK),-DOPT_SIGROK=$(OPT_SIGROK)) \
 	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang
@@ -70,7 +70,7 @@ cmake-create-debug-clang:
 
 .PHONY: cmake-create-release-clang
 cmake-create-release-clang:
-	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi-14.0.0/bin
+	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
 	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang
 

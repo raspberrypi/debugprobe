@@ -378,7 +378,7 @@ bool msc_target_read_memory(struct uf2_block *uf2, uint32_t target_addr, uint32_
     const uint32_t payload_size = 256;
     bool ok;
 
-    static_assert(payload_size <= sizeof(uf2->data));
+    static_assert(payload_size <= sizeof(uf2->data), "UF2 payload is too big");
 
     xSemaphoreTake(sema_swd_in_use, portMAX_DELAY);
     setup_uf2_record(uf2, target_addr, payload_size, block_no, num_blocks);
