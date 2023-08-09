@@ -261,10 +261,10 @@ void pico_prerun_board_config(void)
     }
 
     if ( !target_found) {
+        target_device = target_device_generic;             // holds already all values
+        search_family();
         if (target_set_state(ATTACH)) {
             // set generic device
-            target_device = target_device_generic;         // holds already all values
-            search_family();
             strcpy(board_vendor, "Generic");
             strcpy(board_name, "Generic");
         }
