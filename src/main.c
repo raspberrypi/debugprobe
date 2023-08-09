@@ -88,8 +88,21 @@
 #endif
 
 
-#define TASK_MAX_CNT                15
+#ifdef NDEBUG
+    #define BUILD_TYPE "release build"
+#else
+    #define BUILD_TYPE "debug build"
+#endif
 
+#if defined(__clang__)
+    // this is a clang/picolib tweak
+    FILE *const stdout = NULL;
+#endif
+
+
+
+// maximum number of expected FreeRTOS task (used for uxTaskGetSystemState())
+#define TASK_MAX_CNT                15
 
 /*
  * The following is part of a hack to make DAP_PACKET_COUNT a variable.
@@ -643,7 +656,7 @@ int main(void)
 #endif
     picoprobe_info("Compiler:\n");
 #if defined(__clang__)
-    picoprobe_info("  clang %d.%d.%d\n", __clang_major__, __clang_minor__, __clang_patchlevel__);
+    picoprobe_info("  clang %d.%d.%d - " BUILD_TYPE "\n", __clang_major__, __clang_minor__, __clang_patchlevel__);
 #elif defined(__GNUC__)
     picoprobe_info("  gcc %d.%d.%d\n", __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__);
 #else
