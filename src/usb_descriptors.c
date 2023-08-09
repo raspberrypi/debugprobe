@@ -99,7 +99,7 @@ uint8_t const * tud_hid_descriptor_report_cb(uint8_t itf)
 
 uint8_t const desc_configuration[] =
 {
-  TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
+  TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0, 100),
   // Interface 0
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
   // HID (named interface)
