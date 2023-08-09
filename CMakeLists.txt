@@ -51,10 +51,23 @@ option(OPT_SPECIAL_CLK_FOR_PIO "Ignore clock frequency request of 1MHz (this is 
 #
 set(PICO_STDIO_UART 0)             # disable stdio UART, actually this goes to a CDC
 
+
+#
+# enable LTO for clang release builds
+#
+if("${PICO_COMPILER}" STREQUAL "pico_arm_clang")
+    if(NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+        message(STATUS "link time optimization for clang release builds enabled")
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+    endif()
+endif()
+
+
 #
 # below (and above) order is important
 #
 include(pico_sdk_import.cmake)
+
 
 set(FREERTOS_KERNEL_PATH ${CMAKE_CURRENT_LIST_DIR}/freertos)
 include(FreeRTOS_Kernel_import.cmake)
@@ -355,11 +368,11 @@ target_sources(${PROJECT} PRIVATE
 target_compile_options(${PROJECT} PRIVATE -Wall)
 
 if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    message("---------------- compiling for clang")
+    message(STATUS "compiling for clang")
 endif()
 
 if(DEFINED ENV{PICOPROBE_LED})
-    message("PICOPROBE_LED is defined as " $ENV{PICOPROBE_LED})
+    message(STATUS "PICOPROBE_LED is defined as " $ENV{PICOPROBE_LED})
     target_compile_definitions(${PROJECT} PRIVATE PICOPROBE_LED=$ENV{PICOPROBE_LED})
 endif()
 
