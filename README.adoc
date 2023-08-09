@@ -214,6 +214,10 @@ To get the RTT channels running, code on the target has to be either instrumente
 * only one of CMSIS-DAP / MSC / RTT can access the
   target at the same time.  RTT is disconnected in 
   case CMSIS-DAP or MSC are claiming access
+* the probe tries hard to find an active RTT control block.
+  Worst case scenario are multiple inactive RTT control blocks
+  in the targets memory (this might happen if the targets RAM
+  is not cleared completely)
 ====
 
 

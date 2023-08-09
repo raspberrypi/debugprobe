@@ -126,7 +126,7 @@ add_executable(${PROJECT}
         src/main.c
         src/misc_utils.c
         src/probe.c
-        src/rtt_console.c
+        src/rtt_io.c
         src/sw_dp_pio.c
         src/sw_lock.c
         src/usb_descriptors.c

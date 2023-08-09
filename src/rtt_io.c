@@ -32,12 +32,13 @@
 #include "event_groups.h"
 #include "stream_buffer.h"
 #include "task.h"
+#include "timers.h"
 
 #include "target_board.h"
 #include "swd_host.h"
 
 #include "picoprobe_config.h"
-#include "rtt_console.h"
+#include "rtt_io.h"
 #include "sw_lock.h"
 #include "RTT/SEGGER_RTT.h"
 #if OPT_TARGET_UART
@@ -73,8 +74,8 @@ typedef uint32_t (*rtt_data_to_host)(const uint8_t *buf, uint32_t cnt);
 
 static const uint32_t           segger_alignment = 4;
 static const uint8_t            seggerRTT[16] = "SEGGER RTT\0\0\0\0\0\0";
-static uint32_t                 prev_rtt_cb = 0;
 static bool                     rtt_console_running = false;
+static bool                     rtt_cb_alive = false;
 static bool                     ok_console_from_target = false;
 static bool                     ok_console_to_target = false;
 
@@ -82,6 +83,7 @@ static TaskHandle_t             task_rtt_console = NULL;
 static TaskHandle_t             task_rtt_from_target_thread = NULL;
 static StreamBufferHandle_t     stream_rtt_console_to_target;                  // small stream for host->probe->target console communication
 static EventGroupHandle_t       events;
+static TimerHandle_t            timer_rtt_cb_verify;
 
 #if INCLUDE_SYSVIEW
     #define RTT_CHANNEL_SYSVIEW 1
@@ -90,6 +92,12 @@ static EventGroupHandle_t       events;
 #else
     #define RTT_POLL_INT_MS     RTT_CONSOLE_POLL_INT_MS
 #endif
+
+
+
+static void rtt_cb_verify_timeout(TimerHandle_t xTimer)
+{
+}   // rtt_cb_verify_timeout
 
 
 
@@ -111,19 +119,23 @@ static uint32_t check_buffer_for_rtt_cb(uint8_t *buf, uint32_t buf_size, uint32_
 /**
  * Search for the RTT control block.
  *
+ * \param prev_rtt_cb  where the search begins or zero for new scan
  * \return 0 -> nothing found, otherwise beginning of control block
  *
  * \note
  *    - a small block at the end of RAM is not searched
  *    - searching all 256KByte RAM of the RP2040 takes 600ms (at 12.5MHz interface clock)
  */
-static uint32_t search_for_rtt_cb(void)
+static uint32_t search_for_rtt_cb(uint32_t prev_rtt_cb)
 {
     uint8_t buf[1024];
     bool ok;
     uint32_t rtt_cb = 0;
 
-    picoprobe_debug("searching RTT_CB in 0x%08lx..0x%08lx, prev: 0x%08lx\n", TARGET_RAM_START, TARGET_RAM_END - 1, prev_rtt_cb);
+    // check parameter
+    if (prev_rtt_cb > TARGET_RAM_END - sizeof(seggerRTT)) {
+        return 0;
+    }
 
     if (prev_rtt_cb != 0) {
         // fast search, saves a little SW traffic and a few ms
@@ -135,7 +147,8 @@ static uint32_t search_for_rtt_cb(void)
 
     if (rtt_cb == 0) {
         // note that searches must somehow overlap to find (unaligned) control blocks at the border of read chunks
-        for (uint32_t addr = TARGET_RAM_START;  addr <= TARGET_RAM_END - sizeof(buf);  addr += sizeof(buf) - sizeof(seggerRTT)) {
+        uint32_t start_search = (prev_rtt_cb < TARGET_RAM_START) ? TARGET_RAM_START : prev_rtt_cb + segger_alignment;
+        for (uint32_t addr = start_search;  addr <= TARGET_RAM_END - sizeof(buf);  addr += sizeof(buf) - sizeof(seggerRTT)) {
             ok = swd_read_memory(addr, buf, sizeof(buf));
             if ( !ok  ||  sw_unlock_requested()) {
                 break;
@@ -147,14 +160,6 @@ static uint32_t search_for_rtt_cb(void)
             }
         }
     }
-
-    if (rtt_cb != 0) {
-        picoprobe_info("RTT_CB found at 0x%lx\n", rtt_cb);
-    }
-    else {
-        picoprobe_debug("no RTT_CB found\n");
-    }
-    prev_rtt_cb = rtt_cb;
     return rtt_cb;
 }   // search_for_rtt_cb
 
@@ -172,7 +177,7 @@ static bool rtt_check_channel_from_target(uint32_t rtt_cb, uint16_t channel, SEG
     ok = ok  &&  (aUp->SizeOfBuffer > 0  &&  aUp->SizeOfBuffer < TARGET_RAM_END - TARGET_RAM_START);
     ok = ok  &&  ((uint32_t)aUp->pBuffer >= TARGET_RAM_START  &&  (uint32_t)aUp->pBuffer + aUp->SizeOfBuffer <= TARGET_RAM_END);
     if (ok) {
-        picoprobe_info("rtt_check_channel_from_target: %u %p %5u %5u %5u\n", channel, aUp->pBuffer, aUp->SizeOfBuffer, aUp->RdOff, aUp->WrOff);
+        picoprobe_info("     rtt_check_channel_from_target: %u %p %5u %5u %5u\n", channel, aUp->pBuffer, aUp->SizeOfBuffer, aUp->RdOff, aUp->WrOff);
     }
     return ok;
 }   // rtt_check_channel_from_target
@@ -191,7 +196,7 @@ static bool rtt_check_channel_to_target(uint32_t rtt_cb, uint16_t channel, SEGGE
     ok = ok  &&  (aDown->SizeOfBuffer > 0  &&  aDown->SizeOfBuffer < TARGET_RAM_END - TARGET_RAM_START);
     ok = ok  &&  ((uint32_t)aDown->pBuffer >= TARGET_RAM_START  &&  (uint32_t)aDown->pBuffer + aDown->SizeOfBuffer <= TARGET_RAM_END);
     if (ok) {
-        picoprobe_info("rtt_check_channel_to_target  : %u %p %5u %5u %5u\n", channel, aDown->pBuffer, aDown->SizeOfBuffer, aDown->RdOff, aDown->WrOff);
+        picoprobe_info("     rtt_check_channel_to_target  : %u %p %5u %5u %5u\n", channel, aDown->pBuffer, aDown->SizeOfBuffer, aDown->RdOff, aDown->WrOff);
     }
     return ok;
 }   // rtt_check_channel_to_target
@@ -261,6 +266,8 @@ static void rtt_from_target_thread(void *p)
             ft_ok = ft_ok  &&  swd_read_memory((uint32_t)ft_aUp->pBuffer + ft_aUp->RdOff, ft_buf, ft_cnt);
             ft_aUp->RdOff = (ft_aUp->RdOff + ft_cnt) % ft_aUp->SizeOfBuffer;
             ft_ok = ft_ok  &&  swd_write_word(ft_rtt_cb + offsetof(SEGGER_RTT_CB, aUp[ft_channel].RdOff), ft_aUp->RdOff);
+
+            rtt_cb_alive = true;
         }
         else {
             ft_cnt = 0;
@@ -396,7 +403,7 @@ static bool rtt_to_target(uint32_t rtt_cb, StreamBufferHandle_t stream, uint16_t
 
 
 
-static void do_rtt_io(uint32_t rtt_cb)
+static void do_rtt_io(uint32_t rtt_cb, bool with_alive_check)
 {
 #if OPT_TARGET_UART
     SEGGER_RTT_BUFFER_UP   aUpConsole;       // Up buffer, transferring information up from target via debug probe to host
@@ -417,6 +424,10 @@ static void do_rtt_io(uint32_t rtt_cb)
 
     if (rtt_cb < TARGET_RAM_START  ||  rtt_cb >= TARGET_RAM_END) {
         return;
+    }
+
+    if (with_alive_check) {
+        xTimerReset(timer_rtt_cb_verify, 100);
     }
 
     // do operations
@@ -492,8 +503,14 @@ static void do_rtt_io(uint32_t rtt_cb)
             // -> delay
             xEventGroupWaitBits(events, EV_RTT_TO_TARGET, pdTRUE, pdFALSE, pdMS_TO_TICKS(RTT_POLL_INT_MS));
         }
+
+        if (with_alive_check  &&  !rtt_cb_alive  &&  !xTimerIsTimerActive(timer_rtt_cb_verify)) {
+            // nothing happens here after some time -> timeout and do a new search
+            ok = false;
+        }
     }
     rtt_console_running = false;
+    xTimerStop(timer_rtt_cb_verify, 100);
 }   // do_rtt_io
 
 
@@ -526,7 +543,7 @@ static void target_disconnect(void)
 
 void rtt_io_thread(void *ptr)
 {
-    uint32_t rtt_cb;
+    uint32_t rtt_cb = 0;
     bool target_online = false;
 
     for (;;) {
@@ -554,24 +571,59 @@ void rtt_io_thread(void *ptr)
                 picoprobe_info("SWD frequency     : %lukHz\n", probe_get_swclk_freq_khz());
                 picoprobe_info("SWD max frequency : %ukHz\n", g_board_info.target_cfg->rt_max_swd_khz);
                 picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+                rtt_cb_alive = false;
             }
         }
 
         vTaskDelay(pdMS_TO_TICKS(100));            // give the target some time for startup
         if ( !target_connect()) {
             led_state(LS_NO_TARGET);
-            target_online = false;
 
+            if (target_online) {
+                target_online = false;
+                picoprobe_info("=================================== Target lost\n");
+            }
             vTaskDelay(pdMS_TO_TICKS(1000));
         }
         else {
+            // search for an alive RTT_CB
+            uint32_t rtt_cb_cnt = 99;
+
+            picoprobe_info("searching RTT_CB in 0x%08lx..0x%08lx, prev: 0x%08lx\n", TARGET_RAM_START, TARGET_RAM_END - 1, rtt_cb);
             led_state(LS_TARGET_FOUND);
             target_online = true;
+            rtt_cb_alive = false;
+            rtt_cb = search_for_rtt_cb(rtt_cb);               // either verify previous RTT_CB or search for one
+            while ( !sw_unlock_requested()) {
+                if (rtt_cb == 0) {
+                    rtt_cb = search_for_rtt_cb(0);
+                    if (rtt_cb == 0) {
+                        // -> no RTT_CB in memory
+                        picoprobe_debug("---- no RTT_CB found\n");
+                        led_state(LS_TARGET_FOUND);
+                        break;
+                    }
+                }
+                if (rtt_cb != 0) {
+                    picoprobe_info("---- RTT_CB found at 0x%lx\n", rtt_cb);
+                    ++rtt_cb_cnt;
+                    led_state(LS_RTT_CB_FOUND);
+                    do_rtt_io(rtt_cb, true);
 
-            rtt_cb = search_for_rtt_cb();
-            if (rtt_cb != 0) {
-                led_state(LS_RTT_CB_FOUND);
-                do_rtt_io(rtt_cb);
+                    if ( !rtt_cb_alive) {
+                        uint32_t prev_rtt_cb = rtt_cb;
+                        picoprobe_info("---- RTT_CB at 0x%lx seems to be inactive, searching again...\n", rtt_cb);
+                        rtt_cb = search_for_rtt_cb(rtt_cb + segger_alignment);
+                        if (rtt_cb == 0) {
+                            if (rtt_cb_cnt == 1) {
+                                rtt_cb = prev_rtt_cb;
+                                picoprobe_info("---- Only one RTT_CB in memory.  Sticking to it even if inactive.\n");
+                                do_rtt_io(rtt_cb, false);
+                            }
+                            rtt_cb_cnt = 0;
+                        }
+                    }
+                }
             }
 
             target_disconnect();
@@ -652,6 +704,8 @@ void rtt_console_init(uint32_t task_prio)
         picoprobe_error("rtt_console_init: cannot create stream_rtt_sysview_to_target\n");
     }
 #endif
+
+    timer_rtt_cb_verify = xTimerCreate("RTT_CB verify timeout", pdMS_TO_TICKS(1000), pdFALSE, NULL, rtt_cb_verify_timeout);
 
     xTaskCreate(rtt_io_thread, "RTT-IO", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_rtt_console);
     if (task_rtt_console == NULL)

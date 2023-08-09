@@ -55,7 +55,7 @@
 
 #include "picoprobe_config.h"
 #include "led.h"
-#include "rtt_console.h"
+#include "rtt_io.h"
 
 
 #define STREAM_UART_SIZE      4096

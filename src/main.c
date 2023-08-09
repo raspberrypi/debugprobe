@@ -68,7 +68,7 @@
     #include "msc/msc_utils.h"
 #endif
 #if defined(INCLUDE_RTT_CONSOLE)
-    #include "rtt_console.h"
+    #include "rtt_io.h"
 #endif
 #if OPT_SIGROK
     #include "pico-sigrok/cdc_sigrok.h"
