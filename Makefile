@@ -31,6 +31,11 @@ clean:
 	ninja -C $(BUILD_DIR) -v clean
 
 
+.PHONY: clean-build
+clean-build:
+	rm -rf $(BUILD_DIR)
+
+
 .PHONY: all
 all:
 	ninja -C $(BUILD_DIR) -v all
@@ -45,21 +50,21 @@ details: all
 
 
 .PHONY: cmake-create-debug
-cmake-create-debug:
+cmake-create-debug: clean-build
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) $(if $(OPT_SIGROK),-DOPT_SIGROK=$(OPT_SIGROK)) $(CMAKE_FLAGS)
     # don't know if this is required
 	@cd $(BUILD_DIR) && sed -i 's/arm-none-eabi-gcc/gcc/' compile_commands.json
 
 
 .PHONY: cmake-create-release
-cmake-create-release:
+cmake-create-release: clean-build
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) $(CMAKE_FLAGS)
     # don't know if this is required
 	@cd $(BUILD_DIR) && sed -i 's/arm-none-eabi-gcc/gcc/' compile_commands.json
 
 
 .PHONY: cmake-create-debug-clang
-cmake-create-debug-clang:
+cmake-create-debug-clang: clean-build
 	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
 	         $(if $(OPT_SIGROK),-DOPT_SIGROK=$(OPT_SIGROK)) \
@@ -69,15 +74,10 @@ cmake-create-debug-clang:
 
 
 .PHONY: cmake-create-release-clang
-cmake-create-release-clang:
+cmake-create-release-clang: clean-build
 	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
 	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang
-
-
-.PHONY: clean-build
-clean-build:
-	rm -rf $(BUILD_DIR)
 
 
 .PHONY: flash
@@ -90,7 +90,6 @@ flash: all
 
 .PHONY: create-images
 create-images:
-	$(MAKE) clean-build
 	$(MAKE) cmake-create-release PICO_BOARD=pico OPT_SIGROK=0
 	$(MAKE) all
 	mkdir -p images
@@ -103,6 +102,9 @@ create-images:
 	$(MAKE) cmake-create-release PICO_BOARD=pico_debug_probe OPT_SIGROK=0
 	$(MAKE) all
 	cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-picodebugprobe-$(GIT_HASH).uf2
+	#
+	# put development environment in a clean state
+	$(MAKE) cmake-create-debug
 
 
 .PHONY: check-clang
