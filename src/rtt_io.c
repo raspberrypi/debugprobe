@@ -145,14 +145,16 @@ static uint32_t search_for_rtt_cb(uint32_t prev_rtt_cb)
         ok = swd_read_memory(prev_rtt_cb, buf, sizeof(seggerRTT));
         if (ok) {
             rtt_cb = check_buffer_for_rtt_cb(buf, sizeof(seggerRTT), prev_rtt_cb);
-            if (rtt_cb != 0)
-                picoprobe_info("!!!!! RTT_CB found immediatley\n");
+            if (rtt_cb != 0) {
+                picoprobe_info("!!!!! RTT_CB found immediately\n");
+            }
         }
     }
 
     if (rtt_cb == 0) {
         // note that searches must somehow overlap to find (unaligned) control blocks at the border of read chunks
-        for (uint32_t addr = TARGET_RAM_START;  addr <= TARGET_RAM_END - sizeof(buf);  addr += sizeof(buf) - sizeof(seggerRTT)) {
+        uint32_t start_search = (prev_rtt_cb < TARGET_RAM_START) ? TARGET_RAM_START : prev_rtt_cb + segger_alignment;
+        for (uint32_t addr = start_search;  addr <= TARGET_RAM_END - sizeof(buf);  addr += sizeof(buf) - sizeof(seggerRTT)) {
             ok = swd_read_memory(addr, buf, sizeof(buf));
             if ( !ok  ||  sw_unlock_requested()) {
                 break;
@@ -417,7 +419,7 @@ static bool rtt_to_target(uint32_t rtt_cb, StreamBufferHandle_t stream, uint16_t
 
 
 
-static void do_rtt_io(uint32_t rtt_cb)
+static void do_rtt_io(uint32_t rtt_cb, bool with_alive_check)
 {
 #if OPT_TARGET_UART
     SEGGER_RTT_BUFFER_UP   aUpConsole;       // Up buffer, transferring information up from target via debug probe to host
@@ -436,13 +438,20 @@ static void do_rtt_io(uint32_t rtt_cb)
 
     static_assert(sizeof(uint32_t) == sizeof(unsigned int), "uint32_t/unsigned int mix up");    // why doesn't segger use uint32_t?
 
+    picoprobe_info("xxxa\n");
     if (rtt_cb < TARGET_RAM_START  ||  rtt_cb >= TARGET_RAM_END) {
+        picoprobe_info("xxxb\n");
         return;
+    }
+
+    picoprobe_info("xxx1\n");
+    if (with_alive_check) {
+        picoprobe_info("xxx2\n");
+        xTimerReset(timer_rtt_cb_verify, 100);
     }
 
     // do operations
     rtt_console_running = true;
-    xTimerReset(timer_rtt_cb_verify, 100);
     while (ok  &&  !sw_unlock_requested()) {
         bool probe_rtt_cb;
 
@@ -515,11 +524,13 @@ static void do_rtt_io(uint32_t rtt_cb)
             xEventGroupWaitBits(events, EV_RTT_TO_TARGET, pdTRUE, pdFALSE, pdMS_TO_TICKS(RTT_POLL_INT_MS));
         }
 
-        if ( !rtt_cb_alive  &&  !xTimerIsTimerActive(timer_rtt_cb_verify)) {
+        if (with_alive_check  &&  !rtt_cb_alive  &&  !xTimerIsTimerActive(timer_rtt_cb_verify)) {
             // nothing happens here after some time -> timeout and do a new search
             ok = false;
+            picoprobe_info("xxx3\n");
         }
     }
+    picoprobe_info("xxx4\n");
     rtt_console_running = false;
     xTimerStop(timer_rtt_cb_verify, 100);
 }   // do_rtt_io
@@ -598,12 +609,12 @@ void rtt_io_thread(void *ptr)
         }
         else {
             // search for an alive RTT_CB
-            // problem: if there is an inactive RTT_CB, this loop will run with full speed searching
+            uint32_t rtt_cb_cnt = 99;
+
             led_state(LS_TARGET_FOUND);
             target_online = true;
             rtt_cb_alive = false;
-
-            rtt_cb = search_for_rtt_cb(rtt_cb);
+            rtt_cb = search_for_rtt_cb(rtt_cb);               // either verify previous RTT_CB or search for one
             while ( !sw_unlock_requested()) {
                 if (rtt_cb == 0) {
                     rtt_cb = search_for_rtt_cb(0);
@@ -614,10 +625,21 @@ void rtt_io_thread(void *ptr)
                     }
                 }
                 if (rtt_cb != 0) {
+                    ++rtt_cb_cnt;
                     led_state(LS_RTT_CB_FOUND);
-                    do_rtt_io(rtt_cb);
+                    do_rtt_io(rtt_cb, true);
+
                     if ( !rtt_cb_alive) {
-                        rtt_cb = search_for_rtt_cb(rtt_cb + 1);
+                        uint32_t prev_rtt_cb = rtt_cb;
+                        rtt_cb = search_for_rtt_cb(rtt_cb + segger_alignment);
+                        if (rtt_cb == 0) {
+                            picoprobe_info("...................... rtt_cb_cnt %d\n", rtt_cb_cnt);
+                            if (rtt_cb_cnt == 1) {
+                                picoprobe_info("########### there is only one RTT_CB in memory.  Stick to it\n");
+                                do_rtt_io(prev_rtt_cb, false);
+                            }
+                            rtt_cb_cnt = 0;
+                        }
                     }
                 }
             }
