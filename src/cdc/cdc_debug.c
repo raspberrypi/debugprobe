@@ -335,10 +335,19 @@ static void cdc_debug_write(const uint8_t *buf, const size_t total_cnt)
                     base_ms = (uint32_t)(time_us_64() / 1000);
                     now_ms = 0;
                     prev_ms = 0;
+                    d_ms = 10000;
                 }
-                d_ms = (uint32_t)(now_ms - prev_ms);
-                d_ms = MIN(d_ms, 999);
-                snprintf(tbuf, sizeof(tbuf), "%lu.%03lu (%3lu) - ", now_ms / 1000, now_ms % 1000, d_ms);
+                else {
+                    d_ms = (uint32_t)(now_ms - prev_ms);
+                }
+                if (d_ms <= 999) {
+                    snprintf(tbuf, sizeof(tbuf), "%u.%03u (%3u) - ",
+                             (unsigned)(now_ms / 1000), (unsigned)(now_ms % 1000), (unsigned)d_ms);
+                }
+                else {
+                    snprintf(tbuf, sizeof(tbuf), "%u.%03u (...) - ",
+                             (unsigned)(now_ms / 1000), (unsigned)(now_ms % 1000));
+                }
                 prev_ms = now_ms;
             }
             cdc_debug_put_into_stream(tbuf, strnlen(tbuf, sizeof(tbuf)));
