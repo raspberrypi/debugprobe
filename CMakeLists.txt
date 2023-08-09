@@ -355,10 +355,10 @@ target_sources(${PROJECT} PRIVATE
 target_compile_options(${PROJECT} PRIVATE -Wall)
 
 if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    message("---------------------------------------------- CLANG")
+    message("---------------- compiling for clang: disabling some compiler warnings")
     target_compile_options(${PROJECT} PRIVATE
-        -Wno-format
-        -Wno-unknown-attributes
+        -Wno-format                              # clang has adifferent opion than gcc what a uint32_t is
+        -Wno-unknown-attributes                  # clang does not know the optimize attribute
     )
 endif()
 
