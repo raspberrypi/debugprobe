@@ -33,7 +33,7 @@
 #include "tusb.h"
 
 #include "picoprobe_config.h"
-#include "rtt_console.h"
+#include "rtt_io.h"
 
 
 #define STREAM_SYSVIEW_SIZE      4096
