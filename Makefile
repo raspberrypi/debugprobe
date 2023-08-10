@@ -80,6 +80,13 @@ cmake-create-release-clang: clean-build
 	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang
 
 
+.PHONY: cmake-create-minsizerel-clang
+cmake-create-minsizerel-clang: clean-build
+	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin
+	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
+	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang
+
+
 .PHONY: flash
 flash: all
 	@echo "Waiting for RPi bootloader..."
