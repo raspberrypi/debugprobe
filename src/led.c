@@ -217,12 +217,12 @@ void led_thread(void *ptr)
             }
             for (unsigned u = 0;  u < flash_cnt;  ++u) {
                 led(1);
-                vTaskDelay(pdMS_TO_TICKS(20));
+                vTaskDelay(pdMS_TO_TICKS(50));
                 led(0);
                 vTaskDelay(pdMS_TO_TICKS(200));
             }
             led(0);
-            vTaskDelay(pdMS_TO_TICKS(1000 - flash_cnt * 220));
+            vTaskDelay(pdMS_TO_TICKS(1000 - flash_cnt * 250));
         }
     }
 }   // led_thread
