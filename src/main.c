@@ -99,6 +99,7 @@ int main(void) {
     tusb_init();
 
     DAP_Setup();
+    stdio_uart_init();
 
     led_init();
 
