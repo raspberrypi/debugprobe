@@ -39,7 +39,12 @@
 #include <string.h>
 #include <time.h>
 
-#include "bsp/board.h"
+#if 0
+    // in the released SDK 1.5.1 with TinyUSB 0.15.0 the include path was "bsp/board.h", so we solve it with a hack.
+    #include "bsp/board_api.h"
+#else
+    extern void board_init(void);
+#endif
 #include "tusb.h"
 
 #include "picoprobe_config.h"
@@ -632,6 +637,7 @@ int main(void)
 
     // set CPU frequency according to configuration
     probe_set_cpu_freq_khz( 1000 * ini_getl(MININI_SECTION, "f_cpu", PROBE_CPU_CLOCK_MHZ, MININI_FILENAME) );
+    setup_default_uart();
 
     get_config_init();
 

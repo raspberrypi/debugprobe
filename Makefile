@@ -9,6 +9,7 @@ VERSION_MINOR        := 18
 
 BUILD_DIR            := _build
 PROJECT              := picoprobe
+PROBE_SERNO          ?= E6614C775B333D35
 
 
 GIT_HASH := $(shell git rev-parse --short HEAD)
@@ -93,6 +94,18 @@ flash: all
 	@until [ -f /media/pico/INDEX.HTM ]; do sleep 0.1; done; echo "ready!"
 	cp $(BUILD_DIR)/$(PROJECT).uf2 /media/pico
 	@echo "ok."
+
+
+.PHONY: target-flash
+target-flash:
+	ninja -C $(BUILD_DIR) -v all  &&  openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c "adapter speed 10000; adapter serial $(PROBE_SERNO)" \
+	        -c "program {$(BUILD_DIR)/$(PROJECT).hex}  verify reset; shutdown;"
+	@echo "ok."
+
+
+.PHONY: target-reset
+target-reset:
+	pyocd reset -t rp2040 -f 12M --probe $(PROBE_SERNO)
 
 
 .PHONY: create-images

@@ -24,19 +24,45 @@ else()
     set(DEFAULT_OPT_PROBE_DEBUG_OUT 1)
 endif()
 
-option(OPT_CMSIS_DAPV1         "Enable CMSIS-DAPv1"                     1)
-option(OPT_CMSIS_DAPV2         "Enable CMSIS-DAPv2"                     1)
-option(OPT_TARGET_UART         "Enable CDC for target UART I/O"         1)
-option(OPT_PROBE_DEBUG_OUT     "Enable CDC for probe debug output"      ${DEFAULT_OPT_PROBE_DEBUG_OUT})
-option(OPT_SIGROK              "Enable sigrok"                          0)
-option(OPT_MSC                 "Enable Mass Storage Device"             1)
-option(OPT_MSC_RAM_UF2         "Enable file 'RAM.UF2' on Mass Storage"  1)
-set(OPT_NET                    "NCM" CACHE STRING "Enable lwIP on the Pico via NCM/ECM/RNDIS, disable NET with empty string")
-option(OPT_NET_ECHO_SERVER     "Enable echo server for testing"         1)
-option(OPT_NET_IPERF_SERVER    "Enable iperf server for tuning"         1)
-option(OPT_NET_SYSVIEW_SERVER  "Enable SysView over TCPIP"              1)
-option(OPT_CDC_SYSVIEW         "Enable SysView over CDC"                0)
-option(OPT_SERIAL_CRLF         "Insert carriage returns after debug print statements" 0)
+if(1)
+    #
+    # configuration for the target RP2040 *WITH ONLY NET*, debug output via UART
+    #
+    option(OPT_CMSIS_DAPV1         "Enable CMSIS-DAPv1"                     0)
+    option(OPT_CMSIS_DAPV2         "Enable CMSIS-DAPv2"                     0)
+    option(OPT_TARGET_UART         "Enable CDC for target UART I/O"         0)
+    option(OPT_PROBE_DEBUG_OUT     "Enable CDC for probe debug output"      0)
+    option(OPT_SIGROK              "Enable sigrok"                          0)
+    option(OPT_MSC                 "Enable Mass Storage Device"             0)
+    option(OPT_MSC_RAM_UF2         "Enable file 'RAM.UF2' on Mass Storage"  1)
+    set(OPT_NET                    "NCM" CACHE STRING "Enable lwIP on the Pico via NCM/ECM/RNDIS, disable NET with empty string")
+    option(OPT_NET_ECHO_SERVER     "Enable echo server for testing"         1)
+    option(OPT_NET_IPERF_SERVER    "Enable iperf server for tuning"         1)
+    option(OPT_NET_SYSVIEW_SERVER  "Enable SysView over TCPIP"              0)
+    option(OPT_CDC_SYSVIEW         "Enable SysView over CDC"                0)
+    option(OPT_SERIAL_CRLF         "Insert carriage returns after debug print statements" 0)
+
+    set(PICO_STDIO_UART 1)             # enable stdio UART
+else()
+    #
+    # configuration for the probe RP2040 *WITHOUT NET*
+    #
+    option(OPT_CMSIS_DAPV1         "Enable CMSIS-DAPv1"                     1)
+    option(OPT_CMSIS_DAPV2         "Enable CMSIS-DAPv2"                     1)
+    option(OPT_TARGET_UART         "Enable CDC for target UART I/O"         1)
+    option(OPT_PROBE_DEBUG_OUT     "Enable CDC for probe debug output"      ${DEFAULT_OPT_PROBE_DEBUG_OUT})
+    option(OPT_SIGROK              "Enable sigrok"                          0)
+    option(OPT_MSC                 "Enable Mass Storage Device"             0)
+    option(OPT_MSC_RAM_UF2         "Enable file 'RAM.UF2' on Mass Storage"  1)
+    set(OPT_NET                    "" CACHE STRING "Enable lwIP on the Pico via NCM/ECM/RNDIS, disable NET with empty string")
+    option(OPT_NET_ECHO_SERVER     "Enable echo server for testing"         1)
+    option(OPT_NET_IPERF_SERVER    "Enable iperf server for tuning"         1)
+    option(OPT_NET_SYSVIEW_SERVER  "Enable SysView over TCPIP"              1)
+    option(OPT_CDC_SYSVIEW         "Enable SysView over CDC"                0)
+    option(OPT_SERIAL_CRLF         "Insert carriage returns after debug print statements" 0)
+    
+    set(PICO_STDIO_UART 0)             # disable stdio UART, actually this goes to a CDC
+endif()
 
 # can be reconfigured
 set(OPT_MCU_OVERCLOCK_MHZ      "240" CACHE STRING "Set processor frequency. Should be a multiple of 24MHz, disable with empty string (=120MHz)")
@@ -44,12 +70,6 @@ set(OPT_NET_192_168            14 CACHE STRING "Set the subnet of 192.168.x")
 
 # extra
 option(OPT_SPECIAL_CLK_FOR_PIO "Ignore clock frequency request of 1MHz (this is for PlatformIO tuning)" 0)
-
-
-#
-# SDK options
-#
-set(PICO_STDIO_UART 0)             # disable stdio UART, actually this goes to a CDC
 
 
 #
