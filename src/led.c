@@ -217,9 +217,9 @@ void led_thread(void *ptr)
             }
             for (unsigned u = 0;  u < flash_cnt;  ++u) {
                 led(1);
-                vTaskDelay(pdMS_TO_TICKS(50));
+                vTaskDelay(pdMS_TO_TICKS(20));
                 led(0);
-                vTaskDelay(pdMS_TO_TICKS(200));
+                vTaskDelay(pdMS_TO_TICKS(230));
             }
             led(0);
             vTaskDelay(pdMS_TO_TICKS(1000 - flash_cnt * 250));
