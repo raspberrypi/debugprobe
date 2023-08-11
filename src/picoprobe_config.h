@@ -26,21 +26,39 @@
 #ifndef PICOPROBE_H_
 #define PICOPROBE_H_
 
+#include "FreeRTOS.h"
+#include "task.h"
+
 #if false
-#define picoprobe_info(format,args...) printf(format, ## args)
+#define picoprobe_info(format,args...) \
+do { \
+	vTaskSuspendAll(); \
+	printf(format, ## args); \
+	xTaskResumeAll(); \
+} while (0)
 #else
 #define picoprobe_info(format,...) ((void)0)
 #endif
 
 
 #if false
-#define picoprobe_debug(format,args...) printf(format, ## args)
+#define picoprobe_debug(format,args...) \
+do { \
+	vTaskSuspendAll(); \
+	printf(format, ## args); \
+	xTaskResumeAll(); \
+} while (0)
 #else
 #define picoprobe_debug(format,...) ((void)0)
 #endif
 
 #if false
-#define picoprobe_dump(format,args...) printf(format, ## args)
+#define picoprobe_dump(format,args...)\
+do { \
+	vTaskSuspendAll(); \
+	printf(format, ## args); \
+	xTaskResumeAll(); \
+} while (0)
 #else
 #define picoprobe_dump(format,...) ((void)0)
 #endif
