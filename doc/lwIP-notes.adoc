@@ -124,6 +124,10 @@ functionality. +
 The driver can be considered work in progress, because in conjunction with `iperf`
 crashes sometimes happen.  But for operation with SystemView quality seems to be good enough.
 
+WARNING: There must be a nasty bug in `ncm_simple_device`.  It reveals on startup
+because startup time with `ncm_device_simple` is much longer compared to ECM/RNDIS and even
+`ncm_device`.
+
 
 ### ... possible Bugs in `ncm_device.c`
 
@@ -150,6 +154,14 @@ There is an open issue in the TinyUSB repo for this issue: https://github.com/ha
 
 ## Log
 
+### 2023-08-11
+
+* BUG: with `ncm_device_simple` startup time of the probe is much longer compared
+  to ECM/RNDIS or even `ncm_device`.  With startup time I mean the time until there is
+  something visible on the probes debug output.  For ECM/RNDIS/ncm_device this is almost
+  instantly, with `ncm_device_simple` it takes ~10s! +
+  -> reverted to `ncm_device` because SystemView runs without problems with it
+    
 ### 2023-07-14
 
 * did some performance tuning with lwIP and TinyUSB
