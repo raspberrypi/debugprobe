@@ -219,10 +219,10 @@ void led_thread(void *ptr)
                 led(1);
                 vTaskDelay(pdMS_TO_TICKS(20));
                 led(0);
-                vTaskDelay(pdMS_TO_TICKS(200));
+                vTaskDelay(pdMS_TO_TICKS(230));
             }
             led(0);
-            vTaskDelay(pdMS_TO_TICKS(1000 - flash_cnt * 220));
+            vTaskDelay(pdMS_TO_TICKS(1000 - flash_cnt * 250));
         }
     }
 }   // led_thread

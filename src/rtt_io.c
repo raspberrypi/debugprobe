@@ -116,6 +116,18 @@ static uint32_t check_buffer_for_rtt_cb(uint8_t *buf, uint32_t buf_size, uint32_
 
 
 
+static bool is_target_ok(uint32_t addr)
+/**
+ * Check if the target is still ok (after an attach)
+ */
+{
+    uint8_t num[4];
+    return swd_read_memory((addr != 0) ? addr : TARGET_RAM_START, num, sizeof(num));
+}   // is_target_ok
+
+
+
+static uint32_t search_for_rtt_cb(uint32_t prev_rtt_cb)
 /**
  * Search for the RTT control block.
  *
@@ -126,7 +138,6 @@ static uint32_t check_buffer_for_rtt_cb(uint8_t *buf, uint32_t buf_size, uint32_
  *    - a small block at the end of RAM is not searched
  *    - searching all 256KByte RAM of the RP2040 takes 600ms (at 12.5MHz interface clock)
  */
-static uint32_t search_for_rtt_cb(uint32_t prev_rtt_cb)
 {
     uint8_t buf[1024];
     bool ok;
@@ -165,38 +176,42 @@ static uint32_t search_for_rtt_cb(uint32_t prev_rtt_cb)
 
 
 
-static bool rtt_check_channel_from_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER_UP *aUp)
+static bool rtt_check_channel_from_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER_UP *aUp, bool *found)
 {
     bool ok;
     int32_t buff_cnt;
 
-    ok = (rtt_cb >= TARGET_RAM_START  &&  rtt_cb <= TARGET_RAM_END);
-    ok = ok  &&  swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, MaxNumUpBuffers), (uint32_t *)&(buff_cnt));
-    ok = ok  &&  (buff_cnt > channel);
-    ok = ok  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[channel]), (uint8_t *)aUp, sizeof(SEGGER_RTT_BUFFER_UP));
-    ok = ok  &&  (aUp->SizeOfBuffer > 0  &&  aUp->SizeOfBuffer < TARGET_RAM_END - TARGET_RAM_START);
-    ok = ok  &&  ((uint32_t)aUp->pBuffer >= TARGET_RAM_START  &&  (uint32_t)aUp->pBuffer + aUp->SizeOfBuffer <= TARGET_RAM_END);
+    *found = (rtt_cb >= TARGET_RAM_START  &&  rtt_cb <= TARGET_RAM_END);
+    ok = *found  &&  swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, MaxNumUpBuffers), (uint32_t *)&(buff_cnt));
     if (ok) {
-        picoprobe_info("     rtt_check_channel_from_target: %u %p %5u %5u %5u\n", channel, aUp->pBuffer, aUp->SizeOfBuffer, aUp->RdOff, aUp->WrOff);
+        *found = *found  &&  (buff_cnt > channel);
+        *found = *found  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[channel]), (uint8_t *)aUp, sizeof(SEGGER_RTT_BUFFER_UP));
+        *found = *found  &&  (aUp->SizeOfBuffer > 0  &&  aUp->SizeOfBuffer < TARGET_RAM_END - TARGET_RAM_START);
+        *found = *found  &&  ((uint32_t)aUp->pBuffer >= TARGET_RAM_START  &&  (uint32_t)aUp->pBuffer + aUp->SizeOfBuffer <= TARGET_RAM_END);
+        if (*found) {
+            picoprobe_info("     rtt_check_channel_from_target: %u %p %5u %5u %5u\n", channel, aUp->pBuffer, aUp->SizeOfBuffer, aUp->RdOff, aUp->WrOff);
+        }
     }
     return ok;
 }   // rtt_check_channel_from_target
 
 
 
-static bool rtt_check_channel_to_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER_DOWN *aDown)
+static bool rtt_check_channel_to_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER_DOWN *aDown, bool *found)
 {
     bool ok;
     int32_t buff_cnt;
 
-    ok = (rtt_cb >= TARGET_RAM_START  &&  rtt_cb <= TARGET_RAM_END);
-    ok = ok  &&  swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, MaxNumDownBuffers), (uint32_t *)&(buff_cnt));
-    ok = ok  &&  (buff_cnt > channel);
-    ok = ok  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aDown[channel]), (uint8_t *)aDown, sizeof(SEGGER_RTT_BUFFER_DOWN));
-    ok = ok  &&  (aDown->SizeOfBuffer > 0  &&  aDown->SizeOfBuffer < TARGET_RAM_END - TARGET_RAM_START);
-    ok = ok  &&  ((uint32_t)aDown->pBuffer >= TARGET_RAM_START  &&  (uint32_t)aDown->pBuffer + aDown->SizeOfBuffer <= TARGET_RAM_END);
+    *found = (rtt_cb >= TARGET_RAM_START  &&  rtt_cb <= TARGET_RAM_END);
+    ok = *found  &&  swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, MaxNumDownBuffers), (uint32_t *)&(buff_cnt));
     if (ok) {
-        picoprobe_info("     rtt_check_channel_to_target  : %u %p %5u %5u %5u\n", channel, aDown->pBuffer, aDown->SizeOfBuffer, aDown->RdOff, aDown->WrOff);
+        *found = *found  &&  (buff_cnt > channel);
+        *found = *found  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aDown[channel]), (uint8_t *)aDown, sizeof(SEGGER_RTT_BUFFER_DOWN));
+        *found = *found  &&  (aDown->SizeOfBuffer > 0  &&  aDown->SizeOfBuffer < TARGET_RAM_END - TARGET_RAM_START);
+        *found = *found  &&  ((uint32_t)aDown->pBuffer >= TARGET_RAM_START  &&  (uint32_t)aDown->pBuffer + aDown->SizeOfBuffer <= TARGET_RAM_END);
+        if (*found) {
+            picoprobe_info("     rtt_check_channel_to_target  : %u %p %5u %5u %5u\n", channel, aDown->pBuffer, aDown->SizeOfBuffer, aDown->RdOff, aDown->WrOff);
+        }
     }
     return ok;
 }   // rtt_check_channel_to_target
@@ -489,15 +504,15 @@ static void do_rtt_io(uint32_t rtt_cb, bool with_alive_check)
             // did nothing -> check if RTT channels appeared
             #if OPT_TARGET_UART
                 if ( !ok_console_from_target)
-                    ok_console_from_target = rtt_check_channel_from_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aUpConsole);
+                    ok = ok  &&  rtt_check_channel_from_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aUpConsole, &ok_console_from_target);
                 if ( !ok_console_to_target)
-                    ok_console_to_target = rtt_check_channel_to_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aDownConsole);
+                    ok = ok  &&  rtt_check_channel_to_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aDownConsole, &ok_console_to_target);
             #endif
             #if INCLUDE_SYSVIEW
                 if ( !ok_sysview_from_target)
-                    ok_sysview_from_target = rtt_check_channel_from_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView);
+                    ok = ok  &&  rtt_check_channel_from_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView, &ok_sysview_from_target);
                 if ( !ok_sysview_to_target)
-                    ok_sysview_to_target = rtt_check_channel_to_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aDownSysView);
+                    ok = ok  &&  rtt_check_channel_to_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aDownSysView, &ok_sysview_to_target);
             #endif
 
             // -> delay
@@ -555,7 +570,7 @@ void rtt_io_thread(void *ptr)
                 g_board_info.prerun_board_config();
             }
             if (g_board_info.target_cfg->rt_board_id != NULL) {
-                picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+                picoprobe_info("\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
                 //picoprobe_info("Target family     : 0x%04x\n", g_target_family->family_id);
                 picoprobe_info("Target vendor     : %s\n", g_board_info.target_cfg->target_vendor);
                 picoprobe_info("Target part       : %s\n", g_board_info.target_cfg->target_part_number);
@@ -588,6 +603,9 @@ void rtt_io_thread(void *ptr)
         }
         else {
             // search for an alive RTT_CB
+            //
+            // TODO this loop is much too complicated!
+            //
             uint32_t rtt_cb_cnt = 99;
 
             picoprobe_info("searching RTT_CB in 0x%08x..0x%08x, prev: 0x%08x\n",
@@ -596,14 +614,14 @@ void rtt_io_thread(void *ptr)
             target_online = true;
             rtt_cb_alive = false;
             rtt_cb = search_for_rtt_cb(rtt_cb);               // either verify previous RTT_CB or search for one
-            while ( !sw_unlock_requested()) {
+            while ( !sw_unlock_requested()  &&  is_target_ok(0)) {
                 if (rtt_cb == 0) {
                     rtt_cb = search_for_rtt_cb(0);
                     if (rtt_cb == 0) {
                         // -> no RTT_CB in memory, wait until unlock requested
                         picoprobe_info("---- no RTT_CB found\n");
                         led_state(LS_TARGET_FOUND);
-                        while ( !sw_unlock_requested()) {
+                        while ( !sw_unlock_requested()  &&  is_target_ok(0)) {
                             vTaskDelay(pdMS_TO_TICKS(100));
                         }
                         break;
