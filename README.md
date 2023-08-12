@@ -1,5 +1,5 @@
 # Picoprobe
-Picoprobe allows a Pico / RP2040 to be used as USB -> SWD and UART bridge. This means it can be used as a debugger and serial console for another Pico.
+Picoprobe allows a [Pico / RP2040](https://www.raspberrypi.com/products/raspberry-pi-pico/) to be used as USB -> SWD and UART bridge. This means it can be used as a debugger and serial console for another Pico.
 
 # Documentation
 Picoprobe documentation can be found in the [Pico Getting Started Guide](https://datasheets.raspberrypi.com/pico/getting-started-with-pico.pdf). See "Appendix A: Using Picoprobe".
@@ -41,7 +41,7 @@ then run cmake and build the code:
 ```
 Done! You should now have a `picoprobe.uf2` that you can upload to your Pico in the normal way. 
 
-If you want to create the version that runs on the Raspberry Pi Debug Probe, then you need to invoke `cmake` in the sequence above with the `DEBUGPROBE=ON` option: 
+If you want to create the version that runs on the [Raspberry Pi Debug Probe](https://www.raspberrypi.com/products/debug-probe/), then you need to invoke `cmake` in the sequence above with the `DEBUGPROBE=ON` option: 
 ```
 cmake -DDEBUGPROBE=ON ..
 ```
