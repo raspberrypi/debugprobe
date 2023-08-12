@@ -11,16 +11,16 @@ For the purpose of making changes or studying of the code, you may want to compi
 ## Prepare an Arch Linux host system
 On Arch Linux, the compiler can be installed by this command:
 ```
-sudo pacman -S arm-none-eabi-binutils arm-none-eabi-gcc arm-none-eabi-newlib
+# pacman -S arm-none-eabi-binutils arm-none-eabi-gcc arm-none-eabi-newlib
 ```
 The Raspberry Pi Pico SDK can be installed by these commands:
 ```
-wget https://aur.archlinux.org/cgit/aur.git/snapshot/pico-sdk.tar.gz
-tar -xf pico-sdk.tar.gz
-cd pico-sdk
-makepkg
-sudo pacman -U pico-sdk-1.5.1-1-any.pkg.tar
-export PICO_SDK_PATH=/usr/share/pico-sdk
+$ wget https://aur.archlinux.org/cgit/aur.git/snapshot/pico-sdk.tar.gz
+$ tar -xf pico-sdk.tar.gz
+$ cd pico-sdk
+$ makepkg
+# pacman -U pico-sdk-1.5.1-1-any.pkg.tar
+$ export PICO_SDK_PATH=/usr/share/pico-sdk
 ```
 The export command above is not needed if you logout and then login again.
 
