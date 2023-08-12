@@ -49,7 +49,7 @@
 
 #include "picoprobe_config.h"
 #include "probe.h"
-#if OPT_PROBE_DEBUG_OUT
+#if OPT_PROBE_DEBUG_OUT_CDC
     #include "cdc/cdc_debug.h"
 #endif
 #if OPT_TARGET_UART
@@ -162,7 +162,7 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
         cdc_uart_line_state_cb(dtr, rts);
     }
 #endif
-#if OPT_PROBE_DEBUG_OUT
+#if OPT_PROBE_DEBUG_OUT_CDC
     if (itf == CDC_DEBUG_N) {
         cdc_debug_line_state_cb(dtr, rts);
     }
@@ -206,7 +206,7 @@ void tud_cdc_rx_cb(uint8_t itf)
         cdc_uart_rx_cb();
     }
 #endif
-#if OPT_PROBE_DEBUG_OUT
+#if OPT_PROBE_DEBUG_OUT_CDC
     if (itf == CDC_DEBUG_N) {
         cdc_debug_rx_cb();
     }
@@ -232,7 +232,7 @@ void tud_cdc_tx_complete_cb(uint8_t itf)
         cdc_uart_tx_complete_cb();
     }
 #endif
-#if OPT_PROBE_DEBUG_OUT
+#if OPT_PROBE_DEBUG_OUT_CDC
     if (itf == CDC_DEBUG_N) {
         cdc_debug_tx_complete_cb();
     }
@@ -637,13 +637,15 @@ int main(void)
 
     // set CPU frequency according to configuration
     probe_set_cpu_freq_khz( 1000 * ini_getl(MININI_SECTION, "f_cpu", PROBE_CPU_CLOCK_MHZ, MININI_FILENAME) );
-    setup_default_uart();
 
     get_config_init();
 
     // initialize stdio and should be done before anything else (that does printf())
-#if OPT_PROBE_DEBUG_OUT
+#if OPT_PROBE_DEBUG_OUT_CDC
     cdc_debug_init(CDC_DEBUG_TASK_PRIO);
+#endif
+#if OPT_PROBE_DEBUG_OUT_UART
+    setup_default_uart();
 #endif
 
     sw_lock_init();
