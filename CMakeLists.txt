@@ -19,12 +19,12 @@ if(PICO_BOARD STREQUAL "")
     set(PICO_BOARD pico)
 endif()
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-    set(DEFAULT_OPT_PROBE_DEBUG_OUT "UART")
+    set(DEFAULT_OPT_PROBE_DEBUG_OUT "RTT")
 else()
     set(DEFAULT_OPT_PROBE_DEBUG_OUT "CDC")
 endif()
 
-if(0)
+if(1)
     #
     # configuration for the target RP2040 *WITH ONLY NET*, debug output via UART
     #
@@ -77,6 +77,9 @@ if("${PICO_COMPILER}" STREQUAL "pico_arm_clang")
         set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
     endif()
 endif()
+
+
+set(PICO_STDIO_UART 0)
 
 
 #
@@ -234,6 +237,9 @@ if(NOT OPT_PROBE_DEBUG_OUT STREQUAL "")
         )
     elseif(OPT_PROBE_DEBUG_OUT STREQUAL "RTT")
         add_compile_definitions(OPT_PROBE_DEBUG_OUT_RTT=1)
+        target_sources(${PROJECT} PRIVATE
+            src/lib/SEGGER/RTT/SEGGER_RTT.c
+        )
     elseif(OPT_PROBE_DEBUG_OUT STREQUAL "UART")
         add_compile_definitions(OPT_PROBE_DEBUG_OUT_UART=1)
         set(PICO_STDIO_UART 1)

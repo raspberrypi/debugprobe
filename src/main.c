@@ -33,6 +33,9 @@
 #ifdef TARGET_BOARD_PICO_W
     #include <pico/cyw43_arch.h>
 #endif
+#if OPT_PROBE_DEBUG_OUT_RTT
+    #include "pico/stdio/driver.h"
+#endif
 
 #include <stdio.h>
 #include <stdbool.h>
@@ -92,6 +95,10 @@
     #endif
 #endif
 
+#if OPT_PROBE_DEBUG_OUT_RTT
+    #include "RTT/SEGGER_RTT.h"
+#endif
+
 
 #ifdef NDEBUG
     #define BUILD_TYPE "release build"
@@ -132,9 +139,10 @@
 uint8_t  dap_packet_count = _DAP_PACKET_COUNT_UNKNOWN;
 uint16_t dap_packet_size  = _DAP_PACKET_SIZE_UNKNOWN;
 
-static uint8_t TxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZE];     // maximum required size
-static uint8_t RxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZE];     // maximum required size
-
+#if OPT_CMSIS_DAPV1  ||  OPT_CMSIS_DAPV2
+    static uint8_t TxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZE];     // maximum required size
+    static uint8_t RxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZE];     // maximum required size
+#endif
 
 // prios are critical and determine throughput
 #define LED_TASK_PRIO               (tskIDLE_PRIORITY + 30)       // simple task which may interrupt everything else for periodic blinking
@@ -150,7 +158,9 @@ static uint8_t RxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZ
 #define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 1)        // target -> host via RTT, ATTENTION: this task can fully load the CPU depending on target RTT output
 
 static TaskHandle_t tud_taskhandle;
-static TaskHandle_t dap_taskhandle;
+#if OPT_CMSIS_DAPV2
+    static TaskHandle_t dap_taskhandle;
+#endif
 static EventGroupHandle_t dap_events;
 
 
@@ -630,6 +640,23 @@ void usb_thread(void *ptr)
 
 
 
+#if OPT_PROBE_DEBUG_OUT_RTT
+    static void stdio_rtt_out_chars(const char *buf, int length)
+    {
+        SEGGER_RTT_Write(0, buf, length);
+    }   // stdio_rtt_out_chars
+
+
+    stdio_driver_t stdio_rtt = {
+        .out_chars = stdio_rtt_out_chars,
+    #if PICO_STDIO_ENABLE_CRLF_SUPPORT
+        .crlf_enabled = false
+    #endif
+    };
+#endif
+
+
+
 int main(void)
 {
     board_init();
@@ -646,6 +673,9 @@ int main(void)
 #endif
 #if OPT_PROBE_DEBUG_OUT_UART
     setup_default_uart();
+#endif
+#if OPT_PROBE_DEBUG_OUT_RTT
+    stdio_set_driver_enabled(&stdio_rtt, true);
 #endif
 
     sw_lock_init();
