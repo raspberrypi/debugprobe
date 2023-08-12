@@ -21,7 +21,7 @@ endif()
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     set(DEFAULT_OPT_PROBE_DEBUG_OUT "RTT")
 else()
-    set(DEFAULT_OPT_PROBE_DEBUG_OUT "CDC")
+    set(DEFAULT_OPT_PROBE_DEBUG_OUT "RTT")
 endif()
 
 if(1)
@@ -78,8 +78,13 @@ if("${PICO_COMPILER}" STREQUAL "pico_arm_clang")
     endif()
 endif()
 
-
+#
+# UART as stdio must be told the SDK
+#
 set(PICO_STDIO_UART 0)
+if(OPT_PROBE_DEBUG_OUT STREQUAL "UART")
+    set(PICO_STDIO_UART 1)
+endif()
 
 
 #
@@ -228,7 +233,6 @@ add_compile_definitions(DRAG_N_DROP_SUPPORT=1)
 #
 # Set destination of debug output of the probe
 #
-set(PICO_STDIO_UART 0)
 if(NOT OPT_PROBE_DEBUG_OUT STREQUAL "")
     if(OPT_PROBE_DEBUG_OUT STREQUAL "CDC")
         add_compile_definitions(OPT_PROBE_DEBUG_OUT_CDC=1)
@@ -242,7 +246,6 @@ if(NOT OPT_PROBE_DEBUG_OUT STREQUAL "")
         )
     elseif(OPT_PROBE_DEBUG_OUT STREQUAL "UART")
         add_compile_definitions(OPT_PROBE_DEBUG_OUT_UART=1)
-        set(PICO_STDIO_UART 1)
     else()
         message(FATAL_ERROR "OPT_PROBE_DEBUG_OUT must be either empty or one of CDC/RTT/UART but is '${OPT_PROBE_DEBUG_OUT}'")
     endif()
@@ -322,7 +325,7 @@ if(NOT OPT_NET STREQUAL "")
         # NCM: use own copy of ncm_device, original one is removed from target_sources() with a trick
         # message("--------- " ${PICO_TINYUSB_PATH})
         target_sources(${PROJECT} PRIVATE
-            src/net/tinyusb/ncm_device_simple.c
+            src/net/tinyusb/ncm_device.c
         )
         set_source_files_properties(
             ${PICO_TINYUSB_PATH}/src/class/net/ncm_device.c
