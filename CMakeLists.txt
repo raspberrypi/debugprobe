@@ -24,7 +24,7 @@ else()
     set(DEFAULT_OPT_PROBE_DEBUG_OUT "CDC")
 endif()
 
-if(1)
+if(0)
     #
     # configuration for the target RP2040 *WITH ONLY NET*, debug output via UART
     #
@@ -172,6 +172,7 @@ target_include_directories(${PROJECT} PRIVATE
         CMSIS_5/CMSIS/DAP/Firmware/Include/
         CMSIS_5/CMSIS/Core/Include/
         include/
+        src/lib/SEGGER
 )
 
 #--------------------------------------------------------------------------------------------------

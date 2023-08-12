@@ -1,0 +1,13 @@
+:imagesdir: doc/png
+:source-highlighter: rouge
+:toc:
+:toclevels: 5
+
+# External Libraries
+
+These are mostly unmodified external libraries.
+
+## Segger RTT
+
+This has been taken from the target SystemView library.
+Not everything here is used.
