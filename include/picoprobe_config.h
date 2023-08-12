@@ -35,8 +35,6 @@
     #define PROBE_DEBUG_OPT_CR ""
 #endif
 
-#define UART_OUT 1
-
 #if OPT_PROBE_DEBUG_OUT
     #define picoprobe_info_out(format,args...) printf(format PROBE_DEBUG_OPT_CR, ## args)
 #else
@@ -61,7 +59,7 @@
     #define picoprobe_dump(format,...) ((void)0)
 #endif
 
-#if OPT_PROBE_DEBUG_OUT
+#if 1  &&  OPT_PROBE_DEBUG_OUT
     #define picoprobe_error(format,args...) printf("(EE) " format PROBE_DEBUG_OPT_CR, ## args)
 #else
     #define picoprobe_error(format,...) ((void)0)
