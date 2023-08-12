@@ -148,8 +148,17 @@ debuggEE-flash:
 
 .PHONY: debuggEE-reset
 debuggEE-reset:
-	pyocd reset -t rp2040_core1 -f 12M --probe $(DEBUGGER_SERNO)
-	pyocd reset -t rp2040_core0 -f 12M --probe $(DEBUGGER_SERNO)
+	pyocd reset -t rp2040_core1 -f 10M --probe $(DEBUGGER_SERNO)
+	pyocd reset -t rp2040_core0 -f 10M --probe $(DEBUGGER_SERNO)
+
+
+.PHONY: cmake-create-debuggEE
+cmake-create-debuggEE: clean-build
+	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin
+	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
+	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang                                                                 \
+	         -DOPT_NET=NCM -DOPT_PROBE_DEBUG_OUT=RTT                                                                       \
+	         -DOPT_SIGROK=0 -DOPT_MSC=0 -DOPT_CMSIS_DAPV1=0 -DOPT_CMSIS_DAPV2=0 -DOPT_TARGET_UART=0
 
 
 .PHONY: cmake-create-debugger
@@ -158,14 +167,3 @@ cmake-create-debugger: clean-build
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
 	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang                                                                 \
 	         -DOPT_NET= -DOPT_SIGROK=0 -DOPT_MSC=0
-
-
-.PHONY: cmake-create-debuggEE
-cmake-create-debuggEE: clean-build
-	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin
-	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
-	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang                                                                 \
-	         -DOPT_NET=NCM -DOPT_PROBE_DEBUG_OUT=RTT                                                                       \
-	         -DOPT_SIGROK=0 -DOPT_MSC=0 -DOPT_CMSIS_DAPV1=0 -DOPT_CMSIS_DAPV2=0 -DOPT_TARGET_UART=0
-
-
