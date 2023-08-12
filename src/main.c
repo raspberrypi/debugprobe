@@ -33,18 +33,26 @@
 #ifdef TARGET_BOARD_PICO_W
     #include <pico/cyw43_arch.h>
 #endif
+#if OPT_PROBE_DEBUG_OUT_RTT
+    #include "pico/stdio/driver.h"
+#endif
 
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
 #include <time.h>
 
-#include "bsp/board.h"
+#if 0
+    // in the released SDK 1.5.1 with TinyUSB 0.15.0 the include path was "bsp/board.h", so we solve it with a hack.
+    #include "bsp/board_api.h"
+#else
+    extern void board_init(void);
+#endif
 #include "tusb.h"
 
 #include "picoprobe_config.h"
 #include "probe.h"
-#if OPT_PROBE_DEBUG_OUT
+#if OPT_PROBE_DEBUG_OUT_CDC
     #include "cdc/cdc_debug.h"
 #endif
 #if OPT_TARGET_UART
@@ -87,6 +95,10 @@
     #endif
 #endif
 
+#if OPT_PROBE_DEBUG_OUT_RTT
+    #include "RTT/SEGGER_RTT.h"
+#endif
+
 
 #ifdef NDEBUG
     #define BUILD_TYPE "release build"
@@ -127,9 +139,10 @@
 uint8_t  dap_packet_count = _DAP_PACKET_COUNT_UNKNOWN;
 uint16_t dap_packet_size  = _DAP_PACKET_SIZE_UNKNOWN;
 
-static uint8_t TxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZE];     // maximum required size
-static uint8_t RxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZE];     // maximum required size
-
+#if OPT_CMSIS_DAPV1  ||  OPT_CMSIS_DAPV2
+    static uint8_t TxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZE];     // maximum required size
+    static uint8_t RxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZE];     // maximum required size
+#endif
 
 // prios are critical and determine throughput
 #define LED_TASK_PRIO               (tskIDLE_PRIORITY + 30)       // simple task which may interrupt everything else for periodic blinking
@@ -145,7 +158,9 @@ static uint8_t RxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZ
 #define RTT_CONSOLE_TASK_PRIO       (tskIDLE_PRIORITY + 1)        // target -> host via RTT, ATTENTION: this task can fully load the CPU depending on target RTT output
 
 static TaskHandle_t tud_taskhandle;
-static TaskHandle_t dap_taskhandle;
+#if OPT_CMSIS_DAPV2
+    static TaskHandle_t dap_taskhandle;
+#endif
 static EventGroupHandle_t dap_events;
 
 
@@ -157,7 +172,7 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
         cdc_uart_line_state_cb(dtr, rts);
     }
 #endif
-#if OPT_PROBE_DEBUG_OUT
+#if OPT_PROBE_DEBUG_OUT_CDC
     if (itf == CDC_DEBUG_N) {
         cdc_debug_line_state_cb(dtr, rts);
     }
@@ -201,7 +216,7 @@ void tud_cdc_rx_cb(uint8_t itf)
         cdc_uart_rx_cb();
     }
 #endif
-#if OPT_PROBE_DEBUG_OUT
+#if OPT_PROBE_DEBUG_OUT_CDC
     if (itf == CDC_DEBUG_N) {
         cdc_debug_rx_cb();
     }
@@ -227,7 +242,7 @@ void tud_cdc_tx_complete_cb(uint8_t itf)
         cdc_uart_tx_complete_cb();
     }
 #endif
-#if OPT_PROBE_DEBUG_OUT
+#if OPT_PROBE_DEBUG_OUT_CDC
     if (itf == CDC_DEBUG_N) {
         cdc_debug_tx_complete_cb();
     }
@@ -625,6 +640,23 @@ void usb_thread(void *ptr)
 
 
 
+#if OPT_PROBE_DEBUG_OUT_RTT
+    static void stdio_rtt_out_chars(const char *buf, int length)
+    {
+        SEGGER_RTT_Write(0, buf, length);
+    }   // stdio_rtt_out_chars
+
+
+    stdio_driver_t stdio_rtt = {
+        .out_chars = stdio_rtt_out_chars,
+    #if PICO_STDIO_ENABLE_CRLF_SUPPORT
+        .crlf_enabled = false
+    #endif
+    };
+#endif
+
+
+
 int main(void)
 {
     board_init();
@@ -636,8 +668,14 @@ int main(void)
     get_config_init();
 
     // initialize stdio and should be done before anything else (that does printf())
-#if OPT_PROBE_DEBUG_OUT
+#if OPT_PROBE_DEBUG_OUT_CDC
     cdc_debug_init(CDC_DEBUG_TASK_PRIO);
+#endif
+#if OPT_PROBE_DEBUG_OUT_UART
+    setup_default_uart();
+#endif
+#if OPT_PROBE_DEBUG_OUT_RTT
+    stdio_set_driver_enabled(&stdio_rtt, true);
 #endif
 
     sw_lock_init();

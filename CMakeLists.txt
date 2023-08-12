@@ -19,15 +19,18 @@ if(PICO_BOARD STREQUAL "")
     set(PICO_BOARD pico)
 endif()
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-    set(DEFAULT_OPT_PROBE_DEBUG_OUT 1)
+    set(DEFAULT_OPT_PROBE_DEBUG_OUT "CDC")
 else()
-    set(DEFAULT_OPT_PROBE_DEBUG_OUT 1)
+    set(DEFAULT_OPT_PROBE_DEBUG_OUT "CDC")
 endif()
 
+#
+# configuration for the probe RP2040 *WITHOUT NET*
+#
 option(OPT_CMSIS_DAPV1         "Enable CMSIS-DAPv1"                     1)
 option(OPT_CMSIS_DAPV2         "Enable CMSIS-DAPv2"                     1)
 option(OPT_TARGET_UART         "Enable CDC for target UART I/O"         1)
-option(OPT_PROBE_DEBUG_OUT     "Enable CDC for probe debug output"      ${DEFAULT_OPT_PROBE_DEBUG_OUT})
+set(OPT_PROBE_DEBUG_OUT        "${DEFAULT_OPT_PROBE_DEBUG_OUT}" CACHE STRING "Destination for probe debug output: CDC/RTT/UART, disable with empty string")
 option(OPT_SIGROK              "Enable sigrok"                          0)
 option(OPT_MSC                 "Enable Mass Storage Device"             1)
 option(OPT_MSC_RAM_UF2         "Enable file 'RAM.UF2' on Mass Storage"  1)
@@ -47,12 +50,6 @@ option(OPT_SPECIAL_CLK_FOR_PIO "Ignore clock frequency request of 1MHz (this is 
 
 
 #
-# SDK options
-#
-set(PICO_STDIO_UART 0)             # disable stdio UART, actually this goes to a CDC
-
-
-#
 # enable LTO for clang release builds
 #
 if("${PICO_COMPILER}" STREQUAL "pico_arm_clang")
@@ -60,6 +57,14 @@ if("${PICO_COMPILER}" STREQUAL "pico_arm_clang")
         message(STATUS "link time optimization for clang release builds enabled")
         set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
     endif()
+endif()
+
+#
+# UART as stdio must be told the SDK
+#
+set(PICO_STDIO_UART 0)
+if(OPT_PROBE_DEBUG_OUT STREQUAL "UART")
+    set(PICO_STDIO_UART 1)
 endif()
 
 
@@ -156,6 +161,7 @@ target_include_directories(${PROJECT} PRIVATE
         CMSIS_5/CMSIS/DAP/Firmware/Include/
         CMSIS_5/CMSIS/Core/Include/
         include/
+        src/lib/SEGGER
 )
 
 #--------------------------------------------------------------------------------------------------
@@ -203,6 +209,31 @@ add_compile_definitions(DAPLINK_HIC_ID=0x08154711)
 # required to get required DAPLink functions
 add_compile_definitions(DRAG_N_DROP_SUPPORT=1)
 
+
+#--------------------------------------------------------------------------------------------------
+#
+# Set destination of debug output of the probe
+#
+if(NOT OPT_PROBE_DEBUG_OUT STREQUAL "")
+    if(OPT_PROBE_DEBUG_OUT STREQUAL "CDC")
+        add_compile_definitions(OPT_PROBE_DEBUG_OUT_CDC=1)
+        target_sources(${PROJECT} PRIVATE
+            src/cdc/cdc_debug.c
+        )
+    elseif(OPT_PROBE_DEBUG_OUT STREQUAL "RTT")
+        add_compile_definitions(OPT_PROBE_DEBUG_OUT_RTT=1)
+        target_sources(${PROJECT} PRIVATE
+            src/lib/SEGGER/RTT/SEGGER_RTT.c
+        )
+    elseif(OPT_PROBE_DEBUG_OUT STREQUAL "UART")
+        add_compile_definitions(OPT_PROBE_DEBUG_OUT_UART=1)
+    else()
+        message(FATAL_ERROR "OPT_PROBE_DEBUG_OUT must be either empty or one of CDC/RTT/UART but is '${OPT_PROBE_DEBUG_OUT}'")
+    endif()
+    
+    add_compile_definitions(OPT_PROBE_DEBUG_OUT=1)
+endif()
+
 #--------------------------------------------------------------------------------------------------
 #
 # Enable/disable several USB endpoints
@@ -211,12 +242,6 @@ if(OPT_TARGET_UART)
     add_compile_definitions(OPT_TARGET_UART=1)
     target_sources(${PROJECT} PRIVATE
         src/cdc/cdc_uart.c
-    )
-endif()
-if(OPT_PROBE_DEBUG_OUT)
-    add_compile_definitions(OPT_PROBE_DEBUG_OUT=1)
-    target_sources(${PROJECT} PRIVATE
-        src/cdc/cdc_debug.c
     )
 endif()
 if(OPT_CMSIS_DAPV1)

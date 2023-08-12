@@ -124,3 +124,48 @@ check-clang:
 show-options:
 	@cd $(BUILD_DIR) && cmake -LH . | sed -n -e '/OPT_/{x;1!p;g;$!N;p;D;}' -e h
 
+
+#
+# The following targets are for debugging the probe itself.
+# Therefor a debugger and a debuggEE probe needs to be configured.
+# - debugger probe has all features except net/sysview
+# - debuggEE probe has just net and debug output goes to RTT
+# Additionally there is a special target for flashing and resetting the debuggEE probe.
+# Notes
+# - debugger probe is untouched after initial setup
+# - debugger probe is flashed with the standard procedure
+# - most work is done in the debuggEE
+# 
+DEBUGGER_SERNO ?= E6614C775B333D35
+
+.PHONY: debuggEE-flash
+debuggEE-flash:
+	ninja -C $(BUILD_DIR) -v all  &&  openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c "adapter speed 10000; adapter serial $(DEBUGGER_SERNO)" \
+	        -c "program {$(BUILD_DIR)/$(PROJECT).hex}  verify; shutdown;"
+	$(MAKE) debuggEE-reset
+	@echo "ok."
+
+
+.PHONY: debuggEE-reset
+debuggEE-reset:
+	pyocd reset -t rp2040_core1 -f 12M --probe $(DEBUGGER_SERNO)
+	pyocd reset -t rp2040_core0 -f 12M --probe $(DEBUGGER_SERNO)
+
+
+.PHONY: cmake-create-debugger
+cmake-create-debugger: clean-build
+	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin
+	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
+	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang                                                                 \
+	         -DOPT_NET= -DOPT_SIGROK=0 -DOPT_MSC=0
+
+
+.PHONY: cmake-create-debuggEE
+cmake-create-debuggEE: clean-build
+	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin
+	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
+	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang                                                                 \
+	         -DOPT_NET=NCM -DOPT_PROBE_DEBUG_OUT=RTT                                                                       \
+	         -DOPT_SIGROK=0 -DOPT_MSC=0 -DOPT_CMSIS_DAPV1=0 -DOPT_CMSIS_DAPV2=0 -DOPT_TARGET_UART=0
+
+

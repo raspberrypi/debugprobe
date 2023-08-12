@@ -33,12 +33,12 @@
 #define xxCoNfSTR(S)   _xxCoNfSTR(S)
 
 #if OPT_CMSIS_DAPV1
-    #define __OPT_CMSIS_DAPV1         " [CMSIS-DAPv1]"
+    #define __OPT_CMSIS_DAPV1         " [CMSIS: DAPv1]"
 #else
     #define __OPT_CMSIS_DAPV1
 #endif
 #if OPT_CMSIS_DAPV2
-    #define __OPT_CMSIS_DAPV2         " [CMSIS-DAPv2]"
+    #define __OPT_CMSIS_DAPV2         " [CMSIS: DAPv2]"
 #else
     #define __OPT_CMSIS_DAPV2
 #endif
@@ -57,24 +57,32 @@
 #else
     #define __OPT_SIGROK
 #endif
-#if OPT_PROBE_DEBUG_OUT
-    #define __OPT_PROBE_DEBUG_OUT     " [CDC: probe debug]"
-#else
-    #define __OPT_PROBE_DEBUG_OUT
-#endif
 #if OPT_CDC_SYSVIEW
     #define __OPT_CDC_SYSVIEW         " [CDC: SysView]"
 #else
     #define __OPT_CDC_SYSVIEW
 #endif
+#if OPT_PROBE_DEBUG_OUT
+    #if OPT_PROBE_DEBUG_OUT_CDC
+        #define __OPT_PROBE_DEBUG_OUT " [CDC: probe debug]"
+    #elif OPT_PROBE_DEBUG_OUT_RTT
+        #define __OPT_PROBE_DEBUG_OUT " [RTT: probe debug]"
+    #elif OPT_PROBE_DEBUG_OUT_UART
+        #define __OPT_PROBE_DEBUG_OUT " [UART: probe debug]"
+    #else
+        #error "Illegal OPT_PROBE_DEBUG_OUT definition"
+    #endif
+#else
+    #define __OPT_PROBE_DEBUG_OUT
+#endif
 #if OPT_NET
     #define __OPT_NET_IP              " [Net-"
     #if OPT_NET_PROTO_ECM
-        #define __OPT_NET_CONF        __OPT_NET_IP "ECM"
+        #define __OPT_NET_CONF        __OPT_NET_IP "ECM:"
     #elif OPT_NET_PROTO_NCM
-        #define __OPT_NET_CONF        __OPT_NET_IP "NCM"
+        #define __OPT_NET_CONF        __OPT_NET_IP "NCM:"
     #elif OPT_NET_PROTO_RNDIS
-        #define __OPT_NET_CONF        __OPT_NET_IP "RNDIS"
+        #define __OPT_NET_CONF        __OPT_NET_IP "RNDIS:"
     #else
         #error "Illegal OPT_NET_PROTO definition"
     #endif

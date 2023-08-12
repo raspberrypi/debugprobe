@@ -6,7 +6,7 @@
 
 
 
-## Some lwIP Notes
+# Some lwIP Notes
 
 lwIP is used for creation of a network interface of YAPicoprobe to avoid
 an uncountable number of additional CDC COM ports.
@@ -109,14 +109,27 @@ Monitor performance/errors with Wireshark.
 
 ## Some words about...
 
-### ... `net_glue.c`
+### net_glue.c
 
-I'm really trying hard to switch context betwenn lwIP and TinyUSB correctly.  This leads
+I'm really trying hard to switch context between lwIP and TinyUSB correctly.  This leads
 to some kind of delayed call chains and also does not make the code neither nice nor
 very much maintainable.
 
 
-### ... `ncm_device_simple.c`
+### NCM
+
+TinyUSB NCM driver implementations is more or less buggy, so I'm doing my best
+implementing a driver on my own.
+
+Current work consists of debug versions of `ncm_device` and an almost
+working `ncm_device_simple`.
+
+Link:
+
+* link:extern/NCM10-20101124-track.pdf[NCM Specification]
+
+
+#### ncm_device_simple.c
 
 `ncm_device_simple.c` is actually a mixture of `ecm_rndis_device.c` and `ncm_device.c`.
 From `ecm_rndis_device.c` the structure has been inherited and from `ncm_device.c` the 
@@ -124,8 +137,12 @@ functionality. +
 The driver can be considered work in progress, because in conjunction with `iperf`
 crashes sometimes happen.  But for operation with SystemView quality seems to be good enough.
 
+WARNING: There must be a nasty bug in `ncm_simple_device`.  It reveals on startup
+because startup time with `ncm_device_simple` is much longer compared to ECM/RNDIS and even
+`ncm_device`.
 
-### ... possible Bugs in `ncm_device.c`
+
+#### possible Bugs in ncm_device.c
 
 This is more or less obsoleted by `ncm_device_simple.c`.  But as a short summary: the original
 driver is very buggy.  Perhaps it is working in certain scenarios, but for sure not together with
@@ -148,8 +165,142 @@ SystemView.
 There is an open issue in the TinyUSB repo for this issue: https://github.com/hathach/tinyusb/issues/2068
 
 
+## TinyUSB Driver API
+
+### TinyUSB -> Driver
+
+The following API is for calls from TinyUSB to the driver.
+The calls are all initiated from within the TinyUSB stack.  Thus all are done in the context of TinyUSB.
+
+[%autowidth]
+[%header]
+|===
+|Name | Comment
+
+|netd_init()
+|Initialization of the driver on startup.  Called several times.
+
+|netd_reset(rhport)
+|Called several times on startup.  `rhport` seems to be zero in all calls.
+
+|netd_open(rhport, *itf_desc, max_len)
+|Connects the USB endpoints.  This is called once when the host driver
+connects with the device.
+
+|netd_control_xfer_cb(rhport, stage, *request)
+|called after `netd_open()`.  Only `stage==CONTROL_STAGE_SETUP` seems to be
+of interest.
+
+|netd_xfer_cb(rhport, ep_addr, result, xferred_bytes)
+a|Depending on `ep_addr` the driver is told here, that a
+
+* packet can be fetched from the stack for further processing within the driver
+* packet transmission can be started
+* report packet should be transmitted (that's about communication parameters)
+|===
+
+
+### Driver -> TinyUSB
+
+The driver has a whole bunch of available API calls.  The most important are:
+
+[%autowidth]
+[%header]
+|===
+|Name | Comment
+
+|tud_control_status()
+|Send STATUS (zero length) packet.  Called in `netd_control_xfer_cb()`.
+
+|tud_control_xfer()
+|Carry out Data and Status stage of control transfer.  Called in `netd_control_xfer_cb()`.
+
+|usbd_edpt_busy()
+|Check whether an endpoint is busy or ready for the next `usbd_edpt_xfer()`.
+
+|usbd_edpt_open()
+|Used during `netd_open()`.
+
+|usbd_edpt_xfer()
+|Submit a USB transfer.  For receive operation, the specified buffer must be empty.
+For transmit operation, the buffer may not be touched, until the corresponding
+`netd_xfer_cb()` is received.
+
+|usbd_open_edpt_pair()
+|Used during `netd_open()`.
+|===
+
+
+### Glue Logic -> Driver
+
+The following API is for call from glue logic to the driver.  The glue logic tries hard to issue
+the calls in the TinyUSB context as well.  But this is not guaranteed I'm afraid (other developers).
+
+[%autowidth]
+[%header]
+|===
+|Name | Comment
+
+|tud_network_can_xmit(size)
+|check if the driver buffer allows another datagram with the specified size.
+If the driver tells the glue logic that there is space enough for the datagram, the glue logic
+calls in the next step `tud_network_xmit()`. +
+Not sure how recovery works if there is no space left.  So at the moment the glue logic
+is responsible for retries.
+
+|[.line-through]#tud_network_link_state_cb(state)#
+|[.line-through]#seems to be obsolete.  No call found within the stack.  So do not implement.
+PR at TinyUSB pending to remove the call.#
+
+|tud_network_recv_renew()
+|Called when the glue logic has the opinion that the driver should check if it
+can enable receive logic.  The function has to check, if the USB channel
+and receive buffer are available.  Another option (for NCM) is, that there are
+still buffered datagrams which can then be transferred via `tud_network_recv_cb()`.
+
+|tud_network_xmit(*ref, arg)
+|The glue logic requests a datagram transfer into the driver.  The driver may then
+prepare for the actual copy operation from glue logic which is performed via
+`tud_network_xmit_cb(dst, ref, arg)`.  Transmission does not have to take place.  E.g.
+the NCM driver should be capable of buffering multiple datagrams into one
+big NCM transfer block.
+The call must succeed.
+|===
+
+
+### Driver -> Glue Logic
+
+The glue logic also provides some API which has to be used by the driver.  The driver always
+calls the glue logic in the TinyUSB context.
+
+[%autowidth]
+[%header]
+|===
+|Name | Comment
+
+|tud_network_recv_cb(*src, size)
+|Transfer a single datagram from the driver to the glue logic.  When the layer above the glue logic (lwIP)
+has handled the datagram, it issues a `tud_network_recv_renew()` so the process of datagram reception
+does not die.
+
+|tud_network_xmit_cb(*dst, *ref, arg)
+|The driver calls this function from `tud_network_xmit()` to perform the actual copy operation
+of the datagram from glue logic into the driver.  The two parameters are not changed by
+the driver, except that it specifies an additional copy destination.
+|===
+
+
+
 ## Log
 
+### 2023-08-11
+
+* BUG: with `ncm_device_simple` startup time of the probe is much longer compared
+  to ECM/RNDIS or even `ncm_device`.  With startup time I mean the time until there is
+  something visible on the probes debug output.  For ECM/RNDIS/ncm_device this is almost
+  instantly, with `ncm_device_simple` it takes ~10s! +
+  -> reverted to `ncm_device` because SystemView runs without problems with it
+    
 ### 2023-07-14
 
 * did some performance tuning with lwIP and TinyUSB

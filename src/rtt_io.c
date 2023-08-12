@@ -294,6 +294,7 @@ static void rtt_from_target_thread(void *p)
 
 
 
+#if INCLUDE_SYSVIEW
 static void rtt_from_target_reset(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER_UP *aUp)
 /**
  * Reset an upstream buffer.
@@ -305,6 +306,7 @@ static void rtt_from_target_reset(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_
     aUp->RdOff = aUp->WrOff;
     swd_write_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[channel].RdOff), aUp->RdOff);
 }   // rtt_from_target_reset
+#endif
 
 
 

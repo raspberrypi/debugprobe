@@ -29,7 +29,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#if OPT_PROBE_DEBUG_OUT
+#if OPT_PROBE_DEBUG_OUT_CDC
     void cdc_debug_init(uint32_t task_prio);
     void cdc_debug_line_state_cb(bool dtr, bool rts);
     void cdc_debug_tx_complete_cb(void);
