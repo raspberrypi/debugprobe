@@ -29,7 +29,8 @@
 /**
  * Some explanations
  * -----------------
- * - \a rhport: is the USB port of the device, in most cases "0"
+ * - \a rhport:       is the USB port of the device, in most cases "0"
+ * - \a itf_data_alt: if != 0 -> data xmt/rcv are allowed
  *
  * Glossary
  * --------
@@ -63,7 +64,7 @@ typedef struct {
     uint8_t      ep_out;                        //!< endpoint for incoming datagrams (naming is a little bit confusing)
     uint8_t      ep_notif;                      //!< endpoint for notifications
     uint8_t      itf_num;                       //!< interface number
-    uint8_t      itf_data_alt;                  //!< TODO indication if open?  Rcv/Xmit only take place, if this is "1"
+    uint8_t      itf_data_alt;                  //!< ==0 -> no endpoints, i.e. no network traffic, ==1 -> normal operation with two endpoints (spec, chapter 5.3)
     uint8_t      rhport;                        //!< storage of \a rhport because some callbacks are done without it
 
     enum {
@@ -407,20 +408,14 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
                 break;
 
                 case TUSB_REQ_SET_INTERFACE: {
-                    uint8_t const req_alt = (uint8_t)request->wValue;
+                    TU_VERIFY(ncm_interface.itf_num + 1 == request->wIndex  &&  request->wValue < 2);
 
-                    printf("  !!!! TUSB_REQ_SET_INTERFACE - %d %d %d %d\n", ncm_interface.itf_data_alt, req_alt, request->wIndex, ncm_interface.itf_num);
+                    ncm_interface.itf_data_alt = request->wValue;
+                    printf("  TUSB_REQ_SET_INTERFACE - %d %d %d\n", ncm_interface.itf_data_alt, request->wIndex, ncm_interface.itf_num);
 
-                    // Only valid for Data Interface with Alternate is either 0 or 1
-                    TU_VERIFY(ncm_interface.itf_num + 1 == request->wIndex  &&  req_alt < 2);
-
-                    if (req_alt != ncm_interface.itf_data_alt) {
-                        ncm_interface.itf_data_alt = req_alt;
-
-                        if (ncm_interface.itf_data_alt) {
-                            tud_network_recv_renew_r(rhport);
-                            notification_xmt(rhport, false);
-                        }
+                    if (ncm_interface.itf_data_alt == 1) {
+                        tud_network_recv_renew_r(rhport);
+                        notification_xmt(rhport, false);
                     }
                     tud_control_status(rhport, request);
                 }
