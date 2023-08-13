@@ -68,8 +68,8 @@ typedef struct {
 
     enum {
         NOTIFICATION_SPEED, NOTIFICATION_CONNECTED, NOTIFICATION_DONE
-    } ncm_notification_state;
-    bool         ncm_notification_is_running;   //!< notification is currently transmitted
+    } notification_xmt_state;
+    bool         notification_xmt_is_running;   //!< notification is currently transmitted
 } ncm_interface_t;
 
 
@@ -131,36 +131,36 @@ tu_static struct ncm_notify_t ncm_notify_speed_change = {
 
 
 
-void ncm_notification(uint8_t rhport, bool force_next)
+static void notification_xmt(uint8_t rhport, bool force_next)
 /**
- * Transmit notifications to the host.
+ * Transmit next notification to the host (if appropriate).
  * Notifications are transferred to the host once during connection setup.
  */
 {
-    printf("ncm_notification(%d, %d) - %d %d\n", force_next, rhport, ncm_interface.ncm_notification_state, ncm_interface.ncm_notification_is_running);
+    printf("notification_xmt(%d, %d) - %d %d\n", force_next, rhport, ncm_interface.notification_xmt_state, ncm_interface.notification_xmt_is_running);
 
-    if ( !force_next  &&  ncm_interface.ncm_notification_is_running) {
+    if ( !force_next  &&  ncm_interface.notification_xmt_is_running) {
         return;
     }
 
-    if (ncm_interface.ncm_notification_state == NOTIFICATION_SPEED) {
+    if (ncm_interface.notification_xmt_state == NOTIFICATION_SPEED) {
         printf("  NOTIFICATION_SPEED\n");
         ncm_notify_speed_change.header.wIndex = ncm_interface.itf_num;
         usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t*) &ncm_notify_speed_change, sizeof(ncm_notify_speed_change));
-        ncm_interface.ncm_notification_state = NOTIFICATION_CONNECTED;
-        ncm_interface.ncm_notification_is_running = true;
+        ncm_interface.notification_xmt_state = NOTIFICATION_CONNECTED;
+        ncm_interface.notification_xmt_is_running = true;
     }
-    else if (ncm_interface.ncm_notification_state == NOTIFICATION_CONNECTED) {
+    else if (ncm_interface.notification_xmt_state == NOTIFICATION_CONNECTED) {
         printf("  NOTIFICATION_CONNECTED\n");
         ncm_notify_connected.header.wIndex = ncm_interface.itf_num;
         usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t*) &ncm_notify_connected, sizeof(ncm_notify_connected));
-        ncm_interface.ncm_notification_state = NOTIFICATION_DONE;
-        ncm_interface.ncm_notification_is_running = true;
+        ncm_interface.notification_xmt_state = NOTIFICATION_DONE;
+        ncm_interface.notification_xmt_is_running = true;
     }
     else {
         printf("  NOTIFICATION_FINISHED\n");
     }
-}   // ncm_notification
+}   // notification_xmt
 
 
 //-----------------------------------------------------------------------------
@@ -169,16 +169,16 @@ void ncm_notification(uint8_t rhport, bool force_next)
 //
 
 
-static void free_current_xmt_buffer(void)
+static void xmt_free_current_buffer(void)
 {
-    printf("free_current_xmt_buffer()\n");
-}   // free_current_xmt_buffer
+    printf("xmt_free_current_buffer()\n");
+}   // xmt_free_current_buffer
 
 
 
-static bool inserted_required_zlp(uint8_t rhport)
+static bool xmt_insert_required_zlp(uint8_t rhport)
 {
-    printf("inserted_required_zlp(%d)\n", rhport);
+    printf("xmt_insert_required_zlp(%d)\n", rhport);
 #if 0
     if (xferred_bytes != 0  &&  xferred_bytes % CFG_TUD_NET_ENDPOINT_SIZE == 0)
     {
@@ -188,20 +188,20 @@ static bool inserted_required_zlp(uint8_t rhport)
     }
 #endif
     return false;
-}   // inserted_required_zlp
+}   // xmt_insert_required_zlp
 
 
 
-void start_transmission_if_possible(void)
+static void xmt_start_if_possible(void)
 {
-    printf("start_transmission_if_possible()\n");
+    printf("xmt_start_if_possible()\n");
 #if 0
     // If there are datagrams queued up that we tried to send while this NTB was being emitted, send them now
     if (ncm_interface.datagram_count && ncm_interface.itf_data_alt == 1) {
         ncm_start_tx();
     }
 #endif
-}   // start_transmission_if_possible
+}   // xmt_start_if_possible
 
 
 //-----------------------------------------------------------------------------
@@ -365,9 +365,9 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         // - if there is another transmit NTB waiting, try to start transmission
         //
         printf("  EP_IN %d\n", ncm_interface.itf_data_alt);
-        free_current_xmt_buffer();
-        if ( !inserted_required_zlp(rhport)) {
-            start_transmission_if_possible();
+        xmt_free_current_buffer();
+        if ( !xmt_insert_required_zlp(rhport)) {
+            xmt_start_if_possible();
         }
     }
     else if (ep_addr == ncm_interface.ep_notif) {
@@ -375,7 +375,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         // next transfer on notification channel
         //
         printf("  EP_NOTIF\n");
-        ncm_notification(rhport, true);
+        notification_xmt(rhport, true);
     }
 
     return true;
@@ -419,7 +419,7 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
 
                         if (ncm_interface.itf_data_alt) {
                             tud_network_recv_renew_r(rhport);
-                            ncm_notification(rhport, false);
+                            notification_xmt(rhport, false);
                         }
                     }
                     tud_control_status(rhport, request);
