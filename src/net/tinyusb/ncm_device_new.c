@@ -55,18 +55,20 @@
 #endif
 
 //-----------------------------------------------------------------------------
-
-
+//
+// Module global things
+//
 typedef struct {
-    uint8_t      ep_in;                         //!< endpoint for TODO sdsdsd
-    uint8_t      ep_out;                        //!< endpoint for TODO
-    uint8_t      ep_notif;                      //!< notification endpoint
+    uint8_t      ep_in;                         //!< endpoint for outgoing datagrams (naming is a little bit confusing)
+    uint8_t      ep_out;                        //!< endpoint for incoming datagrams (naming is a little bit confusing)
+    uint8_t      ep_notif;                      //!< endpoint for notifications
     uint8_t      itf_num;                       //!< interface number
-    uint8_t      itf_data_alt;                  //!< TODO
+    uint8_t      itf_data_alt;                  //!< TODO indication if open?  Rcv/Xmit only take place, if this is "1"
+    uint8_t      rhport;                        //!< storage of \a rhport because some callbacks are done without it
 
     enum {
         NOTIFICATION_SPEED, NOTIFICATION_CONNECTED, NOTIFICATION_DONE
-    }            ncm_notification_state;
+    } ncm_notification_state;
     bool         ncm_notification_is_running;   //!< notification is currently transmitted
 } ncm_interface_t;
 
@@ -97,8 +99,9 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static const ntb_parameters_t ntb_par
 
 
 //-----------------------------------------------------------------------------
-
-
+//
+// everything about notifications
+//
 tu_static struct ncm_notify_t ncm_notify_connected = {
         .header = {
                 .bmRequestType_bit = {
@@ -161,13 +164,75 @@ void ncm_notification(uint8_t rhport, bool force_next)
 
 
 //-----------------------------------------------------------------------------
+//
+// everything about packet transmission (driver -> TinyUSB)
+//
 
 
-const uint8_t c_rhport = 0;
+static void free_current_xmt_buffer(void)
+{
+    printf("free_current_xmt_buffer()\n");
+}   // free_current_xmt_buffer
+
+
+
+static bool inserted_required_zlp(uint8_t rhport)
+{
+    printf("inserted_required_zlp(%d)\n", rhport);
+#if 0
+    if (xferred_bytes != 0  &&  xferred_bytes % CFG_TUD_NET_ENDPOINT_SIZE == 0)
+    {
+        // TODO check when ZLP is really needed
+        ncm_interface.xmt_running = true;
+        usbd_edpt_xfer(rhport, ncm_interface.ep_in, NULL, 0);
+    }
+#endif
+    return false;
+}   // inserted_required_zlp
+
+
+
+void start_transmission_if_possible(void)
+{
+    printf("start_transmission_if_possible()\n");
+#if 0
+    // If there are datagrams queued up that we tried to send while this NTB was being emitted, send them now
+    if (ncm_interface.datagram_count && ncm_interface.itf_data_alt == 1) {
+        ncm_start_tx();
+    }
+#endif
+}   // start_transmission_if_possible
+
+
+//-----------------------------------------------------------------------------
+//
+// all the tud_network_*() stuff (glue logic -> driver)
+//
+
+
+bool tud_network_can_xmit(uint16_t size)
+{
+    printf("tud_network_can_xmit(%d)\n", size);
+    return false;
+}   // tud_network_can_xmit
+
+
+
+void tud_network_xmit(void *ref, uint16_t arg)
+{
+    printf("tud_network_xmit(%p, %d)\n", ref, arg);
+}   // tud_network_xmit
+
+
 
 void tud_network_recv_renew(void)
 {
     printf("tud_network_recv_renew()\n");
+
+    if ( !usbd_edpt_busy(ncm_interface.rhport, ncm_interface.ep_out)) {
+        printf("   may start reception\n");
+        return;
+    }
 }   // tud_network_recv_renew
 
 
@@ -176,15 +241,15 @@ void tud_network_recv_renew_r(uint8_t rhport)
 {
     printf("tud_network_recv_renew_r(%d)\n", rhport);
 
-    if (usbd_edpt_busy(rhport, ncm_interface.ep_out)) {
-        return;
-    }
+    ncm_interface.rhport = rhport;    // TODO better place...
+    tud_network_recv_renew();
 }   // tud_network_recv_renew
 
 
 //-----------------------------------------------------------------------------
-
-
+//
+// all the netd_*() stuff (interface TinyUSB -> driver)
+//
 void netd_init(void)
 /**
  * Initialize the driver data structures.
@@ -229,7 +294,7 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16
 {
     printf("netd_open(%d,%p,%d)\n", rhport, itf_desc, max_len);
 
-    TU_ASSERT(ncm_interface.ep_notif == 0, 0);           // interface not allocated!
+    TU_ASSERT(ncm_interface.ep_notif == 0, 0);           // assure that the interface is only opened once
 
     ncm_interface.itf_num = itf_desc->bInterfaceNumber;  // management interface
 
@@ -276,10 +341,39 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16
 
 
 bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
+/**
+ * Handle TinyUSB requests to process transfer events.
+ */
 {
     printf("netd_xfer_cb(%d,%d,%d,%u)\n", rhport, ep_addr, result, (unsigned)xferred_bytes);
 
-    if (ep_addr == ncm_interface.ep_notif) {
+    if (ep_addr == ncm_interface.ep_out) {
+        //
+        // new NTB received
+        // - make the NTB valid
+        // - if ready transfer datagrams to the glue logic for further processing
+        // - if there is a free receive buffer, initiate reception
+        //
+        printf("  EP_OUT %d %d %d %u\n", rhport, ep_addr, result, (unsigned)xferred_bytes);
+        // TODO handle_incoming_datagram(xferred_bytes);
+    }
+    else if (ep_addr == ncm_interface.ep_in) {
+        //
+        // transmission of an NTB finished
+        // - free the transmitted NTB buffer
+        // - insert ZLPs when necessary
+        // - if there is another transmit NTB waiting, try to start transmission
+        //
+        printf("  EP_IN %d\n", ncm_interface.itf_data_alt);
+        free_current_xmt_buffer();
+        if ( !inserted_required_zlp(rhport)) {
+            start_transmission_if_possible();
+        }
+    }
+    else if (ep_addr == ncm_interface.ep_notif) {
+        //
+        // next transfer on notification channel
+        //
         printf("  EP_NOTIF\n");
         ncm_notification(rhport, true);
     }
@@ -291,7 +385,8 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
 
 bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request)
 /**
- *
+ * Respond to TinyUSB control requests.
+ * At startup transmission of notification packets are done here.
  */
 {
     printf("netd_control_xfer_cb(%d, %d, %p)\n", rhport, stage, request);
@@ -305,12 +400,16 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
             switch (request->bRequest) {
                 case TUSB_REQ_GET_INTERFACE: {
                     TU_VERIFY(ncm_interface.itf_num + 1 == request->wIndex);
+
+                    printf("  TUSB_REQ_GET_INTERFACE - %d\n", ncm_interface.itf_data_alt);
                     tud_control_xfer(rhport, request, &ncm_interface.itf_data_alt, 1);
                 }
                 break;
 
                 case TUSB_REQ_SET_INTERFACE: {
-                    uint8_t const req_alt = (uint8_t) request->wValue;
+                    uint8_t const req_alt = (uint8_t)request->wValue;
+
+                    printf("  !!!! TUSB_REQ_SET_INTERFACE - %d %d %d %d\n", ncm_interface.itf_data_alt, req_alt, request->wIndex, ncm_interface.itf_num);
 
                     // Only valid for Data Interface with Alternate is either 0 or 1
                     TU_VERIFY(ncm_interface.itf_num + 1 == request->wIndex  &&  req_alt < 2);
@@ -336,11 +435,12 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
         case TUSB_REQ_TYPE_CLASS:
             TU_VERIFY(ncm_interface.itf_num == request->wIndex);
 
-            //printf("netd_control_xfer_cb/TUSB_REQ_TYPE_CLASS: %d\n", request->bRequest);
+            printf("  TUSB_REQ_TYPE_CLASS: %d\n", request->bRequest);
 
             if (request->bRequest == NCM_GET_NTB_PARAMETERS) {
                 // transfer NTP parameters to host.
                 // TODO can one assume, that tud_control_xfer() succeeds?
+                printf("    NCM_GET_NTB_PARAMETERS\n");
                 tud_control_xfer(rhport, request, (void*) (uintptr_t) &ntb_parameters, sizeof(ntb_parameters));
             }
             break;
@@ -352,18 +452,3 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
 
     return true;
 }   // netd_control_xfer_cb
-
-
-
-bool tud_network_can_xmit(uint16_t size)
-{
-    printf("tud_network_can_xmit(%d)\n", size);
-    return false;
-}   // tud_network_can_xmit
-
-
-
-void tud_network_xmit(void *ref, uint16_t arg)
-{
-    printf("tud_network_xmit(%p, %d)\n", ref, arg);
-}   // tud_network_xmit
