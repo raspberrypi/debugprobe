@@ -60,6 +60,11 @@
 // Module global things
 //
 typedef struct {
+    uint16_t     len;
+    uint8_t      data[CFG_TUD_NCM_OUT_NTB_MAX_SIZE];
+} ncm_ntb_t;
+
+typedef struct {
     // general
     uint8_t      ep_in;                         //!< endpoint for outgoing datagrams (naming is a little bit confusing)
     uint8_t      ep_out;                        //!< endpoint for incoming datagrams (naming is a little bit confusing)
@@ -69,10 +74,10 @@ typedef struct {
 
     // recv handling
     uint8_t      recv_rhport;                   //!< storage of \a rhport because some callbacks are done without it
-    void        *recv_tinyusb_buffer;           //!< buffer for the running transfer TinyUSB -> driver
-    void        *recv_glue_buffer;              //!< buffer for the running transfer driver -> glue logic
-    uint8_t      recv_buffer[CFG_TUD_NCM_OUT_NTB_MAX_SIZE];
-    void        *recv_buffer_waiting;           //!< ready buffer waiting to be transferred to the glue logic
+    ncm_ntb_t   *recv_tinyusb_buffer;           //!< buffer for the running transfer TinyUSB -> driver
+    ncm_ntb_t   *recv_glue_buffer;              //!< buffer for the running transfer driver -> glue logic
+    ncm_ntb_t    recv_buffer;
+    ncm_ntb_t   *recv_buffer_waiting;           //!< ready buffer waiting to be transferred to the glue logic
 
     // notification handling
     enum {
@@ -220,7 +225,7 @@ static void xmit_start_if_possible(void)
 //
 
 
-static void *recv_get_free_buffer(void)
+static ncm_ntb_t *recv_get_free_buffer(void)
 /**
  * Return pointer to an available receive buffer or NULL.
  * Returned buffer (if any) has the size \a CFG_TUD_NCM_OUT_NTB_MAX_SIZE.
@@ -228,17 +233,17 @@ static void *recv_get_free_buffer(void)
  * TODO this should give a list
  */
 {
-    void *r = NULL;
+    ncm_ntb_t *r = NULL;
 
     if (ncm_interface.recv_glue_buffer == NULL  &&  ncm_interface.recv_buffer_waiting == NULL) {
-        r = ncm_interface.recv_buffer;
+        r = &ncm_interface.recv_buffer;
     }
     return r;
 }   // recv_get_free_buffer
 
 
 
-static void *recv_get_next_waiting_buffer(void)
+static ncm_ntb_t *recv_get_next_waiting_buffer(void)
 /**
  * Return pointer to a waiting receive buffer or NULL.
  * Returned buffer (if any) has the size \a CFG_TUD_NCM_OUT_NTB_MAX_SIZE.
@@ -253,14 +258,14 @@ static void *recv_get_next_waiting_buffer(void)
 
 
 
-static void recv_put_buffer_into_free_list(void *p)
+static void recv_put_buffer_into_free_list(ncm_ntb_t *p)
 {
     printf("recv_put_buffer_into_free_list(%p)\n", p);
 }   // recv_put_buffer_into_free_list
 
 
 
-static bool recv_put_buffer_into_waiting_list(void)
+static bool recv_put_buffer_into_waiting_list(uint16_t len)
 /**
  * The \a ncm_interface.recv_tinyusb_buffer is filled,
  * put this buffer into the waiting list and free the receive logic.
@@ -268,11 +273,12 @@ static bool recv_put_buffer_into_waiting_list(void)
  * TODO this should give a list
  */
 {
-    printf("recv_put_buffer_into_waiting_list()\n");
+    printf("recv_put_buffer_into_waiting_list(%d)\n", len);
 
     TU_ASSERT(ncm_interface.recv_tinyusb_buffer != NULL, false);
     TU_ASSERT(ncm_interface.recv_buffer_waiting == NULL, false);
 
+    ncm_interface.recv_tinyusb_buffer->len = len;
     ncm_interface.recv_buffer_waiting = ncm_interface.recv_tinyusb_buffer;
     ncm_interface.recv_tinyusb_buffer = NULL;
     return true;
@@ -305,7 +311,7 @@ static void recv_try_to_start_new_reception(uint8_t rhport)
 
     // initiate transfer
     printf("  start reception\n");
-    bool r = usbd_edpt_xfer(0, ncm_interface.ep_out, ncm_interface.recv_tinyusb_buffer, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
+    bool r = usbd_edpt_xfer(0, ncm_interface.ep_out, ncm_interface.recv_tinyusb_buffer->data, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
     if ( !r) {
         recv_put_buffer_into_free_list(ncm_interface.recv_tinyusb_buffer);
         ncm_interface.recv_tinyusb_buffer = NULL;
@@ -328,7 +334,19 @@ static void recv_transfer_datagram_to_glue_logic(void)
         }
         printf("  new buffer for glue logic\n");
 
-        TODO continue here
+        const nth16_t *nth16 = (const nth16_t*)ncm_interface.recv_glue_buffer->data;
+        const ndp16_t *ndp16 = NULL;
+        uint16_t len = ncm_interface.recv_glue_buffer->len;
+        bool ok = true;
+
+        if (nth16->dwSignature != NTH16_SIGNATURE) {
+            printf("  ill signature: 0x%08x\n", nth16->dwSignature);
+            ok = false;
+        }
+        else if (len < sizeof(nth16_t) + sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)) {
+            printf("  ill len: %u\n", (unsigned)len);
+            ok = false;
+        }
 
     }
 }   // recv_transfer_datagram_to_glue_logic
@@ -489,7 +507,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         // - if there is a free receive buffer, initiate reception
         //
         printf("  EP_OUT %d %d %d %u\n", rhport, ep_addr, result, (unsigned)xferred_bytes);
-        recv_put_buffer_into_waiting_list();
+        recv_put_buffer_into_waiting_list(xferred_bytes);
         tud_network_recv_renew_r(rhport);
     }
     else if (ep_addr == ncm_interface.ep_in) {
