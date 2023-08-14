@@ -30,7 +30,7 @@
  * Some explanations
  * -----------------
  * - \a rhport:       is the USB port of the device, in most cases "0"
- * - \a itf_data_alt: if != 0 -> data xmt/rcv are allowed
+ * - \a itf_data_alt: if != 0 -> data xmit/recv are allowed
  *
  * Glossary
  * --------
@@ -60,17 +60,25 @@
 // Module global things
 //
 typedef struct {
+    // general
     uint8_t      ep_in;                         //!< endpoint for outgoing datagrams (naming is a little bit confusing)
     uint8_t      ep_out;                        //!< endpoint for incoming datagrams (naming is a little bit confusing)
     uint8_t      ep_notif;                      //!< endpoint for notifications
     uint8_t      itf_num;                       //!< interface number
     uint8_t      itf_data_alt;                  //!< ==0 -> no endpoints, i.e. no network traffic, ==1 -> normal operation with two endpoints (spec, chapter 5.3)
-    uint8_t      rhport;                        //!< storage of \a rhport because some callbacks are done without it
 
+    // recv handling
+    uint8_t      recv_rhport;                   //!< storage of \a rhport because some callbacks are done without it
+    void        *recv_tinyusb_buffer;           //!< buffer for the running transfer TinyUSB -> driver
+    void        *recv_glue_buffer;              //!< buffer for the running transfer driver -> glue logic
+    uint8_t      recv_buffer[CFG_TUD_NCM_OUT_NTB_MAX_SIZE];
+    void        *recv_buffer_waiting;           //!< ready buffer waiting to be transferred to the glue logic
+
+    // notification handling
     enum {
         NOTIFICATION_SPEED, NOTIFICATION_CONNECTED, NOTIFICATION_DONE
-    } notification_xmt_state;
-    bool         notification_xmt_is_running;   //!< notification is currently transmitted
+    } notification_xmit_state;
+    bool         notification_xmit_is_running;  //!< notification is currently transmitted
 } ncm_interface_t;
 
 
@@ -132,36 +140,36 @@ tu_static struct ncm_notify_t ncm_notify_speed_change = {
 
 
 
-static void notification_xmt(uint8_t rhport, bool force_next)
+static void notification_xmit(uint8_t rhport, bool force_next)
 /**
  * Transmit next notification to the host (if appropriate).
  * Notifications are transferred to the host once during connection setup.
  */
 {
-    printf("notification_xmt(%d, %d) - %d %d\n", force_next, rhport, ncm_interface.notification_xmt_state, ncm_interface.notification_xmt_is_running);
+    printf("notification_xmit(%d, %d) - %d %d\n", force_next, rhport, ncm_interface.notification_xmit_state, ncm_interface.notification_xmit_is_running);
 
-    if ( !force_next  &&  ncm_interface.notification_xmt_is_running) {
+    if ( !force_next  &&  ncm_interface.notification_xmit_is_running) {
         return;
     }
 
-    if (ncm_interface.notification_xmt_state == NOTIFICATION_SPEED) {
+    if (ncm_interface.notification_xmit_state == NOTIFICATION_SPEED) {
         printf("  NOTIFICATION_SPEED\n");
         ncm_notify_speed_change.header.wIndex = ncm_interface.itf_num;
         usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t*) &ncm_notify_speed_change, sizeof(ncm_notify_speed_change));
-        ncm_interface.notification_xmt_state = NOTIFICATION_CONNECTED;
-        ncm_interface.notification_xmt_is_running = true;
+        ncm_interface.notification_xmit_state = NOTIFICATION_CONNECTED;
+        ncm_interface.notification_xmit_is_running = true;
     }
-    else if (ncm_interface.notification_xmt_state == NOTIFICATION_CONNECTED) {
+    else if (ncm_interface.notification_xmit_state == NOTIFICATION_CONNECTED) {
         printf("  NOTIFICATION_CONNECTED\n");
         ncm_notify_connected.header.wIndex = ncm_interface.itf_num;
         usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t*) &ncm_notify_connected, sizeof(ncm_notify_connected));
-        ncm_interface.notification_xmt_state = NOTIFICATION_DONE;
-        ncm_interface.notification_xmt_is_running = true;
+        ncm_interface.notification_xmit_state = NOTIFICATION_DONE;
+        ncm_interface.notification_xmit_is_running = true;
     }
     else {
         printf("  NOTIFICATION_FINISHED\n");
     }
-}   // notification_xmt
+}   // notification_xmit
 
 
 //-----------------------------------------------------------------------------
@@ -170,39 +178,160 @@ static void notification_xmt(uint8_t rhport, bool force_next)
 //
 
 
-static void xmt_free_current_buffer(void)
+static void xmit_free_current_buffer(void)
 {
-    printf("xmt_free_current_buffer()\n");
-}   // xmt_free_current_buffer
+    printf("xmit_free_current_buffer()\n");
+}   // xmit_free_current_buffer
 
 
 
-static bool xmt_insert_required_zlp(uint8_t rhport)
+static bool xmit_insert_required_zlp(uint8_t rhport)
 {
-    printf("xmt_insert_required_zlp(%d)\n", rhport);
+    printf("xmit_insert_required_zlp(%d)\n", rhport);
 #if 0
     if (xferred_bytes != 0  &&  xferred_bytes % CFG_TUD_NET_ENDPOINT_SIZE == 0)
     {
         // TODO check when ZLP is really needed
-        ncm_interface.xmt_running = true;
+        ncm_interface.xmit_running = true;
         usbd_edpt_xfer(rhport, ncm_interface.ep_in, NULL, 0);
     }
 #endif
     return false;
-}   // xmt_insert_required_zlp
+}   // xmit_insert_required_zlp
 
 
 
-static void xmt_start_if_possible(void)
+static void xmit_start_if_possible(void)
 {
-    printf("xmt_start_if_possible()\n");
+    printf("xmit_start_if_possible()\n");
 #if 0
     // If there are datagrams queued up that we tried to send while this NTB was being emitted, send them now
     if (ncm_interface.datagram_count && ncm_interface.itf_data_alt == 1) {
         ncm_start_tx();
     }
 #endif
-}   // xmt_start_if_possible
+}   // xmit_start_if_possible
+
+
+
+//-----------------------------------------------------------------------------
+//
+// all the recv_*() stuff (TinyUSB -> driver -> glue logic)
+//
+
+
+static void *recv_get_free_buffer(void)
+/**
+ * Return pointer to an available receive buffer or NULL.
+ * Returned buffer (if any) has the size \a CFG_TUD_NCM_OUT_NTB_MAX_SIZE.
+ *
+ * TODO this should give a list
+ */
+{
+    void *r = NULL;
+
+    if (ncm_interface.recv_glue_buffer == NULL  &&  ncm_interface.recv_buffer_waiting == NULL) {
+        r = ncm_interface.recv_buffer;
+    }
+    return r;
+}   // recv_get_free_buffer
+
+
+
+static void *recv_get_next_waiting_buffer(void)
+/**
+ * Return pointer to a waiting receive buffer or NULL.
+ * Returned buffer (if any) has the size \a CFG_TUD_NCM_OUT_NTB_MAX_SIZE.
+ *
+ * \note
+ *    The returned buffer is removed from the waiting list.
+ */
+{
+    printf("recv_get_next_waiting_buffer()\n");
+    return ncm_interface.recv_buffer_waiting;
+}   // recv_get_next_waiting_buffer
+
+
+
+static void recv_put_buffer_into_free_list(void *p)
+{
+    printf("recv_put_buffer_into_free_list(%p)\n", p);
+}   // recv_put_buffer_into_free_list
+
+
+
+static bool recv_put_buffer_into_waiting_list(void)
+/**
+ * The \a ncm_interface.recv_tinyusb_buffer is filled,
+ * put this buffer into the waiting list and free the receive logic.
+ *
+ * TODO this should give a list
+ */
+{
+    printf("recv_put_buffer_into_waiting_list()\n");
+
+    TU_ASSERT(ncm_interface.recv_tinyusb_buffer != NULL, false);
+    TU_ASSERT(ncm_interface.recv_buffer_waiting == NULL, false);
+
+    ncm_interface.recv_buffer_waiting = ncm_interface.recv_tinyusb_buffer;
+    ncm_interface.recv_tinyusb_buffer = NULL;
+    return true;
+}   // recv_put_buffer_into_waiting_list
+
+
+
+static void recv_try_to_start_new_reception(uint8_t rhport)
+/**
+ * If possible, start a new reception TinyUSB -> driver.
+ * Return value is actually not of interest.
+ */
+{
+    printf("recv_try_to_start_new_reception(%d)\n", rhport);
+
+    if (ncm_interface.itf_data_alt != 1) {
+        return;
+    }
+    if (ncm_interface.recv_tinyusb_buffer != NULL) {
+        return;
+    }
+    if (usbd_edpt_busy(ncm_interface.recv_rhport, ncm_interface.ep_out)) {
+        return;
+    }
+
+    ncm_interface.recv_tinyusb_buffer = recv_get_free_buffer();
+    if (ncm_interface.recv_tinyusb_buffer == NULL) {
+        return;
+    }
+
+    // initiate transfer
+    printf("  start reception\n");
+    bool r = usbd_edpt_xfer(0, ncm_interface.ep_out, ncm_interface.recv_tinyusb_buffer, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
+    if ( !r) {
+        recv_put_buffer_into_free_list(ncm_interface.recv_tinyusb_buffer);
+        ncm_interface.recv_tinyusb_buffer = NULL;
+    }
+}   // recv_try_to_start_new_reception
+
+
+
+static void recv_transfer_datagram_to_glue_logic(void)
+/**
+ * Transfer the next (pending) datagram to the glue logic and return receive buffer if empty.
+ */
+{
+    printf("recv_transfer_datagram_to_glue_logic()\n");
+
+    if (ncm_interface.recv_glue_buffer == NULL) {
+        ncm_interface.recv_glue_buffer = recv_get_next_waiting_buffer();
+        if (ncm_interface.recv_glue_buffer == NULL) {
+            return;
+        }
+        printf("  new buffer for glue logic\n");
+
+        TODO continue here
+
+    }
+}   // recv_transfer_datagram_to_glue_logic
 
 
 //-----------------------------------------------------------------------------
@@ -227,22 +356,26 @@ void tud_network_xmit(void *ref, uint16_t arg)
 
 
 void tud_network_recv_renew(void)
+/**
+ * Keep the receive logic busy and transfer pending packets to the glue logic.
+ */
 {
     printf("tud_network_recv_renew()\n");
 
-    if ( !usbd_edpt_busy(ncm_interface.rhport, ncm_interface.ep_out)) {
-        printf("   may start reception\n");
-        return;
-    }
+    recv_transfer_datagram_to_glue_logic();
+    recv_try_to_start_new_reception(ncm_interface.recv_rhport);
 }   // tud_network_recv_renew
 
 
 
 void tud_network_recv_renew_r(uint8_t rhport)
+/**
+ * Same as tud_network_recv_renew() but knows \a rhport
+ */
 {
     printf("tud_network_recv_renew_r(%d)\n", rhport);
 
-    ncm_interface.rhport = rhport;    // TODO better place...
+    ncm_interface.recv_rhport = rhport;
     tud_network_recv_renew();
 }   // tud_network_recv_renew
 
@@ -356,7 +489,8 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         // - if there is a free receive buffer, initiate reception
         //
         printf("  EP_OUT %d %d %d %u\n", rhport, ep_addr, result, (unsigned)xferred_bytes);
-        // TODO handle_incoming_datagram(xferred_bytes);
+        recv_put_buffer_into_waiting_list();
+        tud_network_recv_renew_r(rhport);
     }
     else if (ep_addr == ncm_interface.ep_in) {
         //
@@ -366,9 +500,9 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         // - if there is another transmit NTB waiting, try to start transmission
         //
         printf("  EP_IN %d\n", ncm_interface.itf_data_alt);
-        xmt_free_current_buffer();
-        if ( !xmt_insert_required_zlp(rhport)) {
-            xmt_start_if_possible();
+        xmit_free_current_buffer();
+        if ( !xmit_insert_required_zlp(rhport)) {
+            xmit_start_if_possible();
         }
     }
     else if (ep_addr == ncm_interface.ep_notif) {
@@ -376,7 +510,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         // next transfer on notification channel
         //
         printf("  EP_NOTIF\n");
-        notification_xmt(rhport, true);
+        notification_xmit(rhport, true);
     }
 
     return true;
@@ -400,7 +534,7 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
         case TUSB_REQ_TYPE_STANDARD:
             switch (request->bRequest) {
                 case TUSB_REQ_GET_INTERFACE: {
-                    TU_VERIFY(ncm_interface.itf_num + 1 == request->wIndex);
+                    TU_VERIFY(ncm_interface.itf_num + 1 == request->wIndex, false);
 
                     printf("  TUSB_REQ_GET_INTERFACE - %d\n", ncm_interface.itf_data_alt);
                     tud_control_xfer(rhport, request, &ncm_interface.itf_data_alt, 1);
@@ -408,14 +542,14 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
                 break;
 
                 case TUSB_REQ_SET_INTERFACE: {
-                    TU_VERIFY(ncm_interface.itf_num + 1 == request->wIndex  &&  request->wValue < 2);
+                    TU_VERIFY(ncm_interface.itf_num + 1 == request->wIndex  &&  request->wValue < 2, false);
 
                     ncm_interface.itf_data_alt = request->wValue;
                     printf("  TUSB_REQ_SET_INTERFACE - %d %d %d\n", ncm_interface.itf_data_alt, request->wIndex, ncm_interface.itf_num);
 
                     if (ncm_interface.itf_data_alt == 1) {
                         tud_network_recv_renew_r(rhport);
-                        notification_xmt(rhport, false);
+                        notification_xmit(rhport, false);
                     }
                     tud_control_status(rhport, request);
                 }
@@ -428,7 +562,7 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
             break;
 
         case TUSB_REQ_TYPE_CLASS:
-            TU_VERIFY(ncm_interface.itf_num == request->wIndex);
+            TU_VERIFY(ncm_interface.itf_num == request->wIndex, false);
 
             printf("  TUSB_REQ_TYPE_CLASS: %d\n", request->bRequest);
 
