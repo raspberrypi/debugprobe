@@ -66,21 +66,26 @@ typedef struct {
 
 typedef struct {
     // general
-    uint8_t      ep_in;                         //!< endpoint for outgoing datagrams (naming is a little bit confusing)
-    uint8_t      ep_out;                        //!< endpoint for incoming datagrams (naming is a little bit confusing)
-    uint8_t      ep_notif;                      //!< endpoint for notifications
-    uint8_t      itf_num;                       //!< interface number
-    uint8_t      itf_data_alt;                  //!< ==0 -> no endpoints, i.e. no network traffic, ==1 -> normal operation with two endpoints (spec, chapter 5.3)
+    uint8_t      ep_in;                                //!< endpoint for outgoing datagrams (naming is a little bit confusing)
+    uint8_t      ep_out;                               //!< endpoint for incoming datagrams (naming is a little bit confusing)
+    uint8_t      ep_notif;                             //!< endpoint for notifications
+    uint8_t      itf_num;                              //!< interface number
+    uint8_t      itf_data_alt;                         //!< ==0 -> no endpoints, i.e. no network traffic, ==1 -> normal operation with two endpoints (spec, chapter 5.3)
 
     // recv handling
-    uint8_t      recv_rhport;                   //!< storage of \a rhport because some callbacks are done without it
-    ncm_ntb_t   *recv_tinyusb_buffer;           //!< buffer for the running transfer TinyUSB -> driver
-    ncm_ntb_t   *recv_glue_buffer;              //!< buffer for the running transfer driver -> glue logic
-    ncm_ntb_t    recv_buffer;                   //!< actual buffer structure which is either in \a recv_tinyusb_buffer, \a recv_glue_buffer, \a recv_buffer_waiting (currently: or free)
-    ncm_ntb_t   *recv_buffer_waiting;           //!< ready buffer waiting to be transferred to the glue logic
-    const ndp16_datagram_t *recv_glue_buffer_datagram;
-    uint16_t     recv_glue_buffer_datagram_ndx; //!< index into \a recv_glue_buffer_datagram
+    uint8_t      recv_rhport;                          //!< storage of \a rhport because some callbacks are done without it
+    ncm_ntb_t   *recv_tinyusb_buffer;                  //!< buffer for the running transfer TinyUSB -> driver
+    ncm_ntb_t   *recv_glue_buffer;                     //!< buffer for the running transfer driver -> glue logic
+    ncm_ntb_t    recv_buffer;                          //!< actual buffer structure which is either in \a recv_tinyusb_buffer, \a recv_glue_buffer, \a recv_buffer_waiting (currently: or free)
+    ncm_ntb_t   *recv_buffer_waiting;                  //!< ready buffer waiting to be transferred to the glue logic
+    const ndp16_datagram_t *recv_glue_buffer_datagram; //!< pointer to the \a ndp16_datagram_t structire within current \a recv_glue_buffer
+    uint16_t     recv_glue_buffer_datagram_ndx;        //!< index into \a recv_glue_buffer_datagram
 
+    // xmit handling
+    bool         xmit_zlp_required;                    //!< next xmit packet must be a ZLP
+    bool         xmit_running;                         //!< running xmit TODO will bechanged soon
+    ncm_ntb_t    xmit_buffer;                          //!< actual xmit buffer
+    uint16_t     xmit_sequence;                        //!< NTB counter
 
     // notification handling
     enum {
@@ -194,24 +199,48 @@ static void xmit_free_current_buffer(void)
 
 
 static bool xmit_insert_required_zlp(uint8_t rhport)
+/**
+ * Transmit a ZLP if required
+ */
 {
     printf("xmit_insert_required_zlp(%d)\n", rhport);
-#if 0
-    if (xferred_bytes != 0  &&  xferred_bytes % CFG_TUD_NET_ENDPOINT_SIZE == 0)
-    {
-        // TODO check when ZLP is really needed
-        ncm_interface.xmit_running = true;
-        usbd_edpt_xfer(rhport, ncm_interface.ep_in, NULL, 0);
+
+    TU_ASSERT(ncm_interface.itf_data_alt == 1, false);
+    TU_ASSERT( !usbd_edpt_busy(rhport, ncm_interface.ep_in), false);
+
+    if ( !ncm_interface.xmit_zlp_required) {
+        return false;
     }
-#endif
-    return false;
+
+    // start transmission of the ZLP
+    ncm_interface.xmit_running = true;
+    ncm_interface.xmit_zlp_required = false;
+    usbd_edpt_xfer(rhport, ncm_interface.ep_in, NULL, 0);
+
+    return true;
 }   // xmit_insert_required_zlp
 
 
 
-static void xmit_start_if_possible(void)
+static void xmit_start_if_possible(uint8_t rhport)
+/**
+ * Transmission can be done so go and check it.
+ *
+ * TODO currently more or less a NOP
+ */
 {
     printf("xmit_start_if_possible()\n");
+
+    if (ncm_interface.itf_data_alt != 1) {
+        return;
+    }
+    if (usbd_edpt_busy(rhport, ncm_interface.ep_in)) {
+        return;
+    }
+    if (ncm_interface.xmit_running) {
+        return;
+    }
+
 #if 0
     // If there are datagrams queued up that we tried to send while this NTB was being emitted, send them now
     if (ncm_interface.datagram_count && ncm_interface.itf_data_alt == 1) {
@@ -491,16 +520,72 @@ static void recv_transfer_datagram_to_glue_logic(void)
 
 
 bool tud_network_can_xmit(uint16_t size)
+/**
+ * Check if the glue logic is allowed to call tud_network_xmit()
+ *
+ * TODO this will be differently soon
+ */
 {
-    printf("tud_network_can_xmit(%d)\n", size);
-    return false;
+    printf("!!!!!!!!tud_network_can_xmit(%d)\n", size);
+
+    if (ncm_interface.itf_data_alt != 1) {
+        return false;
+    }
+    if (usbd_edpt_busy(ncm_interface.recv_rhport, ncm_interface.ep_in)) {   // TODO name? but this will be solved differently soon
+        return false;
+    }
+    if (ncm_interface.xmit_running) {
+        return false;
+    }
+    if (size > CFG_TUD_NCM_OUT_NTB_MAX_SIZE - (sizeof(nth16_t) + sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t))) {
+        TU_ASSERT(0, false);
+        return false;
+    }
+    return true;
 }   // tud_network_can_xmit
 
 
 
 void tud_network_xmit(void *ref, uint16_t arg)
+/**
+ * Put a datagram into a proper NTB
+ */
 {
-    printf("tud_network_xmit(%p, %d)\n", ref, arg);
+    printf("!!!!!!!!!!tud_network_xmit(%p, %d)\n", ref, arg);
+
+    transmit_ntb_t *ntb = (transmit_ntb_t *)ncm_interface.xmit_buffer.data;
+    uint16_t datagram_offset = sizeof(nth16_t) + sizeof(ndp16_t) + 2 * sizeof(ndp16_datagram_t);
+
+    uint16_t size = tud_network_xmit_cb(ntb->data + datagram_offset, ref, arg);
+
+    ntb->ndp.datagram[0].wDatagramIndex  = datagram_offset;
+    ntb->ndp.datagram[0].wDatagramLength = size;
+
+    // Fill in NTB header
+    ntb->nth.dwSignature   = NTH16_SIGNATURE;
+    ntb->nth.wHeaderLength = sizeof(nth16_t);
+    ntb->nth.wSequence     = ncm_interface.xmit_sequence++;
+    ntb->nth.wBlockLength  = sizeof(nth16_t) + sizeof(ndp16_t) + 2 * sizeof(ndp16_datagram_t) + size;
+    ntb->nth.wNdpIndex     = sizeof(nth16_t);
+
+    // Fill in NDP16 header and terminator
+    ntb->ndp.dwSignature   = NDP16_SIGNATURE_NCM0;
+    ntb->ndp.wLength       = sizeof(ndp16_t) + (2) * sizeof(ndp16_datagram_t);
+    ntb->ndp.wNextNdpIndex = 0;
+    ntb->ndp.datagram[1].wDatagramIndex  = 0;
+    ntb->ndp.datagram[1].wDatagramLength = 0;
+
+    {
+        uint16_t len = ntb->nth.wBlockLength;
+        printf("!!!! %d\n", len);
+        for (int i = 0;  i < len;  ++i)
+            printf(" %02x", ncm_interface.xmit_buffer.data[i]);
+        printf("\n");
+    }
+
+    // Kick off an endpoint transfer
+    ncm_interface.xmit_running = true;
+    usbd_edpt_xfer(0, ncm_interface.ep_in, ncm_interface.xmit_buffer.data, ntb->nth.wBlockLength);
 }   // tud_network_xmit
 
 
@@ -649,10 +734,11 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         // - insert ZLPs when necessary
         // - if there is another transmit NTB waiting, try to start transmission
         //
+        ncm_interface.xmit_running = false;                    // TODO hacking
         printf("  EP_IN %d\n", ncm_interface.itf_data_alt);
         xmit_free_current_buffer();
         if ( !xmit_insert_required_zlp(rhport)) {
-            xmit_start_if_possible();
+            xmit_start_if_possible(rhport);
         }
     }
     else if (ep_addr == ncm_interface.ep_notif) {
