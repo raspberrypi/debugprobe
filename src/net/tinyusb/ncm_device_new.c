@@ -55,6 +55,24 @@
     #define tu_static static
 #endif
 
+#if 0
+    #define DEBUG_OUT(...)  printf(__VA_ARGS__)
+#else
+    #define DEBUG_OUT(...)
+#endif
+
+#if 0
+    #define INFO_OUT(...)   printf(__VA_ARGS__)
+#else
+    #define INFO_OUT(...)
+#endif
+
+#if 1
+    #define ERROR_OUT(...)  printf(__VA_ARGS__)
+#else
+    #define ERROR_OUT(...)
+#endif
+
 //-----------------------------------------------------------------------------
 //
 // Module global things
@@ -116,7 +134,7 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static const ntb_parameters_t ntb_par
         .wNdbOutDivisor          = 4,
         .wNdbOutPayloadRemainder = 0,
         .wNdbOutAlignment        = CFG_TUD_NCM_ALIGNMENT,
-        .wNtbOutMaxDatagrams     = 0                                     // 0=no limit
+        .wNtbOutMaxDatagrams     = 1                                     // 0=no limit TODO !!!
 };
 
 
@@ -159,28 +177,28 @@ static void notification_xmit(uint8_t rhport, bool force_next)
  * Notifications are transferred to the host once during connection setup.
  */
 {
-    printf("notification_xmit(%d, %d) - %d %d\n", force_next, rhport, ncm_interface.notification_xmit_state, ncm_interface.notification_xmit_is_running);
+    DEBUG_OUT("notification_xmit(%d, %d) - %d %d\n", force_next, rhport, ncm_interface.notification_xmit_state, ncm_interface.notification_xmit_is_running);
 
     if ( !force_next  &&  ncm_interface.notification_xmit_is_running) {
         return;
     }
 
     if (ncm_interface.notification_xmit_state == NOTIFICATION_SPEED) {
-        printf("  NOTIFICATION_SPEED\n");
+        DEBUG_OUT("  NOTIFICATION_SPEED\n");
         ncm_notify_speed_change.header.wIndex = ncm_interface.itf_num;
         usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t*) &ncm_notify_speed_change, sizeof(ncm_notify_speed_change));
         ncm_interface.notification_xmit_state = NOTIFICATION_CONNECTED;
         ncm_interface.notification_xmit_is_running = true;
     }
     else if (ncm_interface.notification_xmit_state == NOTIFICATION_CONNECTED) {
-        printf("  NOTIFICATION_CONNECTED\n");
+        DEBUG_OUT("  NOTIFICATION_CONNECTED\n");
         ncm_notify_connected.header.wIndex = ncm_interface.itf_num;
         usbd_edpt_xfer(rhport, ncm_interface.ep_notif, (uint8_t*) &ncm_notify_connected, sizeof(ncm_notify_connected));
         ncm_interface.notification_xmit_state = NOTIFICATION_DONE;
         ncm_interface.notification_xmit_is_running = true;
     }
     else {
-        printf("  NOTIFICATION_FINISHED\n");
+        DEBUG_OUT("  NOTIFICATION_FINISHED\n");
     }
 }   // notification_xmit
 
@@ -193,7 +211,7 @@ static void notification_xmit(uint8_t rhport, bool force_next)
 
 static void xmit_free_current_buffer(void)
 {
-    printf("xmit_free_current_buffer()\n");
+    DEBUG_OUT("xmit_free_current_buffer()\n");
 }   // xmit_free_current_buffer
 
 
@@ -203,7 +221,7 @@ static bool xmit_insert_required_zlp(uint8_t rhport)
  * Transmit a ZLP if required
  */
 {
-    printf("xmit_insert_required_zlp(%d)\n", rhport);
+    DEBUG_OUT("xmit_insert_required_zlp(%d)\n", rhport);
 
     TU_ASSERT(ncm_interface.itf_data_alt == 1, false);
     TU_ASSERT( !usbd_edpt_busy(rhport, ncm_interface.ep_in), false);
@@ -229,7 +247,7 @@ static void xmit_start_if_possible(uint8_t rhport)
  * TODO currently more or less a NOP
  */
 {
-    printf("xmit_start_if_possible()\n");
+    DEBUG_OUT("xmit_start_if_possible()\n");
 
     if (ncm_interface.itf_data_alt != 1) {
         return;
@@ -286,7 +304,7 @@ static ncm_ntb_t *recv_get_next_waiting_buffer(void)
 {
     ncm_ntb_t *r = ncm_interface.recv_buffer_waiting;
 
-    printf("recv_get_next_waiting_buffer()\n");
+    DEBUG_OUT("recv_get_next_waiting_buffer()\n");
     ncm_interface.recv_buffer_waiting = NULL;
     return r;
 }   // recv_get_next_waiting_buffer
@@ -295,7 +313,7 @@ static ncm_ntb_t *recv_get_next_waiting_buffer(void)
 
 static void recv_put_buffer_into_free_list(ncm_ntb_t *p)
 {
-    printf("recv_put_buffer_into_free_list(%p)\n", p);
+    DEBUG_OUT("recv_put_buffer_into_free_list(%p)\n", p);
 }   // recv_put_buffer_into_free_list
 
 
@@ -308,7 +326,7 @@ static bool recv_put_buffer_into_waiting_list(uint16_t len)
  * TODO this should give a list
  */
 {
-    printf("recv_put_buffer_into_waiting_list(%d)\n", len);
+    DEBUG_OUT("recv_put_buffer_into_waiting_list(%d)\n", len);
 
     TU_ASSERT(ncm_interface.recv_tinyusb_buffer != NULL, false);
     TU_ASSERT(ncm_interface.recv_buffer_waiting == NULL, false);
@@ -327,7 +345,7 @@ static void recv_try_to_start_new_reception(uint8_t rhport)
  * Return value is actually not of interest.
  */
 {
-    printf("recv_try_to_start_new_reception(%d)\n", rhport);
+    DEBUG_OUT("recv_try_to_start_new_reception(%d)\n", rhport);
 
     if (ncm_interface.itf_data_alt != 1) {
         return;
@@ -345,7 +363,7 @@ static void recv_try_to_start_new_reception(uint8_t rhport)
     }
 
     // initiate transfer
-    printf("  start reception\n");
+    DEBUG_OUT("  start reception\n");
     bool r = usbd_edpt_xfer(0, ncm_interface.ep_out, ncm_interface.recv_tinyusb_buffer->data, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
     if ( !r) {
         recv_put_buffer_into_free_list(ncm_interface.recv_tinyusb_buffer);
@@ -364,34 +382,34 @@ static const ndp16_datagram_t *recv_verify_datagram(const ncm_ntb_t *ntb)
     const nth16_t *nth16 = (const nth16_t*)ntb->data;
     uint16_t len = ntb->len;
 
-    printf("recv_verify_datagram(%p)\n", ntb);
+    DEBUG_OUT("recv_verify_datagram(%p)\n", ntb);
 
     //
     // check header
     //
     if (nth16->wHeaderLength != sizeof(nth16_t))
     {
-        printf("  ill nth16 length: %d\n", nth16->wHeaderLength);
+        ERROR_OUT("  ill nth16 length: %d\n", nth16->wHeaderLength);
         return NULL;
     }
     if (nth16->dwSignature != NTH16_SIGNATURE) {
-        printf("  ill signature: 0x%08x\n", nth16->dwSignature);
+        ERROR_OUT("  ill signature: 0x%08x\n", nth16->dwSignature);
         return NULL;
     }
     if (len < sizeof(nth16_t) + sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)) {
-        printf("  ill min len: %d\n", len);
+        ERROR_OUT("  ill min len: %d\n", len);
         return NULL;
     }
     if (nth16->wBlockLength > len) {
-        printf("  ill block length: %d > %d\n", nth16->wBlockLength, len);
+        ERROR_OUT("  ill block length: %d > %d\n", nth16->wBlockLength, len);
         return NULL;
     }
     if (nth16->wBlockLength > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
-        printf("  ill block length2: %d > %d\n", nth16->wBlockLength, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
+        ERROR_OUT("  ill block length2: %d > %d\n", nth16->wBlockLength, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
         return NULL;
     }
     if (nth16->wNdpIndex < sizeof(nth16)  ||  nth16->wNdpIndex > len - (sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t))) {
-        printf("  ill position of first ndp: %d (%d)\n", nth16->wNdpIndex, len);
+        ERROR_OUT("  ill position of first ndp: %d (%d)\n", nth16->wNdpIndex, len);
         return NULL;
     }
 
@@ -400,17 +418,16 @@ static const ndp16_datagram_t *recv_verify_datagram(const ncm_ntb_t *ntb)
     //
     const ndp16_t *ndp16 = (ndp16_t *)(ntb->data + nth16->wNdpIndex);
 
-    printf("xx\n");
     if (ndp16->wLength < sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)) {
-        printf("  ill ndp16 length: %d\n", ndp16->wLength);
+        ERROR_OUT("  ill ndp16 length: %d\n", ndp16->wLength);
         return NULL;
     }
     if (ndp16->dwSignature != NDP16_SIGNATURE_NCM0  &&  ndp16->dwSignature != NDP16_SIGNATURE_NCM1) {
-        printf("  ill signature: 0x%08x\n", ndp16->dwSignature);
+        ERROR_OUT("  ill signature: 0x%08x\n", ndp16->dwSignature);
         return NULL;
     }
     if (ndp16->wNextNdpIndex != 0) {
-        printf("  cannot handle wNextNdpIndex!=0 (%d)\n", ndp16->wNextNdpIndex);
+        ERROR_OUT("  cannot handle wNextNdpIndex!=0 (%d)\n", ndp16->wNextNdpIndex);
         return NULL;
     }
 
@@ -418,27 +435,28 @@ static const ndp16_datagram_t *recv_verify_datagram(const ncm_ntb_t *ntb)
     int ndx = 0;
     int max_ndx = (ndp16->wLength - sizeof(ndp16_t)) / sizeof(ndp16_datagram_t);
 
-    printf("  %d\n", max_ndx);
+    INFO_OUT("<< %d (%d)\n", max_ndx - 1, ntb->len);
     if (ndp16_datagram[max_ndx-1].wDatagramIndex != 0  ||  ndp16_datagram[max_ndx-1].wDatagramLength) {
-        printf("  max_ndx != 0\n");
+        ERROR_OUT("  max_ndx != 0\n");
         return NULL;
     }
     while (ndp16_datagram[ndx].wDatagramIndex != 0  &&  ndp16_datagram[ndx].wDatagramLength != 0) {
-        printf("  !! %d %d\n", ndp16_datagram[ndx].wDatagramIndex, ndp16_datagram[ndx].wDatagramLength);
+        INFO_OUT("  << %d %d\n", ndp16_datagram[ndx].wDatagramIndex, ndp16_datagram[ndx].wDatagramLength);
         if (ndp16_datagram[ndx].wDatagramIndex > len) {
-            printf("  ill start of datagram[%d]: %d (%d)\n", ndx, ndp16_datagram[ndx].wDatagramIndex, len);
+            ERROR_OUT("  ill start of datagram[%d]: %d (%d)\n", ndx, ndp16_datagram[ndx].wDatagramIndex, len);
             return NULL;
         }
         if (ndp16_datagram[ndx].wDatagramIndex + ndp16_datagram[ndx].wDatagramLength > len) {
-            printf("  ill end of datagram[%d]: %d (%d)\n", ndx, ndp16_datagram[ndx].wDatagramIndex + ndp16_datagram[ndx].wDatagramLength, len);
+            ERROR_OUT("  ill end of datagram[%d]: %d (%d)\n", ndx, ndp16_datagram[ndx].wDatagramIndex + ndp16_datagram[ndx].wDatagramLength, len);
             return NULL;
         }
         ++ndx;
     }
 
-    for (int i = 0;  i < len;  ++i)
-        printf(" %02x", ntb->data[i]);
-    printf("\n");
+    for (int i = 0;  i < len;  ++i) {
+        DEBUG_OUT(" %02x", ntb->data[i]);
+    }
+    DEBUG_OUT("\n");
 
     // -> ntb contains a valid packet structure
     //    ok... I did not check for garbage within the datagram indices...
@@ -452,21 +470,21 @@ static void recv_transfer_datagram_to_glue_logic(void)
  * Transfer the next (pending) datagram to the glue logic and return receive buffer if empty.
  */
 {
-    printf("recv_transfer_datagram_to_glue_logic()\n");
+    DEBUG_OUT("recv_transfer_datagram_to_glue_logic()\n");
 
     if (ncm_interface.recv_glue_buffer == NULL) {
         ncm_interface.recv_glue_buffer = recv_get_next_waiting_buffer();
         if (ncm_interface.recv_glue_buffer == NULL) {
             return;
         }
-        printf("  new buffer for glue logic: %p\n", ncm_interface.recv_glue_buffer);
+        DEBUG_OUT("  new buffer for glue logic: %p\n", ncm_interface.recv_glue_buffer);
 
         ncm_interface.recv_glue_buffer_datagram = recv_verify_datagram(ncm_interface.recv_glue_buffer);
         ncm_interface.recv_glue_buffer_datagram_ndx = 0;
 
         if (ncm_interface.recv_glue_buffer_datagram == NULL) {
             // verification failed: ignore NTB and return it to free
-            printf("  WHAT CAN WE DO IN THIS CASE?\n");
+            ERROR_OUT("  WHAT CAN WE DO IN THIS CASE?\n");
             recv_put_buffer_into_free_list(ncm_interface.recv_glue_buffer);
             ncm_interface.recv_glue_buffer = NULL;
             ncm_interface.recv_glue_buffer_datagram = NULL;
@@ -476,24 +494,24 @@ static void recv_transfer_datagram_to_glue_logic(void)
     if (ncm_interface.recv_glue_buffer != NULL) {
 
         if (ncm_interface.recv_glue_buffer_datagram == NULL) {
-            printf("  SOMETHING WENT WRONG 1\n");
+            ERROR_OUT("  SOMETHING WENT WRONG 1\n");
         }
         else if (ncm_interface.recv_glue_buffer_datagram[ncm_interface.recv_glue_buffer_datagram_ndx].wDatagramIndex == 0) {
-            printf("  SOMETHING WENT WRONG 2\n");
+            ERROR_OUT("  SOMETHING WENT WRONG 2\n");
         }
         else if (ncm_interface.recv_glue_buffer_datagram[ncm_interface.recv_glue_buffer_datagram_ndx].wDatagramLength == 0) {
-            printf("  SOMETHING WENT WRONG 3\n");
+            ERROR_OUT("  SOMETHING WENT WRONG 3\n");
         }
         else {
             uint16_t datagramIndex  = ncm_interface.recv_glue_buffer_datagram[ncm_interface.recv_glue_buffer_datagram_ndx].wDatagramIndex;
             uint16_t datagramLength = ncm_interface.recv_glue_buffer_datagram[ncm_interface.recv_glue_buffer_datagram_ndx].wDatagramLength;
 
-            printf("  xmit[%d] - %d %d\n", ncm_interface.recv_glue_buffer_datagram_ndx, datagramIndex, datagramLength);
+            DEBUG_OUT("  xmit[%d] - %d %d\n", ncm_interface.recv_glue_buffer_datagram_ndx, datagramIndex, datagramLength);
             if (tud_network_recv_cb(ncm_interface.recv_glue_buffer->data + datagramIndex, datagramLength)) {
                 //
                 // send datagram successfully to glue logic
                 //
-                printf("    OK\n");
+                DEBUG_OUT("    OK\n");
                 datagramIndex  = ncm_interface.recv_glue_buffer_datagram[ncm_interface.recv_glue_buffer_datagram_ndx + 1].wDatagramIndex;
                 datagramLength = ncm_interface.recv_glue_buffer_datagram[ncm_interface.recv_glue_buffer_datagram_ndx + 1].wDatagramLength;
 
@@ -526,7 +544,7 @@ bool tud_network_can_xmit(uint16_t size)
  * TODO this will be differently soon
  */
 {
-    printf("!!!!!!!!tud_network_can_xmit(%d)\n", size);
+    DEBUG_OUT("!!!!!!!!tud_network_can_xmit(%d)\n", size);
 
     if (ncm_interface.itf_data_alt != 1) {
         return false;
@@ -551,7 +569,7 @@ void tud_network_xmit(void *ref, uint16_t arg)
  * Put a datagram into a proper NTB
  */
 {
-    printf("!!!!!!!!!!tud_network_xmit(%p, %d)\n", ref, arg);
+    DEBUG_OUT("!!!!!!!!!!tud_network_xmit(%p, %d)\n", ref, arg);
 
     transmit_ntb_t *ntb = (transmit_ntb_t *)ncm_interface.xmit_buffer.data;
     uint16_t datagram_offset = sizeof(nth16_t) + sizeof(ndp16_t) + 2 * sizeof(ndp16_datagram_t);
@@ -577,11 +595,14 @@ void tud_network_xmit(void *ref, uint16_t arg)
 
     {
         uint16_t len = ntb->nth.wBlockLength;
-        printf("!!!! %d\n", len);
-        for (int i = 0;  i < len;  ++i)
-            printf(" %02x", ncm_interface.xmit_buffer.data[i]);
-        printf("\n");
+        DEBUG_OUT("!!!! %d\n", len);
+        for (int i = 0;  i < len;  ++i) {
+            DEBUG_OUT(" %02x", ncm_interface.xmit_buffer.data[i]);
+        }
+        DEBUG_OUT("\n");
     }
+
+    INFO_OUT(">>>> %d (%d)\n", arg, ntb->nth.wBlockLength);
 
     // Kick off an endpoint transfer
     ncm_interface.xmit_running = true;
@@ -595,7 +616,7 @@ void tud_network_recv_renew(void)
  * Keep the receive logic busy and transfer pending packets to the glue logic.
  */
 {
-    printf("tud_network_recv_renew()\n");
+    DEBUG_OUT("tud_network_recv_renew()\n");
 
     recv_transfer_datagram_to_glue_logic();
     recv_try_to_start_new_reception(ncm_interface.recv_rhport);
@@ -608,7 +629,7 @@ void tud_network_recv_renew_r(uint8_t rhport)
  * Same as tud_network_recv_renew() but knows \a rhport
  */
 {
-    printf("tud_network_recv_renew_r(%d)\n", rhport);
+    DEBUG_OUT("tud_network_recv_renew_r(%d)\n", rhport);
 
     ncm_interface.recv_rhport = rhport;
     tud_network_recv_renew();
@@ -625,7 +646,7 @@ void netd_init(void)
  * Might be called several times.
  */
 {
-    printf("netd_init()\n");
+    DEBUG_OUT("netd_init()\n");
 
     memset( &ncm_interface, 0, sizeof(ncm_interface));
 }   // netd_init
@@ -638,7 +659,7 @@ void netd_reset(uint8_t rhport)
  * In this driver this is the same as netd_init()
  */
 {
-    printf("netd_reset(%d)\n", rhport);
+    DEBUG_OUT("netd_reset(%d)\n", rhport);
 
     netd_init();
 }   // netd_reset
@@ -661,7 +682,7 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16
  * - USB interface is open
  */
 {
-    printf("netd_open(%d,%p,%d)\n", rhport, itf_desc, max_len);
+    DEBUG_OUT("netd_open(%d,%p,%d)\n", rhport, itf_desc, max_len);
 
     TU_ASSERT(ncm_interface.ep_notif == 0, 0);           // assure that the interface is only opened once
 
@@ -714,7 +735,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
  * Handle TinyUSB requests to process transfer events.
  */
 {
-    printf("netd_xfer_cb(%d,%d,%d,%u)\n", rhport, ep_addr, result, (unsigned)xferred_bytes);
+    DEBUG_OUT("netd_xfer_cb(%d,%d,%d,%u)\n", rhport, ep_addr, result, (unsigned)xferred_bytes);
 
     if (ep_addr == ncm_interface.ep_out) {
         //
@@ -723,7 +744,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         // - if ready transfer datagrams to the glue logic for further processing
         // - if there is a free receive buffer, initiate reception
         //
-        printf("  EP_OUT %d %d %d %u\n", rhport, ep_addr, result, (unsigned)xferred_bytes);
+        DEBUG_OUT("  EP_OUT %d %d %d %u\n", rhport, ep_addr, result, (unsigned)xferred_bytes);
         recv_put_buffer_into_waiting_list(xferred_bytes);
         tud_network_recv_renew_r(rhport);
     }
@@ -735,7 +756,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         // - if there is another transmit NTB waiting, try to start transmission
         //
         ncm_interface.xmit_running = false;                    // TODO hacking
-        printf("  EP_IN %d\n", ncm_interface.itf_data_alt);
+        DEBUG_OUT("  EP_IN %d\n", ncm_interface.itf_data_alt);
         xmit_free_current_buffer();
         if ( !xmit_insert_required_zlp(rhport)) {
             xmit_start_if_possible(rhport);
@@ -745,7 +766,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         //
         // next transfer on notification channel
         //
-        printf("  EP_NOTIF\n");
+        DEBUG_OUT("  EP_NOTIF\n");
         notification_xmit(rhport, true);
     }
 
@@ -760,7 +781,7 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
  * At startup transmission of notification packets are done here.
  */
 {
-    printf("netd_control_xfer_cb(%d, %d, %p)\n", rhport, stage, request);
+    DEBUG_OUT("netd_control_xfer_cb(%d, %d, %p)\n", rhport, stage, request);
 
     if (stage != CONTROL_STAGE_SETUP) {
         return true;
@@ -772,7 +793,7 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
                 case TUSB_REQ_GET_INTERFACE: {
                     TU_VERIFY(ncm_interface.itf_num + 1 == request->wIndex, false);
 
-                    printf("  TUSB_REQ_GET_INTERFACE - %d\n", ncm_interface.itf_data_alt);
+                    DEBUG_OUT("  TUSB_REQ_GET_INTERFACE - %d\n", ncm_interface.itf_data_alt);
                     tud_control_xfer(rhport, request, &ncm_interface.itf_data_alt, 1);
                 }
                 break;
@@ -781,7 +802,7 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
                     TU_VERIFY(ncm_interface.itf_num + 1 == request->wIndex  &&  request->wValue < 2, false);
 
                     ncm_interface.itf_data_alt = request->wValue;
-                    printf("  TUSB_REQ_SET_INTERFACE - %d %d %d\n", ncm_interface.itf_data_alt, request->wIndex, ncm_interface.itf_num);
+                    DEBUG_OUT("  TUSB_REQ_SET_INTERFACE - %d %d %d\n", ncm_interface.itf_data_alt, request->wIndex, ncm_interface.itf_num);
 
                     if (ncm_interface.itf_data_alt == 1) {
                         tud_network_recv_renew_r(rhport);
@@ -800,12 +821,12 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
         case TUSB_REQ_TYPE_CLASS:
             TU_VERIFY(ncm_interface.itf_num == request->wIndex, false);
 
-            printf("  TUSB_REQ_TYPE_CLASS: %d\n", request->bRequest);
+            DEBUG_OUT("  TUSB_REQ_TYPE_CLASS: %d\n", request->bRequest);
 
             if (request->bRequest == NCM_GET_NTB_PARAMETERS) {
                 // transfer NTP parameters to host.
                 // TODO can one assume, that tud_control_xfer() succeeds?
-                printf("    NCM_GET_NTB_PARAMETERS\n");
+                DEBUG_OUT("    NCM_GET_NTB_PARAMETERS\n");
                 tud_control_xfer(rhport, request, (void*) (uintptr_t) &ntb_parameters, sizeof(ntb_parameters));
             }
             break;
