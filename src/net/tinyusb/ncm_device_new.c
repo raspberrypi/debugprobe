@@ -80,7 +80,7 @@
 typedef struct {
     uint16_t     len;
     uint8_t      data[CFG_TUD_NCM_OUT_NTB_MAX_SIZE];
-} ncm_ntb_t;
+} ntb_t;
 
 typedef struct {
     // general
@@ -92,17 +92,16 @@ typedef struct {
 
     // recv handling
     uint8_t      recv_rhport;                          //!< storage of \a rhport because some callbacks are done without it
-    ncm_ntb_t   *recv_tinyusb_buffer;                  //!< buffer for the running transfer TinyUSB -> driver
-    ncm_ntb_t   *recv_glue_buffer;                     //!< buffer for the running transfer driver -> glue logic
-    ncm_ntb_t    recv_buffer;                          //!< actual buffer structure which is either in \a recv_tinyusb_buffer, \a recv_glue_buffer, \a recv_buffer_waiting (currently: or free)
-    ncm_ntb_t   *recv_buffer_waiting;                  //!< ready buffer waiting to be transferred to the glue logic
+    ntb_t       *recv_tinyusb_buffer;                  //!< buffer for the running transfer TinyUSB -> driver
+    ntb_t       *recv_glue_buffer;                     //!< buffer for the running transfer driver -> glue logic
+    ntb_t        recv_buffer;                          //!< actual buffer structure which is either in \a recv_tinyusb_buffer, \a recv_glue_buffer, \a recv_buffer_waiting (currently: or free)
+    ntb_t       *recv_buffer_waiting;                  //!< ready buffer waiting to be transferred to the glue logic
     const ndp16_datagram_t *recv_glue_buffer_datagram; //!< pointer to the \a ndp16_datagram_t structire within current \a recv_glue_buffer
     uint16_t     recv_glue_buffer_datagram_ndx;        //!< index into \a recv_glue_buffer_datagram
 
     // xmit handling
-    bool         xmit_zlp_required;                    //!< next xmit packet must be a ZLP
     bool         xmit_running;                         //!< running xmit TODO will bechanged soon
-    ncm_ntb_t    xmit_buffer;                          //!< actual xmit buffer
+    ntb_t        xmit_buffer;                              //!< actual xmit buffer
     uint16_t     xmit_sequence;                        //!< NTB counter
 
     // notification handling
@@ -134,7 +133,7 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static const ntb_parameters_t ntb_par
         .wNdbOutDivisor          = 4,
         .wNdbOutPayloadRemainder = 0,
         .wNdbOutAlignment        = CFG_TUD_NCM_ALIGNMENT,
-        .wNtbOutMaxDatagrams     = 1                                     // 0=no limit TODO !!!
+        .wNtbOutMaxDatagrams     = 4                                     // 0=no limit TODO !!!
 };
 
 
@@ -216,23 +215,25 @@ static void xmit_free_current_buffer(void)
 
 
 
-static bool xmit_insert_required_zlp(uint8_t rhport)
+static bool xmit_insert_required_zlp(uint8_t rhport, uint16_t xferred_bytes)
 /**
  * Transmit a ZLP if required
+ * TODO experimental!  Question: is it required?
  */
 {
-    DEBUG_OUT("xmit_insert_required_zlp(%d)\n", rhport);
+    DEBUG_OUT("xmit_insert_required_zlp(%d,%d)\n", rhport, xferred_bytes);
+
+    if (xferred_bytes == 0  ||  xferred_bytes % CFG_TUD_NET_ENDPOINT_SIZE != 0) {
+        return false;
+    }
 
     TU_ASSERT(ncm_interface.itf_data_alt == 1, false);
     TU_ASSERT( !usbd_edpt_busy(rhport, ncm_interface.ep_in), false);
 
-    if ( !ncm_interface.xmit_zlp_required) {
-        return false;
-    }
+    ERROR_OUT("xmit_insert_required_zlp!\n");
 
     // start transmission of the ZLP
     ncm_interface.xmit_running = true;
-    ncm_interface.xmit_zlp_required = false;
     usbd_edpt_xfer(rhport, ncm_interface.ep_in, NULL, 0);
 
     return true;
@@ -275,7 +276,7 @@ static void xmit_start_if_possible(uint8_t rhport)
 //
 
 
-static ncm_ntb_t *recv_get_free_buffer(void)
+static ntb_t *recv_get_free_buffer(void)
 /**
  * Return pointer to an available receive buffer or NULL.
  * Returned buffer (if any) has the size \a CFG_TUD_NCM_OUT_NTB_MAX_SIZE.
@@ -283,7 +284,7 @@ static ncm_ntb_t *recv_get_free_buffer(void)
  * TODO this should give a list
  */
 {
-    ncm_ntb_t *r = NULL;
+    ntb_t *r = NULL;
 
     if (ncm_interface.recv_glue_buffer == NULL  &&  ncm_interface.recv_buffer_waiting == NULL) {
         r = &ncm_interface.recv_buffer;
@@ -293,7 +294,7 @@ static ncm_ntb_t *recv_get_free_buffer(void)
 
 
 
-static ncm_ntb_t *recv_get_next_waiting_buffer(void)
+static ntb_t *recv_get_next_waiting_buffer(void)
 /**
  * Return pointer to a waiting receive buffer or NULL.
  * Returned buffer (if any) has the size \a CFG_TUD_NCM_OUT_NTB_MAX_SIZE.
@@ -302,7 +303,7 @@ static ncm_ntb_t *recv_get_next_waiting_buffer(void)
  *    The returned buffer is removed from the waiting list.
  */
 {
-    ncm_ntb_t *r = ncm_interface.recv_buffer_waiting;
+    ntb_t *r = ncm_interface.recv_buffer_waiting;
 
     DEBUG_OUT("recv_get_next_waiting_buffer()\n");
     ncm_interface.recv_buffer_waiting = NULL;
@@ -311,7 +312,7 @@ static ncm_ntb_t *recv_get_next_waiting_buffer(void)
 
 
 
-static void recv_put_buffer_into_free_list(ncm_ntb_t *p)
+static void recv_put_buffer_into_free_list(ntb_t *p)
 {
     DEBUG_OUT("recv_put_buffer_into_free_list(%p)\n", p);
 }   // recv_put_buffer_into_free_list
@@ -373,7 +374,7 @@ static void recv_try_to_start_new_reception(uint8_t rhport)
 
 
 
-static const ndp16_datagram_t *recv_verify_datagram(const ncm_ntb_t *ntb)
+static const ndp16_datagram_t *recv_verify_datagram(const ntb_t *ntb)
 /**
  * Verify incoming datagram.
  * \return either point to the packets \a ndp16_datagram_t or NULL
@@ -547,12 +548,15 @@ bool tud_network_can_xmit(uint16_t size)
     DEBUG_OUT("!!!!!!!!tud_network_can_xmit(%d)\n", size);
 
     if (ncm_interface.itf_data_alt != 1) {
-        return false;
-    }
-    if (usbd_edpt_busy(ncm_interface.recv_rhport, ncm_interface.ep_in)) {   // TODO name? but this will be solved differently soon
+        ERROR_OUT("!tud_network_can_xmit 1\n");
         return false;
     }
     if (ncm_interface.xmit_running) {
+        ERROR_OUT("!tud_network_can_xmit 2\n");
+        return false;
+    }
+    if (usbd_edpt_busy(ncm_interface.recv_rhport, ncm_interface.ep_in)) {   // TODO name? but this will be solved differently soon
+        ERROR_OUT("!tud_network_can_xmit 3\n");
         return false;
     }
     if (size > CFG_TUD_NCM_OUT_NTB_MAX_SIZE - (sizeof(nth16_t) + sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t))) {
@@ -758,7 +762,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         ncm_interface.xmit_running = false;                    // TODO hacking
         DEBUG_OUT("  EP_IN %d\n", ncm_interface.itf_data_alt);
         xmit_free_current_buffer();
-        if ( !xmit_insert_required_zlp(rhport)) {
+        if ( !xmit_insert_required_zlp(rhport, xferred_bytes)) {
             xmit_start_if_possible(rhport);
         }
     }

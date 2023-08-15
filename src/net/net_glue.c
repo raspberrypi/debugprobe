@@ -199,7 +199,7 @@ static void context_tinyusb_linkoutput(void *param)
         usbd_defer_func(context_tinyusb_linkoutput, NULL, false);
     }
     else {
-        tud_network_xmit(xmt_buff, 0);
+        tud_network_xmit(xmt_buff, xmt_buff_len);
     }
 }   // context_tinyusb_linkoutput
 
