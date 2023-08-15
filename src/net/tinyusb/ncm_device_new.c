@@ -76,8 +76,11 @@ typedef struct {
     uint8_t      recv_rhport;                   //!< storage of \a rhport because some callbacks are done without it
     ncm_ntb_t   *recv_tinyusb_buffer;           //!< buffer for the running transfer TinyUSB -> driver
     ncm_ntb_t   *recv_glue_buffer;              //!< buffer for the running transfer driver -> glue logic
-    ncm_ntb_t    recv_buffer;
+    ncm_ntb_t    recv_buffer;                   //!< actual buffer structure which is either in \a recv_tinyusb_buffer, \a recv_glue_buffer, \a recv_buffer_waiting (currently: or free)
     ncm_ntb_t   *recv_buffer_waiting;           //!< ready buffer waiting to be transferred to the glue logic
+    const ndp16_datagram_t *recv_glue_buffer_datagram;
+    uint16_t     recv_glue_buffer_datagram_ndx; //!< index into \a recv_glue_buffer_datagram
+
 
     // notification handling
     enum {
@@ -252,8 +255,11 @@ static ncm_ntb_t *recv_get_next_waiting_buffer(void)
  *    The returned buffer is removed from the waiting list.
  */
 {
+    ncm_ntb_t *r = ncm_interface.recv_buffer_waiting;
+
     printf("recv_get_next_waiting_buffer()\n");
-    return ncm_interface.recv_buffer_waiting;
+    ncm_interface.recv_buffer_waiting = NULL;
+    return r;
 }   // recv_get_next_waiting_buffer
 
 
@@ -341,6 +347,9 @@ static void recv_transfer_datagram_to_glue_logic(void)
         uint16_t len = ncm_interface.recv_glue_buffer->len;
         bool ok = true;
 
+        //
+        // check header
+        //
         if (nth16->wHeaderLength != sizeof(nth16_t))
         {
             printf("  ill nth16 length: %d\n", nth16->wHeaderLength);
@@ -365,6 +374,9 @@ static void recv_transfer_datagram_to_glue_logic(void)
         else {
             const ndp16_t *ndp16 = (ndp16_t *)(ncm_interface.recv_glue_buffer->data + sizeof(nth16_t));
 
+            //
+            // check NDP(16)
+            //
             printf("xx\n");
             if (ndp16->wLength < sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)) {
                 printf("  ill ndp16 length: %d\n", ndp16->wLength);
@@ -372,6 +384,10 @@ static void recv_transfer_datagram_to_glue_logic(void)
             }
             else if (ndp16->dwSignature != NDP16_SIGNATURE_NCM0  &&  ndp16->dwSignature != NDP16_SIGNATURE_NCM1) {
                 printf("  ill signature: 0x%08x\n", ndp16->dwSignature);
+                ok = false;
+            }
+            else if (ndp16->wNextNdpIndex != 0) {
+                printf("  cannot handle wNextNdpIndex!=0 (%d)\n", ndp16->wNextNdpIndex);
                 ok = false;
             }
             else {
@@ -400,6 +416,9 @@ static void recv_transfer_datagram_to_glue_logic(void)
                 for (int i = 0;  i < len;  ++i)
                     printf(" %02x", ncm_interface.recv_glue_buffer->data[i]);
                 printf("\n");
+
+                ncm_interface.recv_glue_buffer_datagram_ndx = 0;
+                ncm_interface.recv_glue_buffer_datagram = ndp16_datagram;
             }
         }
 
@@ -407,11 +426,50 @@ static void recv_transfer_datagram_to_glue_logic(void)
             printf("  WHAT CAN WE DO IN THIS CASE?\n");
             recv_put_buffer_into_free_list(ncm_interface.recv_glue_buffer);
             ncm_interface.recv_glue_buffer = NULL;
+            ncm_interface.recv_glue_buffer_datagram = NULL;
         }
-        // post: ncm_interface.recv_glue_buffer is verified
+
+        // post: ncm_interface.recv_glue_buffer is verified or NULL
+        //       ok... I did not check for garbage within the datagram indices...
     }
 
-    TODO continue here
+    if (ncm_interface.recv_glue_buffer != NULL) {
+
+        if (ncm_interface.recv_glue_buffer_datagram == NULL) {
+            printf("  SOMETHING WENT WRONG 1\n");
+        }
+        else if (ncm_interface.recv_glue_buffer_datagram[ncm_interface.recv_glue_buffer_datagram_ndx].wDatagramIndex == 0) {
+            printf("  SOMETHING WENT WRONG 2\n");
+        }
+        else if (ncm_interface.recv_glue_buffer_datagram[ncm_interface.recv_glue_buffer_datagram_ndx].wDatagramLength == 0) {
+            printf("  SOMETHING WENT WRONG 3\n");
+        }
+        else {
+            uint16_t datagramIndex  = ncm_interface.recv_glue_buffer_datagram[ncm_interface.recv_glue_buffer_datagram_ndx].wDatagramIndex;
+            uint16_t datagramLength = ncm_interface.recv_glue_buffer_datagram[ncm_interface.recv_glue_buffer_datagram_ndx].wDatagramLength;
+
+            printf("  xmit[%d] - %d %d\n", ncm_interface.recv_glue_buffer_datagram_ndx, datagramIndex, datagramLength);
+            if (tud_network_recv_cb(ncm_interface.recv_glue_buffer->data + datagramIndex, datagramLength)) {
+                //
+                // send datagram successfully to glue logic
+                //
+                printf("    OK\n");
+                datagramIndex  = ncm_interface.recv_glue_buffer_datagram[ncm_interface.recv_glue_buffer_datagram_ndx + 1].wDatagramIndex;
+                datagramLength = ncm_interface.recv_glue_buffer_datagram[ncm_interface.recv_glue_buffer_datagram_ndx + 1].wDatagramLength;
+
+                if (datagramIndex != 0  &&  datagramLength != 0) {
+                    // -> next datagram
+                    ++ncm_interface.recv_glue_buffer_datagram_ndx;
+                }
+                else {
+                    // end of datagrams reached
+                    recv_put_buffer_into_free_list(ncm_interface.recv_glue_buffer);
+                    ncm_interface.recv_glue_buffer = NULL;
+                    ncm_interface.recv_glue_buffer_datagram = NULL;
+                }
+            }
+        }
+    }
 }   // recv_transfer_datagram_to_glue_logic
 
 
