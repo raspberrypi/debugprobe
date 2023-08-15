@@ -46,5 +46,7 @@ void probe_write_mode(void);
 
 void probe_init(void);
 void probe_deinit(void);
+void probe_assert_reset(bool state);
+int probe_reset_level(void);
 
 #endif

@@ -76,6 +76,15 @@ void probe_assert_reset(bool state)
 #endif
 }
 
+int probe_reset_level(void)
+{
+#if defined(PROBE_PIN_RESET)
+    return gpio_get(PROBE_PIN_RESET);
+#else
+    return 0;
+#endif
+}
+
 typedef enum probe_pio_command {
     CMD_WRITE = 0,
     CMD_SKIP,
