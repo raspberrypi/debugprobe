@@ -326,6 +326,98 @@ static void recv_try_to_start_new_reception(uint8_t rhport)
 
 
 
+static const ndp16_datagram_t *recv_verify_datagram(const ncm_ntb_t *ntb)
+/**
+ * Verify incoming datagram.
+ * \return either point to the packets \a ndp16_datagram_t or NULL
+ */
+{
+    const nth16_t *nth16 = (const nth16_t*)ntb->data;
+    uint16_t len = ntb->len;
+
+    printf("recv_verify_datagram(%p)\n", ntb);
+
+    //
+    // check header
+    //
+    if (nth16->wHeaderLength != sizeof(nth16_t))
+    {
+        printf("  ill nth16 length: %d\n", nth16->wHeaderLength);
+        return NULL;
+    }
+    if (nth16->dwSignature != NTH16_SIGNATURE) {
+        printf("  ill signature: 0x%08x\n", nth16->dwSignature);
+        return NULL;
+    }
+    if (len < sizeof(nth16_t) + sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)) {
+        printf("  ill min len: %d\n", len);
+        return NULL;
+    }
+    if (nth16->wBlockLength > len) {
+        printf("  ill block length: %d > %d\n", nth16->wBlockLength, len);
+        return NULL;
+    }
+    if (nth16->wBlockLength > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
+        printf("  ill block length2: %d > %d\n", nth16->wBlockLength, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
+        return NULL;
+    }
+    if (nth16->wNdpIndex < sizeof(nth16)  ||  nth16->wNdpIndex > len - (sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t))) {
+        printf("  ill position of first ndp: %d (%d)\n", nth16->wNdpIndex, len);
+        return NULL;
+    }
+
+    //
+    // check (first) NDP(16)
+    //
+    const ndp16_t *ndp16 = (ndp16_t *)(ntb->data + nth16->wNdpIndex);
+
+    printf("xx\n");
+    if (ndp16->wLength < sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)) {
+        printf("  ill ndp16 length: %d\n", ndp16->wLength);
+        return NULL;
+    }
+    if (ndp16->dwSignature != NDP16_SIGNATURE_NCM0  &&  ndp16->dwSignature != NDP16_SIGNATURE_NCM1) {
+        printf("  ill signature: 0x%08x\n", ndp16->dwSignature);
+        return NULL;
+    }
+    if (ndp16->wNextNdpIndex != 0) {
+        printf("  cannot handle wNextNdpIndex!=0 (%d)\n", ndp16->wNextNdpIndex);
+        return NULL;
+    }
+
+    const ndp16_datagram_t *ndp16_datagram = (ndp16_datagram_t *)(ntb->data + sizeof(nth16_t) + sizeof(ndp16_t));
+    int ndx = 0;
+    int max_ndx = (ndp16->wLength - sizeof(ndp16_t)) / sizeof(ndp16_datagram_t);
+
+    printf("  %d\n", max_ndx);
+    if (ndp16_datagram[max_ndx-1].wDatagramIndex != 0  ||  ndp16_datagram[max_ndx-1].wDatagramLength) {
+        printf("  max_ndx != 0\n");
+        return NULL;
+    }
+    while (ndp16_datagram[ndx].wDatagramIndex != 0  &&  ndp16_datagram[ndx].wDatagramLength != 0) {
+        printf("  !! %d %d\n", ndp16_datagram[ndx].wDatagramIndex, ndp16_datagram[ndx].wDatagramLength);
+        if (ndp16_datagram[ndx].wDatagramIndex > len) {
+            printf("  ill start of datagram[%d]: %d (%d)\n", ndx, ndp16_datagram[ndx].wDatagramIndex, len);
+            return NULL;
+        }
+        if (ndp16_datagram[ndx].wDatagramIndex + ndp16_datagram[ndx].wDatagramLength > len) {
+            printf("  ill end of datagram[%d]: %d (%d)\n", ndx, ndp16_datagram[ndx].wDatagramIndex + ndp16_datagram[ndx].wDatagramLength, len);
+            return NULL;
+        }
+        ++ndx;
+    }
+
+    for (int i = 0;  i < len;  ++i)
+        printf(" %02x", ntb->data[i]);
+    printf("\n");
+
+    // -> ntb contains a valid packet structure
+    //    ok... I did not check for garbage within the datagram indices...
+    return ndp16_datagram;
+}   // recv_verify_datagram
+
+
+
 static void recv_transfer_datagram_to_glue_logic(void)
 /**
  * Transfer the next (pending) datagram to the glue logic and return receive buffer if empty.
@@ -338,99 +430,18 @@ static void recv_transfer_datagram_to_glue_logic(void)
         if (ncm_interface.recv_glue_buffer == NULL) {
             return;
         }
-        printf("  new buffer for glue logic\n");
+        printf("  new buffer for glue logic: %p\n", ncm_interface.recv_glue_buffer);
 
-        //
-        // check the incoming packet
-        //
-        const nth16_t *nth16 = (const nth16_t*)ncm_interface.recv_glue_buffer->data;
-        uint16_t len = ncm_interface.recv_glue_buffer->len;
-        bool ok = true;
+        ncm_interface.recv_glue_buffer_datagram = recv_verify_datagram(ncm_interface.recv_glue_buffer);
+        ncm_interface.recv_glue_buffer_datagram_ndx = 0;
 
-        //
-        // check header
-        //
-        if (nth16->wHeaderLength != sizeof(nth16_t))
-        {
-            printf("  ill nth16 length: %d\n", nth16->wHeaderLength);
-            ok = false;
-        }
-        else if (nth16->dwSignature != NTH16_SIGNATURE) {
-            printf("  ill signature: 0x%08x\n", nth16->dwSignature);
-            ok = false;
-        }
-        else if (len < sizeof(nth16_t) + sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)) {
-            printf("  ill min len: %d\n", len);
-            ok = false;
-        }
-        else if (nth16->wBlockLength > len) {
-            printf("  ill block length: %d > %d\n", nth16->wBlockLength, len);
-            ok = false;
-        }
-        else if (nth16->wBlockLength > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
-            printf("  ill block length2: %d > %d\n", nth16->wBlockLength, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
-            ok = false;
-        }
-        else {
-            const ndp16_t *ndp16 = (ndp16_t *)(ncm_interface.recv_glue_buffer->data + sizeof(nth16_t));
-
-            //
-            // check NDP(16)
-            //
-            printf("xx\n");
-            if (ndp16->wLength < sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)) {
-                printf("  ill ndp16 length: %d\n", ndp16->wLength);
-                ok = false;
-            }
-            else if (ndp16->dwSignature != NDP16_SIGNATURE_NCM0  &&  ndp16->dwSignature != NDP16_SIGNATURE_NCM1) {
-                printf("  ill signature: 0x%08x\n", ndp16->dwSignature);
-                ok = false;
-            }
-            else if (ndp16->wNextNdpIndex != 0) {
-                printf("  cannot handle wNextNdpIndex!=0 (%d)\n", ndp16->wNextNdpIndex);
-                ok = false;
-            }
-            else {
-                const ndp16_datagram_t *ndp16_datagram = (ndp16_datagram_t *)(ncm_interface.recv_glue_buffer->data + sizeof(nth16_t) + sizeof(ndp16_t));
-                int ndx = 0;
-                int max_ndx = (ndp16->wLength - sizeof(ndp16_t)) / sizeof(ndp16_datagram_t);
-
-                printf("  %d\n", max_ndx);
-                if (ndp16_datagram[max_ndx-1].wDatagramIndex != 0  ||  ndp16_datagram[max_ndx-1].wDatagramLength) {
-                    printf("  max_ndx != 0\n");
-                    ok = false;
-                }
-                while (ok  &&  ndp16_datagram[ndx].wDatagramIndex != 0  &&  ndp16_datagram[ndx].wDatagramLength != 0) {
-                    printf("  !! %d %d\n", ndp16_datagram[ndx].wDatagramIndex, ndp16_datagram[ndx].wDatagramLength);
-                    if (ndp16_datagram[ndx].wDatagramIndex > len) {
-                        printf("  ill start of datagram[%d]: %d (%d)\n", ndx, ndp16_datagram[ndx].wDatagramIndex, len);
-                        ok = false;
-                    }
-                    else if (ndp16_datagram[ndx].wDatagramIndex + ndp16_datagram[ndx].wDatagramLength > len) {
-                        printf("  ill end of datagram[%d]: %d (%d)\n", ndx, ndp16_datagram[ndx].wDatagramIndex + ndp16_datagram[ndx].wDatagramLength, len);
-                        ok = false;
-                    }
-                    ++ndx;
-                }
-
-                for (int i = 0;  i < len;  ++i)
-                    printf(" %02x", ncm_interface.recv_glue_buffer->data[i]);
-                printf("\n");
-
-                ncm_interface.recv_glue_buffer_datagram_ndx = 0;
-                ncm_interface.recv_glue_buffer_datagram = ndp16_datagram;
-            }
-        }
-
-        if ( !ok) {
+        if (ncm_interface.recv_glue_buffer_datagram == NULL) {
+            // verification failed: ignore NTB and return it to free
             printf("  WHAT CAN WE DO IN THIS CASE?\n");
             recv_put_buffer_into_free_list(ncm_interface.recv_glue_buffer);
             ncm_interface.recv_glue_buffer = NULL;
             ncm_interface.recv_glue_buffer_datagram = NULL;
         }
-
-        // post: ncm_interface.recv_glue_buffer is verified or NULL
-        //       ok... I did not check for garbage within the datagram indices...
     }
 
     if (ncm_interface.recv_glue_buffer != NULL) {
