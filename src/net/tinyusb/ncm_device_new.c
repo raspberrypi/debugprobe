@@ -84,25 +84,25 @@ typedef struct {
 
 typedef struct {
     // general
-    uint8_t      ep_in;                                //!< endpoint for outgoing datagrams (naming is a little bit confusing)
-    uint8_t      ep_out;                               //!< endpoint for incoming datagrams (naming is a little bit confusing)
-    uint8_t      ep_notif;                             //!< endpoint for notifications
-    uint8_t      itf_num;                              //!< interface number
-    uint8_t      itf_data_alt;                         //!< ==0 -> no endpoints, i.e. no network traffic, ==1 -> normal operation with two endpoints (spec, chapter 5.3)
+    uint8_t      ep_in;                             //!< endpoint for outgoing datagrams (naming is a little bit confusing)
+    uint8_t      ep_out;                            //!< endpoint for incoming datagrams (naming is a little bit confusing)
+    uint8_t      ep_notif;                          //!< endpoint for notifications
+    uint8_t      itf_num;                           //!< interface number
+    uint8_t      itf_data_alt;                      //!< ==0 -> no endpoints, i.e. no network traffic, ==1 -> normal operation with two endpoints (spec, chapter 5.3)
 
     // recv handling
-    uint8_t      recv_rhport;                          //!< storage of \a rhport because some callbacks are done without it
-    ntb_t       *recv_tinyusb_buffer;                  //!< buffer for the running transfer TinyUSB -> driver
-    ntb_t       *recv_glue_buffer;                     //!< buffer for the running transfer driver -> glue logic
-    ntb_t        recv_buffer;                          //!< actual buffer structure which is either in \a recv_tinyusb_buffer, \a recv_glue_buffer, \a recv_buffer_waiting (currently: or free)
-    ntb_t       *recv_buffer_waiting;                  //!< ready buffer waiting to be transferred to the glue logic
-    const ndp16_datagram_t *recv_glue_buffer_datagram; //!< pointer to the \a ndp16_datagram_t structire within current \a recv_glue_buffer
-    uint16_t     recv_glue_buffer_datagram_ndx;        //!< index into \a recv_glue_buffer_datagram
+    uint8_t      recv_rhport;                       //!< storage of \a rhport because some callbacks are done without it
+    ntb_t       *recv_tinyusb_ntb;                  //!< buffer for the running transfer TinyUSB -> driver
+    ntb_t       *recv_glue_ntb;                     //!< buffer for the running transfer driver -> glue logic
+    ntb_t        recv_ntb;                          //!< actual buffer structure which is either in \a recv_tinyusb_ntb, \a recv_glue_ntb, \a recv_ntb_waiting (currently: or free)
+    ntb_t       *recv_ntb_waiting;                  //!< ready buffer waiting to be transferred to the glue logic
+    const ndp16_datagram_t *recv_glue_ntb_datagram; //!< pointer to the \a ndp16_datagram_t structire within current \a recv_glue_ntb
+    uint16_t     recv_glue_ntb_datagram_ndx;        //!< index into \a recv_glue_ntb_datagram
 
     // xmit handling
-    bool         xmit_running;                         //!< running xmit TODO will bechanged soon
-    ntb_t        xmit_buffer;                              //!< actual xmit buffer
-    uint16_t     xmit_sequence;                        //!< NTB counter
+    bool         xmit_running;                      //!< running xmit TODO will bechanged soon
+    ntb_t        xmit_buffer;                       //!< actual xmit buffer
+    uint16_t     xmit_sequence;                     //!< NTB counter
 
     // notification handling
     enum {
@@ -276,7 +276,7 @@ static void xmit_start_if_possible(uint8_t rhport)
 //
 
 
-static ntb_t *recv_get_free_buffer(void)
+static ntb_t *recv_get_free_ntb(void)
 /**
  * Return pointer to an available receive buffer or NULL.
  * Returned buffer (if any) has the size \a CFG_TUD_NCM_OUT_NTB_MAX_SIZE.
@@ -286,15 +286,15 @@ static ntb_t *recv_get_free_buffer(void)
 {
     ntb_t *r = NULL;
 
-    if (ncm_interface.recv_glue_buffer == NULL  &&  ncm_interface.recv_buffer_waiting == NULL) {
-        r = &ncm_interface.recv_buffer;
+    if (ncm_interface.recv_glue_ntb == NULL  &&  ncm_interface.recv_ntb_waiting == NULL) {
+        r = &ncm_interface.recv_ntb;
     }
     return r;
-}   // recv_get_free_buffer
+}   // recv_get_free_ntb
 
 
 
-static ntb_t *recv_get_next_waiting_buffer(void)
+static ntb_t *recv_get_next_waiting_ntb(void)
 /**
  * Return pointer to a waiting receive buffer or NULL.
  * Returned buffer (if any) has the size \a CFG_TUD_NCM_OUT_NTB_MAX_SIZE.
@@ -303,40 +303,40 @@ static ntb_t *recv_get_next_waiting_buffer(void)
  *    The returned buffer is removed from the waiting list.
  */
 {
-    ntb_t *r = ncm_interface.recv_buffer_waiting;
+    ntb_t *r = ncm_interface.recv_ntb_waiting;
 
-    DEBUG_OUT("recv_get_next_waiting_buffer()\n");
-    ncm_interface.recv_buffer_waiting = NULL;
+    DEBUG_OUT("recv_get_next_waiting_ntb()\n");
+    ncm_interface.recv_ntb_waiting = NULL;
     return r;
-}   // recv_get_next_waiting_buffer
+}   // recv_get_next_waiting_ntb
 
 
 
-static void recv_put_buffer_into_free_list(ntb_t *p)
+static void recv_put_ntb_into_free_list(ntb_t *p)
 {
-    DEBUG_OUT("recv_put_buffer_into_free_list(%p)\n", p);
-}   // recv_put_buffer_into_free_list
+    DEBUG_OUT("recv_put_ntb_into_free_list(%p)\n", p);
+}   // recv_put_ntb_into_free_list
 
 
 
-static bool recv_put_buffer_into_waiting_list(uint16_t len)
+static bool recv_put_ntb_into_waiting_list(uint16_t len)
 /**
- * The \a ncm_interface.recv_tinyusb_buffer is filled,
+ * The \a ncm_interface.recv_tinyusb_ntb is filled,
  * put this buffer into the waiting list and free the receive logic.
  *
  * TODO this should give a list
  */
 {
-    DEBUG_OUT("recv_put_buffer_into_waiting_list(%d)\n", len);
+    DEBUG_OUT("recv_put_ntb_into_waiting_list(%d)\n", len);
 
-    TU_ASSERT(ncm_interface.recv_tinyusb_buffer != NULL, false);
-    TU_ASSERT(ncm_interface.recv_buffer_waiting == NULL, false);
+    TU_ASSERT(ncm_interface.recv_tinyusb_ntb != NULL, false);
+    TU_ASSERT(ncm_interface.recv_ntb_waiting == NULL, false);
 
-    ncm_interface.recv_tinyusb_buffer->len = len;
-    ncm_interface.recv_buffer_waiting = ncm_interface.recv_tinyusb_buffer;
-    ncm_interface.recv_tinyusb_buffer = NULL;
+    ncm_interface.recv_tinyusb_ntb->len = len;
+    ncm_interface.recv_ntb_waiting = ncm_interface.recv_tinyusb_ntb;
+    ncm_interface.recv_tinyusb_ntb = NULL;
     return true;
-}   // recv_put_buffer_into_waiting_list
+}   // recv_put_ntb_into_waiting_list
 
 
 
@@ -351,24 +351,24 @@ static void recv_try_to_start_new_reception(uint8_t rhport)
     if (ncm_interface.itf_data_alt != 1) {
         return;
     }
-    if (ncm_interface.recv_tinyusb_buffer != NULL) {
+    if (ncm_interface.recv_tinyusb_ntb != NULL) {
         return;
     }
     if (usbd_edpt_busy(ncm_interface.recv_rhport, ncm_interface.ep_out)) {
         return;
     }
 
-    ncm_interface.recv_tinyusb_buffer = recv_get_free_buffer();
-    if (ncm_interface.recv_tinyusb_buffer == NULL) {
+    ncm_interface.recv_tinyusb_ntb = recv_get_free_ntb();
+    if (ncm_interface.recv_tinyusb_ntb == NULL) {
         return;
     }
 
     // initiate transfer
     DEBUG_OUT("  start reception\n");
-    bool r = usbd_edpt_xfer(0, ncm_interface.ep_out, ncm_interface.recv_tinyusb_buffer->data, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
+    bool r = usbd_edpt_xfer(0, ncm_interface.ep_out, ncm_interface.recv_tinyusb_ntb->data, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
     if ( !r) {
-        recv_put_buffer_into_free_list(ncm_interface.recv_tinyusb_buffer);
-        ncm_interface.recv_tinyusb_buffer = NULL;
+        recv_put_ntb_into_free_list(ncm_interface.recv_tinyusb_ntb);
+        ncm_interface.recv_tinyusb_ntb = NULL;
     }
 }   // recv_try_to_start_new_reception
 
@@ -473,58 +473,58 @@ static void recv_transfer_datagram_to_glue_logic(void)
 {
     DEBUG_OUT("recv_transfer_datagram_to_glue_logic()\n");
 
-    if (ncm_interface.recv_glue_buffer == NULL) {
-        ncm_interface.recv_glue_buffer = recv_get_next_waiting_buffer();
-        if (ncm_interface.recv_glue_buffer == NULL) {
+    if (ncm_interface.recv_glue_ntb == NULL) {
+        ncm_interface.recv_glue_ntb = recv_get_next_waiting_ntb();
+        if (ncm_interface.recv_glue_ntb == NULL) {
             return;
         }
-        DEBUG_OUT("  new buffer for glue logic: %p\n", ncm_interface.recv_glue_buffer);
+        DEBUG_OUT("  new buffer for glue logic: %p\n", ncm_interface.recv_glue_ntb);
 
-        ncm_interface.recv_glue_buffer_datagram = recv_verify_datagram(ncm_interface.recv_glue_buffer);
-        ncm_interface.recv_glue_buffer_datagram_ndx = 0;
+        ncm_interface.recv_glue_ntb_datagram = recv_verify_datagram(ncm_interface.recv_glue_ntb);
+        ncm_interface.recv_glue_ntb_datagram_ndx = 0;
 
-        if (ncm_interface.recv_glue_buffer_datagram == NULL) {
+        if (ncm_interface.recv_glue_ntb_datagram == NULL) {
             // verification failed: ignore NTB and return it to free
             ERROR_OUT("  WHAT CAN WE DO IN THIS CASE?\n");
-            recv_put_buffer_into_free_list(ncm_interface.recv_glue_buffer);
-            ncm_interface.recv_glue_buffer = NULL;
-            ncm_interface.recv_glue_buffer_datagram = NULL;
+            recv_put_ntb_into_free_list(ncm_interface.recv_glue_ntb);
+            ncm_interface.recv_glue_ntb = NULL;
+            ncm_interface.recv_glue_ntb_datagram = NULL;
         }
     }
 
-    if (ncm_interface.recv_glue_buffer != NULL) {
+    if (ncm_interface.recv_glue_ntb != NULL) {
 
-        if (ncm_interface.recv_glue_buffer_datagram == NULL) {
+        if (ncm_interface.recv_glue_ntb_datagram == NULL) {
             ERROR_OUT("  SOMETHING WENT WRONG 1\n");
         }
-        else if (ncm_interface.recv_glue_buffer_datagram[ncm_interface.recv_glue_buffer_datagram_ndx].wDatagramIndex == 0) {
+        else if (ncm_interface.recv_glue_ntb_datagram[ncm_interface.recv_glue_ntb_datagram_ndx].wDatagramIndex == 0) {
             ERROR_OUT("  SOMETHING WENT WRONG 2\n");
         }
-        else if (ncm_interface.recv_glue_buffer_datagram[ncm_interface.recv_glue_buffer_datagram_ndx].wDatagramLength == 0) {
+        else if (ncm_interface.recv_glue_ntb_datagram[ncm_interface.recv_glue_ntb_datagram_ndx].wDatagramLength == 0) {
             ERROR_OUT("  SOMETHING WENT WRONG 3\n");
         }
         else {
-            uint16_t datagramIndex  = ncm_interface.recv_glue_buffer_datagram[ncm_interface.recv_glue_buffer_datagram_ndx].wDatagramIndex;
-            uint16_t datagramLength = ncm_interface.recv_glue_buffer_datagram[ncm_interface.recv_glue_buffer_datagram_ndx].wDatagramLength;
+            uint16_t datagramIndex  = ncm_interface.recv_glue_ntb_datagram[ncm_interface.recv_glue_ntb_datagram_ndx].wDatagramIndex;
+            uint16_t datagramLength = ncm_interface.recv_glue_ntb_datagram[ncm_interface.recv_glue_ntb_datagram_ndx].wDatagramLength;
 
-            DEBUG_OUT("  xmit[%d] - %d %d\n", ncm_interface.recv_glue_buffer_datagram_ndx, datagramIndex, datagramLength);
-            if (tud_network_recv_cb(ncm_interface.recv_glue_buffer->data + datagramIndex, datagramLength)) {
+            DEBUG_OUT("  xmit[%d] - %d %d\n", ncm_interface.recv_glue_ntb_datagram_ndx, datagramIndex, datagramLength);
+            if (tud_network_recv_cb(ncm_interface.recv_glue_ntb->data + datagramIndex, datagramLength)) {
                 //
                 // send datagram successfully to glue logic
                 //
                 DEBUG_OUT("    OK\n");
-                datagramIndex  = ncm_interface.recv_glue_buffer_datagram[ncm_interface.recv_glue_buffer_datagram_ndx + 1].wDatagramIndex;
-                datagramLength = ncm_interface.recv_glue_buffer_datagram[ncm_interface.recv_glue_buffer_datagram_ndx + 1].wDatagramLength;
+                datagramIndex  = ncm_interface.recv_glue_ntb_datagram[ncm_interface.recv_glue_ntb_datagram_ndx + 1].wDatagramIndex;
+                datagramLength = ncm_interface.recv_glue_ntb_datagram[ncm_interface.recv_glue_ntb_datagram_ndx + 1].wDatagramLength;
 
                 if (datagramIndex != 0  &&  datagramLength != 0) {
                     // -> next datagram
-                    ++ncm_interface.recv_glue_buffer_datagram_ndx;
+                    ++ncm_interface.recv_glue_ntb_datagram_ndx;
                 }
                 else {
                     // end of datagrams reached
-                    recv_put_buffer_into_free_list(ncm_interface.recv_glue_buffer);
-                    ncm_interface.recv_glue_buffer = NULL;
-                    ncm_interface.recv_glue_buffer_datagram = NULL;
+                    recv_put_ntb_into_free_list(ncm_interface.recv_glue_ntb);
+                    ncm_interface.recv_glue_ntb = NULL;
+                    ncm_interface.recv_glue_ntb_datagram = NULL;
                 }
             }
         }
@@ -540,13 +540,22 @@ static void recv_transfer_datagram_to_glue_logic(void)
 
 bool tud_network_can_xmit(uint16_t size)
 /**
- * Check if the glue logic is allowed to call tud_network_xmit()
- *
- * TODO this will be differently soon
+ * Check if the glue logic is allowed to call tud_network_xmit().
+ * This function also fetches a next buffer if required, so that tud_network_xmit() is ready for copy
+ * and transmission operation.
  */
 {
     DEBUG_OUT("!!!!!!!!tud_network_can_xmit(%d)\n", size);
 
+    TU_ASSERT(size <= CFG_TUD_NCM_OUT_NTB_MAX_SIZE - (sizeof(nth16_t) + sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)), false);
+
+    if (xmit_requested_datagram_fits_into_current_ntb(size)) {
+        // -> everything is fine
+        return true;
+    }
+    return xmit_setup_next_ntb();
+
+#if 0
     if (ncm_interface.itf_data_alt != 1) {
         ERROR_OUT("!tud_network_can_xmit 1\n");
         return false;
@@ -564,13 +573,15 @@ bool tud_network_can_xmit(uint16_t size)
         return false;
     }
     return true;
+#endif
 }   // tud_network_can_xmit
 
 
 
 void tud_network_xmit(void *ref, uint16_t arg)
 /**
- * Put a datagram into a proper NTB
+ * Put a datagram into a waiting NTB.
+ * If currently no transmission is started, then initiate transmission.
  */
 {
     DEBUG_OUT("!!!!!!!!!!tud_network_xmit(%p, %d)\n", ref, arg);
@@ -749,7 +760,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         // - if there is a free receive buffer, initiate reception
         //
         DEBUG_OUT("  EP_OUT %d %d %d %u\n", rhport, ep_addr, result, (unsigned)xferred_bytes);
-        recv_put_buffer_into_waiting_list(xferred_bytes);
+        recv_put_ntb_into_waiting_list(xferred_bytes);
         tud_network_recv_renew_r(rhport);
     }
     else if (ep_addr == ncm_interface.ep_in) {
