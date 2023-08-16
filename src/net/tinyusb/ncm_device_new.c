@@ -278,7 +278,9 @@ static void xmit_start_if_possible(uint8_t rhport)
         }
         DEBUG_OUT("\n");
     }
-    INFO_OUT(">> %d %d\n", ncm_interface.xmit_glue_ntb->len, ncm_interface.xmit_glue_ntb_datagram_ndx);
+    if (ncm_interface.xmit_glue_ntb_datagram_ndx != 1) {
+        ERROR_OUT(">> %d %d\n", ncm_interface.xmit_glue_ntb->len, ncm_interface.xmit_glue_ntb_datagram_ndx);
+    }
 
     // Kick off an endpoint transfer
     usbd_edpt_xfer(0, ncm_interface.ep_in, ncm_interface.xmit_glue_ntb->data, ncm_interface.xmit_glue_ntb->len);
@@ -295,11 +297,16 @@ static bool xmit_requested_datagram_fits_into_current_ntb(uint16_t datagram_size
 {
     DEBUG_OUT("xmit_requested_datagram_fits_into_current_ntb(%d) - %p %p\n", datagram_size, ncm_interface.xmit_tinyusb_ntb, ncm_interface.xmit_glue_ntb);
 
-#if 0
-    return ncm_interface.xmit_tinyusb_ntb == NULL  &&  ncm_interface.xmit_glue_ntb == NULL;
-#else
-    return false;
-#endif
+    if (ncm_interface.xmit_glue_ntb == NULL) {
+        return false;
+    }
+    if (ncm_interface.xmit_glue_ntb_datagram_ndx >= CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB) {
+        return false;
+    }
+    if (ncm_interface.xmit_glue_ntb->len + datagram_size > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
+        return false;
+    }
+    return true;
 }   // xmit_requested_datagram_fits_into_current_ntb
 
 
