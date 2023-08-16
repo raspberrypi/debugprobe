@@ -99,7 +99,6 @@ typedef struct {
     uint16_t     recv_glue_ntb_datagram_ndx;        //!< index into \a recv_glue_ntb_datagram
 
     // xmit handling
-    bool         xmit_running;                      //!< running xmit TODO will be changed soon
     ntb_t        xmit_ntb;                          //!< actual xmit ntb
     uint16_t     xmit_sequence;                     //!< NTB counter
     ntb_t       *xmit_tinyusb_ntb;                  //!< buffer for the running transfer driver -> TinyUSB
@@ -224,7 +223,11 @@ static void xmit_free_current_ntb(void)
 static bool xmit_insert_required_zlp(uint8_t rhport, uint16_t xferred_bytes)
 /**
  * Transmit a ZLP if required
- * TODO experimental!  Question: is it required?
+ *
+ * \note
+ *    Insertion of the ZLPs is a little bit different then described in the spec.
+ *    But the below implementation actually works.  Don't know if this is a spec
+ *    or TinyUSB issue.
  */
 {
     DEBUG_OUT("xmit_insert_required_zlp(%d,%d)\n", rhport, xferred_bytes);
@@ -236,7 +239,7 @@ static bool xmit_insert_required_zlp(uint8_t rhport, uint16_t xferred_bytes)
     TU_ASSERT(ncm_interface.itf_data_alt == 1, false);
     TU_ASSERT( !usbd_edpt_busy(rhport, ncm_interface.ep_in), false);
 
-    ERROR_OUT("xmit_insert_required_zlp!\n");
+    INFO_OUT("xmit_insert_required_zlp!\n");
 
     // start transmission of the ZLP
     usbd_edpt_xfer(rhport, ncm_interface.ep_in, NULL, 0);
@@ -620,7 +623,7 @@ bool tud_network_can_xmit(uint16_t size)
  * and transmission operation.
  */
 {
-    DEBUG_OUT("!!!!!!!!tud_network_can_xmit(%d)\n", size);
+    DEBUG_OUT("tud_network_can_xmit(%d)\n", size);
 
     TU_ASSERT(size <= CFG_TUD_NCM_OUT_NTB_MAX_SIZE - (sizeof(nth16_t) + sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)), false);
 
@@ -640,7 +643,7 @@ void tud_network_xmit(void *ref, uint16_t arg)
  * If currently no transmission is started, then initiate transmission.
  */
 {
-    DEBUG_OUT("!!!!!!!!!!tud_network_xmit(%p, %d)\n", ref, arg);
+    DEBUG_OUT("tud_network_xmit(%p, %d)\n", ref, arg);
 
     if (ncm_interface.xmit_glue_ntb == NULL) {
         ERROR_OUT("tud_network_xmit: no buffer\n");             // must not happen (really)
