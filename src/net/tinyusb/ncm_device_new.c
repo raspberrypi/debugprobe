@@ -96,7 +96,6 @@ typedef struct {
     ntb_t       *recv_glue_ntb;                     //!< buffer for the running transfer driver -> glue logic
     ntb_t        recv_ntb;                          //!< actual buffer structure which is either in \a recv_tinyusb_ntb, \a recv_glue_ntb, \a recv_ntb_waiting (currently: or free)
     ntb_t       *recv_ntb_waiting;                  //!< ready buffer waiting to be transferred to the glue logic
-    const ndp16_datagram_t *recv_glue_ntb_datagram; //!< TODO remove... pointer to the \a ndp16_datagram_t structure within current \a recv_glue_ntb
     uint16_t     recv_glue_ntb_datagram_ndx;        //!< index into \a recv_glue_ntb_datagram
 
     // xmit handling
@@ -136,7 +135,7 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static const ntb_parameters_t ntb_par
         .wNdbOutDivisor          = 4,
         .wNdbOutPayloadRemainder = 0,
         .wNdbOutAlignment        = CFG_TUD_NCM_ALIGNMENT,
-        .wNtbOutMaxDatagrams     = 4                                     // 0=no limit TODO !!!
+        .wNtbOutMaxDatagrams     = 1                                     // 0=no limit TODO !!!
 };
 
 
@@ -445,10 +444,13 @@ static void recv_try_to_start_new_reception(uint8_t rhport)
 
 
 
-static const ndp16_datagram_t *recv_validate_datagram(const ntb_t *ntb)   // TODO return bool and omit ncm_interface.recv_glue_ntb_datagram
+static bool recv_validate_datagram(const ntb_t *ntb)
 /**
  * Validate incoming datagram.
- * \return either point to the packets next \a ndp16_datagram_t or NULL
+ * \return true if valid
+ *
+ * \note
+ *    \a ndp16->wNextNdpIndex != 0 is not supported
  */
 {
     const nth16_t *nth16 = (const nth16_t*)ntb->data;
@@ -462,27 +464,27 @@ static const ndp16_datagram_t *recv_validate_datagram(const ntb_t *ntb)   // TOD
     if (nth16->wHeaderLength != sizeof(nth16_t))
     {
         ERROR_OUT("  ill nth16 length: %d\n", nth16->wHeaderLength);
-        return NULL;
+        return false;
     }
     if (nth16->dwSignature != NTH16_SIGNATURE) {
         ERROR_OUT("  ill signature: 0x%08x\n", nth16->dwSignature);
-        return NULL;
+        return false;
     }
     if (len < sizeof(nth16_t) + sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)) {
         ERROR_OUT("  ill min len: %d\n", len);
-        return NULL;
+        return false;
     }
     if (nth16->wBlockLength > len) {
         ERROR_OUT("  ill block length: %d > %d\n", nth16->wBlockLength, len);
-        return NULL;
+        return false;
     }
     if (nth16->wBlockLength > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
         ERROR_OUT("  ill block length2: %d > %d\n", nth16->wBlockLength, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
-        return NULL;
+        return false;
     }
     if (nth16->wNdpIndex < sizeof(nth16)  ||  nth16->wNdpIndex > len - (sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t))) {
         ERROR_OUT("  ill position of first ndp: %d (%d)\n", nth16->wNdpIndex, len);
-        return NULL;
+        return false;
     }
 
     //
@@ -492,15 +494,15 @@ static const ndp16_datagram_t *recv_validate_datagram(const ntb_t *ntb)   // TOD
 
     if (ndp16->wLength < sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)) {
         ERROR_OUT("  ill ndp16 length: %d\n", ndp16->wLength);
-        return NULL;
+        return false;
     }
     if (ndp16->dwSignature != NDP16_SIGNATURE_NCM0  &&  ndp16->dwSignature != NDP16_SIGNATURE_NCM1) {
         ERROR_OUT("  ill signature: 0x%08x\n", ndp16->dwSignature);
-        return NULL;
+        return false;
     }
     if (ndp16->wNextNdpIndex != 0) {
         ERROR_OUT("  cannot handle wNextNdpIndex!=0 (%d)\n", ndp16->wNextNdpIndex);
-        return NULL;
+        return false;
     }
 
     const ndp16_datagram_t *ndp16_datagram = (ndp16_datagram_t *)(ntb->data + sizeof(nth16_t) + sizeof(ndp16_t));
@@ -510,17 +512,17 @@ static const ndp16_datagram_t *recv_validate_datagram(const ntb_t *ntb)   // TOD
     INFO_OUT("<< %d (%d)\n", max_ndx - 1, ntb->len);
     if (ndp16_datagram[max_ndx-1].wDatagramIndex != 0  ||  ndp16_datagram[max_ndx-1].wDatagramLength) {
         ERROR_OUT("  max_ndx != 0\n");
-        return NULL;
+        return false;
     }
     while (ndp16_datagram[ndx].wDatagramIndex != 0  &&  ndp16_datagram[ndx].wDatagramLength != 0) {
         INFO_OUT("  << %d %d\n", ndp16_datagram[ndx].wDatagramIndex, ndp16_datagram[ndx].wDatagramLength);
         if (ndp16_datagram[ndx].wDatagramIndex > len) {
             ERROR_OUT("  ill start of datagram[%d]: %d (%d)\n", ndx, ndp16_datagram[ndx].wDatagramIndex, len);
-            return NULL;
+            return false;
         }
         if (ndp16_datagram[ndx].wDatagramIndex + ndp16_datagram[ndx].wDatagramLength > len) {
             ERROR_OUT("  ill end of datagram[%d]: %d (%d)\n", ndx, ndp16_datagram[ndx].wDatagramIndex + ndp16_datagram[ndx].wDatagramLength, len);
-            return NULL;
+            return false;
         }
         ++ndx;
     }
@@ -532,7 +534,7 @@ static const ndp16_datagram_t *recv_validate_datagram(const ntb_t *ntb)   // TOD
 
     // -> ntb contains a valid packet structure
     //    ok... I did not check for garbage within the datagram indices...
-    return ndp16_datagram;
+    return true;
 }   // recv_validate_datagram
 
 
@@ -551,32 +553,28 @@ static void recv_transfer_datagram_to_glue_logic(void)
         }
         DEBUG_OUT("  new buffer for glue logic: %p\n", ncm_interface.recv_glue_ntb);
 
-        ncm_interface.recv_glue_ntb_datagram = recv_validate_datagram(ncm_interface.recv_glue_ntb);
         ncm_interface.recv_glue_ntb_datagram_ndx = 0;
 
-        if (ncm_interface.recv_glue_ntb_datagram == NULL) {
+        if ( !recv_validate_datagram(ncm_interface.recv_glue_ntb)) {
             // verification failed: ignore NTB and return it to free
             ERROR_OUT("  WHAT CAN WE DO IN THIS CASE?\n");
             recv_put_ntb_into_free_list(ncm_interface.recv_glue_ntb);
             ncm_interface.recv_glue_ntb = NULL;
-            ncm_interface.recv_glue_ntb_datagram = NULL;
         }
     }
 
     if (ncm_interface.recv_glue_ntb != NULL) {
+        const ndp16_datagram_t *ndp16_datagram = (ndp16_datagram_t *)(ncm_interface.recv_glue_ntb->data + sizeof(nth16_t) + sizeof(ndp16_t));
 
-        if (ncm_interface.recv_glue_ntb_datagram == NULL) {
+        if (ndp16_datagram[ncm_interface.recv_glue_ntb_datagram_ndx].wDatagramIndex == 0) {
             ERROR_OUT("  SOMETHING WENT WRONG 1\n");
         }
-        else if (ncm_interface.recv_glue_ntb_datagram[ncm_interface.recv_glue_ntb_datagram_ndx].wDatagramIndex == 0) {
+        else if (ndp16_datagram[ncm_interface.recv_glue_ntb_datagram_ndx].wDatagramLength == 0) {
             ERROR_OUT("  SOMETHING WENT WRONG 2\n");
         }
-        else if (ncm_interface.recv_glue_ntb_datagram[ncm_interface.recv_glue_ntb_datagram_ndx].wDatagramLength == 0) {
-            ERROR_OUT("  SOMETHING WENT WRONG 3\n");
-        }
         else {
-            uint16_t datagramIndex  = ncm_interface.recv_glue_ntb_datagram[ncm_interface.recv_glue_ntb_datagram_ndx].wDatagramIndex;
-            uint16_t datagramLength = ncm_interface.recv_glue_ntb_datagram[ncm_interface.recv_glue_ntb_datagram_ndx].wDatagramLength;
+            uint16_t datagramIndex  = ndp16_datagram[ncm_interface.recv_glue_ntb_datagram_ndx].wDatagramIndex;
+            uint16_t datagramLength = ndp16_datagram[ncm_interface.recv_glue_ntb_datagram_ndx].wDatagramLength;
 
             DEBUG_OUT("  recv[%d] - %d %d\n", ncm_interface.recv_glue_ntb_datagram_ndx, datagramIndex, datagramLength);
             if (tud_network_recv_cb(ncm_interface.recv_glue_ntb->data + datagramIndex, datagramLength)) {
@@ -584,8 +582,8 @@ static void recv_transfer_datagram_to_glue_logic(void)
                 // send datagram successfully to glue logic
                 //
                 DEBUG_OUT("    OK\n");
-                datagramIndex  = ncm_interface.recv_glue_ntb_datagram[ncm_interface.recv_glue_ntb_datagram_ndx + 1].wDatagramIndex;
-                datagramLength = ncm_interface.recv_glue_ntb_datagram[ncm_interface.recv_glue_ntb_datagram_ndx + 1].wDatagramLength;
+                datagramIndex  = ndp16_datagram[ncm_interface.recv_glue_ntb_datagram_ndx + 1].wDatagramIndex;
+                datagramLength = ndp16_datagram[ncm_interface.recv_glue_ntb_datagram_ndx + 1].wDatagramLength;
 
                 if (datagramIndex != 0  &&  datagramLength != 0) {
                     // -> next datagram
@@ -595,7 +593,6 @@ static void recv_transfer_datagram_to_glue_logic(void)
                     // end of datagrams reached
                     recv_put_ntb_into_free_list(ncm_interface.recv_glue_ntb);
                     ncm_interface.recv_glue_ntb = NULL;
-                    ncm_interface.recv_glue_ntb_datagram = NULL;
                 }
             }
         }
