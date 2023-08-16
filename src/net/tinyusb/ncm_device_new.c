@@ -83,7 +83,14 @@ typedef struct {
     uint8_t      data[CFG_TUD_NCM_OUT_NTB_MAX_SIZE];
 } ntb_t;
 
-#define XMIT_NTB_N     3
+// TODO if this is "1", everything seems to be fine.  If !=1, the transferred TCP packet size is reduced from 1460 bytes
+//      to 256 bytes with ACK for every packet.  This increases packet rate dramatically (from 300->1800/s) and leads to event
+//      loss in SystemView.  Nevertheless I leave it at 4 for experiments.
+//      This all under full load.
+//      Note: !=1 has better throughput.
+//      I think this happened, because everything is at its limit: throughput is at ~325KByte/s
+//
+#define XMIT_NTB_N     4
 
 typedef struct {
     // general
@@ -222,6 +229,11 @@ static void xmit_free_tinyusb_ntb(void)
 {
     DEBUG_OUT("!!!!xmit_free_tinyusb_ntb() - %p\n", ncm_interface.xmit_tinyusb_ntb);
 
+    if (ncm_interface.xmit_tinyusb_ntb == NULL) {
+        ERROR_OUT("xmit_free_tinyusb_ntb: xmit_tinyusb_ntb==NULL\n");   // can happen due to ZLPs
+        return;
+    }
+
     for (int i = 0;  i < XMIT_NTB_N;  ++i) {
         if (ncm_interface.xmit_free_ntb[i] == NULL) {
             ncm_interface.xmit_free_ntb[i] = ncm_interface.xmit_tinyusb_ntb;
@@ -258,11 +270,12 @@ static void xmit_put_ntb_into_ready_list(ntb_t *ready_ntb)
  * Put a filled NTB into the ready list
  */
 {
-    ERROR_OUT("!!!!xmit_put_ntb_into_ready_list(%p)\n", ready_ntb);
+    ready_ntb->age_cnt = ncm_interface.xmit_age_cnt++;
+
+    ERROR_OUT("!!!!xmit_put_ntb_into_ready_list(%p) %d %u\n", ready_ntb, ready_ntb->len, (unsigned)ready_ntb->age_cnt);
 
     for (int i = 0;  i < XMIT_NTB_N;  ++i) {
         if (ncm_interface.xmit_ready_ntb[i] == NULL) {
-            ready_ntb->age_cnt = ncm_interface.xmit_age_cnt++;
             ncm_interface.xmit_ready_ntb[i] = ready_ntb;
             return;
         }
@@ -273,6 +286,10 @@ static void xmit_put_ntb_into_ready_list(ntb_t *ready_ntb)
 
 
 static ntb_t *xmit_get_next_ready_ntb(void)
+/**
+ * Get the next NTB from the ready list (and remove it from the list).
+ * If the ready list is empty, return NULL.
+ */
 {
     ntb_t *r = NULL;
     int best = -1;
@@ -285,8 +302,8 @@ static ntb_t *xmit_get_next_ready_ntb(void)
                 best = i;
             }
             else {
+                ERROR_OUT("xmit_get_next_ready_ntb: multi NTBs ready!\n");   // this is good and just to check if it happens
                 if (ncm_interface.xmit_ready_ntb[best]->age_cnt > ncm_interface.xmit_ready_ntb[i]->age_cnt) {
-                    ERROR_OUT("xmit_get_next_ready_ntb: multi NTBs ready!\n");   // this is good and just to check if it happens
                     best = i;
                 }
             }
@@ -309,6 +326,9 @@ static bool xmit_insert_required_zlp(uint8_t rhport, uint16_t xferred_bytes)
  *    Insertion of the ZLPs is a little bit different then described in the spec.
  *    But the below implementation actually works.  Don't know if this is a spec
  *    or TinyUSB issue.
+ *
+ * \pre
+ *    This must be called from netd_xfer_cb() so that ep_in is ready
  */
 {
     DEBUG_OUT("!!!!xmit_insert_required_zlp(%d,%d)\n", rhport, xferred_bytes);
@@ -320,7 +340,7 @@ static bool xmit_insert_required_zlp(uint8_t rhport, uint16_t xferred_bytes)
     TU_ASSERT(ncm_interface.itf_data_alt == 1, false);
     TU_ASSERT( !usbd_edpt_busy(rhport, ncm_interface.ep_in), false);
 
-    INFO_OUT("xmit_insert_required_zlp!\n");
+    ERROR_OUT("xmit_insert_required_zlp! (%u)\n", (unsigned)xferred_bytes);
 
     // start transmission of the ZLP
     usbd_edpt_xfer(rhport, ncm_interface.ep_in, NULL, 0);
@@ -369,7 +389,7 @@ static void xmit_start_if_possible(uint8_t rhport)
         DEBUG_OUT("\n");
     }
     if (ncm_interface.xmit_glue_ntb_datagram_ndx != 1) {
-        ERROR_OUT(">> %d %d\n", ncm_interface.xmit_tinyusb_ntb->len, ncm_interface.xmit_glue_ntb_datagram_ndx);
+        INFO_OUT(">> %d %d\n", ncm_interface.xmit_tinyusb_ntb->len, ncm_interface.xmit_glue_ntb_datagram_ndx);
     }
 
     // Kick off an endpoint transfer
@@ -407,12 +427,13 @@ static bool xmit_setup_next_glue_ntb(void)
     DEBUG_OUT("!!!!xmit_setup_next_glue_ntb - %p\n", ncm_interface.xmit_glue_ntb);
 
     if (ncm_interface.xmit_glue_ntb != NULL) {
+        // put NTB into waiting list (the new datagram did not fit in)
         xmit_put_ntb_into_ready_list(ncm_interface.xmit_glue_ntb);
     }
 
-    ncm_interface.xmit_glue_ntb = xmit_get_free_ntb();  // get next buffer (if any)
+    ncm_interface.xmit_glue_ntb = xmit_get_free_ntb();              // get next buffer (if any)
     if (ncm_interface.xmit_glue_ntb == NULL) {
-        DEBUG_OUT("  xmit_setup_next_glue_ntb - nothing free\n");
+        DEBUG_OUT("  xmit_setup_next_glue_ntb - nothing free\n");   // should happen rarely
         return false;
     }
 
@@ -565,7 +586,7 @@ static bool recv_validate_datagram(const ntb_t *ntb)
         return false;
     }
     if (nth16->dwSignature != NTH16_SIGNATURE) {
-        ERROR_OUT("  ill signature: 0x%08x\n", nth16->dwSignature);
+        ERROR_OUT("  ill signature: 0x%08x\n", (unsigned)nth16->dwSignature);
         return false;
     }
     if (len < sizeof(nth16_t) + sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)) {
@@ -595,7 +616,7 @@ static bool recv_validate_datagram(const ntb_t *ntb)
         return false;
     }
     if (ndp16->dwSignature != NDP16_SIGNATURE_NCM0  &&  ndp16->dwSignature != NDP16_SIGNATURE_NCM1) {
-        ERROR_OUT("  ill signature: 0x%08x\n", ndp16->dwSignature);
+        ERROR_OUT("  ill signature: 0x%08x\n", (unsigned)ndp16->dwSignature);
         return false;
     }
     if (ndp16->wNextNdpIndex != 0) {
@@ -722,7 +743,7 @@ bool tud_network_can_xmit(uint16_t size)
         return true;
     }
     xmit_start_if_possible(ncm_interface.rhport);
-    ERROR_OUT("  xmit blocked\n");     // could happen if all xmit buffers are full
+    ERROR_OUT("  tud_network_can_xmit: request blocked\n");     // could happen if all xmit buffers are full (but should happen rarely)
     return false;
 }   // tud_network_can_xmit
 
@@ -911,7 +932,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         // - insert ZLPs when necessary
         // - if there is another transmit NTB waiting, try to start transmission
         //
-        DEBUG_OUT("  EP_IN %d\n", ncm_interface.itf_data_alt);
+        DEBUG_OUT("  EP_IN %d %u\n", ncm_interface.itf_data_alt, (unsigned)xferred_bytes);
         xmit_free_tinyusb_ntb();
         if ( !xmit_insert_required_zlp(rhport, xferred_bytes)) {
             xmit_start_if_possible(rhport);

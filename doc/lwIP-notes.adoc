@@ -196,7 +196,7 @@ a|Depending on `ep_addr` the driver is told here, that a
 
 * packet can be fetched from the stack for further processing within the driver
 * packet transmission can be started
-* report packet should be transmitted (that's about communication parameters)
+* notification packet should be transmitted (that's about communication parameters)
 |===
 
 
@@ -293,31 +293,6 @@ the driver, except that it specifies an additional copy destination.
 
 ## Log
 
-### 2023-08-11
-
-* BUG: with `ncm_device_simple` startup time of the probe is much longer compared
-  to ECM/RNDIS or even `ncm_device`.  With startup time I mean the time until there is
-  something visible on the probes debug output.  For ECM/RNDIS/ncm_device this is almost
-  instantly, with `ncm_device_simple` it takes ~10s! +
-  -> reverted to `ncm_device` because SystemView runs without problems with it
-    
-### 2023-07-14
-
-* did some performance tuning with lwIP and TinyUSB
-* stripped sources
-* BUG: `ncm_device_simple` sometimes crashes with `iperf`
-
-### 2023-06-30
-
-* for debugging purposes reimplemented `ncm_device_simple.c` which can hold only
-  one ethernet frame per NTB (NCM Transfer Block).  This unfortunately requires
-  that the original `ncm_device.c` must be outcommented via `#if` on top.
- 
-### 2023-06-26
-
-* after some changes to `rtt_console.c`, `net_sysview.c` and `net_glue.c`
-  ECM is working again as expected
- 
 ### 2023-05-12
 
 * for unknown reasons the probe is even with ECM in stutter mode, don't know
@@ -327,3 +302,42 @@ the driver, except that it specifies an additional copy destination.
 ** if there is a SysTick ISR then SystemView is completely messed up.
    Checked that locking is included.  Seems to be so.
 
+### 2023-06-26
+
+* after some changes to `rtt_console.c`, `net_sysview.c` and `net_glue.c`
+  ECM is working again as expected
+ 
+### 2023-06-30
+
+* for debugging purposes reimplemented `ncm_device_simple.c` which can hold only
+  one ethernet frame per NTB (NCM Transfer Block).  This unfortunately requires
+  that the original `ncm_device.c` must be outcommented via `#if` on top.
+ 
+### 2023-07-14
+
+* did some performance tuning with lwIP and TinyUSB
+* stripped sources
+* BUG: `ncm_device_simple` sometimes crashes with `iperf`
+
+### 2023-08-11
+
+* BUG: with `ncm_device_simple` startup time of the probe is much longer compared
+  to ECM/RNDIS or even `ncm_device`.  With startup time I mean the time until there is
+  something visible on the probes debug output.  For ECM/RNDIS/ncm_device this is almost
+  instantly, with `ncm_device_simple` it takes ~10s! +
+  -> reverted to `ncm_device` because SystemView runs without problems with it +
+  -> solved with `ncm_device_new`
+
+### 2023-08-16
+
+* new driver: `ncm_device_new`
+** works (better then `ncm_device_simple`), but
+*** [ ] problems, if `wNtbOutMaxDatagrams!=1`
+*** [ ] iperf also shows problems if `-P` is > 1
+*** [ ] surprisingly `iperf` performance is much better with actual firmware.
+        `cmake-create-debugEE` has just half performance
+*** [ ] but all these problems also exists with `ncm_device`.  Ist it in the glue code?
+** how to continue?
+*** [ ] need a test case where `tud_network_can_xmit()` collects datagrams.  Currently
+        there is always only one active xmit datagram, perhaps `iperf` with `-P 4` does it.
+*** [ ] check if there is a problem in the glue code for datagram reception.  Glue buffer freed too soon?
