@@ -89,8 +89,12 @@ typedef struct {
 //      This all under full load.
 //      Note: !=1 has better throughput.
 //      I think this happened, because everything is at its limit: throughput is at ~325KByte/s
+//      I have the feeling, that lwIP is already doing a good job creating large TCP packets, so the NCM driver
+//      approach add just a small performance gain.
 //
 #define XMIT_NTB_N     4
+
+#define RECV_NTB_N     4
 
 typedef struct {
     // general
@@ -102,21 +106,22 @@ typedef struct {
     uint8_t      rhport;                            //!< storage of \a rhport because some callbacks are done without it
 
     // recv handling
+    ntb_t        recv_ntb[RECV_NTB_N];              //!< actual recv NTBs
+    ntb_t       *recv_free_ntb[RECV_NTB_N];         //!< free list of recv NTBs
+    ntb_t       *recv_ready_ntb[RECV_NTB_N];        //!< NTBs waiting for transmission to glue logic
     ntb_t       *recv_tinyusb_ntb;                  //!< buffer for the running transfer TinyUSB -> driver
     ntb_t       *recv_glue_ntb;                     //!< buffer for the running transfer driver -> glue logic
-    ntb_t        recv_ntb;                          //!< actual buffer structure which is either in \a recv_tinyusb_ntb, \a recv_glue_ntb, \a recv_ntb_waiting (currently: or free)
-    ntb_t       *recv_ntb_waiting;                  //!< ready buffer waiting to be transferred to the glue logic
     uint16_t     recv_glue_ntb_datagram_ndx;        //!< index into \a recv_glue_ntb_datagram
 
     // xmit handling
     ntb_t        xmit_ntb[XMIT_NTB_N];              //!< actual xmit NTBs
     ntb_t       *xmit_free_ntb[XMIT_NTB_N];         //!< free list of xmit NTBs
-    ntb_t       *xmit_ready_ntb[XMIT_NTB_N];        //!< NTBs waiting for transmission
+    ntb_t       *xmit_ready_ntb[XMIT_NTB_N];        //!< NTBs waiting for transmission to TinyUSB
     uint16_t     xmit_sequence;                     //!< NTB sequence counter
     ntb_t       *xmit_tinyusb_ntb;                  //!< buffer for the running transfer driver -> TinyUSB
     ntb_t       *xmit_glue_ntb;                     //!< buffer for the running transfer glue logic -> driver
     uint16_t     xmit_glue_ntb_datagram_ndx;        //!< index into \a xmit_glue_ntb_datagram
-    uint32_t     xmit_age_cnt;                      //!< age cnt TODO should be removed in the future
+    uint32_t     xmit_age_cnt;                      //!< age cnt TODO should be removed in the future, TODO rename to age_cnt
 
     // notification handling
     enum {
@@ -222,15 +227,17 @@ static void notification_xmit(uint8_t rhport, bool force_next)
 //
 
 
-static void xmit_free_tinyusb_ntb(void)
+static void xmit_put_tinyusb_ntb_into_free_list(void)
 /**
  * Free the current TinyUSB transmit NTB
+ *
+ * TODO make it more generic like recv*, caller must set then tinyusb_ntb to NULL
  */
 {
-    DEBUG_OUT("!!!!xmit_free_tinyusb_ntb() - %p\n", ncm_interface.xmit_tinyusb_ntb);
+    DEBUG_OUT("xmit_put_tinyusb_ntb_into_free_list() - %p\n", ncm_interface.xmit_tinyusb_ntb);
 
     if (ncm_interface.xmit_tinyusb_ntb == NULL) {
-        ERROR_OUT("xmit_free_tinyusb_ntb: xmit_tinyusb_ntb==NULL\n");   // can happen due to ZLPs
+        ERROR_OUT("xmit_put_tinyusb_ntb_into_free_list: xmit_tinyusb_ntb==NULL\n");   // can happen due to ZLPs
         return;
     }
 
@@ -241,8 +248,8 @@ static void xmit_free_tinyusb_ntb(void)
             return;
         }
     }
-    ERROR_OUT("xmit_free_tinyusb_ntb - no entry in free list\n");  // this should not happen
-}   // xmit_free_tinyusb_ntb
+    ERROR_OUT("xmit_put_tinyusb_ntb_into_free_list - no entry in free list\n");  // this should not happen
+}   // xmit_put_tinyusb_ntb_into_free_list
 
 
 
@@ -251,7 +258,7 @@ static ntb_t *xmit_get_free_ntb(void)
  * Get an NTB from the free list
  */
 {
-    DEBUG_OUT("!!!!xmit_get_free_ntb()\n");
+    DEBUG_OUT("xmit_get_free_ntb()\n");
 
     for (int i = 0;  i < XMIT_NTB_N;  ++i) {
         if (ncm_interface.xmit_free_ntb[i] != NULL) {
@@ -272,7 +279,7 @@ static void xmit_put_ntb_into_ready_list(ntb_t *ready_ntb)
 {
     ready_ntb->age_cnt = ncm_interface.xmit_age_cnt++;
 
-    ERROR_OUT("!!!!xmit_put_ntb_into_ready_list(%p) %d %u\n", ready_ntb, ready_ntb->len, (unsigned)ready_ntb->age_cnt);
+    ERROR_OUT("xmit_put_ntb_into_ready_list(%p) %d %u\n", ready_ntb, ready_ntb->len, (unsigned)ready_ntb->age_cnt);
 
     for (int i = 0;  i < XMIT_NTB_N;  ++i) {
         if (ncm_interface.xmit_ready_ntb[i] == NULL) {
@@ -294,7 +301,7 @@ static ntb_t *xmit_get_next_ready_ntb(void)
     ntb_t *r = NULL;
     int best = -1;
 
-    DEBUG_OUT("!!!!xmit_get_next_ready_ntb()\n");
+    DEBUG_OUT("xmit_get_next_ready_ntb()\n");
 
     for (int i = 0;  i < XMIT_NTB_N;  ++i) {
         if (ncm_interface.xmit_ready_ntb[i] != NULL) {
@@ -331,7 +338,7 @@ static bool xmit_insert_required_zlp(uint8_t rhport, uint16_t xferred_bytes)
  *    This must be called from netd_xfer_cb() so that ep_in is ready
  */
 {
-    DEBUG_OUT("!!!!xmit_insert_required_zlp(%d,%d)\n", rhport, xferred_bytes);
+    DEBUG_OUT("xmit_insert_required_zlp(%d,%d)\n", rhport, xferred_bytes);
 
     if (xferred_bytes == 0  ||  xferred_bytes % CFG_TUD_NET_ENDPOINT_SIZE != 0) {
         return false;
@@ -355,7 +362,7 @@ static void xmit_start_if_possible(uint8_t rhport)
  * Start transmission if it there is a waiting packet and if can be done from interface side.
  */
 {
-    DEBUG_OUT("!!!!xmit_start_if_possible()\n");
+    DEBUG_OUT("xmit_start_if_possible()\n");
 
     if (ncm_interface.xmit_tinyusb_ntb != NULL) {
         DEBUG_OUT("  !xmit_start_if_possible 1\n");
@@ -382,7 +389,7 @@ static void xmit_start_if_possible(uint8_t rhport)
 
     {
         uint16_t len = ncm_interface.xmit_tinyusb_ntb->len;
-        DEBUG_OUT("!!!! %d\n", len);
+        DEBUG_OUT(" %d\n", len);
         for (int i = 0;  i < len;  ++i) {
             DEBUG_OUT(" %02x", ncm_interface.xmit_tinyusb_ntb->data[i]);
         }
@@ -403,7 +410,7 @@ static bool xmit_requested_datagram_fits_into_current_ntb(uint16_t datagram_size
  * check if a new datagram fits into the current NTB
  */
 {
-    DEBUG_OUT("!!!!xmit_requested_datagram_fits_into_current_ntb(%d) - %p %p\n", datagram_size, ncm_interface.xmit_tinyusb_ntb, ncm_interface.xmit_glue_ntb);
+    DEBUG_OUT("xmit_requested_datagram_fits_into_current_ntb(%d) - %p %p\n", datagram_size, ncm_interface.xmit_tinyusb_ntb, ncm_interface.xmit_glue_ntb);
 
     if (ncm_interface.xmit_glue_ntb == NULL) {
         return false;
@@ -424,7 +431,7 @@ static bool xmit_setup_next_glue_ntb(void)
  * Setup an NTB for the glue logic
  */
 {
-    DEBUG_OUT("!!!!xmit_setup_next_glue_ntb - %p\n", ncm_interface.xmit_glue_ntb);
+    DEBUG_OUT("xmit_setup_next_glue_ntb - %p\n", ncm_interface.xmit_glue_ntb);
 
     if (ncm_interface.xmit_glue_ntb != NULL) {
         // put NTB into waiting list (the new datagram did not fit in)
@@ -469,63 +476,92 @@ static ntb_t *recv_get_free_ntb(void)
 /**
  * Return pointer to an available receive buffer or NULL.
  * Returned buffer (if any) has the size \a CFG_TUD_NCM_OUT_NTB_MAX_SIZE.
- *
- * TODO this should give a list
  */
 {
-    ntb_t *r = NULL;
+    DEBUG_OUT("recv_get_free_ntb()\n");
 
-    if (ncm_interface.recv_glue_ntb == NULL  &&  ncm_interface.recv_ntb_waiting == NULL) {
-        r = &ncm_interface.recv_ntb;
+    for (int i = 0;  i < RECV_NTB_N;  ++i) {
+        if (ncm_interface.recv_free_ntb[i] != NULL) {
+            ntb_t *free = ncm_interface.recv_free_ntb[i];
+            ncm_interface.recv_free_ntb[i] = NULL;
+            return free;
+        }
     }
-    return r;
+    return NULL;
 }   // recv_get_free_ntb
 
 
 
-static ntb_t *recv_get_next_waiting_ntb(void)
+static ntb_t *recv_get_next_ready_ntb(void)
 /**
- * Return pointer to a waiting receive buffer or NULL.
- * Returned buffer (if any) has the size \a CFG_TUD_NCM_OUT_NTB_MAX_SIZE.
- *
- * \note
- *    The returned buffer is removed from the waiting list.
+ * Get the next NTB from the ready list (and remove it from the list).
+ * If the ready list is empty, return NULL.
  */
 {
-    ntb_t *r = ncm_interface.recv_ntb_waiting;
+    ntb_t *r = NULL;
+    int best = -1;
 
-    DEBUG_OUT("recv_get_next_waiting_ntb()\n");
-    ncm_interface.recv_ntb_waiting = NULL;
+    DEBUG_OUT("recv_get_next_ready_ntb()\n");
+
+    for (int i = 0;  i < RECV_NTB_N;  ++i) {
+        if (ncm_interface.recv_ready_ntb[i] != NULL) {
+            if (best < 0) {
+                best = i;
+            }
+            else {
+                ERROR_OUT("recv_get_next_ready_ntb: multi NTBs ready!\n");   // this is good and just to check if it happens
+                if (ncm_interface.recv_ready_ntb[best]->age_cnt > ncm_interface.recv_ready_ntb[i]->age_cnt) {
+                    best = i;
+                }
+            }
+        }
+    }
+    if (best >= 0) {
+        r = ncm_interface.recv_ready_ntb[best];
+        ncm_interface.recv_ready_ntb[best] = NULL;
+    }
+    DEBUG_OUT("recv_get_next_ready_ntb: %p\n", r);
     return r;
-}   // recv_get_next_waiting_ntb
+}   // recv_get_next_ready_ntb
 
 
 
 static void recv_put_ntb_into_free_list(ntb_t *p)
+/**
+ *
+ */
 {
     DEBUG_OUT("recv_put_ntb_into_free_list(%p)\n", p);
+
+    for (int i = 0;  i < RECV_NTB_N;  ++i) {
+        if (ncm_interface.recv_free_ntb[i] == NULL) {
+            ncm_interface.recv_free_ntb[i] = p;
+            return;
+        }
+    }
+    ERROR_OUT("recv_put_ntb_into_free_list - no entry in free list\n");  // this should not happen
 }   // recv_put_ntb_into_free_list
 
 
 
-static bool recv_put_ntb_into_waiting_list(uint16_t len)
+static void recv_put_ntb_into_ready_list(ntb_t *ready_ntb)
 /**
  * The \a ncm_interface.recv_tinyusb_ntb is filled,
  * put this buffer into the waiting list and free the receive logic.
- *
- * TODO this should give a list
  */
 {
-    DEBUG_OUT("recv_put_ntb_into_waiting_list(%d)\n", len);
+    ready_ntb->age_cnt = ncm_interface.xmit_age_cnt++;
 
-    TU_ASSERT(ncm_interface.recv_tinyusb_ntb != NULL, false);
-    TU_ASSERT(ncm_interface.recv_ntb_waiting == NULL, false);
+    DEBUG_OUT("recv_put_ntb_into_ready_list(%p) %d %u\n", ready_ntb, ready_ntb->len, (unsigned)ready_ntb->age_cnt);
 
-    ncm_interface.recv_tinyusb_ntb->len = len;
-    ncm_interface.recv_ntb_waiting = ncm_interface.recv_tinyusb_ntb;
-    ncm_interface.recv_tinyusb_ntb = NULL;
-    return true;
-}   // recv_put_ntb_into_waiting_list
+    for (int i = 0;  i < RECV_NTB_N;  ++i) {
+        if (ncm_interface.recv_ready_ntb[i] == NULL) {
+            ncm_interface.recv_ready_ntb[i] = ready_ntb;
+            return;
+        }
+    }
+    ERROR_OUT("recv_put_ntb_into_ready_list: ready list full\n");  // this should not happen
+}   // recv_put_ntb_into_ready_list
 
 
 
@@ -668,7 +704,7 @@ static void recv_transfer_datagram_to_glue_logic(void)
     DEBUG_OUT("recv_transfer_datagram_to_glue_logic()\n");
 
     if (ncm_interface.recv_glue_ntb == NULL) {
-        ncm_interface.recv_glue_ntb = recv_get_next_waiting_ntb();
+        ncm_interface.recv_glue_ntb = recv_get_next_ready_ntb();
         if (ncm_interface.recv_glue_ntb == NULL) {
             return;
         }
@@ -826,6 +862,9 @@ void netd_init(void)
     for (int i = 0;  i < XMIT_NTB_N;  ++i) {
         ncm_interface.xmit_free_ntb[i] = ncm_interface.xmit_ntb + i;
     }
+    for (int i = 0;  i < RECV_NTB_N;  ++i) {
+        ncm_interface.recv_free_ntb[i] = ncm_interface.recv_ntb + i;
+    }
 }   // netd_init
 
 
@@ -922,7 +961,9 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         // - if there is a free receive buffer, initiate reception
         //
         DEBUG_OUT("  EP_OUT %d %d %d %u\n", rhport, ep_addr, result, (unsigned)xferred_bytes);
-        recv_put_ntb_into_waiting_list(xferred_bytes);
+        ncm_interface.recv_tinyusb_ntb->len = xferred_bytes;
+        recv_put_ntb_into_ready_list(ncm_interface.recv_tinyusb_ntb);
+        ncm_interface.recv_tinyusb_ntb = NULL;
         tud_network_recv_renew_r(rhport);
     }
     else if (ep_addr == ncm_interface.ep_in) {
@@ -933,7 +974,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         // - if there is another transmit NTB waiting, try to start transmission
         //
         DEBUG_OUT("  EP_IN %d %u\n", ncm_interface.itf_data_alt, (unsigned)xferred_bytes);
-        xmit_free_tinyusb_ntb();
+        xmit_put_tinyusb_ntb_into_free_list();
         if ( !xmit_insert_required_zlp(rhport, xferred_bytes)) {
             xmit_start_if_possible(rhport);
         }
