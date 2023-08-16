@@ -227,29 +227,26 @@ static void notification_xmit(uint8_t rhport, bool force_next)
 //
 
 
-static void xmit_put_tinyusb_ntb_into_free_list(void)
+static void xmit_put_ntb_into_free_list(ntb_t *free_ntb)
 /**
- * Free the current TinyUSB transmit NTB
- *
- * TODO make it more generic like recv*, caller must set then tinyusb_ntb to NULL
+ * Put NTB into the transmitter free list.
  */
 {
-    DEBUG_OUT("xmit_put_tinyusb_ntb_into_free_list() - %p\n", ncm_interface.xmit_tinyusb_ntb);
+    DEBUG_OUT("xmit_put_ntb_into_free_list() - %p\n", ncm_interface.xmit_tinyusb_ntb);
 
-    if (ncm_interface.xmit_tinyusb_ntb == NULL) {
-        ERROR_OUT("xmit_put_tinyusb_ntb_into_free_list: xmit_tinyusb_ntb==NULL\n");   // can happen due to ZLPs
+    if (free_ntb == NULL) {
+        // can happen due to ZLPs
         return;
     }
 
     for (int i = 0;  i < XMIT_NTB_N;  ++i) {
         if (ncm_interface.xmit_free_ntb[i] == NULL) {
-            ncm_interface.xmit_free_ntb[i] = ncm_interface.xmit_tinyusb_ntb;
-            ncm_interface.xmit_tinyusb_ntb = NULL;
+            ncm_interface.xmit_free_ntb[i] = free_ntb;
             return;
         }
     }
-    ERROR_OUT("xmit_put_tinyusb_ntb_into_free_list - no entry in free list\n");  // this should not happen
-}   // xmit_put_tinyusb_ntb_into_free_list
+    ERROR_OUT("xmit_put_ntb_into_free_list - no entry in free list\n");  // this should not happen
+}   // xmit_put_ntb_into_free_list
 
 
 
@@ -526,16 +523,16 @@ static ntb_t *recv_get_next_ready_ntb(void)
 
 
 
-static void recv_put_ntb_into_free_list(ntb_t *p)
+static void recv_put_ntb_into_free_list(ntb_t *free_ntb)
 /**
  *
  */
 {
-    DEBUG_OUT("recv_put_ntb_into_free_list(%p)\n", p);
+    DEBUG_OUT("recv_put_ntb_into_free_list(%p)\n", free_ntb);
 
     for (int i = 0;  i < RECV_NTB_N;  ++i) {
         if (ncm_interface.recv_free_ntb[i] == NULL) {
-            ncm_interface.recv_free_ntb[i] = p;
+            ncm_interface.recv_free_ntb[i] = free_ntb;
             return;
         }
     }
@@ -974,7 +971,8 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         // - if there is another transmit NTB waiting, try to start transmission
         //
         DEBUG_OUT("  EP_IN %d %u\n", ncm_interface.itf_data_alt, (unsigned)xferred_bytes);
-        xmit_put_tinyusb_ntb_into_free_list();
+        xmit_put_ntb_into_free_list(ncm_interface.xmit_tinyusb_ntb);
+        ncm_interface.xmit_tinyusb_ntb = NULL;
         if ( !xmit_insert_required_zlp(rhport, xferred_bytes)) {
             xmit_start_if_possible(rhport);
         }
