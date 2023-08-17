@@ -73,6 +73,7 @@
     #define ERROR_OUT(...)
 #endif
 
+// calculate alignment of xmit datagrams within an NTB
 #define XMIT_ALIGN_OFFSET(x)   ((CFG_TUD_NCM_ALIGNMENT - ((x) & (CFG_TUD_NCM_ALIGNMENT - 1))) & (CFG_TUD_NCM_ALIGNMENT - 1))
 
 //-----------------------------------------------------------------------------
@@ -144,19 +145,19 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static const ntb_parameters_t ntb_par
         .wNdbOutDivisor          = 4,
         .wNdbOutPayloadRemainder = 0,
         .wNdbOutAlignment        = CFG_TUD_NCM_ALIGNMENT,
-        .wNtbOutMaxDatagrams     = 0                                     // 0=no limit
+        .wNtbOutMaxDatagrams     = 6                                     // 0=no limit
 };
 
-// TODO ==0 -> SystemView with ~85000 events/s -> packets on startup ok
-//      ==1 -> packets/s goes up to 2000 and events are lost during startup
-// TODO if wNtbOutMaxDatagrams==1, everything seems to be fine.  If !=1, the transferred TCP packet size is reduced from 1460 bytes
-//      to 256 bytes with ACK for every packet.  This increases packet rate dramatically (from 300->1800/s) and leads to event
-//      loss in SystemView.  Nevertheless I leave it at 4 for experiments.
-//      This all under full load.
-//      Note: !=1 has better throughput.
-//      I think this happened, because everything is at its limit: throughput is at ~325KByte/s
-//      I have the feeling, that lwIP is already doing a good job creating large TCP packets, so the NCM driver
-//      approach add just a small performance gain.
+// TODO wNtbOutMaxDatagrams...
+//      ==1 -> SystemView packets/s goes up to 2000 and events are lost during startup
+//      ==0 -> SystemView runs fine, iperf shows in wireshark a lot of error
+//      ==6 -> SystemView runs fine, iperf also
+//      >6  -> iperf starts to show errors
+//      -> 6 seems to be the best value.  Why?  Don't know, perhaps only on my system?
+//      switch \a INFO_OUT on to see interesting values for this.
+//
+//      iperf:    for MSS in 100 200 400 800 1200 1450 1500; do iperf -c 192.168.14.1 -e -i 1 -M $MSS -l 8192 -P 1; sleep 2; done
+//      sysview:  SYSTICKS_PER_SEC=35000, IDLE_US=1000, PRINT_MOD=1000
 //
 
 //-----------------------------------------------------------------------------
@@ -279,7 +280,7 @@ static void xmit_put_ntb_into_ready_list(ntb_t *ready_ntb)
 {
     ready_ntb->age_cnt = ncm_interface.age_cnt++;
 
-    ERROR_OUT("xmit_put_ntb_into_ready_list(%p) %d %u\n", ready_ntb, ready_ntb->len, (unsigned)ready_ntb->age_cnt);
+    INFO_OUT("xmit_put_ntb_into_ready_list(%p) %d %u\n", ready_ntb, ready_ntb->len, (unsigned)ready_ntb->age_cnt);
 
     for (int i = 0;  i < XMIT_NTB_N;  ++i) {
         if (ncm_interface.xmit_ready_ntb[i] == NULL) {
@@ -347,7 +348,7 @@ static bool xmit_insert_required_zlp(uint8_t rhport, uint16_t xferred_bytes)
     TU_ASSERT(ncm_interface.itf_data_alt == 1, false);
     TU_ASSERT( !usbd_edpt_busy(rhport, ncm_interface.ep_in), false);
 
-    ERROR_OUT("xmit_insert_required_zlp! (%u)\n", (unsigned)xferred_bytes);
+    INFO_OUT("xmit_insert_required_zlp! (%u)\n", (unsigned)xferred_bytes);
 
     // start transmission of the ZLP
     usbd_edpt_xfer(rhport, ncm_interface.ep_in, NULL, 0);
@@ -396,7 +397,7 @@ static void xmit_start_if_possible(uint8_t rhport)
         DEBUG_OUT("\n");
     }
     if (ncm_interface.xmit_glue_ntb_datagram_ndx != 1) {
-        INFO_OUT(">> %d %d\n", ncm_interface.xmit_tinyusb_ntb->len, ncm_interface.xmit_glue_ntb_datagram_ndx);
+        DEBUG_OUT(">> %d %d\n", ncm_interface.xmit_tinyusb_ntb->len, ncm_interface.xmit_glue_ntb_datagram_ndx);
     }
 
     // Kick off an endpoint transfer
@@ -665,14 +666,15 @@ static bool recv_validate_datagram(const ntb_t *ntb)
     int max_ndx = (ndp16->wLength - sizeof(ndp16_t)) / sizeof(ndp16_datagram_t);
 
     if (max_ndx > 2) {
-        ERROR_OUT("<< %d (%d)\n", max_ndx - 1, ntb->len);
+        // number of datagrams in NTB > 1
+        INFO_OUT("<< %d (%d)\n", max_ndx - 1, ntb->len);
     }
     if (ndp16_datagram[max_ndx-1].wDatagramIndex != 0  ||  ndp16_datagram[max_ndx-1].wDatagramLength != 0) {
-        ERROR_OUT("  max_ndx != 0\n");
+        INFO_OUT("  max_ndx != 0\n");
         return false;
     }
     while (ndp16_datagram[ndx].wDatagramIndex != 0  &&  ndp16_datagram[ndx].wDatagramLength != 0) {
-        INFO_OUT("  << %d %d\n", ndp16_datagram[ndx].wDatagramIndex, ndp16_datagram[ndx].wDatagramLength);
+        DEBUG_OUT("  << %d %d\n", ndp16_datagram[ndx].wDatagramIndex, ndp16_datagram[ndx].wDatagramLength);
         if (ndp16_datagram[ndx].wDatagramIndex > len) {
             ERROR_OUT("  ill start of datagram[%d]: %d (%d)\n", ndx, ndp16_datagram[ndx].wDatagramIndex, len);
             return false;
