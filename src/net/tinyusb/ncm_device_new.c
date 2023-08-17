@@ -73,6 +73,8 @@
     #define ERROR_OUT(...)
 #endif
 
+#define XMIT_ALIGN_OFFSET(x)   ((CFG_TUD_NCM_ALIGNMENT - ((x) & (CFG_TUD_NCM_ALIGNMENT - 1))) & (CFG_TUD_NCM_ALIGNMENT - 1))
+
 //-----------------------------------------------------------------------------
 //
 // Module global things
@@ -83,17 +85,7 @@ typedef struct {
     uint8_t      data[CFG_TUD_NCM_OUT_NTB_MAX_SIZE];
 } ntb_t;
 
-// TODO if this is "1", everything seems to be fine.  If !=1, the transferred TCP packet size is reduced from 1460 bytes
-//      to 256 bytes with ACK for every packet.  This increases packet rate dramatically (from 300->1800/s) and leads to event
-//      loss in SystemView.  Nevertheless I leave it at 4 for experiments.
-//      This all under full load.
-//      Note: !=1 has better throughput.
-//      I think this happened, because everything is at its limit: throughput is at ~325KByte/s
-//      I have the feeling, that lwIP is already doing a good job creating large TCP packets, so the NCM driver
-//      approach add just a small performance gain.
-//
 #define XMIT_NTB_N     4
-
 #define RECV_NTB_N     4
 
 typedef struct {
@@ -157,6 +149,15 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static const ntb_parameters_t ntb_par
 
 // TODO ==0 -> SystemView with ~85000 events/s -> packets on startup ok
 //      ==1 -> packets/s goes up to 2000 and events are lost during startup
+// TODO if wNtbOutMaxDatagrams==1, everything seems to be fine.  If !=1, the transferred TCP packet size is reduced from 1460 bytes
+//      to 256 bytes with ACK for every packet.  This increases packet rate dramatically (from 300->1800/s) and leads to event
+//      loss in SystemView.  Nevertheless I leave it at 4 for experiments.
+//      This all under full load.
+//      Note: !=1 has better throughput.
+//      I think this happened, because everything is at its limit: throughput is at ~325KByte/s
+//      I have the feeling, that lwIP is already doing a good job creating large TCP packets, so the NCM driver
+//      approach add just a small performance gain.
+//
 
 //-----------------------------------------------------------------------------
 //
@@ -417,7 +418,7 @@ static bool xmit_requested_datagram_fits_into_current_ntb(uint16_t datagram_size
     if (ncm_interface.xmit_glue_ntb_datagram_ndx >= CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB) {
         return false;
     }
-    if (ncm_interface.xmit_glue_ntb->len + datagram_size > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
+    if (ncm_interface.xmit_glue_ntb->len + datagram_size + XMIT_ALIGN_OFFSET(datagram_size) > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
         return false;
     }
     return true;
@@ -801,7 +802,7 @@ void tud_network_xmit(void *ref, uint16_t arg)
 
     // copy new datagram to the end of the current NTB
     uint16_t size = tud_network_xmit_cb(ncm_interface.xmit_glue_ntb->data + ncm_interface.xmit_glue_ntb->len, ref, arg);
-    ncm_interface.xmit_glue_ntb->len += size;
+    ncm_interface.xmit_glue_ntb->len += size + XMIT_ALIGN_OFFSET(size);
 
     if (ncm_interface.xmit_glue_ntb->len > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
         ERROR_OUT("tud_network_xmit: buffer overflow\n");       // must not happen (really)
@@ -812,7 +813,7 @@ void tud_network_xmit(void *ref, uint16_t arg)
     ntb->ndp.datagram[ncm_interface.xmit_glue_ntb_datagram_ndx].wDatagramIndex  = ntb->nth.wBlockLength;
     ntb->ndp.datagram[ncm_interface.xmit_glue_ntb_datagram_ndx].wDatagramLength = size;
     ncm_interface.xmit_glue_ntb_datagram_ndx += 1;
-    ntb->nth.wBlockLength += size;
+    ntb->nth.wBlockLength = ncm_interface.xmit_glue_ntb->len;
 
     xmit_start_if_possible(ncm_interface.rhport);
 }   // tud_network_xmit

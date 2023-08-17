@@ -48,6 +48,9 @@
 #ifndef CFG_TUD_NCM_ALIGNMENT
     #define CFG_TUD_NCM_ALIGNMENT              4
 #endif
+#if (CFG_TUD_NCM_ALIGNMENT != 4)
+    #error "CFG_TUD_NCM_ALIGNMENT must be 4, otherwise the headers and start of datagrams have to be aligned (which is currently not)"
+#endif
 
 
 // Table 4.3 Data Class Interface Protocol Codes
