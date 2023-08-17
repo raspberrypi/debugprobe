@@ -336,8 +336,14 @@ the driver, except that it specifies an additional copy destination.
 *** [ ] iperf also shows problems if `-P` is > 1
 *** [ ] surprisingly `iperf` performance is much better with actual firmware.
         `cmake-create-debugEE` has just half performance
-*** [ ] but all these problems also exists with `ncm_device`.  Ist it in the glue code?
+*** [ ] but all these problems also exists with `ncm_device`.  Is it in the glue code?
+        Possible, because the effect is also with ECM driver
+*** [x] packets/s is changing heavily, setting `wNtbOutMaxDatagrams==0` helped to prevent raising
+        of packet rate (sometimes there are two datagrams in one NTB even with SystemView)
 ** how to continue?
 *** [ ] need a test case where `tud_network_can_xmit()` collects datagrams.  Currently
         there is always only one active xmit datagram, perhaps `iperf` with `-P 4` does it.
-*** [ ] check if there is a problem in the glue code for datagram reception.  Glue buffer freed too soon?
+*** [x] check if there is a problem in the glue code for datagram reception.  Glue buffer freed too soon?
+        No, I doubt it.  But examples are few.
+
+

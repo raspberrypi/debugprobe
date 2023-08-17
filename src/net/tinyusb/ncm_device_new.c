@@ -104,6 +104,7 @@ typedef struct {
     uint8_t      itf_num;                           //!< interface number
     uint8_t      itf_data_alt;                      //!< ==0 -> no endpoints, i.e. no network traffic, ==1 -> normal operation with two endpoints (spec, chapter 5.3)
     uint8_t      rhport;                            //!< storage of \a rhport because some callbacks are done without it
+    uint32_t     age_cnt;                           //!< age cnt TODO should be removed in the future, order in FIFO should matter
 
     // recv handling
     ntb_t        recv_ntb[RECV_NTB_N];              //!< actual recv NTBs
@@ -121,7 +122,6 @@ typedef struct {
     ntb_t       *xmit_tinyusb_ntb;                  //!< buffer for the running transfer driver -> TinyUSB
     ntb_t       *xmit_glue_ntb;                     //!< buffer for the running transfer glue logic -> driver
     uint16_t     xmit_glue_ntb_datagram_ndx;        //!< index into \a xmit_glue_ntb_datagram
-    uint32_t     xmit_age_cnt;                      //!< age cnt TODO should be removed in the future, TODO rename to age_cnt
 
     // notification handling
     enum {
@@ -152,9 +152,11 @@ CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static const ntb_parameters_t ntb_par
         .wNdbOutDivisor          = 4,
         .wNdbOutPayloadRemainder = 0,
         .wNdbOutAlignment        = CFG_TUD_NCM_ALIGNMENT,
-        .wNtbOutMaxDatagrams     = 1                                     // 0=no limit TODO !!!
+        .wNtbOutMaxDatagrams     = 0                                     // 0=no limit
 };
 
+// TODO ==0 -> SystemView with ~85000 events/s -> packets on startup ok
+//      ==1 -> packets/s goes up to 2000 and events are lost during startup
 
 //-----------------------------------------------------------------------------
 //
@@ -274,7 +276,7 @@ static void xmit_put_ntb_into_ready_list(ntb_t *ready_ntb)
  * Put a filled NTB into the ready list
  */
 {
-    ready_ntb->age_cnt = ncm_interface.xmit_age_cnt++;
+    ready_ntb->age_cnt = ncm_interface.age_cnt++;
 
     ERROR_OUT("xmit_put_ntb_into_ready_list(%p) %d %u\n", ready_ntb, ready_ntb->len, (unsigned)ready_ntb->age_cnt);
 
@@ -547,7 +549,7 @@ static void recv_put_ntb_into_ready_list(ntb_t *ready_ntb)
  * put this buffer into the waiting list and free the receive logic.
  */
 {
-    ready_ntb->age_cnt = ncm_interface.xmit_age_cnt++;
+    ready_ntb->age_cnt = ncm_interface.age_cnt++;
 
     DEBUG_OUT("recv_put_ntb_into_ready_list(%p) %d %u\n", ready_ntb, ready_ntb->len, (unsigned)ready_ntb->age_cnt);
 

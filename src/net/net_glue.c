@@ -52,11 +52,11 @@ static struct netif netif_data;
 
 /// Buffer for lwIP <- TinyUSB transmission
 static uint8_t  rcv_buff[CFG_TUD_NET_MTU + 10];    // MTU plus some margin
-static uint16_t rcv_buff_len = 0;
+static volatile uint16_t rcv_buff_len = 0;
 
 /// Buffer for lwIP -> TinyUSB transmission
 static uint8_t  xmt_buff[CFG_TUD_NET_MTU + 10];    // MTU plus some margin
-static uint16_t xmt_buff_len = 0;
+static volatile uint16_t xmt_buff_len = 0;
 
 #ifndef OPT_NET_192_168
     #define OPT_NET_192_168   14
