@@ -73,6 +73,10 @@
     #define ERROR_OUT(...)
 #endif
 
+#if CFG_TUD_NCM_IN_NTB_MAX_SIZE != CFG_TUD_NCM_OUT_NTB_MAX_SIZE
+    #error "CFG_TUD_NCM_IN_NTB_MAX_SIZE must equal CFG_TUD_NCM_OUT_NTB_MAX_SIZE"
+#endif
+
 // calculate alignment of xmit datagrams within an NTB
 #define XMIT_ALIGN_OFFSET(x)   ((CFG_TUD_NCM_ALIGNMENT - ((x) & (CFG_TUD_NCM_ALIGNMENT - 1))) & (CFG_TUD_NCM_ALIGNMENT - 1))
 
@@ -83,11 +87,11 @@
 typedef struct {
     uint32_t     age_cnt;                          //!< age cnt TODO should be removed in the future
     uint16_t     len;
-    uint8_t      data[CFG_TUD_NCM_OUT_NTB_MAX_SIZE];
+    uint8_t      data[CFG_TUD_NCM_OUT_NTB_MAX_SIZE];    // TODO this should be a transmit_ntb_t
 } ntb_t;
 
-#define XMIT_NTB_N     4
-#define RECV_NTB_N     4
+#define XMIT_NTB_N     CFG_TUD_NCM_IN_NTB_N
+#define RECV_NTB_N     CFG_TUD_NCM_OUT_NTB_N
 
 typedef struct {
     // general
