@@ -1,9 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2020 Jacob Berg Potter
- * Copyright (c) 2020 Peter Lawrence
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * Copyright (c) 2023 Hardy Griech
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -378,7 +376,7 @@ static void xmit_start_if_possible(uint8_t rhport)
         return;
     }
     if (usbd_edpt_busy(rhport, ncm_interface.ep_in)) {
-        ERROR_OUT("  !xmit_start_if_possible 3\n");
+        INFO_OUT("  !xmit_start_if_possible 3\n");
         return;
     }
 

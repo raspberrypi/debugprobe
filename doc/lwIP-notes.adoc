@@ -142,7 +142,7 @@ because startup time with `ncm_device_simple` is much longer compared to ECM/RND
 `ncm_device`.
 
 
-#### possible Bugs in ncm_device.c
+#### possible bugs in ncm_device.c
 
 This is more or less obsoleted by `ncm_device_simple.c`.  But as a short summary: the original
 driver is very buggy.  Perhaps it is working in certain scenarios, but for sure not together with
@@ -290,6 +290,48 @@ the driver, except that it specifies an additional copy destination.
 |===
 
 
+## The ncm_device_new driver & comparison
+
+The following table holds a comparison between the several network drivers.  The first seven bars are
+created with 
+`for MSS in 100 200 400 800 1200 1450 1500; do iperf -c 192.168.14.1 -e -i 1 -M $MSS -l 8192 -P 1; sleep 2; done`.
+After that SystemView is started with almost maximum load (~85000 events/s, 325 KByte/s) and after a while
+iperf is started again in parallel.
+
+The images are recorded with Wireshark.  The red bars are "TCP Window Full" if not otherwise noted.
+
+[%header]
+|===
+|Driver | 
+
+|**ECM** +
+The driver shows expected behavior, nothing actually special.
+a|image::benchmark-ecm.png[ECM]
+
+|**RNDIS** +
+Again nothing special.
+a|image::benchmark-rndis.png[RNDIS]
+
+|**Original NCM** +
+The original NCM driver is very buggy as said.  The red bars in the graph are not caused by "TCP Window Full".
+Obscure messages in Wireshark show that the protocol is more or less garbage.
+a|image::benchmark-ncm_device.png[Original NCM]
+
+|**Simple NCM** +
+The simple NCM driver behaves much better, but revealed some weaknesses in parallel operation (it also had
+some overflows in SystemView without iperf in paralell.  It had some stability issues and it also had bugs
+on startup of the probe which was the actual reason to create `ncm_device_new`.
+a|image::benchmark-ncm_device_simple.png[Simple NCM]
+
+|**New NCM** +
+`ncm_device_new` clearly shows best behavior.  Throughput is best and during parallel operation there was
+no packet loss when iperf used large packets.  Also no obsucre Wireshark messages in parallel operation.
+a|image::benchmark-ncm_device_new.png[New NCM]
+|===
+
+So obviously `ncm_device_new` is the clear winner: best in performance, best in functionality, best in compatibility.
+What else is needed?
+
 
 ## Log
 
@@ -333,11 +375,13 @@ the driver, except that it specifies an additional copy destination.
 * new driver: `ncm_device_new`
 ** works (better then `ncm_device_simple`), but
 *** [x] problems, if `wNtbOutMaxDatagrams!=1` -> see comment
-*** [ ] iperf also shows problems if `-P` is > 1
+*** [x] iperf also shows problems if `-P` is > 1.  I guess this is an iperf problem, because iperf
+        and SystemView are running parallel without such errors
 *** [ ] surprisingly `iperf` performance is much better with actual firmware.
         `cmake-create-debugEE` has just half performance
-*** [ ] but all these problems also exists with `ncm_device`.  Is it in the glue code?
-        Possible, because the effect is also with ECM driver
+*** [x] but all these problems also exists with `ncm_device`.  Is it in the glue code?
+        Possible, because the effect is also with ECM driver.  No, not in the glue code, because
+        iperf and SystemView work in parallel
 *** [x] packets/s is changing heavily, setting `wNtbOutMaxDatagrams==0` helped to prevent raising
         of packet rate (sometimes there are two datagrams in one NTB even with SystemView)
 ** how to continue?
@@ -347,4 +391,6 @@ the driver, except that it specifies an additional copy destination.
 *** [x] check if there is a problem in the glue code for datagram reception.  Glue buffer freed too soon?
         No, I doubt it.  But examples are few.
 
+### 2023-08-18
 
+* the new driver is ready.  Had some optimization loops, but now it seems to work pretty well

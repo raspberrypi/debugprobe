@@ -51,9 +51,11 @@
 #ifndef CFG_TUD_NCM_IN_NTB_N
     /// number of ntb buffers for transmission side
     /// 1 - good performance but SystemView shows lost events (on load test)
-    /// 2 - up to 50% more performance with iperf with small packets
+    /// 2 - up to 50% more performance with iperf with small packets, "tud_network_can_xmit: request blocked"
+    ///     happens from time to time with SystemView
+    /// 3 - "tud_network_can_xmit: request blocked" never happens
     /// >2 - no performance gain
-    #define CFG_TUD_NCM_IN_NTB_N               2
+    #define CFG_TUD_NCM_IN_NTB_N               3
 #endif
 
 #ifndef CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB
