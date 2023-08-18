@@ -43,6 +43,24 @@
 #include "net_device.h"
 #include "ncm.h"
 
+#if 0
+    #define DEBUG_OUT(...)  printf(__VA_ARGS__)
+#else
+    #define DEBUG_OUT(...)
+#endif
+
+#if 0
+    #define INFO_OUT(...)   printf(__VA_ARGS__)
+#else
+    #define INFO_OUT(...)
+#endif
+
+#if 1
+    #define ERROR_OUT(...)  printf(__VA_ARGS__)
+#else
+    #define ERROR_OUT(...)
+#endif
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -109,7 +127,7 @@ static void ncm_prepare_for_tx(void)
  *    \a ncm_interface.current_ntb must be set correctly
  */
 {
-    //printf("ncm_prepare_for_tx()\n");
+    DEBUG_OUT("ncm_prepare_for_tx()\n");
     ncm_interface.datagram_count = 0;
     // datagrams start after all the headers
     ncm_interface.next_datagram_offset =   sizeof(nth16_t) + sizeof(ndp16_t)
@@ -125,7 +143,7 @@ static void ncm_prepare_for_tx(void)
  */
 static void ncm_start_tx(void)
 {
-    //printf("ncm_start_tx() - %d %d\n", ncm_interface.xmt_running, ncm_interface.datagram_count);
+    DEBUG_OUT("ncm_start_tx() - %d %d\n", ncm_interface.xmt_running, ncm_interface.datagram_count);
 
     if (ncm_interface.xmt_running) {
         return;
@@ -159,7 +177,7 @@ static void ncm_start_tx(void)
 
 
 
-tu_static struct ncm_notify_struct ncm_notify_connected = {
+tu_static struct ncm_notify_t ncm_notify_connected = {
         .header = {
                 .bmRequestType_bit = {
                         .recipient = TUSB_REQ_RCPT_INTERFACE,
@@ -172,7 +190,7 @@ tu_static struct ncm_notify_struct ncm_notify_connected = {
         },
 };
 
-tu_static struct ncm_notify_struct ncm_notify_speed_change = {
+tu_static struct ncm_notify_t ncm_notify_speed_change = {
         .header = {
                 .bmRequestType_bit = {
                         .recipient = TUSB_REQ_RCPT_INTERFACE,
@@ -193,7 +211,7 @@ void tud_network_recv_renew(void)
  * context: lwIP & TinyUSB
  */
 {
-    //printf("tud_network_recv_renew() - %d [%p]\n", ncm_interface.rcv_datagram_num, xTaskGetCurrentTaskHandle());
+    DEBUG_OUT("tud_network_recv_renew() - %d [%p]\n", ncm_interface.rcv_datagram_num, xTaskGetCurrentTaskHandle());
     if (ncm_interface.rcv_datagram_index >= ncm_interface.rcv_datagram_num) {
 
         //printf("--0\n");
@@ -293,7 +311,7 @@ void tud_network_recv_renew(void)
 
 static void handle_incoming_datagram(uint32_t len)
 {
-    //printf("!!!!!!!!!!!!!handle_incoming_datagram(%lu) %d\n", len, ncm_interface.rcv_usb_datagram_size);
+    DEBUG_OUT("!!!!!!!!!!!!!handle_incoming_datagram(%lu) %d\n", len, ncm_interface.rcv_usb_datagram_size);
 
     ncm_interface.rcv_usb_datagram_size = len;
 
@@ -423,19 +441,6 @@ static void ncm_report(void)
 
 
 
-TU_ATTR_WEAK void tud_network_link_state_cb(bool state)
-/**
- * called on init three times with 1/0/1
- *
- * context: TinyUSB
- */
-{
-    (void) state;
-    printf("tud_network_link_state_cb(%d) [%p]\n", state, xTaskGetCurrentTaskHandle());
-}
-
-
-
 // Handle class control request
 // return false to stall control endpoint (e.g unsupported request)
 bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request)
@@ -479,8 +484,6 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
                         ncm_report();
                     }
                 }
-
-                tud_network_link_state_cb(ncm_interface.itf_data_alt);
             }
 
             tud_control_status(rhport, request);
@@ -522,7 +525,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     (void) rhport;
     (void) result;
 
-    //printf("netd_xfer_cb(%d,%d,%d,%lu) [%p]\n", rhport, ep_addr, result, xferred_bytes, xTaskGetCurrentTaskHandle());
+    DEBUG_OUT("netd_xfer_cb(%d,%d,%d,%lu) [%p]\n", rhport, ep_addr, result, xferred_bytes, xTaskGetCurrentTaskHandle());
 
     /* new datagram rcv_datagram */
     if (ep_addr == ncm_interface.ep_out) {
@@ -570,8 +573,8 @@ bool tud_network_can_xmit(uint16_t size)
 {
     TU_VERIFY(ncm_interface.itf_data_alt == 1);
 
-#if 0
-    printf("tud_network_can_xmit(%d) %d %d - %d %d [%p]\n", size, ncm_interface.datagram_count, ncm_interface.max_datagrams_per_ntb,
+#if 1
+    DEBUG_OUT("tud_network_can_xmit(%d) %d %d - %d %d [%p]\n", size, ncm_interface.datagram_count, ncm_interface.max_datagrams_per_ntb,
             ncm_interface.next_datagram_offset, ncm_interface.ntb_in_size, xTaskGetCurrentTaskHandle());
 #endif
 
@@ -599,7 +602,7 @@ void tud_network_xmit(void *ref, uint16_t arg)
 {
     transmit_ntb_t *ntb = &transmit_ntb[ncm_interface.current_ntb];
 
-    //printf("tud_network_xmit(%p,%d) [%p]\n", ref, arg, xTaskGetCurrentTaskHandle());
+    DEBUG_OUT("tud_network_xmit(%p,%d) [%p]\n", ref, arg, xTaskGetCurrentTaskHandle());
 
     uint16_t size = tud_network_xmit_cb(ntb->data + ncm_interface.next_datagram_offset, ref, arg);
 

@@ -42,6 +42,25 @@
 
 #include "net_device.h"
 
+#if 0
+    #define DEBUG_OUT(...)  printf(__VA_ARGS__)
+#else
+    #define DEBUG_OUT(...)
+#endif
+
+#if 0
+    #define INFO_OUT(...)   printf(__VA_ARGS__)
+#else
+    #define INFO_OUT(...)
+#endif
+
+#if 1
+    #define ERROR_OUT(...)  printf(__VA_ARGS__)
+#else
+    #define ERROR_OUT(...)
+#endif
+
+
 #ifndef CFG_TUD_NCM_IN_NTB_MAX_SIZE
     #define CFG_TUD_NCM_IN_NTB_MAX_SIZE        (CFG_TUD_NET_MTU+200)
 #endif
@@ -108,14 +127,14 @@ static void ncm_prepare_for_tx(void)
  * Set up the NTB state in ncm_interface to be ready to add datagrams.
  */
 {
-    //printf("ncm_prepare_for_tx()\n");
+    DEBUG_OUT("ncm_prepare_for_tx()\n");
     memset(&transmit_ntb, 0, sizeof(transmit_ntb_t));
     ncm_interface.can_xmit = true;
 }   // ncm_prepare_for_tx
 
 
 
-tu_static struct ncm_notify_struct ncm_notify_connected = {
+tu_static struct ncm_notify_t ncm_notify_connected = {
         .header = {
                 .bmRequestType_bit = {
                         .recipient = TUSB_REQ_RCPT_INTERFACE,
@@ -128,7 +147,7 @@ tu_static struct ncm_notify_struct ncm_notify_connected = {
         },
 };
 
-tu_static struct ncm_notify_struct ncm_notify_speed_change = {
+tu_static struct ncm_notify_t ncm_notify_speed_change = {
         .header = {
                 .bmRequestType_bit = {
                         .recipient = TUSB_REQ_RCPT_INTERFACE,
@@ -149,7 +168,7 @@ void tud_network_recv_renew(void)
  * context: TinyUSB
  */
 {
-    // printf("tud_network_recv_renew() - [%p]\n", xTaskGetCurrentTaskHandle());
+    DEBUG_OUT("tud_network_recv_renew() - [%p]\n", xTaskGetCurrentTaskHandle());
 
     if (usbd_edpt_busy(0, ncm_interface.ep_out)) {
         printf("--0.1\n");
@@ -176,14 +195,14 @@ static void do_in_xfer(uint8_t *buf, uint16_t len)
 
 static void handle_incoming_datagram(uint32_t len)
 /**
- * Handle an incoming NTP.
+ * Handle an incoming NTB.
  * Most is checking validity of the frame.  If the frame is not valid, it is rejected.
- * Input NTP is in \a ncm_interface.rcv_ntb.
+ * Input NTB is in \a ncm_interface.rcv_ntb.
  */
 {
     bool ok = true;
 
-    //printf("!!!!!!!!!!!!!handle_incoming_datagram(%lu)\n", len);
+    DEBUG_OUT("!!!!!!!!!!!!!handle_incoming_datagram(%lu)\n", len);
 
     const nth16_t *hdr = (const nth16_t*)ncm_interface.rcv_ntb;
     const ndp16_t *ndp = NULL;
@@ -242,7 +261,7 @@ static void handle_incoming_datagram(uint32_t len)
 
     if ( !ok) {
         // receiver must be reenabled to get a chance to recover
-        printf("!!!!!!!!!!!!!!!!!!!!\n");
+        DEBUG_OUT("!!!!!!!!!!!!!!!!!!!!\n");
         tud_network_recv_renew();
     }
 }   // handle_incoming_datagram
@@ -260,7 +279,7 @@ void netd_init(void)
  * context: TinyUSB
  */
 {
-//    printf("netd_init() [%p]\n", xTaskGetCurrentTaskHandle());
+    printf("netd_init() [%p]\n", xTaskGetCurrentTaskHandle());
 
     tu_memclr(&ncm_interface, sizeof(ncm_interface));
     ncm_prepare_for_tx();
@@ -277,7 +296,7 @@ void netd_reset(uint8_t rhport)
 {
     (void) rhport;
 
-//    printf("netd_reset(%d) [%p]\n", rhport, xTaskGetCurrentTaskHandle());
+    printf("netd_reset(%d) [%p]\n", rhport, xTaskGetCurrentTaskHandle());
 
     netd_init();
 }
@@ -294,7 +313,7 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16
     // confirm interface hasn't already been allocated
     TU_ASSERT(0 == ncm_interface.ep_notif, 0);
 
-//    printf("netd_open(%d,%p,%d) [%p]\n", rhport, itf_desc, max_len, xTaskGetCurrentTaskHandle());
+    printf("netd_open(%d,%p,%d) [%p]\n", rhport, itf_desc, max_len, xTaskGetCurrentTaskHandle());
 
     //------------- Management Interface -------------//
     ncm_interface.itf_num = itf_desc->bInterfaceNumber;
@@ -349,7 +368,7 @@ static void ncm_report(void)
  * called on init
  */
 {
-//    printf("ncm_report - %d\n", ncm_interface.report_state);
+    printf("ncm_report - %d\n", ncm_interface.report_state);
     uint8_t const rhport = 0;
     if (ncm_interface.report_state == REPORT_SPEED) {
         ncm_notify_speed_change.header.wIndex = ncm_interface.itf_num;
@@ -367,18 +386,6 @@ static void ncm_report(void)
 
 
 
-TU_ATTR_WEAK void tud_network_link_state_cb(bool state)
-/**
- * called on init three times with 1/0/1
- *
- * context: TinyUSB
- */
-{
-//    printf("tud_network_link_state_cb(%d) [%p]\n", state, xTaskGetCurrentTaskHandle());
-}
-
-
-
 // Handle class control request
 // return false to stall control endpoint (e.g unsupported request)
 bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request)
@@ -388,7 +395,7 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
  * context: TinyUSB
  */
 {
-//    printf("netd_control_xfer_cb(%d, %d, %p) [%p]\n", rhport, stage, request, xTaskGetCurrentTaskHandle());
+    printf("netd_control_xfer_cb(%d, %d, %p) [%p]\n", rhport, stage, request, xTaskGetCurrentTaskHandle());
 
     if (stage != CONTROL_STAGE_SETUP)
         return true ;
@@ -422,8 +429,6 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
                                 ncm_report();
                             }
                         }
-
-                        tud_network_link_state_cb(ncm_interface.itf_data_alt);
                     }
 
                     tud_control_status(rhport, request);
@@ -439,7 +444,7 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
         case TUSB_REQ_TYPE_CLASS:
             TU_VERIFY(ncm_interface.itf_num == request->wIndex);
 
-            //printf("netd_control_xfer_cb/TUSB_REQ_TYPE_CLASS: %d\n", request->bRequest);
+            printf("netd_control_xfer_cb/TUSB_REQ_TYPE_CLASS: %d\n", request->bRequest);
 
             if (request->bRequest == NCM_GET_NTB_PARAMETERS) {
                 tud_control_xfer(rhport, request, (void*) (uintptr_t) &ntb_parameters, sizeof(ntb_parameters));
@@ -464,17 +469,17 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     (void) rhport;
     (void) result;
 
-    //printf("netd_xfer_cb(%d,%d,%d,%lu) [%p]\n", rhport, ep_addr, result, xferred_bytes, xTaskGetCurrentTaskHandle());
+    DEBUG_OUT("netd_xfer_cb(%d,%d,%d,%lu) [%p]\n", rhport, ep_addr, result, xferred_bytes, xTaskGetCurrentTaskHandle());
 
     /* new datagram rcv_ntb */
     if (ep_addr == ncm_interface.ep_out) {
-        //printf("  EP_OUT %d %d %d %lu\n", rhport, ep_addr, result, xferred_bytes);
+        DEBUG_OUT("  EP_OUT %d %d %d %lu\n", rhport, ep_addr, result, xferred_bytes);
         handle_incoming_datagram(xferred_bytes);
     }
 
     /* data transmission finished */
     if (ep_addr == ncm_interface.ep_in) {
-        //printf("  EP_IN %d %d\n", ncm_interface.can_xmit, ncm_interface.itf_data_alt);
+        DEBUG_OUT("  EP_IN %d %d\n", ncm_interface.can_xmit, ncm_interface.itf_data_alt);
         if (xferred_bytes != 0  &&  xferred_bytes % CFG_TUD_NET_ENDPOINT_SIZE == 0)
         {
             // TODO check when ZLP is really needed
@@ -488,7 +493,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
     }
 
     if (ep_addr == ncm_interface.ep_notif) {
-//        printf("  EP_NOTIF\n");
+        DEBUG_OUT("  EP_NOTIF\n");
         ncm_interface.report_pending = false;
         ncm_report();
     }
@@ -505,7 +510,7 @@ bool tud_network_can_xmit(uint16_t size)
  * context: TinyUSB
  */
 {
-    //printf("tud_network_can_xmit() %d [%p]\n", ncm_interface.can_xmit, xTaskGetCurrentTaskHandle());
+    DEBUG_OUT("tud_network_can_xmit() %d [%p]\n", ncm_interface.can_xmit, xTaskGetCurrentTaskHandle());
     return ncm_interface.can_xmit;
 }   // tud_network_can_xmit
 
@@ -520,7 +525,7 @@ void tud_network_xmit(void *ref, uint16_t arg)
     uint16_t next_datagram_offset = sizeof(nth16_t) + sizeof(ndp16_t)
                                     + ((1 + 1) * sizeof(ndp16_datagram_t));
 
-    //printf("tud_network_xmit(%p,%d) %d [%p]\n", ref, arg, ncm_interface.can_xmit, xTaskGetCurrentTaskHandle());
+    DEBUG_OUT("tud_network_xmit(%p,%d) %d [%p]\n", ref, arg, ncm_interface.can_xmit, xTaskGetCurrentTaskHandle());
 
     if ( !ncm_interface.can_xmit) {
         return;
