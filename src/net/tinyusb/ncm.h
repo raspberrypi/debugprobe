@@ -71,13 +71,6 @@
 #endif
 
 
-// Table 4.3 Data Class Interface Protocol Codes
-typedef enum
-{
-  NCM_DATA_PROTOCOL_NETWORK_TRANSFER_BLOCK = 0x01
-} ncm_data_interface_protocol_code_t;
-
-
 // Table 6.2 Class-Specific Request Codes for Network Control Model subclass
 typedef enum
 {
@@ -136,16 +129,25 @@ typedef struct TU_ATTR_PACKED {
     uint32_t dwSignature;
     uint16_t wLength;
     uint16_t wNextNdpIndex;
-    ndp16_datagram_t datagram[];
+    //ndp16_datagram_t datagram[];
 } ndp16_t;
 
 typedef union TU_ATTR_PACKED {
     struct {
-        nth16_t nth;
-        ndp16_t ndp;
+        nth16_t          nth;
+        ndp16_t          ndp;
+        ndp16_datagram_t ndp_datagram[CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB + 1];
     };
     uint8_t data[CFG_TUD_NCM_IN_NTB_MAX_SIZE];
-} transmit_ntb_t;
+} xmit_ntb_t;
+
+typedef union TU_ATTR_PACKED {
+    struct {
+        nth16_t nth;
+        // only the header is at a guaranteed position
+    };
+    uint8_t data[CFG_TUD_NCM_OUT_NTB_MAX_SIZE];
+} recv_ntb_t;
 
 struct ncm_notify_t {
     tusb_control_request_t header;
