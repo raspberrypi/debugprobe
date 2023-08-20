@@ -88,7 +88,6 @@
 //
 typedef struct {
     uint32_t     age_cnt;                                     //!< age cnt TODO should be removed in the future
-    uint16_t     len;
     recv_ntb_t   ntb;
 } recv_ntb_fifo_entry_t;
 
@@ -614,7 +613,7 @@ static void recv_try_to_start_new_reception(uint8_t rhport)
 
 
 
-static bool recv_validate_datagram(const recv_ntb_fifo_entry_t *ntb)
+static bool recv_validate_datagram(const recv_ntb_t *ntb, uint16_t len)
 /**
  * Validate incoming datagram.
  * \return true if valid
@@ -623,8 +622,7 @@ static bool recv_validate_datagram(const recv_ntb_fifo_entry_t *ntb)
  *    \a ndp16->wNextNdpIndex != 0 is not supported
  */
 {
-    const nth16_t *nth16 = &(ntb->ntb.nth);
-    uint16_t len = ntb->len;
+    const nth16_t *nth16 = &(ntb->nth);
 
     DEBUG_OUT("recv_validate_datagram(%p)\n", ntb);
 
@@ -660,7 +658,7 @@ static bool recv_validate_datagram(const recv_ntb_fifo_entry_t *ntb)
     //
     // check (first) NDP(16)
     //
-    const ndp16_t *ndp16 = (ndp16_t *)(ntb->ntb.data + nth16->wNdpIndex);
+    const ndp16_t *ndp16 = (ndp16_t *)(ntb->data + nth16->wNdpIndex);
 
     if (ndp16->wLength < sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)) {
         ERROR_OUT("  ill ndp16 length: %d\n", ndp16->wLength);
@@ -721,19 +719,8 @@ static void recv_transfer_datagram_to_glue_logic(void)
 
     if (ncm_interface.recv_glue_ntb == NULL) {
         ncm_interface.recv_glue_ntb = recv_get_next_ready_ntb();
-        if (ncm_interface.recv_glue_ntb == NULL) {
-            return;
-        }
         DEBUG_OUT("  new buffer for glue logic: %p\n", ncm_interface.recv_glue_ntb);
-
         ncm_interface.recv_glue_ntb_datagram_ndx = 0;
-
-        if ( !recv_validate_datagram(ncm_interface.recv_glue_ntb)) {
-            // verification failed: ignore NTB and return it to free
-            ERROR_OUT("  WHAT CAN WE DO IN THIS CASE?\n");
-            recv_put_ntb_into_free_list(ncm_interface.recv_glue_ntb);
-            ncm_interface.recv_glue_ntb = NULL;
-        }
     }
 
     if (ncm_interface.recv_glue_ntb != NULL) {
@@ -979,8 +966,14 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         // - if there is a free receive buffer, initiate reception
         //
         DEBUG_OUT("  EP_OUT %d %d %d %u\n", rhport, ep_addr, result, (unsigned)xferred_bytes);
-        ncm_interface.recv_tinyusb_ntb->len = xferred_bytes;
-        recv_put_ntb_into_ready_list(ncm_interface.recv_tinyusb_ntb);
+        if ( !recv_validate_datagram( &(ncm_interface.recv_tinyusb_ntb->ntb), xferred_bytes)) {
+            // verification failed: ignore NTB and return it to free
+            ERROR_OUT("  VALIDATION FAILED. WHAT CAN WE DO IN THIS CASE?\n");
+        }
+        else {
+            // packet ok -> put it into ready list
+            recv_put_ntb_into_ready_list(ncm_interface.recv_tinyusb_ntb);
+        }
         ncm_interface.recv_tinyusb_ntb = NULL;
         tud_network_recv_renew_r(rhport);
     }
