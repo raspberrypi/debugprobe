@@ -63,6 +63,7 @@
 
 #if 0
     #define DEBUG_OUT(...)  printf(__VA_ARGS__)
+    #define DEBUG_OUT_ENABLED
 #else
     #define DEBUG_OUT(...)
 #endif
@@ -93,7 +94,6 @@ typedef struct {
 
 typedef struct {
     uint32_t     age_cnt;                                     //!< age cnt TODO should be removed in the future
-    uint16_t     len;
     xmit_ntb_t   ntb;
 } xmit_ntb_fifo_entry_t;
 
@@ -401,14 +401,17 @@ static void xmit_start_if_possible(uint8_t rhport)
         ncm_interface.xmit_glue_ntb = NULL;
     }
 
+#if DEBUG_OUT_ENABLED
     {
-        uint16_t len = ncm_interface.xmit_tinyusb_ntb->len;
+        uint16_t len = ncm_interface.xmit_tinyusb_ntb->ntb.nth.wBlockLength;
         DEBUG_OUT(" %d\n", len);
         for (int i = 0;  i < len;  ++i) {
             DEBUG_OUT(" %02x", ncm_interface.xmit_tinyusb_ntb->data[i]);
         }
         DEBUG_OUT("\n");
     }
+#endif
+
     if (ncm_interface.xmit_glue_ntb_datagram_ndx != 1) {
         DEBUG_OUT(">> %d %d\n", ncm_interface.xmit_tinyusb_ntb->len, ncm_interface.xmit_glue_ntb_datagram_ndx);
     }
@@ -432,7 +435,7 @@ static bool xmit_requested_datagram_fits_into_current_ntb(uint16_t datagram_size
     if (ncm_interface.xmit_glue_ntb_datagram_ndx >= CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB) {
         return false;
     }
-    if (ncm_interface.xmit_glue_ntb->len + datagram_size + XMIT_ALIGN_OFFSET(datagram_size) > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
+    if (ncm_interface.xmit_glue_ntb->ntb.nth.wBlockLength + datagram_size + XMIT_ALIGN_OFFSET(datagram_size) > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
         return false;
     }
     return true;
@@ -475,7 +478,6 @@ static bool xmit_setup_next_glue_ntb(void)
     ntb->ndp.wNextNdpIndex = 0;
 
     memset(ntb->ndp.datagram, 0, (CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB + 1) * sizeof(ndp16_datagram_t));
-    ncm_interface.xmit_glue_ntb->len = ntb->nth.wBlockLength;
     return true;
 }   // xmit_setup_next_glue_ntb
 
@@ -806,19 +808,20 @@ void tud_network_xmit(void *ref, uint16_t arg)
     xmit_ntb_t *ntb = &(ncm_interface.xmit_glue_ntb->ntb);
 
     // copy new datagram to the end of the current NTB
-    uint16_t size = tud_network_xmit_cb(ncm_interface.xmit_glue_ntb->ntb.data + ncm_interface.xmit_glue_ntb->len, ref, arg);
-    ncm_interface.xmit_glue_ntb->len += size + XMIT_ALIGN_OFFSET(size);
-
-    if (ncm_interface.xmit_glue_ntb->len > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
-        ERROR_OUT("tud_network_xmit: buffer overflow\n");       // must not happen (really)
-        return;
-    }
+    uint16_t size = tud_network_xmit_cb(ncm_interface.xmit_glue_ntb->ntb.data + ncm_interface.xmit_glue_ntb->ntb.nth.wBlockLength,
+                                        ref, arg);
 
     // correct NTB internals
     ntb->ndp.datagram[ncm_interface.xmit_glue_ntb_datagram_ndx].wDatagramIndex  = ntb->nth.wBlockLength;
     ntb->ndp.datagram[ncm_interface.xmit_glue_ntb_datagram_ndx].wDatagramLength = size;
     ncm_interface.xmit_glue_ntb_datagram_ndx += 1;
-    ntb->nth.wBlockLength = ncm_interface.xmit_glue_ntb->len;
+
+    ncm_interface.xmit_glue_ntb->ntb.nth.wBlockLength += size + XMIT_ALIGN_OFFSET(size);
+
+    if (ncm_interface.xmit_glue_ntb->ntb.nth.wBlockLength > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
+        ERROR_OUT("tud_network_xmit: buffer overflow\n");       // must not happen (really)
+        return;
+    }
 
     xmit_start_if_possible(ncm_interface.rhport);
 }   // tud_network_xmit
