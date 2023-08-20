@@ -88,7 +88,6 @@
 // Module global things
 //
 typedef struct {
-    uint32_t     age_cnt;                                     //!< age cnt TODO should be removed in the future
     xmit_ntb_t   ntb;
 } xmit_ntb_fifo_entry_t;
 
@@ -103,7 +102,6 @@ typedef struct {
     uint8_t                itf_num;                           //!< interface number
     uint8_t                itf_data_alt;                      //!< ==0 -> no endpoints, i.e. no network traffic, ==1 -> normal operation with two endpoints (spec, chapter 5.3)
     uint8_t                rhport;                            //!< storage of \a rhport because some callbacks are done without it
-    uint32_t               age_cnt;                           //!< age cnt TODO should be removed in the future, order in FIFO should matter
 
     // recv handling
     recv_ntb_t  recv_ntb[RECV_NTB_N];              //!< actual recv NTBs
@@ -286,9 +284,7 @@ static void xmit_put_ntb_into_ready_list(xmit_ntb_fifo_entry_t *ready_ntb)
  * Put a filled NTB into the ready list
  */
 {
-    ready_ntb->age_cnt = ncm_interface.age_cnt++;
-
-    INFO_OUT("xmit_put_ntb_into_ready_list(%p) %d %u\n", ready_ntb, ready_ntb->len, (unsigned)ready_ntb->age_cnt);
+    INFO_OUT("xmit_put_ntb_into_ready_list(%p) %d\n", ready_ntb, ready_ntb->len);
 
     for (int i = 0;  i < XMIT_NTB_N;  ++i) {
         if (ncm_interface.xmit_ready_ntb[i] == NULL) {
@@ -308,27 +304,11 @@ static xmit_ntb_fifo_entry_t *xmit_get_next_ready_ntb(void)
  */
 {
     xmit_ntb_fifo_entry_t *r = NULL;
-    int best = -1;
 
-    DEBUG_OUT("xmit_get_next_ready_ntb()\n");
+    r = ncm_interface.xmit_ready_ntb[0];
+    memmove(ncm_interface.xmit_ready_ntb + 0, ncm_interface.xmit_ready_ntb + 1, sizeof(ncm_interface.xmit_ready_ntb) - sizeof(ncm_interface.xmit_ready_ntb[0]));
 
-    for (int i = 0;  i < XMIT_NTB_N;  ++i) {
-        if (ncm_interface.xmit_ready_ntb[i] != NULL) {
-            if (best < 0) {
-                best = i;
-            }
-            else {
-                ERROR_OUT("xmit_get_next_ready_ntb: multi NTBs ready!\n");   // this is good and just to check if it happens
-                if (ncm_interface.xmit_ready_ntb[best]->age_cnt > ncm_interface.xmit_ready_ntb[i]->age_cnt) {
-                    best = i;
-                }
-            }
-        }
-    }
-    if (best >= 0) {
-        r = ncm_interface.xmit_ready_ntb[best];
-        ncm_interface.xmit_ready_ntb[best] = NULL;
-    }
+    DEBUG_OUT("recv_get_next_ready_ntb: %p\n", r);
     return r;
 }   // xmit_get_next_ready_ntb
 
