@@ -186,7 +186,7 @@ static void cdc_debug_command_if(uint8_t ch)
         // simple unlock if no pwd set
         char pwd[20];
 
-        ini_gets(MININI_SECTION, "pwd", "", pwd, sizeof(pwd), MININI_FILENAME);
+        ini_gets(MININI_SECTION, MININI_VAR_PWD, "", pwd, sizeof(pwd), MININI_FILENAME);
         if (pwd[0] == '\0') {
             if ( !unlocked) {
                 picoprobe_info("unlocked\n");
@@ -206,8 +206,8 @@ static void cdc_debug_command_if(uint8_t ch)
 
             *p = '\0';
             ++p;
-            if (strcmp(cmd, "pwd") == 0) {
-                ini_gets(MININI_SECTION, "pwd", "", pwd, sizeof(pwd), MININI_FILENAME);
+            if (strcmp(cmd, MININI_VAR_PWD) == 0) {
+                ini_gets(MININI_SECTION, MININI_VAR_PWD, "", pwd, sizeof(pwd), MININI_FILENAME);
                 unlocked = (strcmp(p, pwd) == 0);
                 picoprobe_info("%s\n", unlocked ? "unlocked" : "locked: wrong password");
             }
@@ -218,15 +218,20 @@ static void cdc_debug_command_if(uint8_t ch)
         else if (unlocked) {
             p = strchr(cmd, '=');
             if (p != NULL) {
+                static const char *minini_varnames[] = {MININI_VAR_NAMES, NULL};
+
                 *p = '\0';
                 ++p;
 
-                if (    strcmp(cmd, "net") == 0
-                    ||  strcmp(cmd, "f_cpu") == 0
-                    ||  strcmp(cmd, "f_swd") == 0
-                    ||  strcmp(cmd, "r_start") == 0
-                    ||  strcmp(cmd, "r_end") == 0
-                    ||  strcmp(cmd, "pwd") ==0) {
+                bool found = false;
+                for (uint32_t ndx = 0;  minini_varnames[ndx] != NULL;  ++ndx) {
+                    if (strcmp(cmd, minini_varnames[ndx]) == 0) {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (found) {
                     multicore_reset_core1();
                     taskDISABLE_INTERRUPTS();
                     if (*p == '\0') {
