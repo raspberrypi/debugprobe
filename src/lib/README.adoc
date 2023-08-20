@@ -7,6 +7,13 @@
 
 These are mostly unmodified external libraries.
 
+
+## DAPLink
+
+More or less unmodified (but selected) files from
+https://github.com/ARMmbed/DAPLink[DAPLink].
+
+
 ## minIni
 
 Idea and code have been taken from
@@ -15,5 +22,6 @@ https://mcuoneclipse.com/2021/12/19/key-value-pairs-in-flash-memory-file-system-
 
 ## Segger RTT
 
-This has been taken from the target SystemView library.
-Not everything here is used.
+This has been taken from the
+https://www.segger.com/downloads/systemview/systemview_target_src[Seggers target SystemView library].
+Not everything here is used, esp. the actual SystemView stuff.
