@@ -467,17 +467,17 @@ static bool xmit_setup_next_glue_ntb(void)
 
     // Fill in NTB header
     ntb->nth.dwSignature   = NTH16_SIGNATURE;
-    ntb->nth.wHeaderLength = sizeof(nth16_t);
+    ntb->nth.wHeaderLength = sizeof(ntb->nth);
     ntb->nth.wSequence     = ncm_interface.xmit_sequence++;
-    ntb->nth.wBlockLength  = sizeof(nth16_t) + sizeof(ndp16_t) + (CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB + 1) * sizeof(ndp16_datagram_t);
-    ntb->nth.wNdpIndex     = sizeof(nth16_t);
+    ntb->nth.wBlockLength  = sizeof(ntb->nth) + sizeof(ntb->ndp) + sizeof(ntb->ndp_datagram);
+    ntb->nth.wNdpIndex     = sizeof(ntb->nth);
 
     // Fill in NDP16 header and terminator
     ntb->ndp.dwSignature   = NDP16_SIGNATURE_NCM0;
-    ntb->ndp.wLength       = sizeof(ndp16_t) + (CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB + 1) * sizeof(ndp16_datagram_t);
+    ntb->ndp.wLength       = sizeof(ntb->ndp) + sizeof(ntb->ndp_datagram);
     ntb->ndp.wNextNdpIndex = 0;
 
-    memset(ntb->ndp.datagram, 0, (CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB + 1) * sizeof(ndp16_datagram_t));
+    memset(ntb->ndp_datagram, 0, sizeof(ntb->ndp_datagram));
     return true;
 }   // xmit_setup_next_glue_ntb
 
@@ -812,8 +812,8 @@ void tud_network_xmit(void *ref, uint16_t arg)
                                         ref, arg);
 
     // correct NTB internals
-    ntb->ndp.datagram[ncm_interface.xmit_glue_ntb_datagram_ndx].wDatagramIndex  = ntb->nth.wBlockLength;
-    ntb->ndp.datagram[ncm_interface.xmit_glue_ntb_datagram_ndx].wDatagramLength = size;
+    ntb->ndp_datagram[ncm_interface.xmit_glue_ntb_datagram_ndx].wDatagramIndex  = ntb->nth.wBlockLength;
+    ntb->ndp_datagram[ncm_interface.xmit_glue_ntb_datagram_ndx].wDatagramLength = size;
     ncm_interface.xmit_glue_ntb_datagram_ndx += 1;
 
     ncm_interface.xmit_glue_ntb->ntb.nth.wBlockLength += size + XMIT_ALIGN_OFFSET(size);
