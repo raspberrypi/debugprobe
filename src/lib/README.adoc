@@ -7,6 +7,12 @@
 
 These are mostly unmodified external libraries.
 
+## minIni
+
+Idea and code have been taken from
+https://mcuoneclipse.com/2021/12/19/key-value-pairs-in-flash-memory-file-system-less-minini/[MCU on Eclipse].
+
+
 ## Segger RTT
 
 This has been taken from the target SystemView library.
