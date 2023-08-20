@@ -170,15 +170,16 @@ target_include_directories(${PROJECT} PRIVATE
 # this is for MSC/DAPLink operation
 #
 target_sources(${PROJECT} PRIVATE
-        src/daplink/daplink/util.c
-        src/daplink/daplink/drag-n-drop/flash_manager.c
-        src/daplink/daplink/interface/swd_host.c
-        src/daplink/daplink/interface/target_flash.c
-        src/daplink/daplink/settings/settings_rom_stub.c
-        src/daplink/family/nordic/target_reset_nrf52.c
-        src/daplink/family/nordic/nrf52/target.c
-        src/daplink/target/target_board.c
-        src/daplink/target/target_family.c
+        src/lib/daplink/daplink/util.c
+        src/lib/daplink/daplink/drag-n-drop/flash_manager.c
+        src/lib/daplink/daplink/interface/swd_host.c
+        src/lib/daplink/daplink/interface/target_flash.c
+        src/lib/daplink/daplink/settings/settings_rom_stub.c
+        src/lib/daplink/family/nordic/target_reset_nrf52.c
+        src/lib/daplink/family/nordic/nrf52/target.c
+        src/lib/daplink/target/target_board.c
+        src/lib/daplink/target/target_family.c
+        
         src/daplink-pico/board/rp2040/pico.c
         src/daplink-pico/board/rp2040/pico_target_utils.c
         src/daplink-pico/board/rp2040/program_flash_generic.c
@@ -186,13 +187,14 @@ target_sources(${PROJECT} PRIVATE
 )
 
 target_include_directories(${PROJECT} PRIVATE
-        src/daplink/daplink
-        src/daplink/daplink/cmsis-dap
-        src/daplink/daplink/drag-n-drop
-        src/daplink/daplink/interface
-        src/daplink/daplink/settings
-        src/daplink/hic_hal
-        src/daplink/target
+        src/lib/daplink/daplink
+        src/lib/daplink/daplink/cmsis-dap
+        src/lib/daplink/daplink/drag-n-drop
+        src/lib/daplink/daplink/interface
+        src/lib/daplink/daplink/settings
+        src/lib/daplink/hic_hal
+        src/lib/daplink/target
+        
         src/daplink-pico/board/rp2040
         src/daplink-pico/family/raspberry
         src/daplink-pico/hic_hal/raspberry/rp2040
