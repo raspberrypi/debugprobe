@@ -88,10 +88,6 @@
 // Module global things
 //
 typedef struct {
-    recv_ntb_t   ntb;
-} recv_ntb_fifo_entry_t;
-
-typedef struct {
     uint32_t     age_cnt;                                     //!< age cnt TODO should be removed in the future
     xmit_ntb_t   ntb;
 } xmit_ntb_fifo_entry_t;
@@ -110,11 +106,11 @@ typedef struct {
     uint32_t               age_cnt;                           //!< age cnt TODO should be removed in the future, order in FIFO should matter
 
     // recv handling
-    recv_ntb_fifo_entry_t  recv_ntb[RECV_NTB_N];              //!< actual recv NTBs
-    recv_ntb_fifo_entry_t *recv_free_ntb[RECV_NTB_N];         //!< free list of recv NTBs
-    recv_ntb_fifo_entry_t *recv_ready_ntb[RECV_NTB_N];        //!< NTBs waiting for transmission to glue logic
-    recv_ntb_fifo_entry_t *recv_tinyusb_ntb;                  //!< buffer for the running transfer TinyUSB -> driver
-    recv_ntb_fifo_entry_t *recv_glue_ntb;                     //!< buffer for the running transfer driver -> glue logic
+    recv_ntb_t  recv_ntb[RECV_NTB_N];              //!< actual recv NTBs
+    recv_ntb_t *recv_free_ntb[RECV_NTB_N];         //!< free list of recv NTBs
+    recv_ntb_t *recv_ready_ntb[RECV_NTB_N];        //!< NTBs waiting for transmission to glue logic
+    recv_ntb_t *recv_tinyusb_ntb;                  //!< buffer for the running transfer TinyUSB -> driver
+    recv_ntb_t *recv_glue_ntb;                     //!< buffer for the running transfer driver -> glue logic
     uint16_t               recv_glue_ntb_datagram_ndx;        //!< index into \a recv_glue_ntb_datagram
 
     // xmit handling
@@ -487,7 +483,7 @@ static bool xmit_setup_next_glue_ntb(void)
 //
 
 
-static recv_ntb_fifo_entry_t *recv_get_free_ntb(void)
+static recv_ntb_t *recv_get_free_ntb(void)
 /**
  * Return pointer to an available receive buffer or NULL.
  * Returned buffer (if any) has the size \a CFG_TUD_NCM_OUT_NTB_MAX_SIZE.
@@ -497,7 +493,7 @@ static recv_ntb_fifo_entry_t *recv_get_free_ntb(void)
 
     for (int i = 0;  i < RECV_NTB_N;  ++i) {
         if (ncm_interface.recv_free_ntb[i] != NULL) {
-            recv_ntb_fifo_entry_t *free = ncm_interface.recv_free_ntb[i];
+            recv_ntb_t *free = ncm_interface.recv_free_ntb[i];
             ncm_interface.recv_free_ntb[i] = NULL;
             return free;
         }
@@ -507,13 +503,13 @@ static recv_ntb_fifo_entry_t *recv_get_free_ntb(void)
 
 
 
-static recv_ntb_fifo_entry_t *recv_get_next_ready_ntb(void)
+static recv_ntb_t *recv_get_next_ready_ntb(void)
 /**
  * Get the next NTB from the ready list (and remove it from the list).
  * If the ready list is empty, return NULL.
  */
 {
-    recv_ntb_fifo_entry_t *r = NULL;
+    recv_ntb_t *r = NULL;
 
     r = ncm_interface.recv_ready_ntb[0];
     memmove(ncm_interface.recv_ready_ntb + 0, ncm_interface.recv_ready_ntb + 1, sizeof(ncm_interface.recv_ready_ntb) - sizeof(ncm_interface.recv_ready_ntb[0]));
@@ -524,7 +520,7 @@ static recv_ntb_fifo_entry_t *recv_get_next_ready_ntb(void)
 
 
 
-static void recv_put_ntb_into_free_list(recv_ntb_fifo_entry_t *free_ntb)
+static void recv_put_ntb_into_free_list(recv_ntb_t *free_ntb)
 /**
  *
  */
@@ -542,7 +538,7 @@ static void recv_put_ntb_into_free_list(recv_ntb_fifo_entry_t *free_ntb)
 
 
 
-static void recv_put_ntb_into_ready_list(recv_ntb_fifo_entry_t *ready_ntb)
+static void recv_put_ntb_into_ready_list(recv_ntb_t *ready_ntb)
 /**
  * The \a ncm_interface.recv_tinyusb_ntb is filled,
  * put this buffer into the waiting list and free the receive logic.
@@ -586,7 +582,7 @@ static void recv_try_to_start_new_reception(uint8_t rhport)
 
     // initiate transfer
     DEBUG_OUT("  start reception\n");
-    bool r = usbd_edpt_xfer(0, ncm_interface.ep_out, ncm_interface.recv_tinyusb_ntb->ntb.data, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
+    bool r = usbd_edpt_xfer(0, ncm_interface.ep_out, ncm_interface.recv_tinyusb_ntb->data, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
     if ( !r) {
         recv_put_ntb_into_free_list(ncm_interface.recv_tinyusb_ntb);
         ncm_interface.recv_tinyusb_ntb = NULL;
@@ -706,8 +702,8 @@ static void recv_transfer_datagram_to_glue_logic(void)
     }
 
     if (ncm_interface.recv_glue_ntb != NULL) {
-        const ndp16_datagram_t *ndp16_datagram = (ndp16_datagram_t *)(ncm_interface.recv_glue_ntb->ntb.data
-                                                                    + ncm_interface.recv_glue_ntb->ntb.nth.wNdpIndex
+        const ndp16_datagram_t *ndp16_datagram = (ndp16_datagram_t *)(ncm_interface.recv_glue_ntb->data
+                                                                    + ncm_interface.recv_glue_ntb->nth.wNdpIndex
                                                                     + sizeof(ndp16_t));
 
         if (ndp16_datagram[ncm_interface.recv_glue_ntb_datagram_ndx].wDatagramIndex == 0) {
@@ -721,7 +717,7 @@ static void recv_transfer_datagram_to_glue_logic(void)
             uint16_t datagramLength = ndp16_datagram[ncm_interface.recv_glue_ntb_datagram_ndx].wDatagramLength;
 
             DEBUG_OUT("  recv[%d] - %d %d\n", ncm_interface.recv_glue_ntb_datagram_ndx, datagramIndex, datagramLength);
-            if (tud_network_recv_cb(ncm_interface.recv_glue_ntb->ntb.data + datagramIndex, datagramLength)) {
+            if (tud_network_recv_cb(ncm_interface.recv_glue_ntb->data + datagramIndex, datagramLength)) {
                 //
                 // send datagram successfully to glue logic
                 //
@@ -949,7 +945,7 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
         // - if there is a free receive buffer, initiate reception
         //
         DEBUG_OUT("  EP_OUT %d %d %d %u\n", rhport, ep_addr, result, (unsigned)xferred_bytes);
-        if ( !recv_validate_datagram( &(ncm_interface.recv_tinyusb_ntb->ntb), xferred_bytes)) {
+        if ( !recv_validate_datagram( ncm_interface.recv_tinyusb_ntb, xferred_bytes)) {
             // verification failed: ignore NTB and return it to free
             ERROR_OUT("  VALIDATION FAILED. WHAT CAN WE DO IN THIS CASE?\n");
         }
