@@ -136,14 +136,14 @@ typedef struct TU_ATTR_PACKED {
     uint32_t dwSignature;
     uint16_t wLength;
     uint16_t wNextNdpIndex;
-    ndp16_datagram_t datagram[];
+    //ndp16_datagram_t datagram[];
 } ndp16_t;
 
 typedef union TU_ATTR_PACKED {
     struct {
         nth16_t          nth;
         ndp16_t          ndp;
-        ndp16_datagram_t ndp_datagram[CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB + 1];    // this lies above ndp.datagram[] with fixed length
+        ndp16_datagram_t ndp_datagram[CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB + 1];
     };
     uint8_t data[CFG_TUD_NCM_IN_NTB_MAX_SIZE];
 } xmit_ntb_t;

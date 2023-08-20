@@ -43,12 +43,14 @@
  * - ep_out        OUT endpoints send data out of the host to the device (the device receives)
  */
 
+#include "tusb_option.h"
+
+#if ECLIPSE_GUI || ( CFG_TUD_ENABLED && CFG_TUD_NCM )
 
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 
-#include "tusb_option.h"
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
 
@@ -126,7 +128,7 @@ typedef struct {
 } ncm_interface_t;
 
 
-static ncm_interface_t ncm_interface;
+CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN tu_static ncm_interface_t ncm_interface;
 
 
 /**
@@ -627,7 +629,7 @@ static bool recv_validate_datagram(const recv_ntb_t *ntb, uint16_t len)
         return false;
     }
 
-    const ndp16_datagram_t *ndp16_datagram = ndp16->datagram;
+    const ndp16_datagram_t *ndp16_datagram = (ndp16_datagram_t *)(ntb->data + nth16->wNdpIndex + sizeof(ndp16_t));
     int ndx = 0;
     int max_ndx = (ndp16->wLength - sizeof(ndp16_t)) / sizeof(ndp16_datagram_t);
 
@@ -1021,3 +1023,5 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
 
     return true;
 }   // netd_control_xfer_cb
+
+#endif   // ECLIPSE_GUI || ( CFG_TUD_ENABLED && CFG_TUD_NCM )
