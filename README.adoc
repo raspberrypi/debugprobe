@@ -345,6 +345,7 @@ Following procedure applies:
 ** `net` - set the net of the probes IP address `192.168.<net>.1`
 ** `f_cpu` - set CPU frequency in MHz
 ** `f_swd` - set SWD frequency in kHz
+** `r_start` / `r_end` - RAM start/end for generic target to override default 0x20000000..0x20040000.
 ** `pwd` - set a password for locking the configuration.  Unlocking is done subsequently
    with `pwd:<your-pwd>`
 * special characters:

@@ -162,6 +162,7 @@ static void search_family(void)
 }   // search_family
 
 
+#include <stdio.h>
 
 /**
  * Search the correct board / target / family.
@@ -177,6 +178,14 @@ void pico_prerun_board_config(void)
 {
     bool r;
     bool target_found = false;
+
+    target_device_generic.ram_regions[0].start = ini_getl(MININI_SECTION, MININI_VAR_RSTART,
+                                                          target_device_generic.ram_regions[0].start,
+                                                          MININI_FILENAME);
+    target_device_generic.ram_regions[0].end   = ini_getl(MININI_SECTION, MININI_VAR_REND,
+                                                          target_device_generic.ram_regions[0].end,
+                                                          MININI_FILENAME);
+    printf("start %x, end %x\n", (unsigned)target_device_generic.ram_regions[0].start, target_device_generic.ram_regions[0].end);
 
     target_device = target_device_generic;
     probe_set_swclk_freq_khz(target_device.rt_swd_khz, false);                            // slow down during target probing
@@ -283,7 +292,7 @@ void pico_prerun_board_config(void)
     {
         int32_t f_khz;
 
-        f_khz = ini_getl(MININI_SECTION, "f_swd", 0, MININI_FILENAME);
+        f_khz = ini_getl(MININI_SECTION, MININI_VAR_FSWD, 0, MININI_FILENAME);
         if (f_khz < PROBE_MIN_FREQ_KHZ  ||  f_khz > target_device.rt_max_swd_khz) {
             f_khz = target_device.rt_swd_khz;
         }

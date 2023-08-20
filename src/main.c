@@ -663,7 +663,7 @@ int main(void)
     ini_init();                              // for debugging this must be moved below cdc_debug_init()
 
     // set CPU frequency according to configuration
-    probe_set_cpu_freq_khz( 1000 * ini_getl(MININI_SECTION, "f_cpu", PROBE_CPU_CLOCK_MHZ, MININI_FILENAME) );
+    probe_set_cpu_freq_khz( 1000 * ini_getl(MININI_SECTION, MININI_VAR_FCPU, PROBE_CPU_CLOCK_MHZ, MININI_FILENAME) );
 
     get_config_init();
 
@@ -691,7 +691,7 @@ int main(void)
     picoprobe_info("  %s @ %uMHz\n", CONFIG_BOARD(), (unsigned)((probe_get_cpu_freq_khz() + 500) / 1000));
 #if OPT_NET
     picoprobe_info("IP:\n");
-    picoprobe_info("  192.168.%d.1\n", (int)ini_getl(MININI_SECTION, "net", OPT_NET_192_168, MININI_FILENAME));
+    picoprobe_info("  192.168.%d.1\n", (int)ini_getl(MININI_SECTION, MININI_VAR_NET, OPT_NET_192_168, MININI_FILENAME));
 #endif
     picoprobe_info("Compiler:\n");
 #if defined(__clang__)

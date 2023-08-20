@@ -272,7 +272,7 @@ void net_glue_init(void)
     tcpip_init(NULL, NULL);
 
 	// fetch IP address from configuration
-    net_192_168 = ini_getl(MININI_SECTION, "net", OPT_NET_192_168, MININI_FILENAME);
+    net_192_168 = ini_getl(MININI_SECTION, MININI_VAR_NET, OPT_NET_192_168, MININI_FILENAME);
     IP_ADDR4(&ipaddr, 192, 168, net_192_168, 1);
     IP_ADDR4(&dhcp_entries[0].addr, 192, 168, net_192_168, 2);
 
