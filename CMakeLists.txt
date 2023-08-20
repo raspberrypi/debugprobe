@@ -158,9 +158,10 @@ target_sources(${PROJECT} PRIVATE
 )
 
 target_include_directories(${PROJECT} PRIVATE
-        CMSIS_5/CMSIS/DAP/Firmware/Include/
-        CMSIS_5/CMSIS/Core/Include/
-        include/
+        CMSIS_5/CMSIS/DAP/Firmware/Include
+        CMSIS_5/CMSIS/Core/Include
+        include
+        src/lib
         src/lib/SEGGER
 )
 
@@ -384,8 +385,8 @@ endif()
 #
 
 target_sources(${PROJECT} PRIVATE
-        src/minIni/minIni.c
-        src/minIni/minGlue-Flash.c
+        src/lib/minIni/minIni.c
+        src/lib/minIni/minGlue-Flash.c
 )
 
 #--------------------------------------------------------------------------------------------------
