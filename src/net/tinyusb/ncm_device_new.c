@@ -87,21 +87,17 @@
 //
 // Module global things
 //
-typedef struct {
-    xmit_ntb_t   ntb;
-} xmit_ntb_fifo_entry_t;
-
 #define XMIT_NTB_N         CFG_TUD_NCM_IN_NTB_N
 #define RECV_NTB_N         CFG_TUD_NCM_OUT_NTB_N
 
 typedef struct {
     // general
-    uint8_t                ep_in;                             //!< endpoint for outgoing datagrams (naming is a little bit confusing)
-    uint8_t                ep_out;                            //!< endpoint for incoming datagrams (naming is a little bit confusing)
-    uint8_t                ep_notif;                          //!< endpoint for notifications
-    uint8_t                itf_num;                           //!< interface number
-    uint8_t                itf_data_alt;                      //!< ==0 -> no endpoints, i.e. no network traffic, ==1 -> normal operation with two endpoints (spec, chapter 5.3)
-    uint8_t                rhport;                            //!< storage of \a rhport because some callbacks are done without it
+    uint8_t     ep_in;                             //!< endpoint for outgoing datagrams (naming is a little bit confusing)
+    uint8_t     ep_out;                            //!< endpoint for incoming datagrams (naming is a little bit confusing)
+    uint8_t     ep_notif;                          //!< endpoint for notifications
+    uint8_t     itf_num;                           //!< interface number
+    uint8_t     itf_data_alt;                      //!< ==0 -> no endpoints, i.e. no network traffic, ==1 -> normal operation with two endpoints (spec, chapter 5.3)
+    uint8_t     rhport;                            //!< storage of \a rhport because some callbacks are done without it
 
     // recv handling
     recv_ntb_t  recv_ntb[RECV_NTB_N];              //!< actual recv NTBs
@@ -112,21 +108,21 @@ typedef struct {
     uint16_t               recv_glue_ntb_datagram_ndx;        //!< index into \a recv_glue_ntb_datagram
 
     // xmit handling
-    xmit_ntb_fifo_entry_t  xmit_ntb[XMIT_NTB_N];              //!< actual xmit NTBs
-    xmit_ntb_fifo_entry_t *xmit_free_ntb[XMIT_NTB_N];         //!< free list of xmit NTBs
-    xmit_ntb_fifo_entry_t *xmit_ready_ntb[XMIT_NTB_N];        //!< NTBs waiting for transmission to TinyUSB
-    xmit_ntb_fifo_entry_t *xmit_tinyusb_ntb;                  //!< buffer for the running transfer driver -> TinyUSB
-    xmit_ntb_fifo_entry_t *xmit_glue_ntb;                     //!< buffer for the running transfer glue logic -> driver
-    uint16_t               xmit_sequence;                     //!< NTB sequence counter
-    uint16_t               xmit_glue_ntb_datagram_ndx;        //!< index into \a xmit_glue_ntb_datagram
+    xmit_ntb_t  xmit_ntb[XMIT_NTB_N];              //!< actual xmit NTBs
+    xmit_ntb_t *xmit_free_ntb[XMIT_NTB_N];         //!< free list of xmit NTBs
+    xmit_ntb_t *xmit_ready_ntb[XMIT_NTB_N];        //!< NTBs waiting for transmission to TinyUSB
+    xmit_ntb_t *xmit_tinyusb_ntb;                  //!< buffer for the running transfer driver -> TinyUSB
+    xmit_ntb_t *xmit_glue_ntb;                     //!< buffer for the running transfer glue logic -> driver
+    uint16_t    xmit_sequence;                     //!< NTB sequence counter
+    uint16_t    xmit_glue_ntb_datagram_ndx;        //!< index into \a xmit_glue_ntb_datagram
 
     // notification handling
     enum {
         NOTIFICATION_SPEED,
         NOTIFICATION_CONNECTED,
         NOTIFICATION_DONE
-    } notification_xmit_state;                                //!< state of notification transmission
-    bool                   notification_xmit_is_running;      //!< notification is currently transmitted
+    } notification_xmit_state;                     //!< state of notification transmission
+    bool        notification_xmit_is_running;      //!< notification is currently transmitted
 } ncm_interface_t;
 
 
@@ -237,7 +233,7 @@ static void notification_xmit(uint8_t rhport, bool force_next)
 //
 
 
-static void xmit_put_ntb_into_free_list(xmit_ntb_fifo_entry_t *free_ntb)
+static void xmit_put_ntb_into_free_list(xmit_ntb_t *free_ntb)
 /**
  * Put NTB into the transmitter free list.
  */
@@ -260,7 +256,7 @@ static void xmit_put_ntb_into_free_list(xmit_ntb_fifo_entry_t *free_ntb)
 
 
 
-static xmit_ntb_fifo_entry_t *xmit_get_free_ntb(void)
+static xmit_ntb_t *xmit_get_free_ntb(void)
 /**
  * Get an NTB from the free list
  */
@@ -269,7 +265,7 @@ static xmit_ntb_fifo_entry_t *xmit_get_free_ntb(void)
 
     for (int i = 0;  i < XMIT_NTB_N;  ++i) {
         if (ncm_interface.xmit_free_ntb[i] != NULL) {
-            xmit_ntb_fifo_entry_t *free = ncm_interface.xmit_free_ntb[i];
+            xmit_ntb_t *free = ncm_interface.xmit_free_ntb[i];
             ncm_interface.xmit_free_ntb[i] = NULL;
             return free;
         }
@@ -279,7 +275,7 @@ static xmit_ntb_fifo_entry_t *xmit_get_free_ntb(void)
 
 
 
-static void xmit_put_ntb_into_ready_list(xmit_ntb_fifo_entry_t *ready_ntb)
+static void xmit_put_ntb_into_ready_list(xmit_ntb_t *ready_ntb)
 /**
  * Put a filled NTB into the ready list
  */
@@ -297,13 +293,13 @@ static void xmit_put_ntb_into_ready_list(xmit_ntb_fifo_entry_t *ready_ntb)
 
 
 
-static xmit_ntb_fifo_entry_t *xmit_get_next_ready_ntb(void)
+static xmit_ntb_t *xmit_get_next_ready_ntb(void)
 /**
  * Get the next NTB from the ready list (and remove it from the list).
  * If the ready list is empty, return NULL.
  */
 {
-    xmit_ntb_fifo_entry_t *r = NULL;
+    xmit_ntb_t *r = NULL;
 
     r = ncm_interface.xmit_ready_ntb[0];
     memmove(ncm_interface.xmit_ready_ntb + 0, ncm_interface.xmit_ready_ntb + 1, sizeof(ncm_interface.xmit_ready_ntb) - sizeof(ncm_interface.xmit_ready_ntb[0]));
@@ -392,7 +388,7 @@ static void xmit_start_if_possible(uint8_t rhport)
     }
 
     // Kick off an endpoint transfer
-    usbd_edpt_xfer(0, ncm_interface.ep_in, ncm_interface.xmit_tinyusb_ntb->ntb.data, ncm_interface.xmit_tinyusb_ntb->ntb.nth.wBlockLength);
+    usbd_edpt_xfer(0, ncm_interface.ep_in, ncm_interface.xmit_tinyusb_ntb->data, ncm_interface.xmit_tinyusb_ntb->nth.wBlockLength);
 }   // xmit_start_if_possible
 
 
@@ -410,7 +406,7 @@ static bool xmit_requested_datagram_fits_into_current_ntb(uint16_t datagram_size
     if (ncm_interface.xmit_glue_ntb_datagram_ndx >= CFG_TUD_NCM_MAX_DATAGRAMS_PER_NTB) {
         return false;
     }
-    if (ncm_interface.xmit_glue_ntb->ntb.nth.wBlockLength + datagram_size + XMIT_ALIGN_OFFSET(datagram_size) > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
+    if (ncm_interface.xmit_glue_ntb->nth.wBlockLength + datagram_size + XMIT_ALIGN_OFFSET(datagram_size) > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
         return false;
     }
     return true;
@@ -438,7 +434,7 @@ static bool xmit_setup_next_glue_ntb(void)
 
     ncm_interface.xmit_glue_ntb_datagram_ndx = 0;
 
-    xmit_ntb_t *ntb = &(ncm_interface.xmit_glue_ntb->ntb);
+    xmit_ntb_t *ntb = ncm_interface.xmit_glue_ntb;
 
     // Fill in NTB header
     ntb->nth.dwSignature   = NTH16_SIGNATURE;
@@ -761,20 +757,19 @@ void tud_network_xmit(void *ref, uint16_t arg)
         return;
     }
 
-    xmit_ntb_t *ntb = &(ncm_interface.xmit_glue_ntb->ntb);
+    xmit_ntb_t *ntb = ncm_interface.xmit_glue_ntb;
 
     // copy new datagram to the end of the current NTB
-    uint16_t size = tud_network_xmit_cb(ncm_interface.xmit_glue_ntb->ntb.data + ncm_interface.xmit_glue_ntb->ntb.nth.wBlockLength,
-                                        ref, arg);
+    uint16_t size = tud_network_xmit_cb(ntb->data + ntb->nth.wBlockLength, ref, arg);
 
     // correct NTB internals
     ntb->ndp_datagram[ncm_interface.xmit_glue_ntb_datagram_ndx].wDatagramIndex  = ntb->nth.wBlockLength;
     ntb->ndp_datagram[ncm_interface.xmit_glue_ntb_datagram_ndx].wDatagramLength = size;
     ncm_interface.xmit_glue_ntb_datagram_ndx += 1;
 
-    ncm_interface.xmit_glue_ntb->ntb.nth.wBlockLength += size + XMIT_ALIGN_OFFSET(size);
+    ntb->nth.wBlockLength += size + XMIT_ALIGN_OFFSET(size);
 
-    if (ncm_interface.xmit_glue_ntb->ntb.nth.wBlockLength > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
+    if (ntb->nth.wBlockLength > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
         ERROR_OUT("tud_network_xmit: buffer overflow\n");       // must not happen (really)
         return;
     }
