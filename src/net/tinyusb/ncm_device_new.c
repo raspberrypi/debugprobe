@@ -88,7 +88,6 @@
 // Module global things
 //
 typedef struct {
-    uint32_t     age_cnt;                                     //!< age cnt TODO should be removed in the future
     recv_ntb_t   ntb;
 } recv_ntb_fifo_entry_t;
 
@@ -515,27 +514,10 @@ static recv_ntb_fifo_entry_t *recv_get_next_ready_ntb(void)
  */
 {
     recv_ntb_fifo_entry_t *r = NULL;
-    int best = -1;
 
-    DEBUG_OUT("recv_get_next_ready_ntb()\n");
+    r = ncm_interface.recv_ready_ntb[0];
+    memmove(ncm_interface.recv_ready_ntb + 0, ncm_interface.recv_ready_ntb + 1, sizeof(ncm_interface.recv_ready_ntb) - sizeof(ncm_interface.recv_ready_ntb[0]));
 
-    for (int i = 0;  i < RECV_NTB_N;  ++i) {
-        if (ncm_interface.recv_ready_ntb[i] != NULL) {
-            if (best < 0) {
-                best = i;
-            }
-            else {
-                ERROR_OUT("recv_get_next_ready_ntb: multi NTBs ready!\n");   // this is good and just to check if it happens
-                if (ncm_interface.recv_ready_ntb[best]->age_cnt > ncm_interface.recv_ready_ntb[i]->age_cnt) {
-                    best = i;
-                }
-            }
-        }
-    }
-    if (best >= 0) {
-        r = ncm_interface.recv_ready_ntb[best];
-        ncm_interface.recv_ready_ntb[best] = NULL;
-    }
     DEBUG_OUT("recv_get_next_ready_ntb: %p\n", r);
     return r;
 }   // recv_get_next_ready_ntb
@@ -566,9 +548,7 @@ static void recv_put_ntb_into_ready_list(recv_ntb_fifo_entry_t *ready_ntb)
  * put this buffer into the waiting list and free the receive logic.
  */
 {
-    ready_ntb->age_cnt = ncm_interface.age_cnt++;
-
-    DEBUG_OUT("recv_put_ntb_into_ready_list(%p) %d %u\n", ready_ntb, ready_ntb->len, (unsigned)ready_ntb->age_cnt);
+    DEBUG_OUT("recv_put_ntb_into_ready_list(%p) %d\n", ready_ntb, ready_ntb->len);
 
     for (int i = 0;  i < RECV_NTB_N;  ++i) {
         if (ncm_interface.recv_ready_ntb[i] == NULL) {
