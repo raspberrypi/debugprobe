@@ -2,6 +2,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2023 Hardy Griech
+ * Copyright (c) 2019 Ha Thach (tinyusb.org)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -45,7 +46,7 @@
 
 #include "tusb_option.h"
 
-#if ECLIPSE_GUI || ( CFG_TUD_ENABLED && CFG_TUD_NCM )
+#if defined(ECLIPSE_GUI) || ( CFG_TUD_ENABLED && CFG_TUD_NCM )
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -191,8 +192,8 @@ tu_static struct ncm_notify_t ncm_notify_speed_change = {
                 .bRequest = CDC_NOTIF_CONNECTION_SPEED_CHANGE,
                 .wLength  = 8,
         },
-        .downlink = 1000000,
-        .uplink   = 1000000,
+        .downlink = 12000000,
+        .uplink   = 12000000,
 };
 
 
