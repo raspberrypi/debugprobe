@@ -162,7 +162,6 @@ static void search_family(void)
 }   // search_family
 
 
-#include <stdio.h>
 
 /**
  * Search the correct board / target / family.
@@ -185,7 +184,6 @@ void pico_prerun_board_config(void)
     target_device_generic.ram_regions[0].end   = ini_getl(MININI_SECTION, MININI_VAR_REND,
                                                           target_device_generic.ram_regions[0].end,
                                                           MININI_FILENAME);
-    printf("start %x, end %x\n", (unsigned)target_device_generic.ram_regions[0].start, target_device_generic.ram_regions[0].end);
 
     target_device = target_device_generic;
     probe_set_swclk_freq_khz(target_device.rt_swd_khz, false);                            // slow down during target probing
