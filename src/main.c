@@ -688,7 +688,8 @@ int main(void)
     picoprobe_info("Features:\n");
     picoprobe_info(" %s\n", CONFIG_FEATURES());
     picoprobe_info("Probe HW:\n");
-    picoprobe_info("  %s @ %uMHz\n", CONFIG_BOARD(), (unsigned)((probe_get_cpu_freq_khz() + 500) / 1000));
+    picoprobe_info("  %s @ %uMHz (%s core)\n", CONFIG_BOARD(), (unsigned)((probe_get_cpu_freq_khz() + 500) / 1000),
+                                               (configNUMBER_OF_CORES > 1) ? "dual" : "single");
 #if OPT_NET
     picoprobe_info("IP:\n");
     picoprobe_info("  192.168.%d.1\n", (int)ini_getl(MININI_SECTION, MININI_VAR_NET, OPT_NET_192_168, MININI_FILENAME));
