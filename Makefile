@@ -2,10 +2,8 @@
 #
 # ATTENTION: to get the version number & git hash into the image, cmake-create-* has to be invoked.
 #
-.ONESHELL:
-
 VERSION_MAJOR        := 1
-VERSION_MINOR        := 18
+VERSION_MINOR        := 19
 
 BUILD_DIR            := _build
 PROJECT              := picoprobe
@@ -52,37 +50,31 @@ details: all
 .PHONY: cmake-create-debug
 cmake-create-debug: clean-build
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) $(if $(OPT_SIGROK),-DOPT_SIGROK=$(OPT_SIGROK)) $(CMAKE_FLAGS)
-    # don't know if this is required
-	@cd $(BUILD_DIR) && sed -i 's/arm-none-eabi-gcc/gcc/' compile_commands.json
 
 
 .PHONY: cmake-create-release
 cmake-create-release: clean-build
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) $(CMAKE_FLAGS)
-    # don't know if this is required
-	@cd $(BUILD_DIR) && sed -i 's/arm-none-eabi-gcc/gcc/' compile_commands.json
 
 
 .PHONY: cmake-create-debug-clang
 cmake-create-debug-clang: clean-build
-	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin
+	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin; \
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
 	         $(if $(OPT_SIGROK),-DOPT_SIGROK=$(OPT_SIGROK)) \
 	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang
-    # don't know if this is required
-	@cd $(BUILD_DIR) && sed -i 's/arm-none-eabi-gcc/gcc/' compile_commands.json
 
 
 .PHONY: cmake-create-release-clang
 cmake-create-release-clang: clean-build
-	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin
+	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin; \
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
 	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang
 
 
 .PHONY: cmake-create-minsizerel-clang
 cmake-create-minsizerel-clang: clean-build
-	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin
+	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin; \
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
 	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang
 
@@ -137,11 +129,11 @@ show-options:
 # - most work is done in the debuggEE
 # 
 DEBUGGER_SERNO ?= E6614C775B333D35
-OPENOCD := openocd   #/home/hardy/.platformio/packages/tool-openocd-rp2040-earlephilhower/bin/openocd
+OPENOCD := /mnt/d/u/pico/arduino-pico/system/openocd/bin/openocd   #/home/hardy/.platformio/packages/tool-openocd-rp2040-earlephilhower/bin/openocd
 
 .PHONY: debuggEE-flash
 debuggEE-flash:
-	ninja -C $(BUILD_DIR) -v all  &&  $(OPENOCD) -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c "adapter speed 10000; adapter serial $(DEBUGGER_SERNO)" \
+	ninja -C $(BUILD_DIR) -v all  &&  $(OPENOCD) -f /mnt/d/u/pico/arduino-pico/lib/picoprobe_cmsis_dap.tcl -c "adapter speed 12000; adapter serial $(DEBUGGER_SERNO)" \
 	        -c "program {$(BUILD_DIR)/$(PROJECT).hex}  verify reset; shutdown;"
 	#$(MAKE) debuggEE-reset
 	pyocd reset -t rp2040_core0 -f 10M --probe $(DEBUGGER_SERNO)
@@ -156,7 +148,7 @@ debuggEE-reset:
 
 .PHONY: cmake-create-debuggEE
 cmake-create-debuggEE: clean-build
-	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin
+	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin; \
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
 	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang                                                               \
 	         -DOPT_NET=NCM -DOPT_PROBE_DEBUG_OUT=RTT                                                                     \
@@ -165,7 +157,7 @@ cmake-create-debuggEE: clean-build
 
 .PHONY: cmake-create-debugger
 cmake-create-debugger: clean-build
-	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin
+	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin; \
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
 	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang                                                                 \
 	         -DOPT_NET= -DOPT_SIGROK=0 -DOPT_MSC=0
