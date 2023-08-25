@@ -132,7 +132,9 @@ static void net_glue_usb_to_lwip(void *ptr)
             ethernet_input(p, &netif_data);
             pbuf_free(p);
             rcv_buff_len = 0;
+            taskDISABLE_INTERRUPTS();
             usbd_defer_func(context_tinyusb_tud_network_recv_renew, NULL, false);
+            taskENABLE_INTERRUPTS();
         }
     }
 }   // net_glue_usb_to_lwip
@@ -157,7 +159,9 @@ bool tud_network_recv_cb(const uint8_t *src, uint16_t size)
         assert(size < sizeof(rcv_buff));
         memcpy(rcv_buff, src, size);
         rcv_buff_len = size;
+        taskDISABLE_INTERRUPTS();
         tcpip_callback_with_block(net_glue_usb_to_lwip, NULL, 0);
+        taskENABLE_INTERRUPTS();
     }
     return true;
 }   // tud_network_recv_cb
@@ -196,7 +200,10 @@ static void context_tinyusb_linkoutput(void *param)
     if ( !tud_network_can_xmit(xmt_buff_len)) {
         //printf("context_tinyusb_linkoutput: sleep\n");
         vTaskDelay(pdMS_TO_TICKS(5));
+
+        taskDISABLE_INTERRUPTS();
         usbd_defer_func(context_tinyusb_linkoutput, NULL, false);
+        taskENABLE_INTERRUPTS();
     }
     else {
         tud_network_xmit(xmt_buff, xmt_buff_len);
@@ -224,7 +231,9 @@ static err_t linkoutput_fn(struct netif *netif, struct pbuf *p)
     xmt_buff_len = pbuf_copy_partial(p, xmt_buff, p->tot_len, 0);
     assert(xmt_buff_len < sizeof(xmt_buff));
 
+    taskDISABLE_INTERRUPTS();
     usbd_defer_func(context_tinyusb_linkoutput, NULL, false);
+    taskENABLE_INTERRUPTS();
 
     return ERR_OK;
 }   // linkoutput_fn
