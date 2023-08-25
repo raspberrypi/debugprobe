@@ -138,7 +138,6 @@ endif()
 
 
 add_executable(${PROJECT}
-        src/dap_util.c
         src/get_config.c
         src/led.c
         src/main.c
@@ -148,6 +147,8 @@ add_executable(${PROJECT}
         src/sw_dp_pio.c
         src/sw_lock.c
         src/usb_descriptors.c
+        src/cmsis-dap/dap_server.c
+        src/cmsis-dap/dap_util.c
 )
 
 target_sources(${PROJECT} PRIVATE
