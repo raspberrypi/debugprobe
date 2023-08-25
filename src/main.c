@@ -39,6 +39,7 @@
 #include "cdc_uart.h"
 #include "get_serial.h"
 #include "led.h"
+#include "tusb_edpt_handler.h"
 #include "DAP.h"
 
 // UART0 for Picoprobe debug
@@ -53,7 +54,7 @@ static uint8_t RxDataBuffer[CFG_TUD_HID_EP_BUFSIZE];
 #define TUD_TASK_PRIO  (tskIDLE_PRIORITY + 2)
 #define DAP_TASK_PRIO  (tskIDLE_PRIORITY + 1)
 
-static TaskHandle_t dap_taskhandle, tud_taskhandle;
+TaskHandle_t dap_taskhandle, tud_taskhandle;
 
 void usb_thread(void *ptr)
 {
@@ -74,22 +75,6 @@ void usb_thread(void *ptr)
 #if (TUSB_VERSION_MAJOR == 0) && (TUSB_VERSION_MINOR <= 12)
 #define tud_vendor_flush(x) ((void)0)
 #endif
-
-void dap_thread(void *ptr)
-{
-    uint32_t resp_len;
-    do {
-        if (tud_vendor_available()) {
-            tud_vendor_read(RxDataBuffer, sizeof(RxDataBuffer));
-            resp_len = DAP_ProcessCommand(RxDataBuffer, TxDataBuffer);
-            tud_vendor_write(TxDataBuffer, resp_len);
-            tud_vendor_flush();
-        } else {
-            // Trivial delay to save power
-            vTaskDelay(1);
-        }
-    } while (1);
-}
 
 int main(void) {
 
