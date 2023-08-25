@@ -60,13 +60,14 @@
  *
  * More notes: pyocd works with large packets only, if the packet count is one.
  * Additionally pyocd is instable if packet count > 1.  Valid for pyocd 0.34.3.
+ *
+ * OpenOCD 0.11: packet size of 1024 and 2 buffers ok
+ * OpenOCD 0.12: 1024 no longer working, but 512 and 2 buffers is ok
  */
-//#define _DAP_PACKET_COUNT_OPENOCD   2
-//#define _DAP_PACKET_SIZE_OPENOCD    CFG_TUD_VENDOR_RX_BUFSIZE
-#define _DAP_PACKET_COUNT_OPENOCD   1            // TODO check optimizations
-#define _DAP_PACKET_SIZE_OPENOCD    256
+#define _DAP_PACKET_COUNT_OPENOCD   2
+#define _DAP_PACKET_SIZE_OPENOCD    512
 #define _DAP_PACKET_COUNT_PYOCD     1
-#define _DAP_PACKET_SIZE_PYOCD      1024                                   // pyocd does not like packets > 128 if COUNT != 1
+#define _DAP_PACKET_SIZE_PYOCD      1024                     // pyocd does not like packets > 128 if COUNT != 1
 #define _DAP_PACKET_COUNT_UNKNOWN   1
 #define _DAP_PACKET_SIZE_UNKNOWN    64
 
@@ -75,6 +76,10 @@
 
 uint8_t  dap_packet_count = _DAP_PACKET_COUNT_UNKNOWN;
 uint16_t dap_packet_size  = _DAP_PACKET_SIZE_UNKNOWN;
+
+#if (CFG_TUD_VENDOR_RX_BUFSIZE < _DAP_PACKET_SIZE_OPENOCD  ||  CFG_TUD_VENDOR_RX_BUFSIZE < _DAP_PACKET_SIZE_PYOCD)
+    #error "increase CFG_TUD_VENDOR_RX_BUFSIZE"
+#endif
 
 #if OPT_CMSIS_DAPV1  ||  OPT_CMSIS_DAPV2
     static uint8_t TxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZE];     // maximum required size
