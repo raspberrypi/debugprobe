@@ -166,7 +166,11 @@ application is running on one core.
 
 Network throughput is almost identical from 72..192MHz and makes a jump
 by about 50% at 216MHz.
-Maximum `iperf` throughput is 5MBit/s. 
+Maximum `iperf` throughput is 5MBit/s.
+
+NOTE: Benchmarks took place with YaPicoprobe v1.18 and `Debian 6.4.4 x86_64 GNU/Linux`.
+With the following kernel, the numbers were different: better iperf, but 
+worse SystemView throughput.
 
 
 [%header]

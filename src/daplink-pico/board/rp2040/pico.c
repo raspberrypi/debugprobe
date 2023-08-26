@@ -221,7 +221,7 @@ void pico_prerun_board_config(void)
         target_device.rt_swd_khz     = 6000;
         target_device.target_part_number = "nRF52840";
         strcpy(board_vendor, "NordicSemiconductor");
-        strcpy(board_name, "PCA10056");
+        strcpy(board_name, "Generic nRF52840");                 // e.g. PCA10056
 
         search_family();
         if (target_set_state(ATTACH)) {
@@ -241,7 +241,7 @@ void pico_prerun_board_config(void)
                 target_device.rt_swd_khz     = 6000;
                 target_device.target_part_number = "nRF52832";
                 strcpy(board_vendor, "NordicSemiconductor");
-                strcpy(board_name, "PCA10040");
+                strcpy(board_name, "Generic nRF52832");         // e.g. PCA10040
                 target_device.flash_regions[0].end = target_device.flash_regions[0].start + 1024 * info_flash;
                 target_device.ram_regions[0].end   = target_device.ram_regions[0].start + 1024 * info_ram;
             }
@@ -255,7 +255,7 @@ void pico_prerun_board_config(void)
                 target_device.rt_swd_khz     = 6000;
                 target_device.target_part_number = "nRF52833";
                 strcpy(board_vendor, "NordicSemiconductor");
-                strcpy(board_name, "PCA10100");
+                strcpy(board_name, "Generic nRF52833");         // e.g. PCA10100
                 target_device.flash_regions[0].end = target_device.flash_regions[0].start + 1024 * info_flash;
                 target_device.ram_regions[0].end   = target_device.ram_regions[0].start + 1024 * info_ram;
             }
