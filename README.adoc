@@ -342,12 +342,14 @@ Following procedure applies:
 ** `reset` - restart the probe
 ** `show` - shows the current configuration (initially empty)
 * variables: `<variable>=<value>`
-** `net` - set the net of the probes IP address `192.168.<net>.1`
 ** `f_cpu` - set CPU frequency in MHz
 ** `f_swd` - set SWD frequency in kHz
-** `r_start` / `r_end` - RAM start/end for generic target to override default 0x20000000..0x20040000.
+** `net` - set the net of the probes IP address `192.168.<net>.1`
+** `nick` - set nickname of the probe.  Use this with care because it also changes
+            the USB serial number (which might be intended)
 ** `pwd` - set a password for locking the configuration.  Unlocking is done subsequently
    with `pwd:<your-pwd>`
+** `r_start` / `r_end` - RAM start/end for generic target to override default 0x20000000..0x20040000.
 * special characters:
 ** CR/LF - end the line
 ** BS - backspace one character
