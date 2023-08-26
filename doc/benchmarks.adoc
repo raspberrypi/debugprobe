@@ -8,7 +8,10 @@
 
 ## Benchmarks
 
-### SWD / Benchmarking
+### CMSIS / SWD
+
+#### cp / OpenOCD / pyOCD
+
 Benchmarking is done with an image with a size around 400KByte.  Command lines are as follows:
 
 * **cp**: `time cp firmware.uf2 /media/picoprobe/`
@@ -53,7 +56,8 @@ DAPv2 is always used, because DAPv1 does not run under Linux(?).
 | - same but optimized for OpenOCD | 4.1s | 28.6s | 5.7s | - | pyOCD crashes
 |===
 
-### Comparison with picoprobe and automated_test.py of pyOCD
+
+#### Comparison with picoprobe and automated_test.py of pyOCD
 
 There is a good benchmark (actually the functional tests) in pyOCD: 
 `automated_test.py`.  For configuration check https://github.com/pyocd/pyOCD/blob/main/docs/automated_tests.md
@@ -152,3 +156,39 @@ Findings are not completely clear:
 ** YAPicoprobe + PCA10056 @ 6MHz
 ** YAPicoprobe + nRF52840 dongle @ 4MHz
 
+
+## Network
+
+This is a simple network performance measurement with 
+`for MSS in 100 800 1450; do iperf -c 192.168.14.1 -e -i 1 -M $MSS -l 8192 -P 1; sleep 2; done`
+over CPU frequency.  Network driver is NCM (new),
+application is running on one core.
+
+Network throughput is almost identical from 72..192MHz and makes a jump
+by about 50% at 216MHz.
+Maximum `iperf` throughput is 5MBit/s.
+
+NOTE: Benchmarks took place with YaPicoprobe v1.18 and `Debian 6.4.4 x86_64 GNU/Linux`.
+With the following kernel, the numbers were different: better iperf, but 
+worse SystemView throughput.
+
+
+[%header]
+|===
+|CPU Frequency | 
+
+|72MHz
+a|image::test-single-072.png[72MHz]
+
+|192MHz
+a|image::test-single-192.png[192MHz]
+
+|216MHz
+a|image::test-single-216.png[216MHz]
+
+|240MHz
+a|image::test-single-240.png[240MHz]
+|===
+
+More images link:png[here].
+CPU ran until 288MHz, @312MHz the CPU did not start.

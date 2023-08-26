@@ -28,6 +28,8 @@
 #include "pico.h"
 #include "pico/unique_id.h"
 
+#include "minIni/minIni.h"
+
 
 #define _STR(S)  #S
 #define STR(S)   _STR(S)
@@ -68,14 +70,18 @@ void get_config_init(void)
     }
 #endif
 
-    for (int i = 0; i < PICO_UNIQUE_BOARD_ID_SIZE_BYTES * 2; i++)
+    ini_gets(MININI_SECTION, "nick", "", usb_serial, sizeof(usb_serial), MININI_FILENAME);
+    if (usb_serial[0] == '\0')
     {
-        /* Byte index inside the uid array */
-        int bi = i / 2;
-        /* Use high nibble first to keep memory order (just cosmetics) */
-        uint8_t nibble = (uID.id[bi] >> 4) & 0x0F;
-        uID.id[bi] <<= 4;
-        /* Binary to hex digit */
-        usb_serial[i] = nibble < 10 ? nibble + '0' : nibble + 'A' - 10;
+        for (int i = 0; i < PICO_UNIQUE_BOARD_ID_SIZE_BYTES * 2; i++)
+        {
+            /* Byte index inside the uid array */
+            int bi = i / 2;
+            /* Use high nibble first to keep memory order (just cosmetics) */
+            uint8_t nibble = (uID.id[bi] >> 4) & 0x0F;
+            uID.id[bi] <<= 4;
+            /* Binary to hex digit */
+            usb_serial[i] = nibble < 10 ? nibble + '0' : nibble + 'A' - 10;
+        }
     }
 }   // get_config_init

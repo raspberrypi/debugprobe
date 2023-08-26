@@ -75,8 +75,8 @@
 #else
     #define PROBE_CPU_CLOCK_MHZ      120
 #endif
-#define PROBE_CPU_CLOCK_MIN_MHZ      (4 * 24)
-#define PROBE_CPU_CLOCK_MAX_MHZ      (11 * 24)
+#define PROBE_CPU_CLOCK_MIN_MHZ      (3 * 24)
+#define PROBE_CPU_CLOCK_MAX_MHZ      (12 * 24)
 
 
 // pin configurations can be found in include/boards/*.h

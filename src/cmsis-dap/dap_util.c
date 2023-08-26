@@ -407,7 +407,7 @@ daptool_t DAP_FingerprintTool(const uint8_t *request, uint32_t request_len)
         cnt = 0;
         tool = E_DAPTOOL_UNKNOWN;
     }
-    else if (request_len >= 2) {
+    else if (request_len >= 2  &&  cnt < 3) {
         ++cnt;
 
         if (cnt == 1) {
@@ -419,20 +419,32 @@ daptool_t DAP_FingerprintTool(const uint8_t *request, uint32_t request_len)
             }
         }
         else if (cnt == 2) {
-            if (request[0] != ID_DAP_Info  ||  request[1] != DAP_ID_FW_VER)
+            if (request[0] != ID_DAP_Info  ||  request[1] != DAP_ID_DAP_FW_VER)
             {
                 tool = E_DAPTOOL_UNKNOWN;
             }
         }
         else if (cnt == 3) {
-            if (tool == E_DAPTOOL_PYOCD  &&  (request[0] != ID_DAP_Info  ||  request[1] != DAP_ID_PACKET_SIZE)) {
-                tool = E_DAPTOOL_UNKNOWN;
+            if      (tool == E_DAPTOOL_PYOCD    &&  request[0] == ID_DAP_Info  &&  request[1] == DAP_ID_PACKET_SIZE) {
+                // ok (not sure if still used)
             }
-            else if (tool == E_DAPTOOL_OPENOCD  &&  (request[0] != ID_DAP_Info  ||  request[1] != DAP_ID_SER_NUM)) {
+            else if (tool == E_DAPTOOL_PYOCD    &&  request[0] == ID_DAP_Info  &&  request[1] == DAP_ID_PRODUCT_FW_VER) {
+                // ok (with DAP 2.1.2 & pyOCD 0.35)
+            }
+            else if (tool == E_DAPTOOL_OPENOCD  &&  request[0] == ID_DAP_Info  &&  request[1] == DAP_ID_SER_NUM) {
+                // ok (with OpenOCD 0.11/0.12)
+            }
+            else {
                 tool = E_DAPTOOL_UNKNOWN;
             }
         }
     }
+
+#if 0
+    if (request != NULL) {
+        printf("fingerprint: %d %02x %02x %d\n", cnt, request[0], request[1], tool);
+    }
+#endif
 
     return (cnt < 3) ? E_DAPTOOL_UNKNOWN : tool;
 }   // DAP_FingerprintTool

@@ -1,0 +1,8 @@
+:imagesdir: doc/png
+:source-highlighter: rouge
+:toc:
+:toclevels: 5
+
+# DAPLink adoptions for the probe
+
+These modules fit the probe into the DAPLink infrastructure.

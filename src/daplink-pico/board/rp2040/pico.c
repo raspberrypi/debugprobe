@@ -162,7 +162,6 @@ static void search_family(void)
 }   // search_family
 
 
-#include <stdio.h>
 
 /**
  * Search the correct board / target / family.
@@ -185,7 +184,6 @@ void pico_prerun_board_config(void)
     target_device_generic.ram_regions[0].end   = ini_getl(MININI_SECTION, MININI_VAR_REND,
                                                           target_device_generic.ram_regions[0].end,
                                                           MININI_FILENAME);
-    printf("start %x, end %x\n", (unsigned)target_device_generic.ram_regions[0].start, target_device_generic.ram_regions[0].end);
 
     target_device = target_device_generic;
     probe_set_swclk_freq_khz(target_device.rt_swd_khz, false);                            // slow down during target probing
@@ -223,7 +221,7 @@ void pico_prerun_board_config(void)
         target_device.rt_swd_khz     = 6000;
         target_device.target_part_number = "nRF52840";
         strcpy(board_vendor, "NordicSemiconductor");
-        strcpy(board_name, "PCA10056");
+        strcpy(board_name, "Generic nRF52840");                 // e.g. PCA10056
 
         search_family();
         if (target_set_state(ATTACH)) {
@@ -243,7 +241,7 @@ void pico_prerun_board_config(void)
                 target_device.rt_swd_khz     = 6000;
                 target_device.target_part_number = "nRF52832";
                 strcpy(board_vendor, "NordicSemiconductor");
-                strcpy(board_name, "PCA10040");
+                strcpy(board_name, "Generic nRF52832");         // e.g. PCA10040
                 target_device.flash_regions[0].end = target_device.flash_regions[0].start + 1024 * info_flash;
                 target_device.ram_regions[0].end   = target_device.ram_regions[0].start + 1024 * info_ram;
             }
@@ -257,7 +255,7 @@ void pico_prerun_board_config(void)
                 target_device.rt_swd_khz     = 6000;
                 target_device.target_part_number = "nRF52833";
                 strcpy(board_vendor, "NordicSemiconductor");
-                strcpy(board_name, "PCA10100");
+                strcpy(board_name, "Generic nRF52833");         // e.g. PCA10100
                 target_device.flash_regions[0].end = target_device.flash_regions[0].start + 1024 * info_flash;
                 target_device.ram_regions[0].end   = target_device.ram_regions[0].start + 1024 * info_ram;
             }
