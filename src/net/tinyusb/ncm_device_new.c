@@ -103,15 +103,15 @@ typedef struct {
     uint8_t     rhport;                            //!< storage of \a rhport because some callbacks are done without it
 
     // recv handling
-    recv_ntb_t  recv_ntb[RECV_NTB_N];              //!< actual recv NTBs
+    CFG_TUSB_MEM_ALIGN recv_ntb_t  recv_ntb[RECV_NTB_N];  //!< actual recv NTBs
     recv_ntb_t *recv_free_ntb[RECV_NTB_N];         //!< free list of recv NTBs
     recv_ntb_t *recv_ready_ntb[RECV_NTB_N];        //!< NTBs waiting for transmission to glue logic
     recv_ntb_t *recv_tinyusb_ntb;                  //!< buffer for the running transfer TinyUSB -> driver
     recv_ntb_t *recv_glue_ntb;                     //!< buffer for the running transfer driver -> glue logic
-    uint16_t               recv_glue_ntb_datagram_ndx;        //!< index into \a recv_glue_ntb_datagram
+    uint16_t    recv_glue_ntb_datagram_ndx;        //!< index into \a recv_glue_ntb_datagram
 
     // xmit handling
-    xmit_ntb_t  xmit_ntb[XMIT_NTB_N];              //!< actual xmit NTBs
+    CFG_TUSB_MEM_ALIGN xmit_ntb_t  xmit_ntb[XMIT_NTB_N];  //!< actual xmit NTBs
     xmit_ntb_t *xmit_free_ntb[XMIT_NTB_N];         //!< free list of xmit NTBs
     xmit_ntb_t *xmit_ready_ntb[XMIT_NTB_N];        //!< NTBs waiting for transmission to TinyUSB
     xmit_ntb_t *xmit_tinyusb_ntb;                  //!< buffer for the running transfer driver -> TinyUSB
@@ -743,7 +743,7 @@ bool tud_network_can_xmit(uint16_t size)
         return true;
     }
     xmit_start_if_possible(ncm_interface.rhport);
-    ERROR_OUT("(II) tud_network_can_xmit: request blocked\n");     // could happen if all xmit buffers are full (but should happen rarely)
+    INFO_OUT("(II) tud_network_can_xmit: request blocked\n");     // could happen if all xmit buffers are full (but should happen rarely)
     return false;
 }   // tud_network_can_xmit
 

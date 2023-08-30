@@ -132,8 +132,10 @@ static void net_glue_usb_to_lwip(void *ptr)
             ethernet_input(p, &netif_data);
             pbuf_free(p);
             rcv_buff_len = 0;
+
             taskDISABLE_INTERRUPTS();
-            usbd_defer_func(context_tinyusb_tud_network_recv_renew, NULL, false);
+            // TODO not safe, because it does only block USB interrupts on operation
+            usbd_defer_func(context_tinyusb_tud_network_recv_renew, NULL, false);   // TODO this is actually not safe!
             taskENABLE_INTERRUPTS();
         }
     }
@@ -160,7 +162,7 @@ bool tud_network_recv_cb(const uint8_t *src, uint16_t size)
         memcpy(rcv_buff, src, size);
         rcv_buff_len = size;
         taskDISABLE_INTERRUPTS();
-        tcpip_callback_with_block(net_glue_usb_to_lwip, NULL, 0);
+        tcpip_try_callback(net_glue_usb_to_lwip, NULL);      // this seems to be safe
         taskENABLE_INTERRUPTS();
     }
     return true;
@@ -192,7 +194,7 @@ uint16_t tud_network_xmit_cb(uint8_t *dst, void *ref, uint16_t arg)
 
 static void context_tinyusb_linkoutput(void *param)
 /**
- * Put \a xmt_buff into TinyUSB (if possible).
+ * Put \a xmt_buff into TinyUSB.
  *
  * Context: TinyUSB
  */
@@ -202,7 +204,7 @@ static void context_tinyusb_linkoutput(void *param)
         vTaskDelay(pdMS_TO_TICKS(5));
 
         taskDISABLE_INTERRUPTS();
-        usbd_defer_func(context_tinyusb_linkoutput, NULL, false);
+        usbd_defer_func(context_tinyusb_linkoutput, NULL, false);    // put yourself at end of TinyUSB event queue
         taskENABLE_INTERRUPTS();
     }
     else {
@@ -232,7 +234,7 @@ static err_t linkoutput_fn(struct netif *netif, struct pbuf *p)
     assert(xmt_buff_len < sizeof(xmt_buff));
 
     taskDISABLE_INTERRUPTS();
-    usbd_defer_func(context_tinyusb_linkoutput, NULL, false);
+    usbd_defer_func(context_tinyusb_linkoutput, NULL, false);   // TODO this is actually not safe!
     taskENABLE_INTERRUPTS();
 
     return ERR_OK;
