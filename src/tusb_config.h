@@ -68,8 +68,15 @@
 #define CFG_TUD_MIDI            0
 #define CFG_TUD_VENDOR          1
 
-#define CFG_TUD_CDC_RX_BUFSIZE 64
-#define CFG_TUD_CDC_TX_BUFSIZE 64
+/*
+ * TX bufsize (actually UART RX) is oversized because the Windows CDC-ACM
+ * driver submits a grand total of _one_ URB at any one time.
+ * This means the application must consume the data before the next IN token
+ * is issued. At high datarates this leads to huge variation in instantaneous
+ * throughput on USB, so a large runway is needed.
+ */
+#define CFG_TUD_CDC_RX_BUFSIZE 128
+#define CFG_TUD_CDC_TX_BUFSIZE 4096
 
 #define CFG_TUD_VENDOR_RX_BUFSIZE 8192
 #define CFG_TUD_VENDOR_TX_BUFSIZE 8192

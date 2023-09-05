@@ -58,6 +58,8 @@ TaskHandle_t dap_taskhandle, tud_taskhandle;
 
 void usb_thread(void *ptr)
 {
+    TickType_t wake;
+    wake = xTaskGetTickCount();
     do {
         tud_task();
 #ifdef PICOPROBE_USB_CONNECTED_LED
@@ -66,8 +68,9 @@ void usb_thread(void *ptr)
         else
             gpio_put(PICOPROBE_USB_CONNECTED_LED, 0);
 #endif
-        // Trivial delay to save power
-        vTaskDelay(1);
+        // Go to sleep for up to a tick if nothing to do
+        if (!tud_task_event_ready())
+            xTaskDelayUntil(&wake, 1);
     } while (1);
 }
 

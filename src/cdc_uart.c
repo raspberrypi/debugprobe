@@ -34,8 +34,9 @@
 TaskHandle_t uart_taskhandle;
 TickType_t last_wake, interval = 100;
 
-static uint8_t tx_buf[CFG_TUD_CDC_TX_BUFSIZE];
-static uint8_t rx_buf[CFG_TUD_CDC_RX_BUFSIZE];
+/* Max 1 FIFO worth of data */
+static uint8_t tx_buf[32];
+static uint8_t rx_buf[32];
 // Actually s^-1 so 25ms
 #define DEBOUNCE_MS 40
 static uint debounce_ticks = 5;
@@ -59,6 +60,7 @@ void cdc_uart_init(void) {
 void cdc_task(void)
 {
     static int was_connected = 0;
+    static uint cdc_tx_oe = 0;
     uint rx_len = 0;
 
     // Consume uart fifo regardless even if not connected
@@ -77,6 +79,9 @@ void cdc_task(void)
           rx_led_debounce = debounce_ticks;
 #endif
           written = MIN(tud_cdc_write_available(), rx_len);
+          if (rx_len > written)
+              cdc_tx_oe++;
+
           if (written > 0) {
             tud_cdc_write(rx_buf, written);
             tud_cdc_write_flush();
@@ -113,6 +118,7 @@ void cdc_task(void)
     } else if (was_connected) {
       tud_cdc_write_clear();
       was_connected = 0;
+      cdc_tx_oe = 0;
     }
 }
 
