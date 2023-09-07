@@ -199,9 +199,10 @@ static void context_tinyusb_linkoutput(void *param)
  * Context: TinyUSB
  */
 {
+#if 1
     if ( !tud_network_can_xmit(xmt_buff_len)) {
-        //printf("context_tinyusb_linkoutput: sleep\n");
-        vTaskDelay(pdMS_TO_TICKS(5));
+//        printf("context_tinyusb_linkoutput: sleep\n");
+        vTaskDelay(pdMS_TO_TICKS(1));
 
         taskDISABLE_INTERRUPTS();
         usbd_defer_func(context_tinyusb_linkoutput, NULL, false);    // put yourself at end of TinyUSB event queue
@@ -210,6 +211,16 @@ static void context_tinyusb_linkoutput(void *param)
     else {
         tud_network_xmit(xmt_buff, xmt_buff_len);
     }
+#else
+    // ATTENTION: lwiperf does not work with this and ECM, command line
+    //               iperf -c 192.168.14.1 -e -i 1 -M 1000 -l 8192 -r
+    //            kills the device
+    while ( !tud_network_can_xmit(xmt_buff_len)) {
+        printf("context_tinyusb_linkoutput: sleep\n");
+        vTaskDelay(pdMS_TO_TICKS(5));
+    }
+    tud_network_xmit(xmt_buff, xmt_buff_len);
+#endif
 }   // context_tinyusb_linkoutput
 
 
