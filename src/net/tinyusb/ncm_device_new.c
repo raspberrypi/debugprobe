@@ -521,8 +521,8 @@ static void recv_put_ntb_into_free_list(recv_ntb_t *free_ntb)
 
 static void recv_put_ntb_into_ready_list(recv_ntb_t *ready_ntb)
 /**
- * The \a ncm_interface.recv_tinyusb_ntb is filled,
- * put this buffer into the waiting list and free the receive logic.
+ * \a ready_ntb holds a validated NTB,
+ * put this buffer into the waiting list.
  */
 {
     DEBUG_OUT("recv_put_ntb_into_ready_list(%p) %d\n", ready_ntb, ready_ntb->nth.wBlockLength);
@@ -583,7 +583,7 @@ static bool recv_validate_datagram(const recv_ntb_t *ntb, uint32_t len)
 {
     const nth16_t *nth16 = &(ntb->nth);
 
-    DEBUG_OUT("recv_validate_datagram(%p)\n", ntb);
+    DEBUG_OUT("recv_validate_datagram(%p, %d)\n", ntb, (int)len);
 
     //
     // check header
@@ -745,7 +745,7 @@ bool tud_network_can_xmit(uint16_t size)
         return true;
     }
     xmit_start_if_possible(ncm_interface.rhport);
-    INFO_OUT("(II) tud_network_can_xmit: request blocked\n");     // could happen if all xmit buffers are full (but should happen rarely)
+    ERROR_OUT("(II) tud_network_can_xmit: request blocked\n");     // could happen if all xmit buffers are full (but should happen rarely)
     return false;
 }   // tud_network_can_xmit
 
