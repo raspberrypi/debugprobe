@@ -137,6 +137,8 @@ void cdc_thread(void *ptr)
 
 void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding)
 {
+  uart_parity_t parity;
+  uint data_bits, stop_bits;
   /* Set the tick thread interval to the amount of time it takes to
    * fill up half a FIFO. Millis is too coarse for integer divide.
    */
@@ -151,6 +153,51 @@ void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding)
   tud_cdc_write_clear();
   tud_cdc_read_flush();
   uart_init(PICOPROBE_UART_INTERFACE, line_coding->bit_rate);
+
+  switch (line_coding->parity) {
+  case CDC_LINE_CODING_PARITY_ODD:
+    parity = UART_PARITY_ODD;
+    break;
+  case CDC_LINE_CODING_PARITY_EVEN:
+    parity = UART_PARITY_EVEN;
+    break;
+  default:
+    picoprobe_info("invalid parity setting %u\n", line_coding->parity);
+    /* fallthrough */
+  case CDC_LINE_CODING_PARITY_NONE:
+    parity = UART_PARITY_NONE;
+    break;
+  }
+
+  switch (line_coding->data_bits) {
+  case 5:
+  case 6:
+  case 7:
+  case 8:
+    data_bits = line_coding->data_bits;
+    break;
+  default:
+    picoprobe_info("invalid data bits setting: %u\n", line_coding->data_bits);
+    data_bits = 8;
+    break;
+  }
+
+  /* The PL011 only supports 1 or 2 stop bits. 1.5 stop bits is translated to 2,
+   * which is safer than the alternative. */
+  switch (line_coding->stop_bits) {
+  case CDC_LINE_CONDING_STOP_BITS_1_5:
+  case CDC_LINE_CONDING_STOP_BITS_2:
+    stop_bits = 2;
+  break;
+  default:
+    picoprobe_info("invalid stop bits setting: %u\n", line_coding->stop_bits);
+    /* fallthrough */
+  case CDC_LINE_CONDING_STOP_BITS_1:
+    stop_bits = 1;
+  break;
+  }
+
+  uart_set_format(PICOPROBE_UART_INTERFACE, data_bits, stop_bits, parity);
   vTaskResume(uart_taskhandle);
 }
 
