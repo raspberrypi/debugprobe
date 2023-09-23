@@ -60,7 +60,7 @@
 #define PROBE_PIN_SWCLK          12
 #define PROBE_PIN_SWDIN          13                     // dedicated input
 #define PROBE_PIN_SWDIO          14                     // used as output
-#define PROBE_PIN_RESET          17                     // Target reset config (not connected)
+// #define PROBE_PIN_RESET                              // Target reset config (not connected)
 // #define PROBE_MAX_KHZ         now in g_board_info.target_cfg->rt_max_swd_kHz, setup in pico::pico_prerun_board_config()
 
 // UART config (UART target -> probe)

@@ -422,23 +422,31 @@ __STATIC_FORCEINLINE void     PIN_nTRST_OUT  (uint32_t bit) {
   ;
 }
 
+
+
 // nRESET Pin I/O------------------------------------------
 
 /** nRESET I/O pin: Get Input.
 \return Current status of the nRESET DAP hardware I/O pin.
 */
-__STATIC_FORCEINLINE uint32_t PIN_nRESET_IN  (void) {
-  return (0U);
-}
+__STATIC_FORCEINLINE uint32_t PIN_nRESET_IN(void)
+{
+    uint32_t r;
+
+    r = probe_reset_pin_get();
+    return r;
+}   // PIN_nRESET_IN
+
 
 /** nRESET I/O pin: Set Output.
 \param bit target device hardware reset pin status:
            - 0: issue a device hardware reset.
            - 1: release device hardware reset.
 */
-__STATIC_FORCEINLINE void     PIN_nRESET_OUT (uint32_t bit) {
-  ;
-}
+__STATIC_FORCEINLINE void     PIN_nRESET_OUT(uint32_t bit)
+{
+    probe_reset_pin_set(bit);
+}   // PIN_nRESET_OUT
 
 ///@}
 
