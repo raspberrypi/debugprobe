@@ -76,7 +76,7 @@
 
 //--------------------------------------
 // memory
-#define MEM_SIZE                               40000
+#define MEM_SIZE                               20000
 //#define MEMP_OVERFLOW_CHECK                    1
 //#define LWIP_ALLOW_MEM_FREE_FROM_OTHER_CONTEXT 1
 

@@ -191,6 +191,10 @@ uint16_t tud_network_xmit_cb(uint8_t *dst, void *ref, uint16_t arg)
 }   // tud_network_xmit_cb
 
 
+//// XXXX=0 - works, good performance also with ECM
+//// XXXX=1 - works ok, but there is a nested call to tud_task()
+//// XXXX=2 - works, but inconsistent transmission performance with ECM (lwIP seems to switch a delay between retries)
+#define XXXX 1
 
 static void context_tinyusb_linkoutput(void *param)
 /**
@@ -199,7 +203,7 @@ static void context_tinyusb_linkoutput(void *param)
  * Context: TinyUSB
  */
 {
-#if 1
+#if XXXX == 0
     if ( !tud_network_can_xmit(xmt_buff_len)) {
 //        printf("context_tinyusb_linkoutput: sleep\n");
         vTaskDelay(pdMS_TO_TICKS(1));
@@ -211,14 +215,17 @@ static void context_tinyusb_linkoutput(void *param)
     else {
         tud_network_xmit(xmt_buff, xmt_buff_len);
     }
-#else
+#elif XXXX == 1
     // ATTENTION: lwiperf does not work with this and ECM, command line
     //               iperf -c 192.168.14.1 -e -i 1 -M 1000 -l 8192 -r
     //            kills the device
     while ( !tud_network_can_xmit(xmt_buff_len)) {
-        printf("context_tinyusb_linkoutput: sleep\n");
-        vTaskDelay(pdMS_TO_TICKS(5));
+        //vTaskDelay(pdMS_TO_TICKS(1));
+        tud_task();
     }
+    tud_network_xmit(xmt_buff, xmt_buff_len);
+#else
+    assert(tud_network_can_xmit(xmt_buff_len));
     tud_network_xmit(xmt_buff, xmt_buff_len);
 #endif
 }   // context_tinyusb_linkoutput
@@ -237,12 +244,21 @@ static err_t linkoutput_fn(struct netif *netif, struct pbuf *p)
     }
 
     if (xmt_buff_len != 0) {
+//        printf("linkoutput_fn: retry 1\n");
         return ERR_USE;
     }
 
     // copy data into temp buffer
     xmt_buff_len = pbuf_copy_partial(p, xmt_buff, p->tot_len, 0);
     assert(xmt_buff_len < sizeof(xmt_buff));
+
+#if XXXX == 2
+    if ( !tud_network_can_xmit(xmt_buff_len)) {
+        printf("linkoutput_fn: retry 2\n");
+        xmt_buff_len = 0;
+        return ERR_USE;
+    }
+#endif
 
     taskDISABLE_INTERRUPTS();
     usbd_defer_func(context_tinyusb_linkoutput, NULL, false);   // TODO this is actually not safe!

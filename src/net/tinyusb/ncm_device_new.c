@@ -745,7 +745,7 @@ bool tud_network_can_xmit(uint16_t size)
         return true;
     }
     xmit_start_if_possible(ncm_interface.rhport);
-    ERROR_OUT("(II) tud_network_can_xmit: request blocked\n");     // could happen if all xmit buffers are full (but should happen rarely)
+    INFO_OUT("(II) tud_network_can_xmit: request blocked\n");     // could happen if all xmit buffers are full (but should happen rarely)
     return false;
 }   // tud_network_can_xmit
 
