@@ -54,6 +54,8 @@ This information includes:
 #include "probe.h"
 #include "target_board.h"
 
+#include "minIni/minIni.h"
+
 /// Processor Clock of the Cortex-M MCU used in the Debug Unit.
 /// This value is used to calculate the SWD/JTAG clock speed.
 /* Picoprobe actually uses kHz rather than Hz, so just lie about it here */
@@ -174,7 +176,7 @@ __STATIC_INLINE uint8_t DAP_GetProductString (char *str)
 */
 __STATIC_INLINE uint8_t DAP_GetSerNumString (char *str)
 {
-    strcpy(str, usb_serial);
+    ini_gets(MININI_SECTION, MININI_VAR_NICK, usb_serial, str, 60, MININI_FILENAME);
     return strlen(str) + 1;
 }
 
