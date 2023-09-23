@@ -432,11 +432,11 @@ static bool rp2040_swd_set_target_state(uint8_t core, target_state_t state)
 
 static void rp2040_swd_set_target_reset(uint8_t asserted)
 {
-    extern void probe_assert_reset(bool);
+    extern void probe_reset_pin_set(uint32_t);
 
     // set HW signal accordingly, asserted means "active"
 //    printf("----- rp2040_swd_set_target_reset(%d)\n", asserted);
-    probe_assert_reset(asserted);
+    probe_reset_pin_set(asserted ? 0 : 1);
 }   // rp2040_swd_set_target_reset
 
 

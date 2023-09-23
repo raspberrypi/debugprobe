@@ -39,5 +39,7 @@ uint32_t probe_read_bits(uint bit_count, bool push, bool pull);
 void probe_gpio_init(void);
 void probe_init(void);
 void probe_deinit(void);
+void probe_reset_pin_set(uint32_t state);
+uint32_t probe_reset_pin_get(void);
 
 #endif

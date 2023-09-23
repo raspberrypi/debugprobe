@@ -191,11 +191,39 @@ void probe_set_swclk_freq_khz(uint32_t freq_khz, bool message)
 
 
 
-void probe_assert_reset(bool state)
+void probe_reset_pin_set(uint32_t state)
+/**
+ * set state of reset pin
+ */
 {
-    /* Change the direction to out to drive pin to 0 or to in to emulate open drain */
-    gpio_set_dir(PROBE_PIN_RESET, state);
-}   // probe_assert_reset
+#if defined(PROBE_PIN_RESET)
+    if (state == 0)
+    {
+        /* Change the direction to out to drive pin to 0 */
+        gpio_put(PROBE_PIN_RESET, 0);
+        gpio_set_dir(PROBE_PIN_RESET, true);
+    }
+    else
+    {
+        /* Change the direction to input to emulate open drain */
+        gpio_pull_up(PROBE_PIN_RESET);
+        gpio_set_dir(PROBE_PIN_RESET, false);
+        sleep_ms(1);                               // give it some time...
+    }
+#endif
+}   // probe_reset_pin_set
+
+
+
+uint32_t probe_reset_pin_get(void)
+{
+#if defined(PROBE_PIN_RESET)
+    uint32_t r = gpio_get(PROBE_PIN_RESET);
+    return r;
+#else
+    return 1;
+#endif
+}   // probe_reset_pin_get
 
 
 
@@ -291,10 +319,13 @@ void probe_init()
 {
 //    picoprobe_info("probe_init()\n");
 
+#if defined(PROBE_PIN_RESET)
     // Target reset pin: pull up, input to emulate open drain pin
     gpio_pull_up(PROBE_PIN_RESET);
     // gpio_init will leave the pin cleared and set as input
     gpio_init(PROBE_PIN_RESET);
+#endif
+
     if ( !probe.initted) {
 //        picoprobe_info("     2. probe_init()\n");
         uint offset = pio_add_program(PROBE_PIO, &probe_program);
