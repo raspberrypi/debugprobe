@@ -94,12 +94,14 @@
 // minIni definitions
 //
 #define MININI_VAR_NET      "net"
+#define MININI_VAR_NICK     "nick"
 #define MININI_VAR_FCPU     "f_cpu"
 #define MININI_VAR_FSWD     "f_swd"
 #define MININI_VAR_RSTART   "r_start"
 #define MININI_VAR_REND     "r_end"
 #define MININI_VAR_PWD      "pwd"
 
-#define MININI_VAR_NAMES    MININI_VAR_NET, MININI_VAR_FCPU, MININI_VAR_FSWD, MININI_VAR_RSTART, MININI_VAR_REND, MININI_VAR_PWD
+#define MININI_VAR_NAMES    MININI_VAR_NET, MININI_VAR_NICK, MININI_VAR_FCPU, MININI_VAR_FSWD, \
+                            MININI_VAR_RSTART, MININI_VAR_REND, MININI_VAR_PWD
 
 #endif
