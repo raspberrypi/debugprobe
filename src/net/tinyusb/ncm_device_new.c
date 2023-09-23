@@ -59,7 +59,7 @@
 #include "ncm.h"
 
 
-#if !defined(tu_static)  ||  ECLIPSE_GUI
+#if !defined(tu_static)  ||  defined(ECLIPSE_GUI)
     // TinyUSB <=0.15.0 does not know "tu_static"
     #define tu_static static
 #endif
@@ -103,7 +103,7 @@ typedef struct {
     uint8_t     rhport;                            //!< storage of \a rhport because some callbacks are done without it
 
     // recv handling
-    recv_ntb_t  recv_ntb[RECV_NTB_N];              //!< actual recv NTBs
+    CFG_TUSB_MEM_ALIGN recv_ntb_t  recv_ntb[RECV_NTB_N];              //!< actual recv NTBs
     recv_ntb_t *recv_free_ntb[RECV_NTB_N];         //!< free list of recv NTBs
     recv_ntb_t *recv_ready_ntb[RECV_NTB_N];        //!< NTBs waiting for transmission to glue logic
     recv_ntb_t *recv_tinyusb_ntb;                  //!< buffer for the running transfer TinyUSB -> driver
@@ -111,7 +111,7 @@ typedef struct {
     uint16_t               recv_glue_ntb_datagram_ndx;        //!< index into \a recv_glue_ntb_datagram
 
     // xmit handling
-    xmit_ntb_t  xmit_ntb[XMIT_NTB_N];              //!< actual xmit NTBs
+    CFG_TUSB_MEM_ALIGN xmit_ntb_t  xmit_ntb[XMIT_NTB_N];              //!< actual xmit NTBs
     xmit_ntb_t *xmit_free_ntb[XMIT_NTB_N];         //!< free list of xmit NTBs
     xmit_ntb_t *xmit_ready_ntb[XMIT_NTB_N];        //!< NTBs waiting for transmission to TinyUSB
     xmit_ntb_t *xmit_tinyusb_ntb;                  //!< buffer for the running transfer driver -> TinyUSB
@@ -314,7 +314,7 @@ static xmit_ntb_t *xmit_get_next_ready_ntb(void)
 
 
 
-static bool xmit_insert_required_zlp(uint8_t rhport, uint16_t xferred_bytes)
+static bool xmit_insert_required_zlp(uint8_t rhport, uint32_t xferred_bytes)
 /**
  * Transmit a ZLP if required
  *
@@ -521,8 +521,8 @@ static void recv_put_ntb_into_free_list(recv_ntb_t *free_ntb)
 
 static void recv_put_ntb_into_ready_list(recv_ntb_t *ready_ntb)
 /**
- * The \a ncm_interface.recv_tinyusb_ntb is filled,
- * put this buffer into the waiting list and free the receive logic.
+ * \a ready_ntb holds a validated NTB,
+ * put this buffer into the waiting list.
  */
 {
     DEBUG_OUT("recv_put_ntb_into_ready_list(%p) %d\n", ready_ntb, ready_ntb->nth.wBlockLength);
@@ -552,7 +552,7 @@ static void recv_try_to_start_new_reception(uint8_t rhport)
     if (ncm_interface.recv_tinyusb_ntb != NULL) {
         return;
     }
-    if (usbd_edpt_busy(ncm_interface.rhport, ncm_interface.ep_out)) {
+    if (usbd_edpt_busy(rhport, ncm_interface.ep_out)) {
         return;
     }
 
@@ -563,7 +563,7 @@ static void recv_try_to_start_new_reception(uint8_t rhport)
 
     // initiate transfer
     DEBUG_OUT("  start reception\n");
-    bool r = usbd_edpt_xfer(0, ncm_interface.ep_out, ncm_interface.recv_tinyusb_ntb->data, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
+    bool r = usbd_edpt_xfer(rhport, ncm_interface.ep_out, ncm_interface.recv_tinyusb_ntb->data, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
     if ( !r) {
         recv_put_ntb_into_free_list(ncm_interface.recv_tinyusb_ntb);
         ncm_interface.recv_tinyusb_ntb = NULL;
@@ -572,7 +572,7 @@ static void recv_try_to_start_new_reception(uint8_t rhport)
 
 
 
-static bool recv_validate_datagram(const recv_ntb_t *ntb, uint16_t len)
+static bool recv_validate_datagram(const recv_ntb_t *ntb, uint32_t len)
 /**
  * Validate incoming datagram.
  * \return true if valid
@@ -583,7 +583,7 @@ static bool recv_validate_datagram(const recv_ntb_t *ntb, uint16_t len)
 {
     const nth16_t *nth16 = &(ntb->nth);
 
-    DEBUG_OUT("recv_validate_datagram(%p)\n", ntb);
+    DEBUG_OUT("recv_validate_datagram(%p, %d)\n", ntb, (int)len);
 
     //
     // check header
@@ -617,7 +617,7 @@ static bool recv_validate_datagram(const recv_ntb_t *ntb, uint16_t len)
     //
     // check (first) NDP(16)
     //
-    const ndp16_t *ndp16 = (ndp16_t *)(ntb->data + nth16->wNdpIndex);
+    const ndp16_t *ndp16 = (const ndp16_t *)(ntb->data + nth16->wNdpIndex);
 
     if (ndp16->wLength < sizeof(ndp16_t) + 2*sizeof(ndp16_datagram_t)) {
         ERROR_OUT("(EE) ill ndp16 length: %d\n", ndp16->wLength);
@@ -632,9 +632,9 @@ static bool recv_validate_datagram(const recv_ntb_t *ntb, uint16_t len)
         return false;
     }
 
-    const ndp16_datagram_t *ndp16_datagram = (ndp16_datagram_t *)(ntb->data + nth16->wNdpIndex + sizeof(ndp16_t));
+    const ndp16_datagram_t *ndp16_datagram = (const ndp16_datagram_t *)(ntb->data + nth16->wNdpIndex + sizeof(ndp16_t));
     int ndx = 0;
-    int max_ndx = (ndp16->wLength - sizeof(ndp16_t)) / sizeof(ndp16_datagram_t);
+    uint16_t max_ndx = (uint16_t)((ndp16->wLength - sizeof(ndp16_t)) / sizeof(ndp16_datagram_t));
 
     if (max_ndx > 2) {
         // number of datagrams in NTB > 1
@@ -657,10 +657,12 @@ static bool recv_validate_datagram(const recv_ntb_t *ntb, uint16_t len)
         ++ndx;
     }
 
-    for (int i = 0;  i < len;  ++i) {
+#ifdef DEBUG_OUT_ENABLED
+    for (uint32_t i = 0;  i < len;  ++i) {
         DEBUG_OUT(" %02x", ntb->data[i]);
     }
     DEBUG_OUT("\n");
+#endif
 
     // -> ntb contains a valid packet structure
     //    ok... I did not check for garbage within the datagram indices...
@@ -743,7 +745,7 @@ bool tud_network_can_xmit(uint16_t size)
         return true;
     }
     xmit_start_if_possible(ncm_interface.rhport);
-    ERROR_OUT("(II) tud_network_can_xmit: request blocked\n");     // could happen if all xmit buffers are full (but should happen rarely)
+    INFO_OUT("(II) tud_network_can_xmit: request blocked\n");     // could happen if all xmit buffers are full (but should happen rarely)
     return false;
 }   // tud_network_can_xmit
 
@@ -772,7 +774,7 @@ void tud_network_xmit(void *ref, uint16_t arg)
     ntb->ndp_datagram[ncm_interface.xmit_glue_ntb_datagram_ndx].wDatagramLength = size;
     ncm_interface.xmit_glue_ntb_datagram_ndx += 1;
 
-    ntb->nth.wBlockLength += size + XMIT_ALIGN_OFFSET(size);
+    ntb->nth.wBlockLength += (uint16_t)(size + XMIT_ALIGN_OFFSET(size));
 
     if (ntb->nth.wBlockLength > CFG_TUD_NCM_OUT_NTB_MAX_SIZE) {
         ERROR_OUT("(II) tud_network_xmit: buffer overflow\n");       // must not happen (really)
@@ -839,6 +841,8 @@ void netd_reset(uint8_t rhport)
  * In this driver this is the same as netd_init()
  */
 {
+    (void)rhport;
+
     DEBUG_OUT("netd_reset(%d)\n", rhport);
 
     netd_init();
@@ -915,6 +919,8 @@ bool netd_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_
  * Handle TinyUSB requests to process transfer events.
  */
 {
+    (void)result;
+
     DEBUG_OUT("netd_xfer_cb(%d,%d,%d,%u)\n", rhport, ep_addr, result, (unsigned)xferred_bytes);
 
     if (ep_addr == ncm_interface.ep_out) {
@@ -989,7 +995,7 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
                 case TUSB_REQ_SET_INTERFACE: {
                     TU_VERIFY(ncm_interface.itf_num + 1 == request->wIndex  &&  request->wValue < 2, false);
 
-                    ncm_interface.itf_data_alt = request->wValue;
+                    ncm_interface.itf_data_alt = (uint8_t)request->wValue;
                     DEBUG_OUT("  TUSB_REQ_SET_INTERFACE - %d %d %d\n", ncm_interface.itf_data_alt, request->wIndex, ncm_interface.itf_num);
 
                     if (ncm_interface.itf_data_alt == 1) {

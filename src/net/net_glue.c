@@ -132,8 +132,10 @@ static void net_glue_usb_to_lwip(void *ptr)
             ethernet_input(p, &netif_data);
             pbuf_free(p);
             rcv_buff_len = 0;
+
             taskDISABLE_INTERRUPTS();
-            usbd_defer_func(context_tinyusb_tud_network_recv_renew, NULL, false);
+            // TODO not safe, because it does only block USB interrupts on operation
+            usbd_defer_func(context_tinyusb_tud_network_recv_renew, NULL, false);   // TODO this is actually not safe!
             taskENABLE_INTERRUPTS();
         }
     }
@@ -160,7 +162,7 @@ bool tud_network_recv_cb(const uint8_t *src, uint16_t size)
         memcpy(rcv_buff, src, size);
         rcv_buff_len = size;
         taskDISABLE_INTERRUPTS();
-        tcpip_callback_with_block(net_glue_usb_to_lwip, NULL, 0);
+        tcpip_try_callback(net_glue_usb_to_lwip, NULL);      // this seems to be safe
         taskENABLE_INTERRUPTS();
     }
     return true;
@@ -189,25 +191,43 @@ uint16_t tud_network_xmit_cb(uint8_t *dst, void *ref, uint16_t arg)
 }   // tud_network_xmit_cb
 
 
+//// XXXX=0 - works, good performance also with ECM
+//// XXXX=1 - works ok, but there is a nested call to tud_task()
+//// XXXX=2 - works, but inconsistent transmission performance with ECM (lwIP seems to switch a delay between retries)
+#define XXXX 1
 
 static void context_tinyusb_linkoutput(void *param)
 /**
- * Put \a xmt_buff into TinyUSB (if possible).
+ * Put \a xmt_buff into TinyUSB.
  *
  * Context: TinyUSB
  */
 {
+#if XXXX == 0
     if ( !tud_network_can_xmit(xmt_buff_len)) {
-        //printf("context_tinyusb_linkoutput: sleep\n");
-        vTaskDelay(pdMS_TO_TICKS(5));
+//        printf("context_tinyusb_linkoutput: sleep\n");
+        vTaskDelay(pdMS_TO_TICKS(1));
 
         taskDISABLE_INTERRUPTS();
-        usbd_defer_func(context_tinyusb_linkoutput, NULL, false);
+        usbd_defer_func(context_tinyusb_linkoutput, NULL, false);    // put yourself at end of TinyUSB event queue
         taskENABLE_INTERRUPTS();
     }
     else {
         tud_network_xmit(xmt_buff, xmt_buff_len);
     }
+#elif XXXX == 1
+    // ATTENTION: lwiperf does not work with this and ECM, command line
+    //               iperf -c 192.168.14.1 -e -i 1 -M 1000 -l 8192 -r
+    //            kills the device
+    while ( !tud_network_can_xmit(xmt_buff_len)) {
+        //vTaskDelay(pdMS_TO_TICKS(1));
+        tud_task();
+    }
+    tud_network_xmit(xmt_buff, xmt_buff_len);
+#else
+    assert(tud_network_can_xmit(xmt_buff_len));
+    tud_network_xmit(xmt_buff, xmt_buff_len);
+#endif
 }   // context_tinyusb_linkoutput
 
 
@@ -224,6 +244,7 @@ static err_t linkoutput_fn(struct netif *netif, struct pbuf *p)
     }
 
     if (xmt_buff_len != 0) {
+//        printf("linkoutput_fn: retry 1\n");
         return ERR_USE;
     }
 
@@ -231,8 +252,16 @@ static err_t linkoutput_fn(struct netif *netif, struct pbuf *p)
     xmt_buff_len = pbuf_copy_partial(p, xmt_buff, p->tot_len, 0);
     assert(xmt_buff_len < sizeof(xmt_buff));
 
+#if XXXX == 2
+    if ( !tud_network_can_xmit(xmt_buff_len)) {
+        printf("linkoutput_fn: retry 2\n");
+        xmt_buff_len = 0;
+        return ERR_USE;
+    }
+#endif
+
     taskDISABLE_INTERRUPTS();
-    usbd_defer_func(context_tinyusb_linkoutput, NULL, false);
+    usbd_defer_func(context_tinyusb_linkoutput, NULL, false);   // TODO this is actually not safe!
     taskENABLE_INTERRUPTS();
 
     return ERR_OK;

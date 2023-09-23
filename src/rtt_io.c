@@ -572,7 +572,8 @@ void rtt_io_thread(void *ptr)
                 g_board_info.prerun_board_config();
             }
             if (g_board_info.target_cfg->rt_board_id != NULL) {
-                picoprobe_info("\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+                picoprobe_info("\n");
+                picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
                 //picoprobe_info("Target family     : 0x%04x\n", g_target_family->family_id);
                 picoprobe_info("Target vendor     : %s\n", g_board_info.target_cfg->target_vendor);
                 picoprobe_info("Target part       : %s\n", g_board_info.target_cfg->target_part_number);
@@ -589,6 +590,7 @@ void rtt_io_thread(void *ptr)
                 picoprobe_info("SWD frequency     : %ukHz\n", (unsigned)probe_get_swclk_freq_khz());
                 picoprobe_info("SWD max frequency : %ukHz\n", g_board_info.target_cfg->rt_max_swd_khz);
                 picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+                picoprobe_info("\n");
                 rtt_cb_alive = false;
             }
         }
