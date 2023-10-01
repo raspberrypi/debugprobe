@@ -55,6 +55,17 @@ if (DEBUGPROBE)
     )
 endif ()
 
+option (EXTRA_UART "bridge both probe UARTs")
+if (EXTRA_UART)
+    target_compile_definitions (picoprobe PRIVATE
+	CDC_UARTS=2
+    )
+else ()
+    target_compile_definitions (picoprobe PRIVATE
+	CDC_UARTS=1
+    )
+endif ()
+
 
 target_link_libraries(picoprobe PRIVATE
         pico_multicore

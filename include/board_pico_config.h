@@ -39,11 +39,19 @@
 #define PROBE_PIN_RESET 1
 #endif
 
-// UART config
+// UART config, ttyACMn
 #define PICOPROBE_UART_TX 4
 #define PICOPROBE_UART_RX 5
 #define PICOPROBE_UART_INTERFACE uart1
 #define PICOPROBE_UART_BAUDRATE 115200
+
+#if (CDC_UARTS > 1)
+// if enabled, always ttyACM(n+1)
+#define PICOPROBE_EX_UART_TX 0
+#define PICOPROBE_EX_UART_RX 1
+#define PICOPROBE_EX_UART_INTERFACE uart0
+#define PICOPROBE_EX_UART_BAUDRATE 115200
+#endif
 
 #define PICOPROBE_USB_CONNECTED_LED 25
 
