@@ -28,7 +28,7 @@
 
 void cdc_thread(void *ptr);
 void cdc_uart_init(void);
-void cdc_task(void);
+void cdc_tasks(void);
 
 extern TaskHandle_t uart_taskhandle;
 

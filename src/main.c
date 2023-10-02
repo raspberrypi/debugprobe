@@ -41,7 +41,7 @@
 #include "led.h"
 #include "DAP.h"
 
-// UART0 for Picoprobe debug
+// UART0 available / for Picoprobe debug
 // UART1 for picoprobe to target device
 
 static uint8_t TxDataBuffer[CFG_TUD_HID_EP_BUFSIZE];
@@ -116,7 +116,7 @@ int main(void) {
 
     while (!THREADED) {
         tud_task();
-        cdc_task();
+        cdc_tasks();
 
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
         if (tud_vendor_available()) {

@@ -65,11 +65,21 @@ do { \
 
 // TODO tie this up with PICO_BOARD defines in the main SDK
 
-#ifndef DEBUGPROBE 
-#include "board_pico_config.h"
-#else
-#include "board_debugprobe_config.h"
+#ifndef DEBUGPROBE
+
+#if CDC_UARTS < 1 || CDC_UARTS > 2
+#error "PICOPROBE only supports one or two UARTs"
 #endif
+#include "board_pico_config.h"
+
+#else /* DEBUGPROBE */
+
+#if CDC_UARTS != 1
+#error "DEBUGPROBE only supports one UART"
+#endif
+#include "board_debugprobe_config.h"
+
+#endif /* DEBUGPROBE */
 //#include "board_example_config.h"
 
 
