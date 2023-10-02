@@ -48,10 +48,22 @@ option (DEBUGPROBE "compile for the debugprobe" OFF)
 if (DEBUGPROBE)
     target_compile_definitions (picoprobe PRIVATE 
 	DEBUGPROBE=1
+	CDC_UARTS=1
     )
     set_target_properties(picoprobe PROPERTIES 
         OUTPUT_NAME "debugprobe"
     )
+else ()
+    option (EXTRA_UART "bridge both probe UARTs")
+    if (EXTRA_UART)
+        target_compile_definitions (picoprobe PRIVATE
+        CDC_UARTS=2
+        )
+    else ()
+        target_compile_definitions (picoprobe PRIVATE
+        CDC_UARTS=1
+        )
+    endif ()
 endif ()
 
 
