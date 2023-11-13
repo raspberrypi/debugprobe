@@ -42,6 +42,13 @@
 #include "tusb_edpt_handler.h"
 #include "DAP.h"
 
+#include "usb_reset_interface.h"
+#include "pico/bootrom.h"
+#include "hardware/watchdog.h"
+
+
+
+
 // UART0 for Picoprobe debug
 // UART1 for picoprobe to target device
 
@@ -152,6 +159,20 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 {
   // nothing to with DATA & ACK stage
   if (stage != CONTROL_STAGE_SETUP) return true;
+
+#if PICOPROBE_RESET_CAPABLE
+  if (request->wIndex == 3) {
+    if (request->bRequest == RESET_REQUEST_BOOTSEL) {
+      reset_usb_boot(0, (request->wValue & 0x7f) | 0);
+      return true;
+    }
+    if (request->bRequest == RESET_REQUEST_FLASH) {
+      watchdog_reboot(0, 0, 100);
+      return true;
+    }
+    return false;
+  }
+#endif
 
   switch (request->bmRequestType_bit.type)
   {

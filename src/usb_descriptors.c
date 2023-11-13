@@ -29,6 +29,8 @@
 #include "get_serial.h"
 #include "picoprobe_config.h"
 
+#include "usb_reset_interface.h"
+
 //--------------------------------------------------------------------+
 // Device Descriptors
 //--------------------------------------------------------------------+
@@ -71,6 +73,9 @@ enum
   ITF_NUM_PROBE, // Old versions of Keil MDK only look at interface 0
   ITF_NUM_CDC_COM,
   ITF_NUM_CDC_DATA,
+#if PICOPROBE_RESET_CAPABLE
+  ITF_NUM_RPI_RESET,
+#endif
   ITF_NUM_TOTAL
 };
 
@@ -80,10 +85,23 @@ enum
 #define PROBE_OUT_EP_NUM 0x04
 #define PROBE_IN_EP_NUM 0x85
 
+
+#if PICOPROBE_RESET_CAPABLE
+#define TUD_RPI_RESET_DESCRIPTOR_LEN 9
+
+#define TUD_RPI_RESET_DESCRIPTOR(_itfnum, _stridx) \
+  /* Interface */\
+  9, TUSB_DESC_INTERFACE, _itfnum, 0, 0, TUSB_CLASS_VENDOR_SPECIFIC, RESET_INTERFACE_SUBCLASS, RESET_INTERFACE_PROTOCOL, _stridx
+#endif
+
 #if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
 #define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_HID_INOUT_DESC_LEN)
 #else
+#if PICOPROBE_RESET_CAPABLE
+#define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_VENDOR_DESC_LEN + TUD_RPI_RESET_DESCRIPTOR_LEN)
+#else
 #define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_VENDOR_DESC_LEN)
+#endif
 #endif
 
 static uint8_t const desc_hid_report[] =
@@ -113,6 +131,10 @@ uint8_t const desc_configuration[] =
 #endif
   // Interface 1 + 2
   TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_COM, 6, CDC_NOTIFICATION_EP_NUM, 64, CDC_DATA_OUT_EP_NUM, CDC_DATA_IN_EP_NUM, 64),
+#if PICOPROBE_RESET_CAPABLE
+  // Picotool compatible reset descriptor.
+  TUD_RPI_RESET_DESCRIPTOR(ITF_NUM_RPI_RESET, 7),
+#endif
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
@@ -138,6 +160,9 @@ char const* string_desc_arr [] =
   "CMSIS-DAP v1 Interface", // 4: Interface descriptor for HID transport
   "CMSIS-DAP v2 Interface", // 5: Interface descriptor for Bulk transport
   "CDC-ACM UART Interface", // 6: Interface descriptor for CDC
+#if PICOPROBE_RESET_CAPABLE
+  "Reset", // 7: RPI Reset.
+#endif
 };
 
 static uint16_t _desc_str[32];
