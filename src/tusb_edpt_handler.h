@@ -17,8 +17,8 @@
 
 typedef struct {
 	uint8_t data[DAP_PACKET_COUNT][DAP_PACKET_SIZE];
-	volatile uint32_t packet_wr_idx;
-	volatile uint32_t packet_rd_idx;
+	volatile uint32_t wptr;
+	volatile uint32_t rptr;
 	volatile bool wasEmpty;
 	volatile bool wasFull;
 } buffer_t;

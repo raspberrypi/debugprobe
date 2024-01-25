@@ -18,6 +18,22 @@ uint8_t _in_ep_addr;
 buffer_t USBRequestBuffer; 
 buffer_t USBResponseBuffer;
 
+#define WR_IDX(x) (x.wptr % DAP_PACKET_COUNT)
+#define RD_IDX(x) (x.rptr % DAP_PACKET_COUNT)
+
+#define WR_SLOT_PTR(x) &(x.data[WR_IDX(x)][0])
+#define RD_SLOT_PTR(x) &(x.data[RD_IDX(x)][0])
+
+bool buffer_full(buffer_t *buffer)
+{
+	return ((buffer->wptr + 1) % DAP_PACKET_COUNT == buffer->rptr);
+}
+
+bool buffer_empty(buffer_t *buffer)
+{
+	return (buffer->wptr == buffer->rptr);
+}
+
 void dap_edpt_init(void) {
 
 }
@@ -35,10 +51,10 @@ uint16_t dap_edpt_open(uint8_t __unused rhport, tusb_desc_interface_t const *itf
 			PICOPROBE_INTERFACE_PROTOCOL == itf_desc->bInterfaceProtocol, 0);
 
 	//  Initialise circular buffer indices
-	USBResponseBuffer.packet_wr_idx = 0;
-	USBResponseBuffer.packet_rd_idx = 0;
-	USBRequestBuffer.packet_wr_idx = 0;
-	USBRequestBuffer.packet_rd_idx = 0;
+	USBResponseBuffer.wptr = 0;
+	USBResponseBuffer.rptr = 0;
+	USBRequestBuffer.wptr = 0;
+	USBRequestBuffer.rptr = 0;
 
 	// Initialse full/empty flags
 	USBResponseBuffer.wasFull = false;
@@ -59,7 +75,7 @@ uint16_t dap_edpt_open(uint8_t __unused rhport, tusb_desc_interface_t const *itf
 
 	// The OUT endpoint requires a call to usbd_edpt_xfer to initialise the endpoint, giving tinyUSB a buffer to consume when a transfer occurs at the endpoint
 	usbd_edpt_open(rhport, edpt_desc);
-	usbd_edpt_xfer(rhport, ep_addr, &(USBRequestBuffer.data[USBRequestBuffer.packet_wr_idx][0]), DAP_PACKET_SIZE);
+	usbd_edpt_xfer(rhport, ep_addr, WR_SLOT_PTR(USBRequestBuffer), DAP_PACKET_SIZE);
 
 	// Initiliasing the IN endpoint
 
@@ -89,7 +105,7 @@ bool dap_edpt_xfer_cb(uint8_t __unused rhport, uint8_t ep_addr, xfer_result_t re
 	{
 		if(xferred_bytes >= 0u && xferred_bytes <= DAP_PACKET_SIZE)
 		{
-			USBResponseBuffer.packet_rd_idx = (USBResponseBuffer.packet_rd_idx + 1) % DAP_PACKET_COUNT;
+			USBResponseBuffer.rptr++;
 
 			// This checks that the buffer was not empty in DAP thread, which means the next buffer was not queued up for the in endpoint callback
 			// So, queue up the buffer at the new read index, since we expect read to catch up to write at this point.
@@ -97,8 +113,8 @@ bool dap_edpt_xfer_cb(uint8_t __unused rhport, uint8_t ep_addr, xfer_result_t re
 			// so we account for this by only setting wasEmpty to true if the next callback will empty the buffer
 			if(!USBResponseBuffer.wasEmpty)
 			{
-				usbd_edpt_xfer(rhport, ep_addr, &(USBResponseBuffer.data[USBResponseBuffer.packet_rd_idx][0]), (uint16_t) _resp_len);
-				USBResponseBuffer.wasEmpty = ((USBResponseBuffer.packet_rd_idx + 1) % DAP_PACKET_COUNT == USBResponseBuffer.packet_wr_idx);
+				usbd_edpt_xfer(rhport, ep_addr, RD_SLOT_PTR(USBResponseBuffer), (uint16_t) _resp_len);
+				USBResponseBuffer.wasEmpty = (USBResponseBuffer.rptr + 1) == USBResponseBuffer.wptr;
 			}
 
 			//  Wake up DAP thread after processing the callback
@@ -116,8 +132,8 @@ bool dap_edpt_xfer_cb(uint8_t __unused rhport, uint8_t ep_addr, xfer_result_t re
 			// If full, we set the wasFull flag, which will be checked by dap thread
 			if(!buffer_full(&USBRequestBuffer))
 			{
-				USBRequestBuffer.packet_wr_idx = (USBRequestBuffer.packet_wr_idx + 1) % DAP_PACKET_COUNT;
-				usbd_edpt_xfer(rhport, ep_addr, &(USBRequestBuffer.data[USBRequestBuffer.packet_wr_idx][0]), DAP_PACKET_SIZE);
+				USBRequestBuffer.wptr++;
+				usbd_edpt_xfer(rhport, ep_addr, WR_SLOT_PTR(USBRequestBuffer), DAP_PACKET_SIZE);
 				USBRequestBuffer.wasFull = false;
 			}
 			else {
@@ -141,18 +157,18 @@ void dap_thread(void *ptr)
 
 	do
 	{
-		while(USBRequestBuffer.packet_rd_idx != USBRequestBuffer.packet_wr_idx)
+		while(USBRequestBuffer.rptr != USBRequestBuffer.wptr)
 		{
 			// Read a single packet from the USB buffer into the DAP Request buffer
-			memcpy(DAPRequestBuffer, &(USBRequestBuffer.data[USBRequestBuffer.packet_rd_idx]), DAP_PACKET_SIZE);
-			USBRequestBuffer.packet_rd_idx = (USBRequestBuffer.packet_rd_idx + 1) % DAP_PACKET_COUNT;
+			memcpy(DAPRequestBuffer, RD_SLOT_PTR(USBRequestBuffer), DAP_PACKET_SIZE);
+			USBRequestBuffer.rptr++;
 
 			// If the buffer was full in the out callback, we need to queue up another buffer for the endpoint to consume, now that we know there is space in the buffer.
 			if(USBRequestBuffer.wasFull)
 			{
 				vTaskSuspendAll(); // Suspend the scheduler to safely update the write index
-				USBRequestBuffer.packet_wr_idx = (USBRequestBuffer.packet_wr_idx + 1) % DAP_PACKET_COUNT;
-				usbd_edpt_xfer(_rhport, _out_ep_addr, &(USBRequestBuffer.data[USBRequestBuffer.packet_wr_idx][0]), DAP_PACKET_SIZE);
+				USBRequestBuffer.wptr++;
+				usbd_edpt_xfer(_rhport, _out_ep_addr, WR_SLOT_PTR(USBRequestBuffer), DAP_PACKET_SIZE);
 				USBRequestBuffer.wasFull = false;
 				xTaskResumeAll();
 			}
@@ -165,14 +181,14 @@ void dap_thread(void *ptr)
 
 			if(buffer_empty(&USBResponseBuffer))
 			{
-				memcpy(&(USBResponseBuffer.data[USBResponseBuffer.packet_wr_idx]), DAPResponseBuffer, (uint16_t) _resp_len);
-				USBResponseBuffer.packet_wr_idx = (USBResponseBuffer.packet_wr_idx + 1) % DAP_PACKET_COUNT;
+				memcpy(WR_SLOT_PTR(USBResponseBuffer), DAPResponseBuffer, (uint16_t) _resp_len);
+				USBResponseBuffer.wptr++;
 
-				usbd_edpt_xfer(_rhport, _in_ep_addr, &(USBResponseBuffer.data[USBResponseBuffer.packet_rd_idx][0]), (uint16_t) _resp_len);
+				usbd_edpt_xfer(_rhport, _in_ep_addr, RD_SLOT_PTR(USBResponseBuffer), (uint16_t) _resp_len);
 			} else {
 
-				memcpy(&(USBResponseBuffer.data[USBResponseBuffer.packet_wr_idx]), DAPResponseBuffer, (uint16_t) _resp_len);
-				USBResponseBuffer.packet_wr_idx = (USBResponseBuffer.packet_wr_idx + 1) % DAP_PACKET_COUNT;
+				memcpy(WR_SLOT_PTR(USBResponseBuffer), DAPResponseBuffer, (uint16_t) _resp_len);
+				USBResponseBuffer.wptr++;
 
 				// The In callback needs to check this flag to know when to queue up the next buffer.
 				USBResponseBuffer.wasEmpty = false;
@@ -207,12 +223,3 @@ usbd_class_driver_t const *usbd_app_driver_get_cb(uint8_t *driver_count)
 	return &_dap_edpt_driver;
 }
 
-bool buffer_full(buffer_t *buffer)
-{
-	return ((buffer->packet_wr_idx + 1) % DAP_PACKET_COUNT == buffer->packet_rd_idx);
-}
-
-bool buffer_empty(buffer_t *buffer)
-{
-	return (buffer->packet_wr_idx == buffer->packet_rd_idx);
-}
