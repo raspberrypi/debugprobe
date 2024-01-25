@@ -16,11 +16,11 @@
 #define PICOPROBE_INTERFACE_PROTOCOL 0x00
 
 typedef struct {
-    uint8_t data[DAP_PACKET_COUNT][DAP_PACKET_SIZE];  
-    volatile uint32_t packet_wr_idx;
-    volatile uint32_t packet_rd_idx;
-    volatile bool wasEmpty;
-    volatile bool wasFull;
+	uint8_t data[DAP_PACKET_COUNT][DAP_PACKET_SIZE];
+	volatile uint32_t packet_wr_idx;
+	volatile uint32_t packet_rd_idx;
+	volatile bool wasEmpty;
+	volatile bool wasFull;
 } buffer_t;
 
 extern TaskHandle_t dap_taskhandle, tud_taskhandle;
