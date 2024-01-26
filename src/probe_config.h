@@ -72,6 +72,8 @@ do { \
 #endif
 //#include "board_example_config.h"
 
+// Add the configuration to binary information
+void bi_decl_config();
 
 #define PROTO_DAP_V1 1
 #define PROTO_DAP_V2 2

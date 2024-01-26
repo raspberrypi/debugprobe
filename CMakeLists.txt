@@ -10,6 +10,7 @@ project(debugprobe)
 pico_sdk_init()
 
 add_executable(debugprobe
+        src/probe_config.c
         src/led.c
         src/main.c
         src/usb_descriptors.c
