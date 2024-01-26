@@ -12,11 +12,14 @@ static uint8_t _rhport;
 
 volatile uint32_t _resp_len;
 
-uint8_t _out_ep_addr;
-uint8_t _in_ep_addr;
+static uint8_t _out_ep_addr;
+static uint8_t _in_ep_addr;
 
-buffer_t USBRequestBuffer; 
-buffer_t USBResponseBuffer;
+static buffer_t USBRequestBuffer;
+static buffer_t USBResponseBuffer;
+
+static uint8_t DAPRequestBuffer[DAP_PACKET_SIZE];
+static uint8_t DAPResponseBuffer[DAP_PACKET_SIZE];
 
 #define WR_IDX(x) (x.wptr % DAP_PACKET_COUNT)
 #define RD_IDX(x) (x.rptr % DAP_PACKET_COUNT)
@@ -43,8 +46,40 @@ void dap_edpt_reset(uint8_t __unused rhport)
 	itf_num = 0;
 }
 
+char * dap_cmd_string[] = {
+	[ID_DAP_Info               ] = "DAP_Info",
+	[ID_DAP_HostStatus         ] = "DAP_HostStatus",
+	[ID_DAP_Connect            ] = "DAP_Connect",
+	[ID_DAP_Disconnect         ] = "DAP_Disconnect",
+	[ID_DAP_TransferConfigure  ] = "DAP_TransferConfigure",
+	[ID_DAP_Transfer           ] = "DAP_Transfer",
+	[ID_DAP_TransferBlock      ] = "DAP_TransferBlock",
+	[ID_DAP_TransferAbort      ] = "DAP_TransferAbort",
+	[ID_DAP_WriteABORT         ] = "DAP_WriteABORT",
+	[ID_DAP_Delay              ] = "DAP_Delay",
+	[ID_DAP_ResetTarget        ] = "DAP_ResetTarget",
+	[ID_DAP_SWJ_Pins           ] = "DAP_SWJ_Pins",
+	[ID_DAP_SWJ_Clock          ] = "DAP_SWJ_Clock",
+	[ID_DAP_SWJ_Sequence       ] = "DAP_SWJ_Sequence",
+	[ID_DAP_SWD_Configure      ] = "DAP_SWD_Configure",
+	[ID_DAP_SWD_Sequence       ] = "DAP_SWD_Sequence",
+	[ID_DAP_JTAG_Sequence      ] = "DAP_JTAG_Sequence",
+	[ID_DAP_JTAG_Configure     ] = "DAP_JTAG_Configure",
+	[ID_DAP_JTAG_IDCODE        ] = "DAP_JTAG_IDCODE",
+	[ID_DAP_SWO_Transport      ] = "DAP_SWO_Transport",
+	[ID_DAP_SWO_Mode           ] = "DAP_SWO_Mode",
+	[ID_DAP_SWO_Baudrate       ] = "DAP_SWO_Baudrate",
+	[ID_DAP_SWO_Control        ] = "DAP_SWO_Control",
+	[ID_DAP_SWO_Status         ] = "DAP_SWO_Status",
+	[ID_DAP_SWO_ExtendedStatus ] = "DAP_SWO_ExtendedStatus",
+	[ID_DAP_SWO_Data           ] = "DAP_SWO_Data",
+	[ID_DAP_QueueCommands      ] = "DAP_QueueCommands",
+	[ID_DAP_ExecuteCommands    ] = "DAP_ExecuteCommands",
+};
+
+
 uint16_t dap_edpt_open(uint8_t __unused rhport, tusb_desc_interface_t const *itf_desc, uint16_t max_len)
-{   
+{
 
 	TU_VERIFY(TUSB_CLASS_VENDOR_SPECIFIC == itf_desc->bInterfaceClass &&
 			PICOPROBE_INTERFACE_SUBCLASS == itf_desc->bInterfaceSubClass &&
@@ -92,13 +127,13 @@ uint16_t dap_edpt_open(uint8_t __unused rhport, tusb_desc_interface_t const *itf
 }
 
 bool dap_edpt_control_xfer_cb(uint8_t __unused rhport, uint8_t stage, tusb_control_request_t const *request)
-{   
+{
 	return false;
 }
 
 // Manage USBResponseBuffer (request) write and USBRequestBuffer (response) read indices
 bool dap_edpt_xfer_cb(uint8_t __unused rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
-{   
+{
 	const uint8_t ep_dir = tu_edpt_dir(ep_addr);
 
 	if(ep_dir == TUSB_DIR_IN)
@@ -152,15 +187,33 @@ bool dap_edpt_xfer_cb(uint8_t __unused rhport, uint8_t ep_addr, xfer_result_t re
 
 void dap_thread(void *ptr)
 {
-	uint8_t DAPRequestBuffer[DAP_PACKET_SIZE];
-	uint8_t DAPResponseBuffer[DAP_PACKET_SIZE];
-
+	uint32_t n;
 	do
 	{
 		while(USBRequestBuffer.rptr != USBRequestBuffer.wptr)
 		{
+			/*
+			 * Atomic command support - buffer QueueCommands, but don't process them
+			 * until a non-QueueCommands packet is seen.
+			 */
+			n = USBRequestBuffer.rptr;
+			while (USBRequestBuffer.data[n % DAP_PACKET_COUNT][0] == ID_DAP_QueueCommands) {
+				picoprobe_info("%u %u DAP queued cmd %s len %02x\n",
+					       USBRequestBuffer.wptr, USBRequestBuffer.rptr,
+					       dap_cmd_string[USBRequestBuffer.data[n % DAP_PACKET_COUNT][0]], USBRequestBuffer.data[n % DAP_PACKET_COUNT][1]);
+				USBRequestBuffer.data[n % DAP_PACKET_COUNT][0] = ID_DAP_ExecuteCommands;
+				n++;
+				while (n == USBRequestBuffer.wptr) {
+					/* Need yield in a loop here, as IN callbacks will also wake the thread */
+					picoprobe_info("DAP wait\n");
+					vTaskSuspend(dap_taskhandle);
+				}
+			}
 			// Read a single packet from the USB buffer into the DAP Request buffer
 			memcpy(DAPRequestBuffer, RD_SLOT_PTR(USBRequestBuffer), DAP_PACKET_SIZE);
+			picoprobe_info("%u %u DAP cmd %s len %02x\n",
+				       USBRequestBuffer.wptr, USBRequestBuffer.rptr,
+				       dap_cmd_string[DAPRequestBuffer[0]], DAPRequestBuffer[1]);
 			USBRequestBuffer.rptr++;
 
 			// If the buffer was full in the out callback, we need to queue up another buffer for the endpoint to consume, now that we know there is space in the buffer.
@@ -173,7 +226,10 @@ void dap_thread(void *ptr)
 				xTaskResumeAll();
 			}
 
-			_resp_len = DAP_ProcessCommand(DAPRequestBuffer, DAPResponseBuffer);
+			_resp_len = DAP_ExecuteCommand(DAPRequestBuffer, DAPResponseBuffer);
+			picoprobe_info("%u %u DAP resp %s\n",
+					USBResponseBuffer.wptr, USBResponseBuffer.rptr,
+					dap_cmd_string[DAPResponseBuffer[0]]);
 
 
 			//  Suspend the scheduler to avoid stale values/race conditions between threads
