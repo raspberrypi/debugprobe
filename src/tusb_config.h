@@ -26,6 +26,8 @@
 #ifndef _TUSB_CONFIG_H_
 #define _TUSB_CONFIG_H_
 
+#include "picoprobe_config.h"
+
 #ifdef __cplusplus
  extern "C" {
 #endif
@@ -66,7 +68,12 @@
 #define CFG_TUD_CDC             1
 #define CFG_TUD_MSC             0
 #define CFG_TUD_MIDI            0
+
+#if PICOPROBE_RESET_CAPABLE
+#define CFG_TUD_VENDOR          2
+#else
 #define CFG_TUD_VENDOR          1
+#endif
 
 /*
  * TX bufsize (actually UART RX) is oversized because the Windows CDC-ACM

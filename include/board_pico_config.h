@@ -49,4 +49,7 @@
 
 #define PROBE_PRODUCT_STRING "Picoprobe (CMSIS-DAP)"
 
+// Host Reset Config
+#define PICOPROBE_RESET_CAPABLE 1
+
 #endif
