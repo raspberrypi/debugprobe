@@ -19,7 +19,7 @@
 
 /*
  * This is a shim between the SW_DP functions and the PIO
- * implementation used for Picoprobe. Instead of calling bitbash functions,
+ * implementation used for Debugprobe. Instead of calling bitbash functions,
  * hand off the bit sequences to a SM for asynchronous completion.
  */
 
@@ -47,7 +47,7 @@ void SWJ_Sequence (uint32_t count, const uint8_t *data) {
     probe_set_swclk_freq(MAKE_KHZ(DAP_Data.clock_delay));
     cached_delay = DAP_Data.clock_delay;
   }
-  picoprobe_debug("SWJ sequence count = %d FDB=0x%2x\n", count, data[0]);
+  debugprobe_debug("SWJ sequence count = %d FDB=0x%2x\n", count, data[0]);
   n = count;
   while (n > 0) {
     if (n > 8)
@@ -74,7 +74,7 @@ void SWD_Sequence (uint32_t info, const uint8_t *swdo, uint8_t *swdi) {
     probe_set_swclk_freq(MAKE_KHZ(DAP_Data.clock_delay));
     cached_delay = DAP_Data.clock_delay;
   }
-  picoprobe_debug("SWD sequence\n");
+  debugprobe_debug("SWD sequence\n");
   n = info & SWD_SEQUENCE_CLK;
   if (n == 0U) {
     n = 64U;
@@ -119,7 +119,7 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data) {
     probe_set_swclk_freq(MAKE_KHZ(DAP_Data.clock_delay));
     cached_delay = DAP_Data.clock_delay;
   }
-  picoprobe_debug("SWD_transfer\n");
+  debugprobe_debug("SWD_transfer\n");
   /* Generate the request packet */
   prq |= (1 << 0); /* Start Bit */
   for (n = 1; n < 5; n++) {
@@ -149,7 +149,7 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data) {
       }
       if (data)
         *data = val;
-      picoprobe_debug("Read %02x ack %02x 0x%08x parity %01x\n",
+      debugprobe_debug("Read %02x ack %02x 0x%08x parity %01x\n",
                       prq, ack, val, bit);
       /* Turnaround for line idle */
       probe_hiz_clocks(DAP_Data.swd_conf.turnaround);
@@ -163,7 +163,7 @@ uint8_t SWD_Transfer (uint32_t request, uint32_t *data) {
       parity = __builtin_popcount(val);
       /* Write Parity Bit */
       probe_write_bits(1, parity & 0x1);
-      picoprobe_debug("write %02x ack %02x 0x%08x parity %01x\n",
+      debugprobe_debug("write %02x ack %02x 0x%08x parity %01x\n",
                       prq, ack, val, parity);
     }
     /* Capture Timestamp */

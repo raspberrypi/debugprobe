@@ -31,7 +31,7 @@
 #include <hardware/gpio.h>
 
 #include "led.h"
-#include "picoprobe_config.h"
+#include "debugprobe_config.h"
 #include "probe.pio.h"
 #include "tusb.h"
 
@@ -61,7 +61,7 @@ static struct _probe probe;
 
 void probe_set_swclk_freq(uint freq_khz) {
         uint clk_sys_freq_khz = clock_get_hz(clk_sys) / 1000;
-        picoprobe_info("Set swclk freq %dKHz sysclk %dkHz\n", freq_khz, clk_sys_freq_khz);
+        debugprobe_info("Set swclk freq %dKHz sysclk %dkHz\n", freq_khz, clk_sys_freq_khz);
         uint32_t divider = clk_sys_freq_khz / freq_khz / 4;
         if (divider == 0)
             divider = 1;
@@ -105,7 +105,7 @@ void probe_write_bits(uint bit_count, uint32_t data_byte) {
     DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE);
     pio_sm_put_blocking(pio0, PROBE_SM, fmt_probe_command(bit_count, true, CMD_WRITE));
     pio_sm_put_blocking(pio0, PROBE_SM, data_byte);
-    picoprobe_dump("Write %d bits 0x%x\n", bit_count, data_byte);
+    debugprobe_dump("Write %d bits 0x%x\n", bit_count, data_byte);
     // Return immediately so we can cue up the next command whilst this one runs
     DEBUG_PINS_CLR(probe_timing, DBG_PIN_WRITE);
 }
@@ -124,7 +124,7 @@ uint32_t probe_read_bits(uint bit_count) {
         data_shifted = data >> (32 - bit_count);
     }
 
-    picoprobe_dump("Read %d bits 0x%x (shifted 0x%x)\n", bit_count, data, data_shifted);
+    debugprobe_dump("Read %d bits 0x%x (shifted 0x%x)\n", bit_count, data, data_shifted);
     DEBUG_PINS_CLR(probe_timing, DBG_PIN_READ);
     return data_shifted;
 }

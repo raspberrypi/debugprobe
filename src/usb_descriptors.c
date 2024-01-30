@@ -27,7 +27,7 @@
 
 #include "tusb.h"
 #include "get_serial.h"
-#include "picoprobe_config.h"
+#include "debugprobe_config.h"
 
 //--------------------------------------------------------------------+
 // Device Descriptors
@@ -36,7 +36,7 @@ tusb_desc_device_t const desc_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
-#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
+#if (DEBUGPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
     .bcdUSB             = 0x0210, // USB Specification version 2.1 for BOS
 #else
     .bcdUSB             = 0x0110,
@@ -80,7 +80,7 @@ enum
 #define PROBE_OUT_EP_NUM 0x04
 #define PROBE_IN_EP_NUM 0x85
 
-#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
+#if (DEBUGPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
 #define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_HID_INOUT_DESC_LEN)
 #else
 #define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_VENDOR_DESC_LEN)
@@ -101,13 +101,13 @@ uint8_t const desc_configuration[] =
 {
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0, 100),
   // Interface 0
-#if (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
+#if (DEBUGPROBE_DEBUG_PROTOCOL == PROTO_DAP_V1)
   // HID (named interface)
   TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_PROBE, 4, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, CFG_TUD_HID_EP_BUFSIZE, 1),
-#elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
+#elif (DEBUGPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
   // Bulk (named interface)
   TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE, 5, PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, 64),
-#elif (PICOPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
+#elif (DEBUGPROBE_DEBUG_PROTOCOL == PROTO_OPENOCD_CUSTOM)
   // Bulk
   TUD_VENDOR_DESCRIPTOR(ITF_NUM_PROBE, 0, PROBE_OUT_EP_NUM, PROBE_IN_EP_NUM, 64),
 #endif
