@@ -82,8 +82,8 @@ uint16_t dap_edpt_open(uint8_t __unused rhport, tusb_desc_interface_t const *itf
 {
 
 	TU_VERIFY(TUSB_CLASS_VENDOR_SPECIFIC == itf_desc->bInterfaceClass &&
-			PICOPROBE_INTERFACE_SUBCLASS == itf_desc->bInterfaceSubClass &&
-			PICOPROBE_INTERFACE_PROTOCOL == itf_desc->bInterfaceProtocol, 0);
+			DAP_INTERFACE_SUBCLASS == itf_desc->bInterfaceSubClass &&
+			DAP_INTERFACE_PROTOCOL == itf_desc->bInterfaceProtocol, 0);
 
 	//  Initialise circular buffer indices
 	USBResponseBuffer.wptr = 0;
@@ -198,20 +198,20 @@ void dap_thread(void *ptr)
 			 */
 			n = USBRequestBuffer.rptr;
 			while (USBRequestBuffer.data[n % DAP_PACKET_COUNT][0] == ID_DAP_QueueCommands) {
-				picoprobe_info("%u %u DAP queued cmd %s len %02x\n",
+				debugprobe_info("%u %u DAP queued cmd %s len %02x\n",
 					       USBRequestBuffer.wptr, USBRequestBuffer.rptr,
 					       dap_cmd_string[USBRequestBuffer.data[n % DAP_PACKET_COUNT][0]], USBRequestBuffer.data[n % DAP_PACKET_COUNT][1]);
 				USBRequestBuffer.data[n % DAP_PACKET_COUNT][0] = ID_DAP_ExecuteCommands;
 				n++;
 				while (n == USBRequestBuffer.wptr) {
 					/* Need yield in a loop here, as IN callbacks will also wake the thread */
-					picoprobe_info("DAP wait\n");
+					debugprobe_info("DAP wait\n");
 					vTaskSuspend(dap_taskhandle);
 				}
 			}
 			// Read a single packet from the USB buffer into the DAP Request buffer
 			memcpy(DAPRequestBuffer, RD_SLOT_PTR(USBRequestBuffer), DAP_PACKET_SIZE);
-			picoprobe_info("%u %u DAP cmd %s len %02x\n",
+			debugprobe_info("%u %u DAP cmd %s len %02x\n",
 				       USBRequestBuffer.wptr, USBRequestBuffer.rptr,
 				       dap_cmd_string[DAPRequestBuffer[0]], DAPRequestBuffer[1]);
 			USBRequestBuffer.rptr++;
@@ -227,7 +227,7 @@ void dap_thread(void *ptr)
 			}
 
 			_resp_len = DAP_ExecuteCommand(DAPRequestBuffer, DAPResponseBuffer);
-			picoprobe_info("%u %u DAP resp %s\n",
+			debugprobe_info("%u %u DAP resp %s\n",
 					USBResponseBuffer.wptr, USBResponseBuffer.rptr,
 					dap_cmd_string[DAPResponseBuffer[0]]);
 
@@ -268,7 +268,7 @@ usbd_class_driver_t const _dap_edpt_driver =
 		.xfer_cb = dap_edpt_xfer_cb,
 		.sof = NULL,
 #if CFG_TUSB_DEBUG >= 2
-		.name = "PICOPROBE ENDPOINT"
+		.name = "DAP ENDPOINT"
 #endif
 };
 

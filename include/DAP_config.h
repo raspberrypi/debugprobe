@@ -47,12 +47,12 @@ This information includes:
 #include <hardware/gpio.h>
 
 #include "cmsis_compiler.h"
-#include "picoprobe_config.h"
+#include "probe_config.h"
 #include "probe.h"
 
 /// Processor Clock of the Cortex-M MCU used in the Debug Unit.
 /// This value is used to calculate the SWD/JTAG clock speed.
-/* Picoprobe actually uses kHz rather than Hz, so just lie about it here */
+/* Debugprobe actually uses kHz rather than Hz, so just lie about it here */
 #define CPU_CLOCK               125000000U      ///< Specifies the CPU Clock in Hz.
 
 /// Number of processor cycles for I/O Port write operations.
@@ -502,8 +502,8 @@ It is recommended to provide the following LEDs for status indication:
            - 0: Connect LED OFF: debugger is not connected to CMSIS-DAP Debug Unit.
 */
 __STATIC_INLINE void LED_CONNECTED_OUT (uint32_t bit) {
-#ifdef PICOPROBE_DAP_CONNECTED_LED
-  gpio_put(PICOPROBE_DAP_CONNECTED_LED, bit);
+#ifdef DEBUGPROBE_DAP_CONNECTED_LED
+  gpio_put(DEBUGPROBE_DAP_CONNECTED_LED, bit);
 #endif
 }
 
@@ -513,8 +513,8 @@ __STATIC_INLINE void LED_CONNECTED_OUT (uint32_t bit) {
            - 0: Target Running LED OFF: program execution in target stopped.
 */
 __STATIC_INLINE void LED_RUNNING_OUT (uint32_t bit) {
-#ifdef PICOPROBE_DAP_RUNNING_LED
-  gpio_put(PICOPROBE_DAP_RUNNING_LED, bit);
+#ifdef DEBUGPROBE_DAP_RUNNING_LED
+  gpio_put(DEBUGPROBE_DAP_RUNNING_LED, bit);
 #endif
 }
 

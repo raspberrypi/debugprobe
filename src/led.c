@@ -26,27 +26,27 @@
 #include <pico/stdlib.h>
 #include <stdint.h>
 
-#include "picoprobe_config.h"
+#include "debugprobe_config.h"
 
 void led_init(void) {
-#ifdef PICOPROBE_USB_CONNECTED_LED
-    gpio_init(PICOPROBE_USB_CONNECTED_LED);
-    gpio_set_dir(PICOPROBE_USB_CONNECTED_LED, GPIO_OUT);
+#ifdef DEBUGPROBE_USB_CONNECTED_LED
+    gpio_init(DEBUGPROBE_USB_CONNECTED_LED);
+    gpio_set_dir(DEBUGPROBE_USB_CONNECTED_LED, GPIO_OUT);
 #endif
-#ifdef PICOPROBE_DAP_CONNECTED_LED
-    gpio_init(PICOPROBE_DAP_CONNECTED_LED);
-    gpio_set_dir(PICOPROBE_DAP_CONNECTED_LED, GPIO_OUT);
+#ifdef DEBUGPROBE_DAP_CONNECTED_LED
+    gpio_init(DEBUGPROBE_DAP_CONNECTED_LED);
+    gpio_set_dir(DEBUGPROBE_DAP_CONNECTED_LED, GPIO_OUT);
 #endif
-#ifdef PICOPROBE_DAP_RUNNING_LED
-    gpio_init(PICOPROBE_DAP_RUNNING_LED);
-    gpio_set_dir(PICOPROBE_DAP_RUNNING_LED, GPIO_OUT);
+#ifdef DEBUGPROBE_DAP_RUNNING_LED
+    gpio_init(DEBUGPROBE_DAP_RUNNING_LED);
+    gpio_set_dir(DEBUGPROBE_DAP_RUNNING_LED, GPIO_OUT);
 #endif
-#ifdef PICOPROBE_UART_RX_LED
-    gpio_init(PICOPROBE_UART_RX_LED);
-    gpio_set_dir(PICOPROBE_UART_RX_LED, GPIO_OUT);
+#ifdef DEBUGPROBE_UART_RX_LED
+    gpio_init(DEBUGPROBE_UART_RX_LED);
+    gpio_set_dir(DEBUGPROBE_UART_RX_LED, GPIO_OUT);
 #endif
-#ifdef PICOPROBE_UART_TX_LED
-    gpio_init(PICOPROBE_UART_TX_LED);
-    gpio_set_dir(PICOPROBE_UART_TX_LED, GPIO_OUT);
+#ifdef DEBUGPROBE_UART_TX_LED
+    gpio_init(DEBUGPROBE_UART_TX_LED);
+    gpio_set_dir(DEBUGPROBE_UART_TX_LED, GPIO_OUT);
 #endif
 }
