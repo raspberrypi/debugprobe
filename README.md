@@ -1,6 +1,10 @@
 # Debugprobe
 
-Firmware source for the Debug Probe SWD/UART accessory. Can also be run on a Pico.
+Firmware source for the Raspberry Pi Debug Probe SWD/UART accessory. Can also be run on a Raspberry Pi Pico.
+
+[Raspberry Pi Debug Probe product page](https://www.raspberrypi.com/products/debug-probe/)
+[Raspberry Pi Pico product page](https://www.raspberrypi.com/products/raspberry-pi-pico/)
+
 
 # Documentation
 
@@ -8,25 +12,32 @@ Debug Probe documentation can be found in the [Pico Getting Started Guide](https
 
 # Hacking
 
-For the purpose of making changes or studying of the code, you may want to compile the code yourself. 
+For the purpose of making changes or studying of the code, you may want to compile the code yourself.
 
-To compile this project firstly initialize and update the submodules: 
+First, clone the repository:
+```
+git clone https://github.com/raspberrypi/debugprobe
+cd debugprobe
+```
+Initialize and update the submodules:
 ```
  git submodule update --init
 ```
-then create and switch to the build directory: 
+Then create and switch to the build directory:
 ```
  mkdir build
  cd build
 ```
-then run cmake and build the code:
+If your environment doesn't contain `PICO_SDK_PATH`, then either add it to your environment variables with `export PICO_SDK_PATH=/path/to/sdk` or add `PICO_SDK_PATH=/path/to/sdk` to the arguments to CMake below.
+
+Run cmake and build the code:
 ```
  cmake ..
  make
 ```
 Done! You should now have a `debugprobe.uf2` that you can upload to your Debug Probe via the UF2 bootloader.
 
-If you want to create the version that runs on the Raspberry Pi Pico, then you need to invoke `cmake` in the sequence above with the `DEBUG_ON_PICO=ON` option: 
+If you want to create the version that runs on the Pico, then you need to invoke `cmake` in the sequence above with the `DEBUG_ON_PICO=ON` option:
 ```
 cmake -DDEBUG_ON_PICO=ON ..
 ```
