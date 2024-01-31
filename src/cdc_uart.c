@@ -29,7 +29,7 @@
 
 #include "tusb.h"
 
-#include "debugprobe_config.h"
+#include "probe_config.h"
 
 TaskHandle_t uart_taskhandle;
 TickType_t last_wake, interval = 100;
@@ -41,30 +41,30 @@ static uint8_t rx_buf[32];
 #define DEBOUNCE_MS 40
 static uint debounce_ticks = 5;
 
-#ifdef DEBUGPROBE_UART_TX_LED
+#ifdef PROBE_UART_TX_LED
 static uint tx_led_debounce;
 #endif
 
-#ifdef DEBUGPROBE_UART_RX_LED
+#ifdef PROBE_UART_RX_LED
 static uint rx_led_debounce;
 #endif
 
 void cdc_uart_init(void) {
-    gpio_set_function(DEBUGPROBE_UART_TX, GPIO_FUNC_UART);
-    gpio_set_function(DEBUGPROBE_UART_RX, GPIO_FUNC_UART);
-    gpio_set_pulls(DEBUGPROBE_UART_TX, 1, 0);
-    gpio_set_pulls(DEBUGPROBE_UART_RX, 1, 0);
-    uart_init(DEBUGPROBE_UART_INTERFACE, DEBUGPROBE_UART_BAUDRATE);
+    gpio_set_function(PROBE_UART_TX, GPIO_FUNC_UART);
+    gpio_set_function(PROBE_UART_RX, GPIO_FUNC_UART);
+    gpio_set_pulls(PROBE_UART_TX, 1, 0);
+    gpio_set_pulls(PROBE_UART_RX, 1, 0);
+    uart_init(PROBE_UART_INTERFACE, PROBE_UART_BAUDRATE);
 
-#ifdef DEBUGPROBE_UART_RTS
-    gpio_init(DEBUGPROBE_UART_RTS);
-    gpio_set_dir(DEBUGPROBE_UART_RTS, GPIO_OUT);
-    gpio_put(DEBUGPROBE_UART_RTS, 1);
+#ifdef PROBE_UART_RTS
+    gpio_init(PROBE_UART_RTS);
+    gpio_set_dir(PROBE_UART_RTS, GPIO_OUT);
+    gpio_put(PROBE_UART_RTS, 1);
 #endif
-#ifdef DEBUGPROBE_UART_DTR
-    gpio_init(DEBUGPROBE_UART_DTR);
-    gpio_set_dir(DEBUGPROBE_UART_DTR, GPIO_OUT);
-    gpio_put(DEBUGPROBE_UART_DTR, 1);
+#ifdef PROBE_UART_DTR
+    gpio_init(PROBE_UART_DTR);
+    gpio_set_dir(PROBE_UART_DTR, GPIO_OUT);
+    gpio_put(PROBE_UART_DTR, 1);
 #endif
 }
 
@@ -75,8 +75,8 @@ void cdc_task(void)
     uint rx_len = 0;
 
     // Consume uart fifo regardless even if not connected
-    while(uart_is_readable(DEBUGPROBE_UART_INTERFACE) && (rx_len < sizeof(rx_buf))) {
-        rx_buf[rx_len++] = uart_getc(DEBUGPROBE_UART_INTERFACE);
+    while(uart_is_readable(PROBE_UART_INTERFACE) && (rx_len < sizeof(rx_buf))) {
+        rx_buf[rx_len++] = uart_getc(PROBE_UART_INTERFACE);
     }
 
     if (tud_cdc_connected()) {
@@ -85,8 +85,8 @@ void cdc_task(void)
         /* Implicit overflow if we don't write all the bytes to the host.
          * Also throw away bytes if we can't write... */
         if (rx_len) {
-#ifdef DEBUGPROBE_UART_RX_LED
-          gpio_put(DEBUGPROBE_UART_RX_LED, 1);
+#ifdef PROBE_UART_RX_LED
+          gpio_put(PROBE_UART_RX_LED, 1);
           rx_led_debounce = debounce_ticks;
 #endif
           written = MIN(tud_cdc_write_available(), rx_len);
@@ -98,11 +98,11 @@ void cdc_task(void)
             tud_cdc_write_flush();
           }
         } else {
-#ifdef DEBUGPROBE_UART_RX_LED
+#ifdef PROBE_UART_RX_LED
           if (rx_led_debounce)
             rx_led_debounce--;
           else
-            gpio_put(DEBUGPROBE_UART_RX_LED, 0);
+            gpio_put(PROBE_UART_RX_LED, 0);
 #endif
         }
 
@@ -110,20 +110,20 @@ void cdc_task(void)
       size_t watermark = MIN(tud_cdc_available(), sizeof(tx_buf));
       if (watermark > 0) {
         size_t tx_len;
-#ifdef DEBUGPROBE_UART_TX_LED
-        gpio_put(DEBUGPROBE_UART_TX_LED, 1);
+#ifdef PROBE_UART_TX_LED
+        gpio_put(PROBE_UART_TX_LED, 1);
         tx_led_debounce = debounce_ticks;
 #endif
         /* Batch up to half a FIFO of data - don't clog up on RX */
         watermark = MIN(watermark, 16);
         tx_len = tud_cdc_read(tx_buf, watermark);
-        uart_write_blocking(DEBUGPROBE_UART_INTERFACE, tx_buf, tx_len);
+        uart_write_blocking(PROBE_UART_INTERFACE, tx_buf, tx_len);
       } else {
-#ifdef DEBUGPROBE_UART_TX_LED
+#ifdef PROBE_UART_TX_LED
           if (tx_led_debounce)
             tx_led_debounce--;
           else
-            gpio_put(DEBUGPROBE_UART_TX_LED, 0);
+            gpio_put(PROBE_UART_TX_LED, 0);
 #endif
       }
     } else if (was_connected) {
@@ -158,12 +158,12 @@ void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding)
   vTaskSuspend(uart_taskhandle);
   interval = MAX(1, micros / ((1000 * 1000) / configTICK_RATE_HZ));
   debounce_ticks = MAX(1, configTICK_RATE_HZ / (interval * DEBOUNCE_MS));
-  debugprobe_info("New baud rate %ld micros %ld interval %lu\n",
+  probe_info("New baud rate %ld micros %ld interval %lu\n",
                   line_coding->bit_rate, micros, interval);
-  uart_deinit(DEBUGPROBE_UART_INTERFACE);
+  uart_deinit(PROBE_UART_INTERFACE);
   tud_cdc_write_clear();
   tud_cdc_read_flush();
-  uart_init(DEBUGPROBE_UART_INTERFACE, line_coding->bit_rate);
+  uart_init(PROBE_UART_INTERFACE, line_coding->bit_rate);
 
   switch (line_coding->parity) {
   case CDC_LINE_CODING_PARITY_ODD:
@@ -173,7 +173,7 @@ void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding)
     parity = UART_PARITY_EVEN;
     break;
   default:
-    debugprobe_info("invalid parity setting %u\n", line_coding->parity);
+    probe_info("invalid parity setting %u\n", line_coding->parity);
     /* fallthrough */
   case CDC_LINE_CODING_PARITY_NONE:
     parity = UART_PARITY_NONE;
@@ -188,7 +188,7 @@ void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding)
     data_bits = line_coding->data_bits;
     break;
   default:
-    debugprobe_info("invalid data bits setting: %u\n", line_coding->data_bits);
+    probe_info("invalid data bits setting: %u\n", line_coding->data_bits);
     data_bits = 8;
     break;
   }
@@ -201,36 +201,36 @@ void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding)
     stop_bits = 2;
   break;
   default:
-    debugprobe_info("invalid stop bits setting: %u\n", line_coding->stop_bits);
+    probe_info("invalid stop bits setting: %u\n", line_coding->stop_bits);
     /* fallthrough */
   case CDC_LINE_CONDING_STOP_BITS_1:
     stop_bits = 1;
   break;
   }
 
-  uart_set_format(DEBUGPROBE_UART_INTERFACE, data_bits, stop_bits, parity);
+  uart_set_format(PROBE_UART_INTERFACE, data_bits, stop_bits, parity);
   vTaskResume(uart_taskhandle);
 }
 
 void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 {
-#ifdef DEBUGPROBE_UART_RTS
-  gpio_put(DEBUGPROBE_UART_RTS, !rts);
+#ifdef PROBE_UART_RTS
+  gpio_put(PROBE_UART_RTS, !rts);
 #endif
-#ifdef DEBUGPROBE_UART_DTR
-  gpio_put(DEBUGPROBE_UART_DTR, !dtr);
+#ifdef PROBE_UART_DTR
+  gpio_put(PROBE_UART_DTR, !dtr);
 #endif
 
   /* CDC drivers use linestate as a bodge to activate/deactivate the interface.
    * Resume our UART polling on activate, stop on deactivate */
   if (!dtr && !rts) {
     vTaskSuspend(uart_taskhandle);
-#ifdef DEBUGPROBE_UART_RX_LED
-    gpio_put(DEBUGPROBE_UART_RX_LED, 0);
+#ifdef PROBE_UART_RX_LED
+    gpio_put(PROBE_UART_RX_LED, 0);
     rx_led_debounce = 0;
 #endif
-#ifdef DEBUGPROBE_UART_RX_LED
-    gpio_put(DEBUGPROBE_UART_TX_LED, 0);
+#ifdef PROBE_UART_RX_LED
+    gpio_put(PROBE_UART_TX_LED, 0);
     tx_led_debounce = 0;
 #endif
   } else

@@ -198,20 +198,20 @@ void dap_thread(void *ptr)
 			 */
 			n = USBRequestBuffer.rptr;
 			while (USBRequestBuffer.data[n % DAP_PACKET_COUNT][0] == ID_DAP_QueueCommands) {
-				debugprobe_info("%u %u DAP queued cmd %s len %02x\n",
+				probe_info("%u %u DAP queued cmd %s len %02x\n",
 					       USBRequestBuffer.wptr, USBRequestBuffer.rptr,
 					       dap_cmd_string[USBRequestBuffer.data[n % DAP_PACKET_COUNT][0]], USBRequestBuffer.data[n % DAP_PACKET_COUNT][1]);
 				USBRequestBuffer.data[n % DAP_PACKET_COUNT][0] = ID_DAP_ExecuteCommands;
 				n++;
 				while (n == USBRequestBuffer.wptr) {
 					/* Need yield in a loop here, as IN callbacks will also wake the thread */
-					debugprobe_info("DAP wait\n");
+					probe_info("DAP wait\n");
 					vTaskSuspend(dap_taskhandle);
 				}
 			}
 			// Read a single packet from the USB buffer into the DAP Request buffer
 			memcpy(DAPRequestBuffer, RD_SLOT_PTR(USBRequestBuffer), DAP_PACKET_SIZE);
-			debugprobe_info("%u %u DAP cmd %s len %02x\n",
+			probe_info("%u %u DAP cmd %s len %02x\n",
 				       USBRequestBuffer.wptr, USBRequestBuffer.rptr,
 				       dap_cmd_string[DAPRequestBuffer[0]], DAPRequestBuffer[1]);
 			USBRequestBuffer.rptr++;
@@ -227,7 +227,7 @@ void dap_thread(void *ptr)
 			}
 
 			_resp_len = DAP_ExecuteCommand(DAPRequestBuffer, DAPResponseBuffer);
-			debugprobe_info("%u %u DAP resp %s\n",
+			probe_info("%u %u DAP resp %s\n",
 					USBResponseBuffer.wptr, USBResponseBuffer.rptr,
 					dap_cmd_string[DAPResponseBuffer[0]]);
 

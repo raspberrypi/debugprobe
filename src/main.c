@@ -62,11 +62,11 @@ void usb_thread(void *ptr)
     wake = xTaskGetTickCount();
     do {
         tud_task();
-#ifdef DEBUGPROBE_USB_CONNECTED_LED
-        if (!gpio_get(DEBUGPROBE_USB_CONNECTED_LED) && tud_ready())
-            gpio_put(DEBUGPROBE_USB_CONNECTED_LED, 1);
+#ifdef PROBE_USB_CONNECTED_LED
+        if (!gpio_get(PROBE_USB_CONNECTED_LED) && tud_ready())
+            gpio_put(PROBE_USB_CONNECTED_LED, 1);
         else
-            gpio_put(DEBUGPROBE_USB_CONNECTED_LED, 0);
+            gpio_put(PROBE_USB_CONNECTED_LED, 0);
 #endif
         // Go to sleep for up to a tick if nothing to do
         if (!tud_task_event_ready())
@@ -91,7 +91,7 @@ int main(void) {
 
     led_init();
 
-    debugprobe_info("Welcome to Debugprobe!\n");
+    probe_info("Welcome to debugprobe!\n");
 
     if (THREADED) {
         /* UART needs to preempt USB as if we don't, characters get lost */
@@ -106,7 +106,7 @@ int main(void) {
         tud_task();
         cdc_task();
 
-#if (DEBUGPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
+#if (PROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
         if (tud_vendor_available()) {
             uint32_t resp_len;
             tud_vendor_read(RxDataBuffer, sizeof(RxDataBuffer));
@@ -145,7 +145,7 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
   tud_hid_report(0, TxDataBuffer, response_size);
 }
 
-#if (DEBUGPROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
+#if (PROBE_DEBUG_PROTOCOL == PROTO_DAP_V2)
 extern uint8_t const desc_ms_os_20[];
 
 bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
