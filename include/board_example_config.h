@@ -64,21 +64,21 @@
 #endif
 
 #if defined(PROBE_CDC_UART)
-#define DEBUGPROBE_UART_TX 4
-#define DEBUGPROBE_UART_RX 5
-#define DEBUGPROBE_UART_INTERFACE uart1
-#define DEBUGPROBE_UART_BAUDRATE 115200
+#define PROBE_UART_TX 4
+#define PROBE_UART_RX 5
+#define PROBE_UART_INTERFACE uart1
+#define PROBE_UART_BAUDRATE 115200
 /* Flow control - some or all of these can be omitted if not used */
-#define DEBUGPROBE_UART_RTS 9
-#define DEBUGPROBE_UART_DTR 10
+#define PROBE_UART_RTS 9
+#define PROBE_UART_DTR 10
 #endif
 
 /* LED config - some or all of these can be omitted if not used */
-#define DEBUGPROBE_USB_CONNECTED_LED 2
-#define DEBUGPROBE_DAP_CONNECTED_LED 15
-#define DEBUGPROBE_DAP_RUNNING_LED 16
-#define DEBUGPROBE_UART_RX_LED 7
-#define DEBUGPROBE_UART_TX_LED 8
+#define PROBE_USB_CONNECTED_LED 2
+#define PROBE_DAP_CONNECTED_LED 15
+#define PROBE_DAP_RUNNING_LED 16
+#define PROBE_UART_RX_LED 7
+#define PROBE_UART_TX_LED 8
 
 #define PROBE_PRODUCT_STRING "Example Debug Probe"
 

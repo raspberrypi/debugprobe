@@ -30,37 +30,37 @@
 #include "task.h"
 
 #if false
-#define debugprobe_info(format,args...) \
+#define probe_info(format,args...) \
 do { \
 	vTaskSuspendAll(); \
 	printf(format, ## args); \
 	xTaskResumeAll(); \
 } while (0)
 #else
-#define debugprobe_info(format,...) ((void)0)
+#define probe_info(format,...) ((void)0)
 #endif
 
 
 #if false
-#define debugprobe_debug(format,args...) \
+#define probe_debug(format,args...) \
 do { \
 	vTaskSuspendAll(); \
 	printf(format, ## args); \
 	xTaskResumeAll(); \
 } while (0)
 #else
-#define debugprobe_debug(format,...) ((void)0)
+#define probe_debug(format,...) ((void)0)
 #endif
 
 #if false
-#define debugprobe_dump(format,args...)\
+#define probe_dump(format,args...)\
 do { \
 	vTaskSuspendAll(); \
 	printf(format, ## args); \
 	xTaskResumeAll(); \
 } while (0)
 #else
-#define debugprobe_dump(format,...) ((void)0)
+#define probe_dump(format,...) ((void)0)
 #endif
 
 // TODO tie this up with PICO_BOARD defines in the main SDK
@@ -68,7 +68,7 @@ do { \
 #ifdef DEBUG_ON_PICO 
 #include "board_pico_config.h"
 #else
-#include "board_debugprobe_config.h"
+#include "board_debug_probe_config.h"
 #endif
 //#include "board_example_config.h"
 
@@ -77,8 +77,8 @@ do { \
 #define PROTO_DAP_V2 2
 
 // Interface config
-#ifndef DEBUGPROBE_DEBUG_PROTOCOL
-#define DEBUGPROBE_DEBUG_PROTOCOL PROTO_DAP_V2
+#ifndef PROBE_DEBUG_PROTOCOL
+#define PROBE_DEBUG_PROTOCOL PROTO_DAP_V2
 #endif
 
 #endif

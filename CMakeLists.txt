@@ -45,7 +45,7 @@ target_compile_definitions (debugprobe PRIVATE
 	PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
 )
 
-option (DEBUG_ON_PICO "Compile firmware for the Pico instead of Debugprobe" OFF)
+option (DEBUG_ON_PICO "Compile firmware for the Pico instead of Debug Probe" OFF)
 if (DEBUG_ON_PICO)
     target_compile_definitions (debugprobe PRIVATE 
 	DEBUG_ON_PICO=1
