@@ -66,6 +66,8 @@
  */
 #define _DAP_PACKET_COUNT_OPENOCD   2
 #define _DAP_PACKET_SIZE_OPENOCD    512
+#define _DAP_PACKET_COUNT_PROBERS   2
+#define _DAP_PACKET_SIZE_PROBERS    1024
 #define _DAP_PACKET_COUNT_PYOCD     1
 #define _DAP_PACKET_SIZE_PYOCD      1024                     // pyocd does not like packets > 128 if COUNT != 1
 #define _DAP_PACKET_COUNT_UNKNOWN   1
@@ -171,6 +173,10 @@ void dap_task(void *ptr)
                             dap_packet_count = _DAP_PACKET_COUNT_PYOCD;
                             dap_packet_size  = _DAP_PACKET_SIZE_PYOCD;
                         }
+                        else if (tool == E_DAPTOOL_PROBERS) {
+                            dap_packet_count = _DAP_PACKET_COUNT_PROBERS;
+                            dap_packet_size  = _DAP_PACKET_SIZE_PROBERS;
+                        }
                     }
 
                     //
@@ -179,9 +185,10 @@ void dap_task(void *ptr)
                     if ( !swd_connected  &&  RxDataBuffer[0] != ID_DAP_Info) {
                         if (sw_lock("DAPv2", true)) {
                             swd_connected = true;
-                            picoprobe_info("=================================== DAPv2 connect target, host %s\n",
+                            picoprobe_info("=================================== DAPv2 connect target, host %s, buffer: %dx%dbytes\n",
                                     (tool == E_DAPTOOL_OPENOCD) ? "OpenOCD with two big buffers" :
-                                     ((tool == E_DAPTOOL_PYOCD) ? "pyOCD with single big buffer" : "UNKNOWN"));
+                                     (tool == E_DAPTOOL_PYOCD) ? "pyOCD with single big buffer"  :
+                                      (tool == E_DAPTOOL_PROBERS) ? "probe-rs" : "UNKNOWN", dap_packet_count, dap_packet_size);
                             led_state(LS_DAPV2_CONNECTED);
                         }
                     }
@@ -332,8 +339,6 @@ uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t
 
 void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t const* RxDataBuffer, uint16_t bufsize)
 {
-    uint32_t response_size = TU_MIN(CFG_TUD_HID_EP_BUFSIZE, bufsize);
-
     // This doesn't use multiple report and report ID
     (void) itf;
     (void) report_id;

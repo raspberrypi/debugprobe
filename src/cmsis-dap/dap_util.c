@@ -417,9 +417,16 @@ daptool_t DAP_FingerprintTool(const uint8_t *request, uint32_t request_len)
             else if (request[0] == ID_DAP_Info  &&  request[1] == DAP_ID_CAPABILITIES) {
                 tool = E_DAPTOOL_OPENOCD;
             }
+            else if (request[0] == ID_DAP_Info  &&  request[1] == DAP_ID_PACKET_SIZE) {
+                tool = E_DAPTOOL_PROBERS;
+            }
         }
         else if (cnt == 2) {
-            if (request[0] != ID_DAP_Info  ||  request[1] != DAP_ID_DAP_FW_VER)
+            if (tool == E_DAPTOOL_PROBERS  &&  request[0] == ID_DAP_Info  &&  request[1] == DAP_ID_PACKET_COUNT)
+            {
+                // still E_DAPTOOL_PROBERS
+            }
+            else if (request[0] != ID_DAP_Info  ||  request[1] != DAP_ID_DAP_FW_VER)
             {
                 tool = E_DAPTOOL_UNKNOWN;
             }
@@ -436,6 +443,10 @@ daptool_t DAP_FingerprintTool(const uint8_t *request, uint32_t request_len)
             else if (tool == E_DAPTOOL_OPENOCD  &&  request[0] == ID_DAP_Info  &&  request[1] == DAP_ID_SER_NUM)
             {
                 // ok (with OpenOCD 0.11/0.12)
+            }
+            else if (tool == E_DAPTOOL_PROBERS  &&  request[0] == ID_DAP_Info  &&  request[1] == DAP_ID_CAPABILITIES)
+            {
+                // ok
             }
             else
             {
