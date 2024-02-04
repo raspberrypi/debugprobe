@@ -199,7 +199,32 @@ void dap_task(void *ptr)
                     {
                         uint32_t resp_len;
 
+#if 0
+                        // heavy debug output, set dap_packet_count=2 to stumble into the bug
+                        const uint16_t bufsize = 64;
+                        picoprobe_info("-----------------------------------------------\n");
+                        picoprobe_info("<< (%lx) ", request_len);
+                        for (int i = 0;  i < bufsize;  ++i) {
+                            picoprobe_info_out(" %02x", RxDataBuffer[i]);
+                            if (i == request_len - 1) {
+                                picoprobe_info_out(" !!!!");
+                            }
+                        }
+                        picoprobe_info_out("\n");
+                        vTaskDelay(pdMS_TO_TICKS(5));
                         resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
+                        picoprobe_info(">> (%lx) ", resp_len);
+                        for (int i = 0;  i < bufsize;  ++i) {
+                            picoprobe_info_out(" %02x", TxDataBuffer[i]);
+                            if (i == (resp_len & 0xffff) - 1) {
+                                picoprobe_info_out(" !!!!");
+                            }
+                        }
+                        picoprobe_info_out("\n");
+#else
+                        resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
+#endif
+
 //                        picoprobe_info(">>>(%lx) %d %d %d %d\n", resp_len, TxDataBuffer[0], TxDataBuffer[1], TxDataBuffer[2], TxDataBuffer[3]);
 
                         tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
@@ -353,7 +378,8 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
 #if 0
         // heavy debug output, set dap_packet_count=2 to stumble into the bug
         uint32_t request_len = DAP_GetCommandLength(RxDataBuffer, bufsize);
-        picoprobe_info("< ");
+        picoprobe_info("-----------------------------------------------\n");
+        picoprobe_info("< (%lx) ", request_len);
         for (int i = 0;  i < bufsize;  ++i) {
             picoprobe_info_out(" %02x", RxDataBuffer[i]);
             if (i == request_len - 1) {
@@ -361,13 +387,20 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
             }
         }
         picoprobe_info_out("\n");
-        vTaskDelay(pdMS_TO_TICKS(30));
+        vTaskDelay(pdMS_TO_TICKS(50));
         uint32_t res = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
-        picoprobe_info("> %lu %lu\n", res >> 16, res & 0xffff);
+        picoprobe_info("> (%lx) ", res);
+        for (int i = 0;  i < bufsize;  ++i) {
+            picoprobe_info_out(" %02x", TxDataBuffer[i]);
+            if (i == (res & 0xffff) - 1) {
+                picoprobe_info_out(" !!!!");
+            }
+        }
+        picoprobe_info_out("\n");
 #else
-        DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
+        uint32_t res = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
 #endif
-        tud_hid_report(0, TxDataBuffer, response_size);
+        tud_hid_report(0, TxDataBuffer, res & 0xffff);
     }
 }   // tud_hid_set_report_cb
 #endif
