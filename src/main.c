@@ -390,7 +390,10 @@ void usb_thread(void *ptr)
 #endif
 
 #if defined(INCLUDE_RTT_CONSOLE)
-    rtt_console_init(RTT_CONSOLE_TASK_PRIO);
+    if (ini_getbool(MININI_SECTION, MININI_VAR_RTT, true, MININI_FILENAME))
+    {
+        rtt_console_init(RTT_CONSOLE_TASK_PRIO);
+    }
 #endif
 
 #if OPT_SIGROK

@@ -66,6 +66,8 @@
  */
 #define _DAP_PACKET_COUNT_OPENOCD   2
 #define _DAP_PACKET_SIZE_OPENOCD    512
+#define _DAP_PACKET_COUNT_PROBERS   2
+#define _DAP_PACKET_SIZE_PROBERS    1024
 #define _DAP_PACKET_COUNT_PYOCD     1
 #define _DAP_PACKET_SIZE_PYOCD      1024                     // pyocd does not like packets > 128 if COUNT != 1
 #define _DAP_PACKET_COUNT_UNKNOWN   1
@@ -171,6 +173,10 @@ void dap_task(void *ptr)
                             dap_packet_count = _DAP_PACKET_COUNT_PYOCD;
                             dap_packet_size  = _DAP_PACKET_SIZE_PYOCD;
                         }
+                        else if (tool == E_DAPTOOL_PROBERS) {
+                            dap_packet_count = _DAP_PACKET_COUNT_PROBERS;
+                            dap_packet_size  = _DAP_PACKET_SIZE_PROBERS;
+                        }
                     }
 
                     //
@@ -179,9 +185,10 @@ void dap_task(void *ptr)
                     if ( !swd_connected  &&  RxDataBuffer[0] != ID_DAP_Info) {
                         if (sw_lock("DAPv2", true)) {
                             swd_connected = true;
-                            picoprobe_info("=================================== DAPv2 connect target, host %s\n",
+                            picoprobe_info("=================================== DAPv2 connect target, host %s, buffer: %dx%dbytes\n",
                                     (tool == E_DAPTOOL_OPENOCD) ? "OpenOCD with two big buffers" :
-                                     ((tool == E_DAPTOOL_PYOCD) ? "pyOCD with single big buffer" : "UNKNOWN"));
+                                     (tool == E_DAPTOOL_PYOCD) ? "pyOCD with single big buffer"  :
+                                      (tool == E_DAPTOOL_PROBERS) ? "probe-rs" : "UNKNOWN", dap_packet_count, dap_packet_size);
                             led_state(LS_DAPV2_CONNECTED);
                         }
                     }
@@ -199,7 +206,32 @@ void dap_task(void *ptr)
                     {
                         uint32_t resp_len;
 
+#if 0
+                        // heavy debug output, set dap_packet_count=2 to stumble into the bug
+                        const uint16_t bufsize = 64;
+                        picoprobe_info("-----------------------------------------------\n");
+                        picoprobe_info("<< (%lx) ", request_len);
+                        for (int i = 0;  i < bufsize;  ++i) {
+                            picoprobe_info_out(" %02x", RxDataBuffer[i]);
+                            if (i == request_len - 1) {
+                                picoprobe_info_out(" !!!!");
+                            }
+                        }
+                        picoprobe_info_out("\n");
+                        vTaskDelay(pdMS_TO_TICKS(5));
                         resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
+                        picoprobe_info(">> (%lx) ", resp_len);
+                        for (int i = 0;  i < bufsize;  ++i) {
+                            picoprobe_info_out(" %02x", TxDataBuffer[i]);
+                            if (i == (resp_len & 0xffff) - 1) {
+                                picoprobe_info_out(" !!!!");
+                            }
+                        }
+                        picoprobe_info_out("\n");
+#else
+                        resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
+#endif
+
 //                        picoprobe_info(">>>(%lx) %d %d %d %d\n", resp_len, TxDataBuffer[0], TxDataBuffer[1], TxDataBuffer[2], TxDataBuffer[3]);
 
                         tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
@@ -307,8 +339,6 @@ uint16_t tud_hid_get_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t
 
 void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t report_type, uint8_t const* RxDataBuffer, uint16_t bufsize)
 {
-    uint32_t response_size = TU_MIN(CFG_TUD_HID_EP_BUFSIZE, bufsize);
-
     // This doesn't use multiple report and report ID
     (void) itf;
     (void) report_id;
@@ -353,7 +383,8 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
 #if 0
         // heavy debug output, set dap_packet_count=2 to stumble into the bug
         uint32_t request_len = DAP_GetCommandLength(RxDataBuffer, bufsize);
-        picoprobe_info("< ");
+        picoprobe_info("-----------------------------------------------\n");
+        picoprobe_info("< (%lx) ", request_len);
         for (int i = 0;  i < bufsize;  ++i) {
             picoprobe_info_out(" %02x", RxDataBuffer[i]);
             if (i == request_len - 1) {
@@ -361,13 +392,20 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
             }
         }
         picoprobe_info_out("\n");
-        vTaskDelay(pdMS_TO_TICKS(30));
+        vTaskDelay(pdMS_TO_TICKS(50));
         uint32_t res = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
-        picoprobe_info("> %lu %lu\n", res >> 16, res & 0xffff);
+        picoprobe_info("> (%lx) ", res);
+        for (int i = 0;  i < bufsize;  ++i) {
+            picoprobe_info_out(" %02x", TxDataBuffer[i]);
+            if (i == (res & 0xffff) - 1) {
+                picoprobe_info_out(" !!!!");
+            }
+        }
+        picoprobe_info_out("\n");
 #else
-        DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
+        uint32_t res = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
 #endif
-        tud_hid_report(0, TxDataBuffer, response_size);
+        tud_hid_report(0, TxDataBuffer, res & 0xffff);
     }
 }   // tud_hid_set_report_cb
 #endif

@@ -3,7 +3,7 @@
 # ATTENTION: to get the version number & git hash into the image, cmake-create-* has to be invoked.
 #
 VERSION_MAJOR        := 1
-VERSION_MINOR        := 19
+VERSION_MINOR        := 20
 
 BUILD_DIR            := _build
 PROJECT              := picoprobe
