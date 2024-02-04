@@ -425,16 +425,20 @@ daptool_t DAP_FingerprintTool(const uint8_t *request, uint32_t request_len)
             }
         }
         else if (cnt == 3) {
-            if      (tool == E_DAPTOOL_PYOCD    &&  request[0] == ID_DAP_Info  &&  request[1] == DAP_ID_PACKET_SIZE) {
+            if      (tool == E_DAPTOOL_PYOCD    &&  request[0] == ID_DAP_Info  &&  request[1] == DAP_ID_PACKET_SIZE)
+            {
                 // ok (not sure if still used)
             }
-            else if (tool == E_DAPTOOL_PYOCD    &&  request[0] == ID_DAP_Info  &&  request[1] == DAP_ID_PRODUCT_FW_VER) {
+            else if (tool == E_DAPTOOL_PYOCD    &&  request[0] == ID_DAP_Info  &&  request[1] == DAP_ID_PRODUCT_FW_VER)
+            {
                 // ok (with DAP 2.1.2 & pyOCD 0.35)
             }
-            else if (tool == E_DAPTOOL_OPENOCD  &&  request[0] == ID_DAP_Info  &&  request[1] == DAP_ID_SER_NUM) {
+            else if (tool == E_DAPTOOL_OPENOCD  &&  request[0] == ID_DAP_Info  &&  request[1] == DAP_ID_SER_NUM)
+            {
                 // ok (with OpenOCD 0.11/0.12)
             }
-            else {
+            else
+            {
                 tool = E_DAPTOOL_UNKNOWN;
             }
         }
