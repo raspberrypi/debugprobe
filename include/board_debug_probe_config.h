@@ -23,8 +23,8 @@
  *
  */
 
-#ifndef BOARD_DEBUGPROBE_H_
-#define BOARD_DEBUGPROBE_H_
+#ifndef BOARD_DEBUG_PROBE_H_
+#define BOARD_DEBUG_PROBE_H_
 
 #define PROBE_IO_SWDI
 #define PROBE_CDC_UART
