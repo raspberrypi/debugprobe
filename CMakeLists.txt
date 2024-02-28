@@ -42,7 +42,7 @@ option(OPT_CDC_SYSVIEW         "Enable SysView over CDC"                0)
 option(OPT_SERIAL_CRLF         "Insert carriage returns after debug print statements" 0)
 
 # can be reconfigured
-set(OPT_MCU_OVERCLOCK_MHZ      "240" CACHE STRING "Set processor frequency. Should be a multiple of 24MHz, disable with empty string (=120MHz)")
+set(OPT_MCU_OVERCLOCK_MHZ      "144" CACHE STRING "Set processor frequency. Should be a multiple of 24MHz, disable with empty string (=120MHz)")
 set(OPT_NET_192_168            14 CACHE STRING "Set the subnet of 192.168.x")
 
 # extra
