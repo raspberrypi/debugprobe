@@ -350,8 +350,7 @@ Following procedure applies:
 ** `pwd` - set a password for locking the configuration.  Unlocking is done subsequently
    with `pwd:<your-pwd>`
 ** `r_start` / `r_end` - RAM start/end for generic target to override default 0x20000000..0x20040000.
-** `rtt` - enable/disable RTT access, default is RTT enabled (0: disable, 1:enable).  Note that `probe-rs` user must
-   currently set `rtt=0`
+** `rtt` - enable/disable RTT access, default is RTT enabled (0: disable, 1:enable).
 * special characters:
 ** CR/LF - end the line
 ** BS - backspace one character
