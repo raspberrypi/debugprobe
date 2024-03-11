@@ -157,6 +157,18 @@ Findings are not completely clear:
 ** YAPicoprobe + nRF52840 dongle @ 4MHz
 
 
+#### probe-rs: picoprobe vs yapicoprobe
+
+Using `probe-rs benchmark --address 0x20000000 --chip nrf52840_xxaa --speed 10000`
+as a simple benchmark shows the following result for maximum speed:
+
+picoprobe 1.1: ~107KByte/s
+
+yapicoprobe 1.20: ~175KByte/s
+
+probe-rs is at version 0.23.
+
+
 ## Network
 
 This is a simple network performance measurement with 
