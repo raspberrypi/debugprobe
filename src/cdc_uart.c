@@ -229,7 +229,7 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
     gpio_put(PROBE_UART_RX_LED, 0);
     rx_led_debounce = 0;
 #endif
-#ifdef PROBE_UART_RX_LED
+#ifdef PROBE_UART_TX_LED
     gpio_put(PROBE_UART_TX_LED, 0);
     tx_led_debounce = 0;
 #endif
