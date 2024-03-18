@@ -32,8 +32,9 @@
 #include "probe_config.h"
 
 TaskHandle_t uart_taskhandle;
-TickType_t last_wake, interval = 100, break_expiry;
-bool timed_break;
+TickType_t last_wake, interval = 100;
+volatile TickType_t break_expiry;
+volatile bool timed_break;
 
 /* Max 1 FIFO worth of data */
 static uint8_t tx_buf[32];
@@ -43,7 +44,7 @@ static uint8_t rx_buf[32];
 static uint debounce_ticks = 5;
 
 #ifdef PROBE_UART_TX_LED
-static uint tx_led_debounce;
+static volatile uint tx_led_debounce;
 #endif
 
 #ifdef PROBE_UART_RX_LED
@@ -145,6 +146,7 @@ bool cdc_task(void)
         if (((int)break_expiry - (int)xTaskGetTickCount()) < 0) {
           timed_break = false;
           uart_set_break(PROBE_UART_INTERFACE, false);
+          tx_led_debounce = 0;
         } else {
           keep_alive = true;
         }
@@ -154,6 +156,7 @@ bool cdc_task(void)
       uart_set_break(PROBE_UART_INTERFACE, false);
       timed_break = false;
       was_connected = 0;
+      tx_led_debounce = 0;
       cdc_tx_oe = 0;
     }
     return keep_alive;
@@ -275,11 +278,15 @@ void tud_cdc_send_break_cb(uint8_t itf, uint16_t wValue) {
     case 0xffff:
     uart_set_break(PROBE_UART_INTERFACE, true);
     timed_break = false;
+    gpio_put(PROBE_UART_TX_LED, 1);
+    tx_led_debounce = 1 << 30;
     break;
     default:
     uart_set_break(PROBE_UART_INTERFACE, true);
     timed_break = true;
+    gpio_put(PROBE_UART_TX_LED, 1);
     break_expiry = xTaskGetTickCount() + (wValue * (configTICK_RATE_HZ / 1000));
+    tx_led_debounce = 1 << 30;
     break;
   }
 }
