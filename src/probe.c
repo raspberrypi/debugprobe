@@ -72,7 +72,7 @@ void probe_assert_reset(bool state)
 {
 #if defined(PROBE_PIN_RESET)
     /* Change the direction to out to drive pin to 0 or to in to emulate open drain */
-    gpio_set_dir(PROBE_PIN_RESET, state);
+    gpio_set_dir(PROBE_PIN_RESET, state == 0 ? GPIO_OUT : GPIO_IN);
 #endif
 }
 
@@ -170,6 +170,9 @@ void probe_deinit(void)
     probe_read_mode();
     pio_sm_set_enabled(pio0, PROBE_SM, 0);
     pio_remove_program(pio0, &probe_program, probe.offset);
+
+    probe_assert_reset(1);	// de-assert nRESET
+
     probe.initted = 0;
   }
 }

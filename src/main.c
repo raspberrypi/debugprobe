@@ -85,9 +85,9 @@ int main(void) {
     usb_serial_init();
     cdc_uart_init();
     tusb_init();
+    stdio_uart_init();
 
     DAP_Setup();
-    stdio_uart_init();
 
     led_init();
 
