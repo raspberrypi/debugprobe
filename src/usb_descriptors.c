@@ -97,7 +97,7 @@ uint8_t const * tud_hid_descriptor_report_cb(uint8_t itf)
   return desc_hid_report;
 }
 
-uint8_t const desc_configuration[] =
+uint8_t desc_configuration[] =
 {
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0, 100),
   // Interface 0
@@ -121,6 +121,8 @@ uint8_t const desc_configuration[] =
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 {
   (void) index; // for multiple configurations
+  /* Hack in CAP_BREAK support */
+  desc_configuration[CONFIG_TOTAL_LEN - TUD_CDC_DESC_LEN + 8 + 9 + 5 + 5 + 4 - 1] = 0x6;
   return desc_configuration;
 }
 
