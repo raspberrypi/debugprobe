@@ -278,6 +278,9 @@ void tud_cdc_send_break_cb(uint8_t itf, uint16_t wValue) {
     case 0:
     uart_set_break(PROBE_UART_INTERFACE, false);
     timed_break = false;
+#ifdef PROBE_UART_TX_LED
+    tx_led_debounce = 0;
+#endif
     break;
     case 0xffff:
     uart_set_break(PROBE_UART_INTERFACE, true);
