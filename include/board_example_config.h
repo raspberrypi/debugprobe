@@ -60,7 +60,7 @@
 #endif
 
 /* PIO config for PROBE_IO_OEN - note that SWDIOEN and SWCLK are both side_set signals, so must be consecutive. */
-#if defined(PROBE_IO_SWDIOEN)
+#if defined(PROBE_IO_OEN)
 #define PROBE_PIN_SWDIOEN (PROBE_PIN_OFFSET + 0)
 #define PROBE_PIN_SWCLK (PROBE_PIN_OFFSET + 1)
 #define PROBE_PIN_SWDIO (PROBE_PIN_OFFSET + 2)
