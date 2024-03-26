@@ -502,8 +502,8 @@ It is recommended to provide the following LEDs for status indication:
            - 0: Connect LED OFF: debugger is not connected to CMSIS-DAP Debug Unit.
 */
 __STATIC_INLINE void LED_CONNECTED_OUT (uint32_t bit) {
-#ifdef DEBUGPROBE_DAP_CONNECTED_LED
-  gpio_put(DEBUGPROBE_DAP_CONNECTED_LED, bit);
+#ifdef PROBE_DAP_CONNECTED_LED
+  gpio_put(PROBE_DAP_CONNECTED_LED, bit);
 #endif
 }
 
@@ -513,8 +513,8 @@ __STATIC_INLINE void LED_CONNECTED_OUT (uint32_t bit) {
            - 0: Target Running LED OFF: program execution in target stopped.
 */
 __STATIC_INLINE void LED_RUNNING_OUT (uint32_t bit) {
-#ifdef DEBUGPROBE_DAP_RUNNING_LED
-  gpio_put(DEBUGPROBE_DAP_RUNNING_LED, bit);
+#ifdef PROBE_DAP_RUNNING_LED
+  gpio_put(PROBE_DAP_RUNNING_LED, bit);
 #endif
 }
 
