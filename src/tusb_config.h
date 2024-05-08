@@ -27,7 +27,7 @@
 #define _TUSB_CONFIG_H_
 
 #ifdef __cplusplus
- extern "C" {
+extern "C" {
 #endif
 
 //--------------------------------------------------------------------
@@ -36,13 +36,13 @@
 
 // defined by compiler flags for flexibility
 #ifndef CFG_TUSB_MCU
-  #error CFG_TUSB_MCU must be defined
+#error CFG_TUSB_MCU must be defined
 #endif
 
-#define CFG_TUSB_RHPORT0_MODE     OPT_MODE_DEVICE
+#define CFG_TUSB_RHPORT0_MODE OPT_MODE_DEVICE
 
 #ifndef CFG_TUSB_OS
-#define CFG_TUSB_OS                 OPT_OS_PICO
+#define CFG_TUSB_OS OPT_OS_PICO
 #endif
 
 #ifndef CFG_TUSB_MEM_SECTION
@@ -50,7 +50,7 @@
 #endif
 
 #ifndef CFG_TUSB_MEM_ALIGN
-#define CFG_TUSB_MEM_ALIGN          __attribute__ ((aligned(4)))
+#define CFG_TUSB_MEM_ALIGN __attribute__((aligned(4)))
 #endif
 
 //--------------------------------------------------------------------
@@ -58,15 +58,15 @@
 //--------------------------------------------------------------------
 
 #ifndef CFG_TUD_ENDPOINT0_SIZE
-#define CFG_TUD_ENDPOINT0_SIZE    64
+#define CFG_TUD_ENDPOINT0_SIZE 64
 #endif
 
 //------------- CLASS -------------//
-#define CFG_TUD_HID             1
-#define CFG_TUD_CDC             1
-#define CFG_TUD_MSC             0
-#define CFG_TUD_MIDI            0
-#define CFG_TUD_VENDOR          1
+#define CFG_TUD_HID    1
+#define CFG_TUD_CDC    1
+#define CFG_TUD_MSC    0
+#define CFG_TUD_MIDI   0
+#define CFG_TUD_VENDOR 1
 
 /*
  * TX bufsize (actually UART RX) is oversized because the Windows CDC-ACM
@@ -86,7 +86,7 @@
 #endif
 
 #ifdef __cplusplus
- }
+}
 #endif
 
 #endif /* _TUSB_CONFIG_H_ */

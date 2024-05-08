@@ -36,16 +36,15 @@ static pico_unique_board_id_t uID;
 
 void usb_serial_init(void)
 {
-    pico_get_unique_board_id(&uID);
+	pico_get_unique_board_id(&uID);
 
-    for (int i = 0; i < PICO_UNIQUE_BOARD_ID_SIZE_BYTES * 2; i++)
-    {
-        /* Byte index inside the uid array */
-        int bi = i / 2;
-        /* Use high nibble first to keep memory order (just cosmetics) */
-        uint8_t nibble = (uID.id[bi] >> 4) & 0x0F;
-        uID.id[bi] <<= 4;
-        /* Binary to hex digit */
-        usb_serial[i] = nibble < 10 ? nibble + '0' : nibble + 'A' - 10;
-    }
+	for (int i = 0; i < PICO_UNIQUE_BOARD_ID_SIZE_BYTES * 2; i++) {
+		/* Byte index inside the uid array */
+		int bi = i / 2;
+		/* Use high nibble first to keep memory order (just cosmetics) */
+		uint8_t nibble = (uID.id[bi] >> 4) & 0x0F;
+		uID.id[bi] <<= 4;
+		/* Binary to hex digit */
+		usb_serial[i] = nibble < 10 ? nibble + '0' : nibble + 'A' - 10;
+	}
 }
