@@ -35,6 +35,9 @@
 #include "probe.pio.h"
 #include "tusb.h"
 
+// Generic definition for OD bits since all GPIOs define it the same
+#define PADS_BANK0_GPIO_OD_BITS    _u(0x00000080)
+
 #define DIV_ROUND_UP(m, n)	(((m) + (n) - 1) / (n))
 
 // Only want to set / clear one gpio per event so go up in powers of 2
@@ -149,6 +152,7 @@ void probe_init() {
     if (!probe.initted) {
         hw_clear_bits(&padsbank0_hw->io[PROBE_PIN_SWCLK], PADS_BANK0_GPIO12_OD_BITS);
         hw_clear_bits(&padsbank0_hw->io[PROBE_PIN_SWDIO], PADS_BANK0_GPIO14_OD_BITS);
+        
         uint offset = pio_add_program(pio0, &probe_program);
         probe.offset = offset;
 
@@ -177,7 +181,7 @@ void probe_deinit(void)
 
     probe.initted = 0;
       
-    hw_set_bits(&padsbank0_hw->io[PROBE_PIN_SWCLK], PADS_BANK0_GPIO12_OD_BITS);
-    hw_set_bits(&padsbank0_hw->io[PROBE_PIN_SWDIO], PADS_BANK0_GPIO14_OD_BITS);
+    hw_set_bits(&padsbank0_hw->io[PROBE_PIN_SWCLK], PADS_BANK0_GPIO_OD_BITS);
+    hw_set_bits(&padsbank0_hw->io[PROBE_PIN_SWDIO], PADS_BANK0_GPIO_OD_BITS);
   }
 }
