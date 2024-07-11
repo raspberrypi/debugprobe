@@ -150,8 +150,8 @@ void probe_write_mode(void) {
 
 void probe_init() {
     if (!probe.initted) {
-        hw_clear_bits(&padsbank0_hw->io[PROBE_PIN_SWCLK], PADS_BANK0_GPIO12_OD_BITS);
-        hw_clear_bits(&padsbank0_hw->io[PROBE_PIN_SWDIO], PADS_BANK0_GPIO14_OD_BITS);
+        hw_clear_bits(&padsbank0_hw->io[PROBE_PIN_SWCLK], PADS_BANK0_GPIO_OD_BITS);
+        hw_clear_bits(&padsbank0_hw->io[PROBE_PIN_SWDIO], PADS_BANK0_GPIO_OD_BITS);
         
         uint offset = pio_add_program(pio0, &probe_program);
         probe.offset = offset;
