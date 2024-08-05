@@ -66,10 +66,13 @@
  */
 #define _DAP_PACKET_COUNT_OPENOCD   2
 #define _DAP_PACKET_SIZE_OPENOCD    512
-#define _DAP_PACKET_COUNT_PROBERS   2
+#define _DAP_PACKET_COUNT_PROBERS   8
 #define _DAP_PACKET_SIZE_PROBERS    1024
 #define _DAP_PACKET_COUNT_PYOCD     1
-#define _DAP_PACKET_SIZE_PYOCD      1024                     // pyocd does not like packets > 128 if COUNT != 1
+#define _DAP_PACKET_SIZE_PYOCD      512                     // pyocd does not like packets > 128 if COUNT != 1,
+                                                            //    there seems to be also a problem with flashing if
+                                                            //    packet size exceeds flash page size (?)
+                                                            //    see https://github.com/rgrr/yapicoprobe/issues/112
 #define _DAP_PACKET_COUNT_UNKNOWN   1
 #define _DAP_PACKET_SIZE_UNKNOWN    64
 
@@ -83,11 +86,15 @@ uint16_t dap_packet_size  = _DAP_PACKET_SIZE_UNKNOWN;
     #error "increase CFG_TUD_VENDOR_RX_BUFSIZE"
 #endif
 
+#define PACKET_MAXSIZE_1 MAX(_DAP_PACKET_COUNT_OPENOCD*_DAP_PACKET_SIZE_OPENOCD, _DAP_PACKET_COUNT_PROBERS*_DAP_PACKET_SIZE_PROBERS)
+#define PACKET_MAXSIZE_2 MAX(_DAP_PACKET_COUNT_PYOCD  *_DAP_PACKET_SIZE_PYOCD,   _DAP_PACKET_COUNT_UNKNOWN*_DAP_PACKET_SIZE_UNKNOWN)
+#define PACKET_MAXSIZE   MAX(PACKET_MAXSIZE_1, PACKET_MAXSIZE_2)
+
 #if OPT_CMSIS_DAPV1  ||  OPT_CMSIS_DAPV2
-    static uint8_t TxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZE];     // maximum required size
+    static uint8_t TxDataBuffer[PACKET_MAXSIZE];
 #endif
 #if OPT_CMSIS_DAPV2
-    static uint8_t RxDataBuffer[_DAP_PACKET_COUNT_OPENOCD * CFG_TUD_VENDOR_RX_BUFSIZE];     // maximum required size
+    static uint8_t RxDataBuffer[PACKET_MAXSIZE];
 #endif
 
 
