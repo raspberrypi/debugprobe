@@ -31,7 +31,11 @@
 #include <stdio.h>
 #include <string.h>
 
+#if PICO_SDK_VERSION_MAJOR >= 2
+#include "bsp/board_api.h"
+#else
 #include "bsp/board.h"
+#endif
 #include "tusb.h"
 
 #include "probe_config.h"

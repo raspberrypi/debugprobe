@@ -47,6 +47,21 @@ This will build with the configuration for the Pico and call the output program 
 
 Note that if you first ran through the whole sequence to compile for the Debug Probe, then you don't need to start back at the top. You can just go back to the `cmake` step and start from there.
 
+# Building for the Pico 2
+
+If using an existing debugprobe clone:
+- You must completely regenerate your build directory, or use a different one.
+- You must also sync and update submodules as rp2350 needs a downstream FreeRTOS port for now.
+- `PICO_SDK_PATH` must point to a version 2.0.0 or greater install.
+
+
+```
+git submodule sync
+git submodule update --init
+mkdir build-pico2
+cd build-pico2
+cmake -DDEBUG_ON_PICO=1 -DPICO_BOARD=pico2 -DPICO_PLATFORM=rp2350 ../
+```
 
 # TODO
 - AutoBaud selection, as PIO is a capable frequency counter
