@@ -29,15 +29,16 @@
 #define _TUSB_NCM_H_
 
 #include "common/tusb_common.h"
+#include "lwipopts.h"
 
 
 #ifndef CFG_TUD_NCM_IN_NTB_MAX_SIZE
     /// must be >> MTU
-    #define CFG_TUD_NCM_IN_NTB_MAX_SIZE        3200
+    #define CFG_TUD_NCM_IN_NTB_MAX_SIZE        (2 * TCP_MSS + 100)     // can be set to 2048 without impact
 #endif
 #ifndef CFG_TUD_NCM_OUT_NTB_MAX_SIZE
     /// must be >> MTU
-    #define CFG_TUD_NCM_OUT_NTB_MAX_SIZE       3200
+    #define CFG_TUD_NCM_OUT_NTB_MAX_SIZE       (2 * TCP_MSS + 100)     // can be set to smaller values if .wNtbOutMaxDatagrams==1
 #endif
 
 #ifndef CFG_TUD_NCM_OUT_NTB_N
