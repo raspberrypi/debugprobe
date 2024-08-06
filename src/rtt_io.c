@@ -59,6 +59,17 @@
 
 typedef uint32_t (*rtt_data_to_host)(const uint8_t *buf, uint32_t cnt);
 
+typedef struct {
+    uint32_t                addr;                // target address of this aUp[]
+    SEGGER_RTT_BUFFER_UP    aUp;                 // local copy of the target aUp[]
+} EXT_SEGGER_RTT_BUFFER_UP;
+
+typedef struct {
+    uint32_t                addr;                // target address of this aDown[]
+    SEGGER_RTT_BUFFER_DOWN  aDown;               // local copy of the target aDown[]
+} EXT_SEGGER_RTT_BUFFER_DOWN;
+
+
 #define TARGET_RAM_START        g_board_info.target_cfg->ram_regions[0].start
 #define TARGET_RAM_END          g_board_info.target_cfg->ram_regions[0].end
 
@@ -176,7 +187,10 @@ static uint32_t search_for_rtt_cb(uint32_t prev_rtt_cb)
 
 
 
-static bool rtt_check_channel_from_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER_UP *aUp, bool *found)
+static bool rtt_check_channel_from_target(uint32_t rtt_cb, uint16_t channel, EXT_SEGGER_RTT_BUFFER_UP *extRttBuf, bool *found)
+/**
+ * Check if there is a valid buffer from target for this channel.
+ */
 {
     bool ok;
     int32_t buff_cnt;
@@ -184,12 +198,13 @@ static bool rtt_check_channel_from_target(uint32_t rtt_cb, uint16_t channel, SEG
     *found = (rtt_cb >= TARGET_RAM_START  &&  rtt_cb <= TARGET_RAM_END);
     ok = *found  &&  swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, MaxNumUpBuffers), (uint32_t *)&(buff_cnt));
     if (ok) {
+        extRttBuf->addr = rtt_cb + offsetof(SEGGER_RTT_CB, aUp[channel]);
         *found = *found  &&  (buff_cnt > channel);
-        *found = *found  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[channel]), (uint8_t *)aUp, sizeof(SEGGER_RTT_BUFFER_UP));
-        *found = *found  &&  (aUp->SizeOfBuffer > 0  &&  aUp->SizeOfBuffer < TARGET_RAM_END - TARGET_RAM_START);
-        *found = *found  &&  ((uint32_t)aUp->pBuffer >= TARGET_RAM_START  &&  (uint32_t)aUp->pBuffer + aUp->SizeOfBuffer <= TARGET_RAM_END);
+        *found = *found  &&  swd_read_memory(extRttBuf->addr, (uint8_t *)&(extRttBuf->aUp), sizeof(extRttBuf->aUp));
+        *found = *found  &&  (extRttBuf->aUp.SizeOfBuffer > 0  &&  extRttBuf->aUp.SizeOfBuffer < TARGET_RAM_END - TARGET_RAM_START);
+        *found = *found  &&  ((uint32_t)extRttBuf->aUp.pBuffer >= TARGET_RAM_START  &&  (uint32_t)extRttBuf->aUp.pBuffer + extRttBuf->aUp.SizeOfBuffer <= TARGET_RAM_END);
         if (*found) {
-            picoprobe_info("     rtt_check_channel_from_target: %u %p %5u %5u %5u\n", channel, aUp->pBuffer, aUp->SizeOfBuffer, aUp->RdOff, aUp->WrOff);
+            picoprobe_info("     rtt_check_channel_from_target: %u %p %5u %5u %5u\n", channel, extRttBuf->aUp.pBuffer, extRttBuf->aUp.SizeOfBuffer, extRttBuf->aUp.RdOff, extRttBuf->aUp.WrOff);
         }
     }
     return ok;
@@ -197,20 +212,29 @@ static bool rtt_check_channel_from_target(uint32_t rtt_cb, uint16_t channel, SEG
 
 
 
-static bool rtt_check_channel_to_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER_DOWN *aDown, bool *found)
+static bool rtt_check_channel_to_target(uint32_t rtt_cb, uint16_t channel, EXT_SEGGER_RTT_BUFFER_DOWN *extRttBuf, bool *found)
+/**
+ * Check if there is a valid buffer to target for this channel.
+ *
+ * \note
+ *    Order of \a SEGGER_RTT_CB must be up buffer first, then down buffers.
+ */
 {
     bool ok;
     int32_t buff_cnt;
+    int32_t buff_cnt_up;
 
     *found = (rtt_cb >= TARGET_RAM_START  &&  rtt_cb <= TARGET_RAM_END);
-    ok = *found  &&  swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, MaxNumDownBuffers), (uint32_t *)&(buff_cnt));
+    ok = *found  &&  swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, MaxNumDownBuffers), (uint32_t *)&(buff_cnt))
+                 &&  swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, MaxNumUpBuffers), (uint32_t *)&(buff_cnt_up));
     if (ok) {
+        extRttBuf->addr = rtt_cb + offsetof(SEGGER_RTT_CB, aUp[buff_cnt_up]) + channel * sizeof(SEGGER_RTT_BUFFER_DOWN);
         *found = *found  &&  (buff_cnt > channel);
-        *found = *found  &&  swd_read_memory(rtt_cb + offsetof(SEGGER_RTT_CB, aDown[channel]), (uint8_t *)aDown, sizeof(SEGGER_RTT_BUFFER_DOWN));
-        *found = *found  &&  (aDown->SizeOfBuffer > 0  &&  aDown->SizeOfBuffer < TARGET_RAM_END - TARGET_RAM_START);
-        *found = *found  &&  ((uint32_t)aDown->pBuffer >= TARGET_RAM_START  &&  (uint32_t)aDown->pBuffer + aDown->SizeOfBuffer <= TARGET_RAM_END);
+        *found = *found  &&  swd_read_memory(extRttBuf->addr, (uint8_t *)&(extRttBuf->aDown), sizeof(extRttBuf->aDown));
+        *found = *found  &&  (extRttBuf->aDown.SizeOfBuffer > 0  &&  extRttBuf->aDown.SizeOfBuffer < TARGET_RAM_END - TARGET_RAM_START);
+        *found = *found  &&  ((uint32_t)extRttBuf->aDown.pBuffer >= TARGET_RAM_START  &&  (uint32_t)extRttBuf->aDown.pBuffer + extRttBuf->aDown.SizeOfBuffer <= TARGET_RAM_END);
         if (*found) {
-            picoprobe_info("     rtt_check_channel_to_target  : %u %p %5u %5u %5u\n", channel, aDown->pBuffer, aDown->SizeOfBuffer, aDown->RdOff, aDown->WrOff);
+            picoprobe_info("     rtt_check_channel_to_target  : %u %p %5u %5u %5u\n", channel, extRttBuf->aDown.pBuffer, extRttBuf->aDown.SizeOfBuffer, extRttBuf->aDown.RdOff, extRttBuf->aDown.WrOff);
         }
     }
     return ok;
@@ -240,9 +264,8 @@ static unsigned rtt_get_write_space(SEGGER_RTT_BUFFER_DOWN *pRing)
 
 
 
-static SEGGER_RTT_BUFFER_UP *ft_aUp;
-static uint16_t ft_channel;
-static uint32_t ft_rtt_cb;
+// ft = from target
+static EXT_SEGGER_RTT_BUFFER_UP *ft_extRttBuf;
 static uint8_t ft_buf[256];
 static uint32_t ft_cnt;
 static bool ft_ok;
@@ -263,24 +286,24 @@ static void rtt_from_target_thread(void *p)
             continue;
         }
 
-        ft_ok = swd_read_word(ft_rtt_cb + offsetof(SEGGER_RTT_CB, aUp[ft_channel].WrOff), (uint32_t *)&(ft_aUp->WrOff));
+        ft_ok = swd_read_word(ft_extRttBuf->addr + offsetof(SEGGER_RTT_BUFFER_UP, WrOff), (uint32_t *)&(ft_extRttBuf->aUp.WrOff));
 
-        if (ft_ok  &&  ft_aUp->WrOff != ft_aUp->RdOff) {
+        if (ft_ok  &&  ft_extRttBuf->aUp.WrOff != ft_extRttBuf->aUp.RdOff) {
             //
             // fetch data from target
             //
-            if (ft_aUp->WrOff > ft_aUp->RdOff) {
-                ft_cnt = MIN(ft_cnt, ft_aUp->WrOff - ft_aUp->RdOff);
+            if (ft_extRttBuf->aUp.WrOff > ft_extRttBuf->aUp.RdOff) {
+                ft_cnt = MIN(ft_cnt, ft_extRttBuf->aUp.WrOff - ft_extRttBuf->aUp.RdOff);
             }
             else {
-                ft_cnt = MIN(ft_cnt, ft_aUp->SizeOfBuffer - ft_aUp->RdOff);
+                ft_cnt = MIN(ft_cnt, ft_extRttBuf->aUp.SizeOfBuffer - ft_extRttBuf->aUp.RdOff);
             }
             ft_cnt = MIN(ft_cnt, sizeof(ft_buf));
 
             memset(ft_buf, 0, sizeof(ft_buf));
-            ft_ok = ft_ok  &&  swd_read_memory((uint32_t)ft_aUp->pBuffer + ft_aUp->RdOff, ft_buf, ft_cnt);
-            ft_aUp->RdOff = (ft_aUp->RdOff + ft_cnt) % ft_aUp->SizeOfBuffer;
-            ft_ok = ft_ok  &&  swd_write_word(ft_rtt_cb + offsetof(SEGGER_RTT_CB, aUp[ft_channel].RdOff), ft_aUp->RdOff);
+            ft_ok = ft_ok  &&  swd_read_memory((uint32_t)ft_extRttBuf->aUp.pBuffer + ft_extRttBuf->aUp.RdOff, ft_buf, ft_cnt);
+            ft_extRttBuf->aUp.RdOff = (ft_extRttBuf->aUp.RdOff + ft_cnt) % ft_extRttBuf->aUp.SizeOfBuffer;
+            ft_ok = ft_ok  &&  swd_write_word(ft_extRttBuf->addr + offsetof(SEGGER_RTT_BUFFER_UP, RdOff), ft_extRttBuf->aUp.RdOff);
 
             rtt_cb_alive = true;
         }
@@ -295,22 +318,20 @@ static void rtt_from_target_thread(void *p)
 
 
 #if INCLUDE_SYSVIEW
-static void rtt_from_target_reset(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER_UP *aUp)
+static void rtt_from_target_reset(EXT_SEGGER_RTT_BUFFER_UP *extRttBuf)
 /**
  * Reset an upstream buffer.
  */
 {
-//    printf("rtt_from_target_reset(%lx,%d,%p)\n", rtt_cb, channel, aUp);
-
-    swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[channel].WrOff), (uint32_t *)&(aUp->WrOff));
-    aUp->RdOff = aUp->WrOff;
-    swd_write_word(rtt_cb + offsetof(SEGGER_RTT_CB, aUp[channel].RdOff), aUp->RdOff);
+    swd_read_word(extRttBuf->addr + offsetof(SEGGER_RTT_BUFFER_UP, WrOff), (uint32_t *)&(extRttBuf->aUp.WrOff));
+    extRttBuf->aUp.RdOff = extRttBuf->aUp.WrOff;
+    swd_write_word(extRttBuf->addr + offsetof(SEGGER_RTT_BUFFER_UP, RdOff), extRttBuf->aUp.RdOff);
 }   // rtt_from_target_reset
 #endif
 
 
 
-static bool rtt_from_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER_UP *aUp,
+static bool rtt_from_target(EXT_SEGGER_RTT_BUFFER_UP *extRttBuf,
                             rtt_data_to_host data_to_host, bool check_host_buffer, bool *worked)
 /**
  * Fetch data via RTT from target.
@@ -338,9 +359,7 @@ static bool rtt_from_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER
     }
 
     if (send_data_to_host) {
-        ft_aUp = aUp;
-        ft_channel = channel;
-        ft_rtt_cb = rtt_cb;
+        ft_extRttBuf = extRttBuf;
 
         xEventGroupSetBits(events, EV_RTT_FROM_TARGET_STRT);
         xEventGroupWaitBits(events, EV_RTT_FROM_TARGET_END, pdTRUE, pdFALSE, portMAX_DELAY);
@@ -358,8 +377,7 @@ static bool rtt_from_target(uint32_t rtt_cb, uint16_t channel, SEGGER_RTT_BUFFER
 
 
 
-static bool rtt_to_target(uint32_t rtt_cb, StreamBufferHandle_t stream, uint16_t channel,
-                          SEGGER_RTT_BUFFER_DOWN *aDown, bool *worked)
+static bool rtt_to_target(EXT_SEGGER_RTT_BUFFER_DOWN *extRttBuf, StreamBufferHandle_t stream, bool *worked)
 {
     bool ok = true;
     uint8_t buf[16];
@@ -369,9 +387,9 @@ static bool rtt_to_target(uint32_t rtt_cb, StreamBufferHandle_t stream, uint16_t
         //
         // send data to target
         //
-        ok = ok  &&  swd_read_word(rtt_cb + offsetof(SEGGER_RTT_CB, aDown[channel].RdOff), (uint32_t *)&(aDown->RdOff));
+        ok = ok  &&  swd_read_word(extRttBuf->addr + offsetof(SEGGER_RTT_BUFFER_DOWN, RdOff), (uint32_t *)&(extRttBuf->aDown.RdOff));
 
-        num_bytes = rtt_get_write_space(aDown);
+        num_bytes = rtt_get_write_space( &(extRttBuf->aDown));
         if (num_bytes > 0) {
             //printf("a cnt: %u -> ", num_bytes);
 
@@ -383,8 +401,8 @@ static bool rtt_to_target(uint32_t rtt_cb, StreamBufferHandle_t stream, uint16_t
             unsigned wr_off;
             unsigned remaining;
 
-            wr_off = aDown->WrOff;
-            remaining = aDown->SizeOfBuffer - wr_off;
+            wr_off = extRttBuf->aDown.WrOff;
+            remaining = extRttBuf->aDown.SizeOfBuffer - wr_off;
 
             //printf("%u %u %u %u", channel, aDown->WrOff, num_bytes, remaining);
 
@@ -392,8 +410,8 @@ static bool rtt_to_target(uint32_t rtt_cb, StreamBufferHandle_t stream, uint16_t
                 //
                 // All data fits before wrap around
                 //
-                ok = ok  &&  swd_write_memory((uint32_t)aDown->pBuffer + wr_off, buf, num_bytes);
-                aDown->WrOff = wr_off + num_bytes;
+                ok = ok  &&  swd_write_memory((uint32_t)extRttBuf->aDown.pBuffer + wr_off, buf, num_bytes);
+                extRttBuf->aDown.WrOff = wr_off + num_bytes;
             }
             else {
                 //
@@ -402,13 +420,13 @@ static bool rtt_to_target(uint32_t rtt_cb, StreamBufferHandle_t stream, uint16_t
                 unsigned num_bytes_at_once;
 
                 num_bytes_at_once = remaining;
-                ok = ok  &&  swd_write_memory((uint32_t)aDown->pBuffer + wr_off, buf, num_bytes_at_once);
+                ok = ok  &&  swd_write_memory((uint32_t)extRttBuf->aDown.pBuffer + wr_off, buf, num_bytes_at_once);
                 num_bytes_at_once = num_bytes - remaining;
-                ok = ok  &&  swd_write_memory((uint32_t)aDown->pBuffer, buf + remaining, num_bytes_at_once);
-                aDown->WrOff = num_bytes_at_once;
+                ok = ok  &&  swd_write_memory((uint32_t)extRttBuf->aDown.pBuffer, buf + remaining, num_bytes_at_once);
+                extRttBuf->aDown.WrOff = num_bytes_at_once;
             }
 
-            ok = ok  &&  swd_write_word(rtt_cb + offsetof(SEGGER_RTT_CB, aDown[channel].WrOff), aDown->WrOff);
+            ok = ok  &&  swd_write_word(extRttBuf->addr + offsetof(SEGGER_RTT_BUFFER_DOWN, WrOff), extRttBuf->aDown.WrOff);
 
             //printf(" -> %u\n", aDown->WrOff);
         }
@@ -423,14 +441,14 @@ static bool rtt_to_target(uint32_t rtt_cb, StreamBufferHandle_t stream, uint16_t
 static void do_rtt_io(uint32_t rtt_cb, bool with_alive_check)
 {
 #if OPT_TARGET_UART
-    SEGGER_RTT_BUFFER_UP   aUpConsole;       // Up buffer, transferring information up from target via debug probe to host
-    SEGGER_RTT_BUFFER_DOWN aDownConsole;     // Down buffer, transferring information from host via debug probe to target
+    EXT_SEGGER_RTT_BUFFER_UP   aUpConsole;       // Up buffer, transferring information up from target via debug probe to host
+    EXT_SEGGER_RTT_BUFFER_DOWN aDownConsole;     // Down buffer, transferring information from host via debug probe to target
     ok_console_from_target = false;
     ok_console_to_target = false;
 #endif
 #if INCLUDE_SYSVIEW
-    SEGGER_RTT_BUFFER_UP   aUpSysView;       // Up buffer, transferring information up from target via debug probe to host
-    SEGGER_RTT_BUFFER_DOWN aDownSysView;     // Down buffer, transferring information from host via debug probe to target
+    EXT_SEGGER_RTT_BUFFER_UP   aUpSysView;       // Up buffer, transferring information up from target via debug probe to host
+    EXT_SEGGER_RTT_BUFFER_DOWN aDownSysView;     // Down buffer, transferring information from host via debug probe to target
     bool ok_sysview_from_target = false;
     bool ok_sysview_to_target = false;
     bool net_sysview_was_connected = false;
@@ -468,10 +486,10 @@ static void do_rtt_io(uint32_t rtt_cb, bool with_alive_check)
                 working_uart = false;
 
                 if (ok_console_from_target)
-                    ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aUpConsole, cdc_uart_write, false, &working_uart);
+                    ok = ok  &&  rtt_from_target(&aUpConsole, cdc_uart_write, false, &working_uart);
 
                 if (ok_console_to_target)
-                    ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_console_to_target, RTT_CHANNEL_CONSOLE, &aDownConsole, &working_uart);
+                    ok = ok  &&  rtt_to_target(&aDownConsole, stream_rtt_console_to_target, &working_uart);
 
                 probe_rtt_cb = probe_rtt_cb  &&  !working_uart;
 
@@ -486,13 +504,13 @@ static void do_rtt_io(uint32_t rtt_cb, bool with_alive_check)
 
             if ( !net_sysview_was_connected) {
                 net_sysview_was_connected = true;
-                rtt_from_target_reset(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView);
+                rtt_from_target_reset(&aUpSysView);
             }
             if (ok_sysview_from_target)
-                ok = ok  &&  rtt_from_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView, net_sysview_send, true, &working_sysview);
+                ok = ok  &&  rtt_from_target(&aUpSysView, net_sysview_send, true, &working_sysview);
 
             if (ok_sysview_to_target)
-                ok = ok  &&  rtt_to_target(rtt_cb, stream_rtt_sysview_to_target, RTT_CHANNEL_SYSVIEW, &aDownSysView, &working_sysview);
+                ok = ok  &&  rtt_to_target(&aDownSysView, stream_rtt_sysview_to_target, &working_sysview);
 
             probe_rtt_cb = probe_rtt_cb  &&  !working_sysview;
         }
@@ -504,18 +522,18 @@ static void do_rtt_io(uint32_t rtt_cb, bool with_alive_check)
         //printf("%d %d\n", ok, probe_rtt_cb);
         if (ok  &&  probe_rtt_cb) {
             // did nothing -> check if RTT channels appeared
-            #if OPT_TARGET_UART
-                if ( !ok_console_from_target)
-                    ok = ok  &&  rtt_check_channel_from_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aUpConsole, &ok_console_from_target);
-                if ( !ok_console_to_target)
-                    ok = ok  &&  rtt_check_channel_to_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aDownConsole, &ok_console_to_target);
-            #endif
-            #if INCLUDE_SYSVIEW
-                if ( !ok_sysview_from_target)
-                    ok = ok  &&  rtt_check_channel_from_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView, &ok_sysview_from_target);
-                if ( !ok_sysview_to_target)
-                    ok = ok  &&  rtt_check_channel_to_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aDownSysView, &ok_sysview_to_target);
-            #endif
+#if OPT_TARGET_UART
+            if ( !ok_console_from_target)
+                ok = ok  &&  rtt_check_channel_from_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aUpConsole, &ok_console_from_target);
+            if ( !ok_console_to_target)
+                ok = ok  &&  rtt_check_channel_to_target(rtt_cb, RTT_CHANNEL_CONSOLE, &aDownConsole, &ok_console_to_target);
+#endif
+#if INCLUDE_SYSVIEW
+            if ( !ok_sysview_from_target)
+                ok = ok  &&  rtt_check_channel_from_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aUpSysView, &ok_sysview_from_target);
+            if ( !ok_sysview_to_target)
+                ok = ok  &&  rtt_check_channel_to_target(rtt_cb, RTT_CHANNEL_SYSVIEW, &aDownSysView, &ok_sysview_to_target);
+#endif
 
             // -> delay
             xEventGroupWaitBits(events, EV_RTT_TO_TARGET, pdTRUE, pdFALSE, pdMS_TO_TICKS(RTT_POLL_INT_MS));
