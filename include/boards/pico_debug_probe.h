@@ -9,6 +9,8 @@
 //       SHOULD ONLY CONSIST OF PREPROCESSOR DIRECTIVES
 // -----------------------------------------------------
 
+// pico_cmake_set PICO_PLATFORM=rp2040
+
 // This header may be included by other board headers as "boards/pico_debug_probe.h".
 // But normally this is included via "#include <pico/stdlib.h>" if PICO_BOARD is set accordingly.
 // Schematic: https://datasheets.raspberrypi.com/debug/raspberry-pi-debug-probe-schematics.pdf

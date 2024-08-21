@@ -71,13 +71,14 @@ endif()
 #
 # below (and above) order is important
 #
+
+set(PICO_BOARD_HEADER_DIRS  ${CMAKE_CURRENT_LIST_DIR}/include/boards)
 include(pico_sdk_import.cmake)
 
 
 set(FREERTOS_KERNEL_PATH ${CMAKE_CURRENT_LIST_DIR}/freertos)
 include(FreeRTOS_Kernel_import.cmake)
 
-set(PICO_BOARD_HEADER_DIRS  ${CMAKE_CURRENT_LIST_DIR}/include/boards)
 pico_sdk_init()
 
 #    message("--------- " ${PICO_LWIP_PATH})
@@ -199,7 +200,7 @@ target_include_directories(${PROJECT} PRIVATE
         src/daplink-pico/board/rp2040
         src/daplink-pico/family/raspberry
         src/daplink-pico/hic_hal/raspberry/rp2040
-        $ENV{PICO_SDK_PATH}/src/common/boot_uf2/include
+        $ENV{PICO_SDK_PATH}/src/common/boot_uf2_headers/include
 )
 
 # Both are actually dummies to prevent the DAPLink files from throwing errors
@@ -309,13 +310,13 @@ if(NOT OPT_NET STREQUAL "")
     if(OPT_NET STREQUAL "NCM")
         # NCM: use own copy of ncm_device, original one is removed from target_sources() with a trick
         # message("--------- " ${PICO_TINYUSB_PATH})
-        target_sources(${PROJECT} PRIVATE
-            src/net/tinyusb/ncm_device_new.c
-        )
-        set_source_files_properties(
-            ${PICO_TINYUSB_PATH}/src/class/net/ncm_device.c
-            PROPERTIES HEADER_FILE_ONLY ON
-        )
+#        target_sources(${PROJECT} PRIVATE
+#            src/net/tinyusb/ncm_device_new.c
+#        )
+#        set_source_files_properties(
+#            ${PICO_TINYUSB_PATH}/src/class/net/ncm_device.c
+#            PROPERTIES HEADER_FILE_ONLY ON
+#        )
     else()
         # !NCM
         target_sources(${PROJECT} PRIVATE
