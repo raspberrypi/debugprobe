@@ -3,7 +3,7 @@
 # ATTENTION: to get the version number & git hash into the image, cmake-create-* has to be invoked.
 #
 VERSION_MAJOR        := 1
-VERSION_MINOR        := 21
+VERSION_MINOR        := 22
 
 BUILD_DIR            := _build
 PROJECT              := picoprobe
@@ -22,6 +22,12 @@ ifeq ($(PICO_BOARD),)
     PICO_BOARD := pico
 endif
 
+export PICO_SDK_PATH=/mnt/d/u/pico/pico-sdk2
+
+
+.PHONY: aaa
+aaa:
+	printenv | grep -i pico
 
 
 .PHONY: clean
@@ -49,6 +55,7 @@ details: all
 
 .PHONY: cmake-create-debug
 cmake-create-debug: clean-build
+	export PICO_COMPILER=pico_arm_gcc;                     \
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) $(if $(OPT_SIGROK),-DOPT_SIGROK=$(OPT_SIGROK)) $(CMAKE_FLAGS)
 
 
@@ -60,6 +67,8 @@ cmake-create-release: clean-build
 .PHONY: cmake-create-debug-clang
 cmake-create-debug-clang: clean-build
 	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin; \
+	export PICO_COMPILER=pico_arm_clang;                     \
+	export PICO_CLIB=llvm-libc;                                 \
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
 	         $(if $(OPT_SIGROK),-DOPT_SIGROK=$(OPT_SIGROK)) \
 	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang
@@ -89,7 +98,8 @@ flash: all
 
 .PHONY: create-images
 create-images:
-	$(MAKE) cmake-create-release-clang PICO_BOARD=pico
+	# with SDK2 clang no longer works.  This is a TODO
+	$(MAKE) cmake-create-release PICO_BOARD=pico
 	$(MAKE) all
 	mkdir -p images
 	cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-pico-$(GIT_HASH).uf2
@@ -99,7 +109,7 @@ create-images:
 	$(MAKE) all
 	cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-picow-$(GIT_HASH).uf2
 	#
-	$(MAKE) cmake-create-release-clang PICO_BOARD=pico_debug_probe
+	$(MAKE) cmake-create-release PICO_BOARD=pico_debug_probe
 	$(MAKE) all
 	cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-picodebugprobe-$(GIT_HASH).uf2
 	#
