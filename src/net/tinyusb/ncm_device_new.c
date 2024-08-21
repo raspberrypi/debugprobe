@@ -835,6 +835,16 @@ void netd_init(void)
 
 
 
+bool netd_deinit(void)
+/**
+ * Deinit driver
+ */
+{
+    return true;
+}
+
+
+
 void netd_reset(uint8_t rhport)
 /**
  * Resets the port.
@@ -983,11 +993,13 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
 
     switch (request->bmRequestType_bit.type) {
         case TUSB_REQ_TYPE_STANDARD:
+            DEBUG_OUT("  TUSB_REQ_TYPE_STANDARD: %d\n", request->bRequest);
+
             switch (request->bRequest) {
                 case TUSB_REQ_GET_INTERFACE: {
                     TU_VERIFY(ncm_interface.itf_num + 1 == request->wIndex, false);
 
-                    DEBUG_OUT("  TUSB_REQ_GET_INTERFACE - %d\n", ncm_interface.itf_data_alt);
+                    DEBUG_OUT("    TUSB_REQ_GET_INTERFACE - %d\n", ncm_interface.itf_data_alt);
                     tud_control_xfer(rhport, request, &ncm_interface.itf_data_alt, 1);
                 }
                 break;
@@ -996,7 +1008,7 @@ bool netd_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t 
                     TU_VERIFY(ncm_interface.itf_num + 1 == request->wIndex  &&  request->wValue < 2, false);
 
                     ncm_interface.itf_data_alt = (uint8_t)request->wValue;
-                    DEBUG_OUT("  TUSB_REQ_SET_INTERFACE - %d %d %d\n", ncm_interface.itf_data_alt, request->wIndex, ncm_interface.itf_num);
+                    DEBUG_OUT("    TUSB_REQ_SET_INTERFACE - %d %d %d\n", ncm_interface.itf_data_alt, request->wIndex, ncm_interface.itf_num);
 
                     if (ncm_interface.itf_data_alt == 1) {
                         tud_network_recv_renew_r(rhport);
