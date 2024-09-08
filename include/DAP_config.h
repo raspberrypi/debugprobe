@@ -48,7 +48,6 @@ This information includes:
 #include <pico/stdlib.h>
 #include <hardware/gpio.h>
 
-#include "cmsis_compiler.h"
 #include "get_config.h"
 #include "picoprobe_config.h"
 #include "probe.h"

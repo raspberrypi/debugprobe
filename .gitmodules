@@ -4,6 +4,6 @@
 [submodule "freertos"]
 	path = freertos
 	url = https://github.com/FreeRTOS/FreeRTOS-Kernel
-[submodule "CMSIS_6"]
-	path = CMSIS_6
-	url = https://github.com/ARM-software/CMSIS_6.git
+[submodule "CMSIS_DAP"]
+	path = CMSIS_DAP
+	url = https://github.com/ARM-software/CMSIS-DAP.git

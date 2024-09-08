@@ -152,15 +152,14 @@ add_executable(${PROJECT}
 )
 
 target_sources(${PROJECT} PRIVATE
-        CMSIS_5/CMSIS/DAP/Firmware/Source/DAP.c
-        CMSIS_5/CMSIS/DAP/Firmware/Source/JTAG_DP.c
-        CMSIS_5/CMSIS/DAP/Firmware/Source/DAP_vendor.c
-        CMSIS_5/CMSIS/DAP/Firmware/Source/SWO.c
+        CMSIS_DAP/Firmware/Source/DAP.c
+        CMSIS_DAP/Firmware/Source/JTAG_DP.c
+        CMSIS_DAP/Firmware/Source/DAP_vendor.c
+        CMSIS_DAP/Firmware/Source/SWO.c
 )
 
 target_include_directories(${PROJECT} PRIVATE
-        CMSIS_5/CMSIS/DAP/Firmware/Include
-        CMSIS_5/CMSIS/Core/Include
+        CMSIS_DAP/Firmware/Include
         include
         src/lib
         src/lib/SEGGER
@@ -189,6 +188,7 @@ target_sources(${PROJECT} PRIVATE
 
 target_include_directories(${PROJECT} PRIVATE
         src/lib/daplink/daplink
+        src/lib/daplink/daplink/cmsis-core
         src/lib/daplink/daplink/cmsis-dap
         src/lib/daplink/daplink/drag-n-drop
         src/lib/daplink/daplink/interface
