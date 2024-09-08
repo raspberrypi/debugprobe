@@ -408,7 +408,7 @@ void target_writer_thread(void *ptr)
 
 //              flash_manager_set_page_erase(false);
                 sts = flash_manager_init(flash_intf_target);
-                picoprobe_info("flash_manager_init = %d\n", sts);
+//                picoprobe_info("flash_manager_init = %d\n", sts);
                 if (sts == ERROR_SUCCESS) {
                     must_initialize = false;
                 }
