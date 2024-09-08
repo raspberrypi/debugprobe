@@ -307,15 +307,7 @@ if(NOT OPT_NET STREQUAL "")
     )
 
     if(OPT_NET STREQUAL "NCM")
-        # NCM: use own copy of ncm_device, original one is removed from target_sources() with a trick
-        # message("--------- " ${PICO_TINYUSB_PATH})
-#        target_sources(${PROJECT} PRIVATE
-#            src/net/tinyusb/ncm_device_new.c
-#        )
-#        set_source_files_properties(
-#            ${PICO_TINYUSB_PATH}/src/class/net/ncm_device.c
-#            PROPERTIES HEADER_FILE_ONLY ON
-#        )
+        # NCM: in the meantime NCM is in tinyusb...
     else()
         # !NCM
         target_sources(${PROJECT} PRIVATE
