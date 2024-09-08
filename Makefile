@@ -22,12 +22,6 @@ ifeq ($(PICO_BOARD),)
     PICO_BOARD := pico
 endif
 
-export PICO_SDK_PATH=/mnt/d/u/pico/pico-sdk2
-
-
-.PHONY: aaa
-aaa:
-	printenv | grep -i pico
 
 
 .PHONY: clean
@@ -61,14 +55,15 @@ cmake-create-debug: clean-build
 
 .PHONY: cmake-create-release
 cmake-create-release: clean-build
+	export PICO_COMPILER=pico_arm_gcc;                     \
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) $(CMAKE_FLAGS)
 
 
 .PHONY: cmake-create-debug-clang
 cmake-create-debug-clang: clean-build
-	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin; \
+	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi-18.1.3/bin; \
 	export PICO_COMPILER=pico_arm_clang;                     \
-	export PICO_CLIB=llvm-libc;                                 \
+	export xxPICO_CLIB=llvm-libc;                                 \
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
 	         $(if $(OPT_SIGROK),-DOPT_SIGROK=$(OPT_SIGROK)) \
 	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang
