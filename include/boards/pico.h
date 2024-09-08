@@ -20,6 +20,8 @@
 // For board detection
 #define RASPBERRYPI_PICO
 
+#define PICO_PLATFORM     "RP2040"
+
 // --- UART ---
 #ifndef PICO_DEFAULT_UART
 #define PICO_DEFAULT_UART 0

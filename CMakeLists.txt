@@ -112,9 +112,9 @@ string(TOUPPER ${PICO_BOARD} PICO_BOARD_UPPER)
 # set some project specifica
 #
 add_definitions(
-        -DPICO_CORE1_STACK_SIZE=0x400
+        -DPICO_CORE1_STACK_SIZE=0x800
         -DPICO_HEAP_SIZE=0x0
-        -DPICO_STACK_SIZE=0x400
+        -DPICO_STACK_SIZE=0x800
         -DTARGET_BOARD_${PICO_BOARD_UPPER}
         -DOPT_SPECIAL_CLK_FOR_PIO=${OPT_SPECIAL_CLK_FOR_PIO}
 )
@@ -142,7 +142,6 @@ add_executable(${PROJECT}
         src/get_config.c
         src/led.c
         src/main.c
-        src/misc_utils.c
         src/probe.c
         src/rtt_io.c
         src/sw_dp_pio.c

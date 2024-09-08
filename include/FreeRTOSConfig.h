@@ -129,6 +129,8 @@
     #define configUSE_CORE_AFFINITY             1
     #undef configUSE_TRACE_FACILITY
     #define configUSE_TRACE_FACILITY            1                                // required for setup of core affinity
+    #define configUSE_PASSIVE_IDLE_HOOK         0
+    #define configKERNEL_PROVIDED_STATIC_MEMORY 1
 #endif
 
 /* RP2040 specific */
