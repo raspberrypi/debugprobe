@@ -3,7 +3,7 @@
 # ATTENTION: to get the version number & git hash into the image, cmake-create-* has to be invoked.
 #
 VERSION_MAJOR        := 1
-VERSION_MINOR        := 22
+VERSION_MINOR        := 23
 
 BUILD_DIR            := _build
 PROJECT              := picoprobe
@@ -18,9 +18,12 @@ CMAKE_FLAGS += -DGIT_HASH=$(GIT_HASH)
 CMAKE_FLAGS += -DCMAKE_EXPORT_COMPILE_COMMANDS=True
 
 ifeq ($(PICO_BOARD),)
-    # pico|pico_w|pico_debug_probe
-    PICO_BOARD := pico
+    # pico|pico_w|pico_debug_probe|pico2
+    PICO_BOARD := pico2
 endif
+
+CMAKE_FLAGS += -DPICO_PLATFORM=rp2350
+BUILD_DIR            := _build
 
 
 
