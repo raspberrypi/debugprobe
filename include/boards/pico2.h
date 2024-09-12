@@ -20,7 +20,7 @@
 // For board detection
 #define RASPBERRYPI_PICO
 
-#define PICO_PLATFORM     "rp2350"
+#define PROBE_MCU         "RP2350"
 
 // --- UART ---
 #ifndef PICO_DEFAULT_UART

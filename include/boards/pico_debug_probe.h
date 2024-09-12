@@ -21,7 +21,7 @@
 // For board detection
 #define RASPBERRYPI_PICO_DEBUG_PROBE
 
-#define PICO_PLATFORM     "RP2040"
+#define PROBE_MCU         "RP2040"
 
 // --- LED ---
 #ifndef PICO_DEFAULT_LED_PIN
