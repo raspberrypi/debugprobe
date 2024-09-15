@@ -4,6 +4,17 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#ifdef PICO_RP2350
+
+#include <stdint.h>
+
+uint32_t target_rp2040_get_external_flash_size(void)
+{
+    return 2097152;
+}
+
+#else
+
 #include "hardware/regs/io_qspi.h"
 #include "hardware/structs/ssi.h"
 
@@ -252,3 +263,5 @@ uint32_t target_rp2040_get_external_flash_size(void)
 
     return res;
 }   // target_rp2040_get_external_flash_size
+
+#endif

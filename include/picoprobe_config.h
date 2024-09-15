@@ -67,7 +67,7 @@
 #endif
 
 
-// Base value of sys_clk in khz.  Must be <=125Mhz per RP2040 spec and a multiple of 24Mhz
+// Base value of sys_clk in MHz.  Must be <=125MHz per RP2040 spec and a multiple of 24MHz
 // to support integer divisors of the PIO clock and ADC clock (for sigrok).
 // Can be overridden via configuration.
 #ifdef OPT_MCU_OVERCLOCK_MHZ

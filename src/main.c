@@ -108,6 +108,12 @@
     #define BUILD_TYPE "debug build"
 #endif
 
+#if PICO_RP2350
+    #define PROBE_MCU "rp2350"
+#else
+    #define PROBE_MCU "rp2040"
+#endif
+
 
 
 // maximum number of expected FreeRTOS task (used for uxTaskGetSystemState())

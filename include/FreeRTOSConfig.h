@@ -132,6 +132,14 @@
     #define configUSE_PASSIVE_IDLE_HOOK         0
     #define configKERNEL_PROVIDED_STATIC_MEMORY 1
 #endif
+#if PICO_RP2350
+    #define configENABLE_MPU                        0
+    #define configENABLE_TRUSTZONE                  0
+    #define configRUN_FREERTOS_SECURE_ONLY          1
+    #define configENABLE_FPU                        1
+    #define configMAX_SYSCALL_INTERRUPT_PRIORITY    16
+    #define configCPU_CLOCK_HZ                      (120 * 1000000)
+#endif
 
 /* RP2040 specific */
 #define configSUPPORT_PICO_SYNC_INTEROP         1

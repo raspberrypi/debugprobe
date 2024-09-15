@@ -125,6 +125,8 @@
     #define CONFIG_BOARD() "Pico_W"
 #elif defined(TARGET_BOARD_PICO_DEBUG_PROBE)
     #define CONFIG_BOARD() "Pico Debug Probe"
+#elif defined(TARGET_BOARD_PICO2)
+    #define CONFIG_BOARD() "Pico2"
 #else
     #define CONFIG_BOARD() "UNKNOWN board"
 #endif
