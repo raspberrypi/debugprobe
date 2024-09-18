@@ -9,6 +9,9 @@
 //       SHOULD ONLY CONSIST OF PREPROCESSOR DIRECTIVES
 // -----------------------------------------------------
 
+// pico_cmake_set PICO_PLATFORM        = rp2040
+// pico_cmake_set PICO_CYW43_SUPPORTED = 1
+
 // This header may be included by other board headers as "boards/pico.h".
 // But normally this is included via "#include <pico/stdlib.h>" if PICO_BOARD is set accordingly.
 
@@ -17,6 +20,8 @@
 
 // For board detection
 #define RASPBERRYPI_PICO_W
+
+#define PICO_PLATFORM     "RP2040"
 
 // --- UART ---
 #ifndef PICO_DEFAULT_UART

@@ -42,7 +42,7 @@
 
 #include "tusb.h"
 #include "device/usbd_pvt.h"             // for usbd_defer_func
-#include "tinyusb/net_device.h"
+#include "class/net/net_device.h"
 
 #include "minIni/minIni.h"
 

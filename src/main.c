@@ -108,11 +108,6 @@
     #define BUILD_TYPE "debug build"
 #endif
 
-#if defined(__clang__)
-    // this is a clang/picolib tweak
-    FILE *const stdout = NULL;
-#endif
-
 
 
 // maximum number of expected FreeRTOS task (used for uxTaskGetSystemState())
@@ -519,7 +514,7 @@ int main(void)
     picoprobe_info("Features:\n");
     picoprobe_info(" %s\n", CONFIG_FEATURES());
     picoprobe_info("Probe HW:\n");
-    picoprobe_info("  %s @ %uMHz (%s core)\n", CONFIG_BOARD(), (unsigned)((probe_get_cpu_freq_khz() + 500) / 1000),
+    picoprobe_info("  %s (" PICO_PLATFORM ") @ %uMHz (%s core)\n", CONFIG_BOARD(), (unsigned)((probe_get_cpu_freq_khz() + 500) / 1000),
                                                (configNUMBER_OF_CORES > 1) ? "dual" : "single");
 #if OPT_NET
     picoprobe_info("IP:\n");
@@ -533,6 +528,8 @@ int main(void)
 #else
     picoprobe_info("  UNKNOWN\n");
 #endif
+    picoprobe_info("PICO-SDK:\n");
+    picoprobe_info("  " PICO_SDK_VERSION_STRING "\n");
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
     // it seems that TinyUSB does not like affinity setting in its thread, so the affinity of the USB thread is corrected in the task itself

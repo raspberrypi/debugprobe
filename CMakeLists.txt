@@ -71,13 +71,14 @@ endif()
 #
 # below (and above) order is important
 #
+
+set(PICO_BOARD_HEADER_DIRS  ${CMAKE_CURRENT_LIST_DIR}/include/boards)
 include(pico_sdk_import.cmake)
 
 
 set(FREERTOS_KERNEL_PATH ${CMAKE_CURRENT_LIST_DIR}/freertos)
 include(FreeRTOS_Kernel_import.cmake)
 
-set(PICO_BOARD_HEADER_DIRS  ${CMAKE_CURRENT_LIST_DIR}/include/boards)
 pico_sdk_init()
 
 #    message("--------- " ${PICO_LWIP_PATH})
@@ -111,9 +112,9 @@ string(TOUPPER ${PICO_BOARD} PICO_BOARD_UPPER)
 # set some project specifica
 #
 add_definitions(
-        -DPICO_CORE1_STACK_SIZE=0x400
+        -DPICO_CORE1_STACK_SIZE=0x800
         -DPICO_HEAP_SIZE=0x0
-        -DPICO_STACK_SIZE=0x400
+        -DPICO_STACK_SIZE=0x800
         -DTARGET_BOARD_${PICO_BOARD_UPPER}
         -DOPT_SPECIAL_CLK_FOR_PIO=${OPT_SPECIAL_CLK_FOR_PIO}
 )
@@ -141,7 +142,6 @@ add_executable(${PROJECT}
         src/get_config.c
         src/led.c
         src/main.c
-        src/misc_utils.c
         src/probe.c
         src/rtt_io.c
         src/sw_dp_pio.c
@@ -152,15 +152,14 @@ add_executable(${PROJECT}
 )
 
 target_sources(${PROJECT} PRIVATE
-        CMSIS_5/CMSIS/DAP/Firmware/Source/DAP.c
-        CMSIS_5/CMSIS/DAP/Firmware/Source/JTAG_DP.c
-        CMSIS_5/CMSIS/DAP/Firmware/Source/DAP_vendor.c
-        CMSIS_5/CMSIS/DAP/Firmware/Source/SWO.c
+        CMSIS_DAP/Firmware/Source/DAP.c
+        CMSIS_DAP/Firmware/Source/JTAG_DP.c
+        CMSIS_DAP/Firmware/Source/DAP_vendor.c
+        CMSIS_DAP/Firmware/Source/SWO.c
 )
 
 target_include_directories(${PROJECT} PRIVATE
-        CMSIS_5/CMSIS/DAP/Firmware/Include
-        CMSIS_5/CMSIS/Core/Include
+        CMSIS_DAP/Firmware/Include
         include
         src/lib
         src/lib/SEGGER
@@ -189,6 +188,7 @@ target_sources(${PROJECT} PRIVATE
 
 target_include_directories(${PROJECT} PRIVATE
         src/lib/daplink/daplink
+        src/lib/daplink/daplink/cmsis-core
         src/lib/daplink/daplink/cmsis-dap
         src/lib/daplink/daplink/drag-n-drop
         src/lib/daplink/daplink/interface
@@ -199,7 +199,7 @@ target_include_directories(${PROJECT} PRIVATE
         src/daplink-pico/board/rp2040
         src/daplink-pico/family/raspberry
         src/daplink-pico/hic_hal/raspberry/rp2040
-        $ENV{PICO_SDK_PATH}/src/common/boot_uf2/include
+        $ENV{PICO_SDK_PATH}/src/common/boot_uf2_headers/include
 )
 
 # Both are actually dummies to prevent the DAPLink files from throwing errors
@@ -307,15 +307,7 @@ if(NOT OPT_NET STREQUAL "")
     )
 
     if(OPT_NET STREQUAL "NCM")
-        # NCM: use own copy of ncm_device, original one is removed from target_sources() with a trick
-        # message("--------- " ${PICO_TINYUSB_PATH})
-        target_sources(${PROJECT} PRIVATE
-            src/net/tinyusb/ncm_device_new.c
-        )
-        set_source_files_properties(
-            ${PICO_TINYUSB_PATH}/src/class/net/ncm_device.c
-            PROPERTIES HEADER_FILE_ONLY ON
-        )
+        # NCM: in the meantime NCM is in tinyusb...
     else()
         # !NCM
         target_sources(${PROJECT} PRIVATE

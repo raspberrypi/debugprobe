@@ -9,6 +9,8 @@
 //       SHOULD ONLY CONSIST OF PREPROCESSOR DIRECTIVES
 // -----------------------------------------------------
 
+// pico_cmake_set PICO_PLATFORM=rp2040
+
 // This header may be included by other board headers as "boards/pico.h".
 // But normally this is included via "#include <pico/stdlib.h>" if PICO_BOARD is set accordingly.
 
@@ -17,6 +19,8 @@
 
 // For board detection
 #define RASPBERRYPI_PICO
+
+#define PICO_PLATFORM     "RP2040"
 
 // --- UART ---
 #ifndef PICO_DEFAULT_UART
