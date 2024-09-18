@@ -108,6 +108,12 @@
     #define BUILD_TYPE "debug build"
 #endif
 
+#if PICO_RP2350
+    #define PROBE_MCU "rp2350"
+#else
+    #define PROBE_MCU "rp2040"
+#endif
+
 
 
 // maximum number of expected FreeRTOS task (used for uxTaskGetSystemState())
@@ -514,7 +520,7 @@ int main(void)
     picoprobe_info("Features:\n");
     picoprobe_info(" %s\n", CONFIG_FEATURES());
     picoprobe_info("Probe HW:\n");
-    picoprobe_info("  %s (" PICO_PLATFORM ") @ %uMHz (%s core)\n", CONFIG_BOARD(), (unsigned)((probe_get_cpu_freq_khz() + 500) / 1000),
+    picoprobe_info("  %s (" PROBE_MCU ") @ %uMHz (%s core)\n", CONFIG_BOARD(), (unsigned)((probe_get_cpu_freq_khz() + 500) / 1000),
                                                (configNUMBER_OF_CORES > 1) ? "dual" : "single");
 #if OPT_NET
     picoprobe_info("IP:\n");

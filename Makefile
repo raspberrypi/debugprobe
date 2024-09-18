@@ -3,7 +3,7 @@
 # ATTENTION: to get the version number & git hash into the image, cmake-create-* has to be invoked.
 #
 VERSION_MAJOR        := 1
-VERSION_MINOR        := 22
+VERSION_MINOR        := 23
 
 BUILD_DIR            := _build
 PROJECT              := picoprobe
@@ -18,8 +18,8 @@ CMAKE_FLAGS += -DGIT_HASH=$(GIT_HASH)
 CMAKE_FLAGS += -DCMAKE_EXPORT_COMPILE_COMMANDS=True
 
 ifeq ($(PICO_BOARD),)
-    # pico|pico_w|pico_debug_probe
-    PICO_BOARD := pico
+    # pico|pico_w|pico_debug_probe|pico2
+    PICO_BOARD := pico2
 endif
 
 
@@ -107,6 +107,11 @@ create-images:
 	$(MAKE) cmake-create-release PICO_BOARD=pico_debug_probe
 	$(MAKE) all
 	cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-picodebugprobe-$(GIT_HASH).uf2
+	#
+	$(MAKE) cmake-create-release PICO_BOARD=pico2
+	$(MAKE) all
+	mkdir -p images
+	cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-pico-$(GIT_HASH).uf2
 	#
 	# put development environment in a clean state
 	$(MAKE) cmake-create-debug

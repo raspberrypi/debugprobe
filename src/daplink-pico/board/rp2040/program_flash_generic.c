@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "hardware/regs/io_qspi.h"
+#include "hardware/helper.h"
 #include "hardware/structs/ssi.h"
+#include "hardware/regs/io_qspi.h"
 
 // ---------------------------------------------------------------------------------------------------------------------
 // YAPicoprobe definitions
