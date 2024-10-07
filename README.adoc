@@ -18,6 +18,10 @@ the established development process was a little bit hindering.
 
 Finally there is **Y**et **A**nother **Picoprobe** around, the YAPicoprobe.
 
+NOTE: Pico2 / RP2350 can also be used as probe hardware.
+      This is an experimental feature.
+      
+WARNING: Pico2 / RP2350 targets are currently not supported.
 
 
 ## Features
@@ -53,12 +57,10 @@ Finally there is **Y**et **A**nother **Picoprobe** around, the YAPicoprobe.
 * other SWD compatible (Arm) devices with limitations in MSC access
 
 ### Supported Probe Hardware
-* https://www.raspberrypi.com/documentation/microcontrollers/raspberry-pi-pico.html[Raspberry Pi Pico and Pico W] +
+* https://www.raspberrypi.com/documentation/microcontrollers/raspberry-pi-pico.html[Raspberry Pi Pico, Pico W and Pico2] +
   If you have to choose between a Pico and a Pico W, I'ld recommend the simple Pico, because Pico W does not
   add any benefits
 * https://www.raspberrypi.com/documentation/microcontrollers/debug-probe.html[Pico Debug Probe]
-  
-  
 
 Other RP2040 hardware will work as well, e.g. https://mcuoneclipse.com/2023/04/08/open-source-picolink-raspberry-pi-rp2040-cmsis-dap-debug-probe/[picoLink]
 is happy with the firmware image for the Pico.
@@ -128,7 +130,7 @@ Those settings are:
 
 |pyOCD / CMSIS-DAPv2
 |DAP_PACKET_COUNT=1 +
-DAP_PACKET_SIZE=1024
+DAP_PACKET_SIZE=512
 
 |OpenOCD / CMSIS-DAPv2
 |DAP_PACKET_COUNT=2 +

@@ -21,7 +21,9 @@
 extern char __start_for_target_connect[];
 extern char __stop_for_target_connect[];
 
-#define FOR_TARGET_RP2040_CODE        __attribute__((noinline, section("for_target_connect")))
+// Attributes for RP2040 target code
+// NOTE: this needs PICO_NO_CMSE to be set
+#define FOR_TARGET_RP2040_CODE        __attribute__((noinline, section("for_target_connect"), target("arch=armv6-m")))
 
 #define TARGET_RP2040_CODE            (TARGET_RP2040_RAM_START + 0x10000)
 #define TARGET_RP2040_FLASH_SIZE      ((uint32_t)rp2040_flash_size - (uint32_t)__start_for_target_connect + TARGET_RP2040_CODE)

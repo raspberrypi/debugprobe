@@ -56,7 +56,7 @@ static uint8_t swd_read_word16(uint32_t addr, uint16_t *val)
 //
 // find a function in the bootrom, see RP2040 datasheet, chapter 2.8
 //
-uint32_t rp2040_target_find_rom_func(char ch1, char ch2)
+static uint32_t rp2040_target_find_rom_func(char ch1, char ch2)
 {
     uint16_t tag = (ch2 << 8) | ch1;
 
@@ -109,6 +109,7 @@ bool rp2040_target_call_function(uint32_t addr, uint32_t args[], int argc, uint3
 {
     static uint32_t trampoline_addr = 0;  // trampoline is fine to get the return value of the callee
     static uint32_t trampoline_end;
+    bool interrupted = false;
 
     if ( !target_core_halt())
         return false;
@@ -172,7 +173,6 @@ bool rp2040_target_call_function(uint32_t addr, uint32_t args[], int argc, uint3
     // Wait until core is halted (again)
     {
         const uint32_t timeout_us = 5000000;
-        bool interrupted = false;
         uint32_t start_us = time_us_32();
 
         while ( !target_core_is_halted()) {
@@ -198,16 +198,19 @@ bool rp2040_target_call_function(uint32_t addr, uint32_t args[], int argc, uint3
         display_reg(i);
 #endif
 
-    if (result != NULL) {
+    if (result != NULL  &&  !interrupted) {
         // fetch result of function (r0)
-        if ( !swd_read_core_register(0, result))
+        if ( !swd_read_core_register(0, result)) {
+            picoprobe_error("rp2040_target_call_function: cannot read core register 0\n");
             return false;
+        }
     }
 
     {
         uint32_t r15;
 
         if ( !swd_read_core_register(15, &r15)) {
+            picoprobe_error("rp2040_target_call_function: cannot read core register 15\n");
             return false;
         }
 

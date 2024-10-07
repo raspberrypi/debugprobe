@@ -86,7 +86,6 @@ typedef void *(*rom_flash_erase_fn)(uint32_t addr, size_t count, uint32_t block_
 typedef void *(*rom_flash_prog_fn)(uint32_t addr, const uint8_t *data, size_t count);
 
 
-uint32_t rp2040_target_find_rom_func(char ch1, char ch2);
 bool rp2040_target_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t *result);
 
 

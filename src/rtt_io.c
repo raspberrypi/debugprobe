@@ -597,10 +597,15 @@ void rtt_io_thread(void *ptr)
                 picoprobe_info("Target part       : %s\n", g_board_info.target_cfg->target_part_number);
                 //picoprobe_info("Board vendor      : %s\n", g_board_info.board_vendor);
                 //picoprobe_info("Board name        : %s\n", g_board_info.board_name);
-                picoprobe_info("Flash             : 0x%08x..0x%08x (%uK)\n",
-                               (unsigned)(g_board_info.target_cfg->flash_regions[0].start),
-                               (unsigned)(g_board_info.target_cfg->flash_regions[0].end - 1),
-                               (unsigned)((g_board_info.target_cfg->flash_regions[0].end - g_board_info.target_cfg->flash_regions[0].start) / 1024));
+                if (g_board_info.target_cfg->flash_regions[0].start == g_board_info.target_cfg->flash_regions[0].end) {
+                    picoprobe_error("Flash             : NO FLASH DETECTED\n");
+                }
+                else {
+                    picoprobe_info("Flash             : 0x%08x..0x%08x (%uK)\n",
+                                   (unsigned)(g_board_info.target_cfg->flash_regions[0].start),
+                                   (unsigned)(g_board_info.target_cfg->flash_regions[0].end - 1),
+                                   (unsigned)((g_board_info.target_cfg->flash_regions[0].end - g_board_info.target_cfg->flash_regions[0].start) / 1024));
+                }
                 picoprobe_info("RAM               : 0x%08x..0x%08x (%uK)\n",
                                (unsigned)(g_board_info.target_cfg->ram_regions[0].start),
                                (unsigned)(g_board_info.target_cfg->ram_regions[0].end - 1),

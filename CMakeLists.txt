@@ -67,6 +67,10 @@ if(OPT_PROBE_DEBUG_OUT STREQUAL "UART")
     set(PICO_STDIO_UART 1)
 endif()
 
+#
+# CMSE must be disabled, otherwise FOR_TARGET_RP2040_CODE does not work
+set(PICO_NO_CMSE true)
+
 
 #
 # below (and above) order is important
