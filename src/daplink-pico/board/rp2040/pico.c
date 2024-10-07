@@ -65,12 +65,16 @@ const uint32_t uf2_id_nrf52     = 0x1b57745f;
 const uint32_t uf2_id_nrf52833  = 0x621e937a;
 const uint32_t uf2_id_nrf52840  = 0xada52840;
 const uint32_t uf2_id_rp2040    = 0xe48bff56;
+const uint32_t uf2_id_rp2350    = 0xe48bff5b;     // Non-secure Arm image
+//const uint32_t uf2_id_rp2350    = 0xe48bff5a;     // RISC-V image
+//const uint32_t uf2_id_rp2350    = 0xe48bff59;     // Secure Arm image
 
 // IDs for board identification (but whatfor?)
 #define board_id_nrf52832_dk      "1101"
 #define board_id_nrf52833_dk      "1101"
 #define board_id_nrf52840_dk      "1102"
 #define board_id_rp2040_pico      "7f01"
+#define board_id_rp2350_pico2     "7f02"
 
 // here we can modify the otherwise constant board/target information
 target_cfg_t target_device;
@@ -86,7 +90,7 @@ target_cfg_t target_device_rp2040 = {
     .sectors_info                   = NULL,
     .sector_info_length             = 0,
     .flash_regions[0].start         = 0x10000000,
-    .flash_regions[0].end           = 0x10000000 + MB(2),
+    .flash_regions[0].end           = 0x10000000,
     .flash_regions[0].flags         = kRegionIsDefault,
     .flash_regions[0].flash_algo    = NULL,
     .ram_regions[0].start           = 0x20000000,
