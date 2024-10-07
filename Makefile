@@ -111,7 +111,7 @@ create-images:
 	$(MAKE) cmake-create-release PICO_BOARD=pico2
 	$(MAKE) all
 	mkdir -p images
-	cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-pico-$(GIT_HASH).uf2
+	cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-pico2-$(GIT_HASH).uf2
 	#
 	# put development environment in a clean state
 	$(MAKE) cmake-create-debug
