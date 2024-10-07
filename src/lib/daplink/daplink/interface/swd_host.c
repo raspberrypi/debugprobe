@@ -802,7 +802,7 @@ static uint8_t swd_read_idcode(uint32_t *id)
     }
 
     *id = (tmp_out[3] << 24) | (tmp_out[2] << 16) | (tmp_out[1] << 8) | tmp_out[0];
-//    printf("swd_read_idcode: 0x%08lx\n", *id);   // TODO wieder raus 0x2ba01477=nRF52840, 0x0bc12477=RP2040
+//    printf("swd_read_idcode: 0x%08lx\n", *id);
     return 1;
 }
 

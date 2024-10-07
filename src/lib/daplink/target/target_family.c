@@ -60,6 +60,7 @@ __WEAK const target_family_descriptor_t g_ambiq_ama3b1kk = {0};
 __WEAK const target_family_descriptor_t g_maxim_max3262x_family = {0};
 __WEAK const target_family_descriptor_t g_maxim_max3266x_family = {0};
 __WEAK const target_family_descriptor_t g_raspberry_rp2040_family = {0};
+__WEAK const target_family_descriptor_t g_raspberry_rp2350_family = {0};
 
 //! @brief Terminator value for g_families list.
 //!
@@ -93,6 +94,7 @@ const target_family_descriptor_t *g_families[] = {
     &g_maxim_max3262x_family,
     &g_maxim_max3266x_family,
     &g_raspberry_rp2040_family,
+    &g_raspberry_rp2350_family,
     FAMILY_LIST_TERMINATOR // list terminator
 };
 
