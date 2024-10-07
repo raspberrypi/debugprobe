@@ -25,7 +25,7 @@
 #include <stdint.h>
 #include "target_config.h"
 #include "target_family.h"
-#include "virtual_fs.h"
+#include "../drag-n-drop/virtual_fs.h"
 
 //! @brief Current board info version.
 //!
@@ -36,7 +36,7 @@ enum _board_info_version {
 
 //! @brief Flags for board_info
 enum _board_info_flags {
-	kEnablePageErase = (1 << 0),            /*!< Enable page programming and sector erase for drag and drop */
+    kEnablePageErase = (1 << 0),            /*!< Enable page programming and sector erase for drag and drop */
     kEnableUnderResetConnect = (1 << 1),    /*!< Enable under reset connection when enabling debug mode */
 };
 
