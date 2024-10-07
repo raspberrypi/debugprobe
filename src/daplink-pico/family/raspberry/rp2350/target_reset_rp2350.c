@@ -58,23 +58,7 @@ extern void osDelay(uint32_t ticks);
 /*************************************************************************************************/
 
 
-/// taken from pico_debug and output of pyODC
-static void swd_from_dormant(void)
-{
-    const uint8_t ones_seq[] = {0xff};
-    const uint8_t selection_alert_seq[] = {0x92, 0xf3, 0x09, 0x62, 0x95, 0x2d, 0x85, 0x86, 0xe9, 0xaf, 0xdd, 0xe3, 0xa2, 0x0e, 0xbc, 0x19};
-    const uint8_t zero_seq[] = {0x00};
-    const uint8_t act_seq[] = { 0x1a };
-
-    printf("---swd_from_dormant()\n");
-
-    SWJ_Sequence(  8, ones_seq);
-    SWJ_Sequence(128, selection_alert_seq);
-    SWJ_Sequence(  4, zero_seq);
-    SWJ_Sequence(  8, act_seq);
-}   // swd_from_dormant
-
-
+#if 0
 /// taken from pico_debug and output of pyODC
 static void swd_line_reset(void)
 {
@@ -84,8 +68,35 @@ static void swd_line_reset(void)
 
     SWJ_Sequence( 52, reset_seq);
 }   // swd_line_reset
+#endif
 
 
+static void swd_from_dormant(void)
+/**
+ * Wake up SWD.
+ * Taken from RP2350 datasheet, "3.5.1 Connecting to the SW-DP"
+ */
+{
+    const uint8_t ones_seq[]            = {0xff};
+    const uint8_t selection_alert_seq[] = {0x92, 0xf3, 0x09, 0x62, 0x95, 0x2d, 0x85, 0x86, 0xe9, 0xaf, 0xdd, 0xe3, 0xa2, 0x0e, 0xbc, 0x19};
+    const uint8_t zero_seq[]            = {0x00};
+    const uint8_t act_seq[]             = { 0x1a };
+    const uint8_t reset_seq[]           = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x03};
+    uint32_t rv;
+
+    printf("---swd_from_dormant()\n");
+
+    SWJ_Sequence(  8, ones_seq);
+    SWJ_Sequence(128, selection_alert_seq);
+    SWJ_Sequence(  4, zero_seq);
+    SWJ_Sequence(  8, act_seq);
+    SWJ_Sequence( 52, reset_seq);
+
+    swd_read_dp(DP_IDCODE, &rv);
+}   // swd_from_dormant
+
+
+#if 0
 static void swd_targetsel(uint8_t core)
 {
     static const uint8_t out1[]        = {0x99};
@@ -115,12 +126,13 @@ static void swd_targetsel(uint8_t core)
         SWD_Sequence(33, core_rescue, NULL);
     SWD_Sequence(2, out2, NULL);
 }   // swd_targetsel
+#endif
 
 
 /**
- * @brief Does the basic core select and then reads DP_IDCODE as required
+ * @brief Does the basic core select and then reads      as required
  *
- * See also ADIv5.2 specification, "B4.3.4 Target selection protocol, SWD protocol version 2"
+ * See also ADIv6.0 specification, "B4.3.4 Target selection protocol, SWD protocol version 2"
  * @param _core
  * @return true -> ok
  */
@@ -130,28 +142,19 @@ static bool dp_core_select(uint8_t _core)
 
     printf("---dp_core_select(%u)\n", _core);
 
-#if 0 ////
     if (core == _core) {
         return true;
     }
-#endif
 
-    swd_line_reset();
-    swd_targetsel(_core);
+    //swd_line_reset();
+    //swd_targetsel(_core);
 
 #if 0
     CHECK_OK_BOOL(swd_read_dp(DP_IDCODE, &rv));
-#else
-    {
-        _Bool ok = swd_read_dp(0x00U, &rv);
-        if ( !ok) {
-            printf("---dp_core_select !ok: 0x%lx\n", rv);
-            return 0;
-        }
-    }
+    printf("---  id(%u)=0x%08lx\n", _core, rv);   // 0x4c013477 is the RP2350
+    CHECK_OK_BOOL(swd_read_dp(DP_IDCODE, &rv));
+    printf("---  id(%u)=0x%08lx\n", _core, rv);   // 0x4c013477 is the RP2350
 #endif
-    printf("---  id(%u)=0x%08lx\n", _core, rv);   // 0x0bc12477 is the RP2040
-                                                  // 0x4c013477 is the RP2350
 
     core = _core;
     return true;
@@ -204,6 +207,7 @@ static bool rp2350_swd_init_debug(uint8_t core)
     swd_from_dormant();
 
     do {
+        printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
         if (do_abort) {
             // do an abort on stale target, then reset the device
             swd_write_dp(DP_ABORT, DAPABORT);
@@ -214,21 +218,15 @@ static bool rp2350_swd_init_debug(uint8_t core)
             do_abort = false;
         }
 
-        picoprobe_info("aaa %d\n", __LINE__);
         CHECK_ABORT( dp_core_select(core) );
-        picoprobe_info("aaa %d\n", __LINE__);
 
         CHECK_ABORT( swd_clear_errors() );
-        picoprobe_info("aaa %d\n", __LINE__);
 
         CHECK_ABORT( swd_write_dp(DP_SELECT, 1) );                             // force dap_state.select to "0"
-        picoprobe_info("aaa %d\n", __LINE__);
         CHECK_ABORT( swd_write_dp(DP_SELECT, 0) );
-        picoprobe_info("aaa %d\n", __LINE__);
 
         // Power up
         CHECK_ABORT( swd_write_dp(DP_CTRL_STAT, CSYSPWRUPREQ | CDBGPWRUPREQ) );
-        picoprobe_info("aaa %d\n", __LINE__);
 
         for (i = 0; i < timeout; i++) {
             CHECK_ABORT_BREAK( swd_read_dp(DP_CTRL_STAT, &tmp));
@@ -238,20 +236,14 @@ static bool rp2350_swd_init_debug(uint8_t core)
             }
         }
         CHECK_ABORT( i != timeout  &&  do_abort == 0 );
-        picoprobe_info("aaa %d\n", __LINE__);
 
         CHECK_ABORT( swd_write_dp(DP_CTRL_STAT, CSYSPWRUPREQ | CDBGPWRUPREQ | TRNNORMAL | MASKLANE) );
-        picoprobe_info("aaa %d\n", __LINE__);
 
         CHECK_ABORT( swd_write_ap(AP_CSW, 1) );                                // force dap_state.csw to "0"
-        picoprobe_info("aaa %d\n", __LINE__);
         CHECK_ABORT( swd_write_ap(AP_CSW, 0) );
-        picoprobe_info("aaa %d\n", __LINE__);
 
         CHECK_ABORT( swd_read_ap(0xfc, &tmp) );                                // AP IDR: must it be 0x4770031?
-        picoprobe_info("aaa %d\n", __LINE__);
         CHECK_ABORT( swd_write_dp(DP_SELECT, 0) );
-        picoprobe_info("aaa %d\n", __LINE__);
 
         return true;
 
