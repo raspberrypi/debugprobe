@@ -39,13 +39,15 @@
  *      item?  Anyway I have decided to put some probe stuff into this files.
  */
 
+#include <stdio.h>
+
 #include "DAP_config.h"
 #include "DAP.h"
 #include "swd_host.h"
 
 #include "target_family.h"
 #include "target_board.h"
-#include "target_rp2040.h"
+#include "target_rpXXXX.h"
 #include "program_flash_generic.h"
 
 #include "probe.h"
@@ -55,6 +57,7 @@
 
 // these are IDs for target identification, required registers to identify may/do differ
 const uint32_t swd_id_rp2040    = (0x927) + (0x0002 << 12);    // taken from RP2040 SDK platform.c
+const uint32_t swd_id_rp2350    = (0x927) + (0x0004 << 12);    // taken from RP2350 SDK platform.c
 const uint32_t swd_id_nrf52832  = 0x00052832;                  // see FICR.INFO.PART
 const uint32_t swd_id_nrf52833  = 0x00052833;
 const uint32_t swd_id_nrf52840  = 0x00052840;
