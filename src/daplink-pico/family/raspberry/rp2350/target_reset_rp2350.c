@@ -37,6 +37,7 @@
 #endif
 
 
+extern target_family_descriptor_t g_raspberry_rp2350_family;
 static const uint32_t soft_reset = SYSRESETREQ;
 
 
@@ -93,6 +94,7 @@ static void swd_from_dormant(void)
     SWJ_Sequence( 52, reset_seq);
 
     swd_read_dp(DP_IDCODE, &rv);
+    printf("---  id(%u)=0x%08lx\n", core, rv);   // 0x4c013477 is the RP2350
 }   // swd_from_dormant
 
 
@@ -138,13 +140,15 @@ static void swd_targetsel(uint8_t core)
  */
 static bool dp_core_select(uint8_t _core)
 {
-    uint32_t rv;
-
     printf("---dp_core_select(%u)\n", _core);
 
     if (core == _core) {
         return true;
     }
+
+    g_raspberry_rp2350_family.apsel = 0x2d00;       // TODO where from is this xd00 ?  taken from openocd
+    if (_core == 1)
+        g_raspberry_rp2350_family.apsel = 0x4d00;
 
     //swd_line_reset();
     //swd_targetsel(_core);
@@ -604,8 +608,9 @@ bool target_core_unhalt_with_masked_ints(void)
 
 //----------------------------------------------------------------------------------------------------------------------
 
-const target_family_descriptor_t g_raspberry_rp2350_family = {
+target_family_descriptor_t g_raspberry_rp2350_family = {
     .family_id                = TARGET_RP2350_FAMILY_ID,
     .swd_set_target_reset     = &rp2350_swd_set_target_reset,
     .target_set_state         = &rp2350_target_set_state,
+    .apsel = 0 //x2d00
 };

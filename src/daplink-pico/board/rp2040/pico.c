@@ -121,7 +121,7 @@ target_cfg_t target_device_rp2350 = {
     .rt_family_id                   = TARGET_RP2350_FAMILY_ID,
     .rt_board_id                    = board_id_rp2350_pico2,
     .rt_uf2_id                      = uf2_id_rp2350,
-    .rt_max_swd_khz                 = 25000,
+    .rt_max_swd_khz                 = 50000,
     .rt_swd_khz                     = 15000,
 };
 
@@ -244,7 +244,7 @@ void pico_prerun_board_config(void)
 
             r = swd_read_word(0x40000000, &chip_id);
             printf("!!!!!!!!!!!!!!!!!! chip_id: 0x%lx\n", chip_id);
-            if (r  &&  (chip_id & 0x0fffffff) == 0x7003) { // swd_id_rp2350) {
+            if (r  &&  (chip_id & 0x0fffffff) == swd_id_rp2350) {
                 target_found = true;
                 strcpy(board_vendor, "RaspberryPi");
                 strcpy(board_name, "Pico2");
