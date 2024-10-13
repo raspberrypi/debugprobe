@@ -225,7 +225,7 @@ static bool rp2040_swd_init_debug(uint8_t core)
         CHECK_ABORT( swd_write_ap(AP_CSW, 1) );                                // force dap_state.csw to "0"
         CHECK_ABORT( swd_write_ap(AP_CSW, 0) );
 
-        CHECK_ABORT( swd_read_ap(0xfc, &tmp) );                                // AP IDR: must it be 0x4770031?
+        CHECK_ABORT( swd_read_ap(AP_IDR, &tmp) );                                // AP IDR: must it be 0x4770031?
         CHECK_ABORT( swd_write_dp(DP_SELECT, 0) );
 
         return true;
