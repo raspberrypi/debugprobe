@@ -85,7 +85,7 @@ static void swd_from_dormant(void)
     const uint8_t reset_seq[]           = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x03};
     uint32_t rv;
 
-    printf("---swd_from_dormant()\n");
+//    printf("---swd_from_dormant()\n");
 
     SWJ_Sequence(  8, ones_seq);
     SWJ_Sequence(128, selection_alert_seq);
@@ -94,7 +94,7 @@ static void swd_from_dormant(void)
     SWJ_Sequence( 52, reset_seq);
 
     swd_read_dp(DP_IDCODE, &rv);
-    printf("---  id(%u)=0x%08lx\n", core, rv);   // 0x4c013477 is the RP2350
+//    printf("---  id(%u)=0x%08lx\n", core, rv);   // 0x4c013477 is the RP2350
 }   // swd_from_dormant
 
 
@@ -140,7 +140,7 @@ static void swd_targetsel(uint8_t core)
  */
 static bool dp_core_select(uint8_t _core)
 {
-    printf("---dp_core_select(%u)\n", _core);
+//    printf("---dp_core_select(%u)\n", _core);
 
     if (core == _core) {
         return true;
@@ -165,6 +165,85 @@ static bool dp_core_select(uint8_t _core)
 }   // dp_core_select
 
 
+// TODO desperate tries to read ROM table
+#if 0
+static uint32_t cnt;
+static void dump_rom_tables_ap(uint32_t apsel, uint32_t offs, uint32_t len)
+{
+    uint32_t apsel_save = g_raspberry_rp2350_family.apsel;
+
+    if (apsel == 0  &&  offs == 0)
+        ++cnt;
+    if (cnt != 5)
+        return;
+
+    osDelay(100);
+    printf("----------------------------------- 0x%08lx\n", apsel);
+    g_raspberry_rp2350_family.apsel = apsel;
+
+    for (uint32_t n = 0;  n < len;  n += 4) {
+        uint32_t mem;
+        uint8_t r;
+
+        osDelay(1);
+
+        r = swd_read_ap(offs + n, &mem);
+//        r = swd_read_word(offs + n, &mem);
+//        r = swd_read_dp(n, &mem);
+
+        printf("     0x%04lx:0x%08lx (%d)", offs + n, mem, r);
+        if ((n & 0x0f) == 0x0c)
+            printf("\n");
+    }
+    printf("\n");
+
+    g_raspberry_rp2350_family.apsel = apsel_save;
+}   // dump_rom_tables_ap
+
+
+static void dump_rom_tables(uint32_t apsel, uint32_t offs, uint32_t len)
+{
+    uint32_t apsel_save = g_raspberry_rp2350_family.apsel;
+
+    if (cnt != 5)
+        return;
+
+    osDelay(100);
+    printf("----------------------------------- 0x%08lx\n", apsel);
+    g_raspberry_rp2350_family.apsel = apsel;
+
+#if 1
+    for (uint32_t n = 0;  n < len;  n += 4) {
+        uint32_t mem;
+        uint8_t r;
+
+        r = swd_read_word(offs + n, &mem);
+
+        printf("     0x%04lx:0x%08lx (%d)", offs + n, mem, r);
+        if ((n & 0x0f) == 0x0c) {
+            osDelay(10);
+            printf("\n");
+        }
+    }
+    printf("\n");
+#else
+    uint8_t buf[256];
+
+    swd_read_memory(offs, buf, sizeof(buf));
+    for (uint32_t n = 0;  n < sizeof(buf);  ++n) {
+        if ((n & 0x0f) == 0) {
+            printf("\n    0x%08lx:", offs + n);
+        }
+        printf(" %02x", buf[n]);
+    }
+    printf("\n");
+#endif
+
+    g_raspberry_rp2350_family.apsel = apsel_save;
+}   // dump_rom_tables
+#endif
+
+
 /**
  * Clear all HW breakpoints.
  * \pre
@@ -172,12 +251,12 @@ static bool dp_core_select(uint8_t _core)
  */
 static bool dp_disable_breakpoint()
 {
-    static const uint32_t bp_reg[4] = { 0xE0002008, 0xE000200C, 0xE0002010, 0xE0002014 };
+    static const uint32_t bp_reg[8] = { 0xE0002008, 0xE000200C, 0xE0002010, 0xE0002014, 0xE0002018, 0xE000201c, 0xE0002020, 0xE0002024,  };
 
-    printf("---dp_disable_breakpoint()\n");
+//    printf("---dp_disable_breakpoint()\n");
 
     // Clear each of the breakpoints...
-    for (int i = 0;  i < 4;  ++i) {
+    for (int i = 0;  i < 8;  ++i) {
         CHECK_OK_BOOL(swd_write_word(bp_reg[i], 0));
     }
     return true;
@@ -205,13 +284,13 @@ static bool rp2350_swd_init_debug(uint8_t core)
     int8_t retries = 4;
     bool do_abort = false;
 
-    printf("rp2350_swd_init_debug(%d)\n", core);
+//    printf("rp2350_swd_init_debug(%d)\n", core);
 
     swd_init();
     swd_from_dormant();
 
     do {
-        printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+//        printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
         if (do_abort) {
             // do an abort on stale target, then reset the device
             swd_write_dp(DP_ABORT, DAPABORT);
@@ -246,8 +325,19 @@ static bool rp2350_swd_init_debug(uint8_t core)
         CHECK_ABORT( swd_write_ap(AP_CSW, 1) );                                // force dap_state.csw to "0"
         CHECK_ABORT( swd_write_ap(AP_CSW, 0) );
 
-        CHECK_ABORT( swd_read_ap(0xfc, &tmp) );                                // AP IDR: must it be 0x4770031?
+        CHECK_ABORT( swd_read_ap(AP_IDR, &tmp) );                                // AP IDR: must it be 0x4770031?
+//        printf("##########1 0x%08lx\n", tmp);
+        CHECK_ABORT( swd_read_ap(AP_ROM, &tmp) );                                // AP IDR: must it be 0x4770031?
+//        printf("##########2 0x%08lx\n", tmp);
         CHECK_ABORT( swd_write_dp(DP_SELECT, 0) );
+
+#if 0
+        // obtain some info about the ROM table
+        // openocd -f interface/cmsis-dap.cfg -f ./rp2350.cfg -c "init; dap info"
+        dump_rom_tables_ap(0x00000000, 0x00000000, 256);
+        dump_rom_tables_ap(0x00000000, 0xe0002003, 64);
+        dump_rom_tables(0x00002d00, 0x00002fd0, 0x400);
+#endif
 
         return true;
 
@@ -271,7 +361,7 @@ static bool rp2350_swd_set_target_state(uint8_t core, target_state_t state)
     uint32_t val;
     int8_t ap_retries = 2;
 
-    printf("+++++++++++++++ rp2350_swd_set_target_state(%d, %d)\n", core, state);
+//    printf("+++++++++++++++ rp2350_swd_set_target_state(%d, %d)\n", core, state);
 
     /* Calling swd_init prior to entering RUN state causes operations to fail. */
     if (state != RUN) {
@@ -456,7 +546,7 @@ static void rp2350_swd_set_target_reset(uint8_t asserted)
     extern void probe_reset_pin_set(uint32_t);
 
     // set HW signal accordingly, asserted means "active"
-    printf("----- rp2350_swd_set_target_reset(%d)\n", asserted);
+//    printf("----- rp2350_swd_set_target_reset(%d)\n", asserted);
     probe_reset_pin_set(asserted ? 0 : 1);
 }   // rp2350_swd_set_target_reset
 
@@ -473,7 +563,7 @@ static uint8_t rp2350_target_set_state(target_state_t state)
 {
     uint8_t r = false;
 
-    printf("----- rp2350_target_set_state(%d)\n", state);
+//    printf("----- rp2350_target_set_state(%d)\n", state);
 
     switch (state) {
         case RESET_HOLD:
