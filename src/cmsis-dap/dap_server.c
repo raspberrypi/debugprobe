@@ -63,11 +63,13 @@
  *
  * OpenOCD 0.11: packet size of 1024 and 2 buffers ok
  * OpenOCD 0.12: 1024 no longer working, but 512 and 2 buffers is ok
+ *
+ * 2024-10-13 - confusing... openocd and so on work only with 1 packet
  */
-#define _DAP_PACKET_COUNT_OPENOCD   2
+#define _DAP_PACKET_COUNT_OPENOCD   1
 #define _DAP_PACKET_SIZE_OPENOCD    512
 #define _DAP_PACKET_COUNT_PROBERS   8
-#define _DAP_PACKET_SIZE_PROBERS    1024
+#define _DAP_PACKET_SIZE_PROBERS    512
 #define _DAP_PACKET_COUNT_PYOCD     1
 #define _DAP_PACKET_SIZE_PYOCD      512                     // pyocd does not like packets > 128 if COUNT != 1,
                                                             //    there seems to be also a problem with flashing if
@@ -82,19 +84,23 @@
 uint8_t  dap_packet_count = _DAP_PACKET_COUNT_UNKNOWN;
 uint16_t dap_packet_size  = _DAP_PACKET_SIZE_UNKNOWN;
 
-#if (CFG_TUD_VENDOR_RX_BUFSIZE < _DAP_PACKET_SIZE_OPENOCD  ||  CFG_TUD_VENDOR_RX_BUFSIZE < _DAP_PACKET_SIZE_PYOCD)
+#define BUFFER_MAXSIZE_1 MAX(_DAP_PACKET_COUNT_OPENOCD*_DAP_PACKET_SIZE_OPENOCD, _DAP_PACKET_COUNT_PROBERS*_DAP_PACKET_SIZE_PROBERS)
+#define BUFFER_MAXSIZE_2 MAX(_DAP_PACKET_COUNT_PYOCD  *_DAP_PACKET_SIZE_PYOCD,   _DAP_PACKET_COUNT_UNKNOWN*_DAP_PACKET_SIZE_UNKNOWN)
+#define BUFFER_MAXSIZE   MAX(BUFFER_MAXSIZE_1, BUFFER_MAXSIZE_2)
+
+#define PACKET_MAXSIZE_1 MAX(_DAP_PACKET_SIZE_OPENOCD, _DAP_PACKET_SIZE_PROBERS)
+#define PACKET_MAXSIZE_2 MAX(_DAP_PACKET_SIZE_PYOCD,   _DAP_PACKET_SIZE_UNKNOWN)
+#define PACKET_MAXSIZE   MAX(PACKET_MAXSIZE_1, PACKET_MAXSIZE_2)
+
+#if (CFG_TUD_VENDOR_RX_BUFSIZE < PACKET_MAXSIZE)
     #error "increase CFG_TUD_VENDOR_RX_BUFSIZE"
 #endif
 
-#define PACKET_MAXSIZE_1 MAX(_DAP_PACKET_COUNT_OPENOCD*_DAP_PACKET_SIZE_OPENOCD, _DAP_PACKET_COUNT_PROBERS*_DAP_PACKET_SIZE_PROBERS)
-#define PACKET_MAXSIZE_2 MAX(_DAP_PACKET_COUNT_PYOCD  *_DAP_PACKET_SIZE_PYOCD,   _DAP_PACKET_COUNT_UNKNOWN*_DAP_PACKET_SIZE_UNKNOWN)
-#define PACKET_MAXSIZE   MAX(PACKET_MAXSIZE_1, PACKET_MAXSIZE_2)
-
 #if OPT_CMSIS_DAPV1  ||  OPT_CMSIS_DAPV2
-    static uint8_t TxDataBuffer[PACKET_MAXSIZE];
+    static uint8_t TxDataBuffer[BUFFER_MAXSIZE];
 #endif
 #if OPT_CMSIS_DAPV2
-    static uint8_t RxDataBuffer[PACKET_MAXSIZE];
+    static uint8_t RxDataBuffer[BUFFER_MAXSIZE];
 #endif
 
 
@@ -193,8 +199,8 @@ void dap_task(void *ptr)
                         if (sw_lock("DAPv2", true)) {
                             swd_connected = true;
                             picoprobe_info("=================================== DAPv2 connect target, host %s, buffer: %dx%dbytes\n",
-                                    (tool == E_DAPTOOL_OPENOCD) ? "OpenOCD with two big buffers" :
-                                     (tool == E_DAPTOOL_PYOCD) ? "pyOCD with single big buffer"  :
+                                    (tool == E_DAPTOOL_OPENOCD) ? "OpenOCD"    :
+                                     (tool == E_DAPTOOL_PYOCD) ? "pyOCD"       :
                                       (tool == E_DAPTOOL_PROBERS) ? "probe-rs" : "UNKNOWN", dap_packet_count, dap_packet_size);
                             led_state(LS_DAPV2_CONNECTED);
                         }
