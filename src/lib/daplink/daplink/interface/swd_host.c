@@ -112,32 +112,32 @@ void swd_set_soft_reset(uint32_t soft_reset_type)
     soft_reset = soft_reset_type;
 }
 
-uint8_t swd_init(void)
+bool swd_init(void)
 {
     //TODO - DAP_Setup puts GPIO pins in a hi-z state which can
     //       cause problems on re-init.  This needs to be investigated
     //       and fixed.
     DAP_Setup();
     PORT_SWD_SETUP();
-    return 1;
+    return true;
 }
 
-uint8_t swd_off(void)
+bool swd_off(void)
 {
     PORT_OFF();
-    return 1;
+    return true;
 }
 
-uint8_t swd_clear_errors(void)
+bool swd_clear_errors(void)
 {
     if (!swd_write_dp(DP_ABORT, STKCMPCLR | STKERRCLR | WDERRCLR | ORUNERRCLR)) {
-        return 0;
+        return false;
     }
-    return 1;
+    return true;
 }
 
 // Read debug port register.
-uint8_t __not_in_flash_func(swd_read_dp)(uint8_t adr, uint32_t *val)
+bool __not_in_flash_func(swd_read_dp)(uint8_t adr, uint32_t *val)
 {
     uint32_t tmp_in;
     uint8_t tmp_out[4];
@@ -158,7 +158,7 @@ uint8_t __not_in_flash_func(swd_read_dp)(uint8_t adr, uint32_t *val)
 }
 
 // Write debug port register
-uint8_t __not_in_flash_func(swd_write_dp)(uint8_t adr, uint32_t val)
+bool __not_in_flash_func(swd_write_dp)(uint8_t adr, uint32_t val)
 {
     uint32_t req;
     uint8_t data[4];
@@ -166,7 +166,7 @@ uint8_t __not_in_flash_func(swd_write_dp)(uint8_t adr, uint32_t val)
 
     //check if the right bank is already selected
     if ((adr == DP_SELECT) && (dap_state.select == val)) {
-        return 1;
+        return true;
     }
 
     req = SWD_REG_DP | SWD_REG_W | SWD_REG_ADR(adr);
@@ -179,7 +179,7 @@ uint8_t __not_in_flash_func(swd_write_dp)(uint8_t adr, uint32_t val)
 }
 
 // Read access port register.
-uint8_t __not_in_flash_func(swd_read_ap)(uint32_t adr, uint32_t *val)
+bool __not_in_flash_func(swd_read_ap)(uint32_t adr, uint32_t *val)
 {
     uint8_t tmp_in, ack;
     uint8_t tmp_out[4];
@@ -188,7 +188,7 @@ uint8_t __not_in_flash_func(swd_read_ap)(uint32_t adr, uint32_t *val)
     uint32_t bank_sel = adr & APBANKSEL;
 
     if (!swd_write_dp(DP_SELECT, apsel | bank_sel)) {
-        return 0;
+        return false;
     }
 
     tmp_in = SWD_REG_AP | SWD_REG_R | SWD_REG_ADR(adr);
@@ -208,7 +208,7 @@ uint8_t __not_in_flash_func(swd_read_ap)(uint32_t adr, uint32_t *val)
 }
 
 // Write access port register
-uint8_t __not_in_flash_func(swd_write_ap)(uint32_t adr, uint32_t val)
+bool __not_in_flash_func(swd_write_ap)(uint32_t adr, uint32_t val)
 {
     uint8_t data[4];
     uint8_t req, ack;
@@ -222,7 +222,7 @@ uint8_t __not_in_flash_func(swd_write_ap)(uint32_t adr, uint32_t val)
     switch (adr) {
         case AP_CSW:
             if (dap_state.csw == val) {
-                return 1;
+                return true;
             }
 
             dap_state.csw = val;
@@ -236,7 +236,7 @@ uint8_t __not_in_flash_func(swd_write_ap)(uint32_t adr, uint32_t val)
     int2array(data, val, 4);
 
     if (swd_transfer_retry(req, (uint32_t *)data) != DAP_TRANSFER_OK) {
-        return 0;
+        return false;
     }
 
     req = SWD_REG_DP | SWD_REG_R | SWD_REG_ADR(DP_RDBUFF);
@@ -247,21 +247,21 @@ uint8_t __not_in_flash_func(swd_write_ap)(uint32_t adr, uint32_t val)
 
 // Write 32-bit word aligned values to target memory using address auto-increment.
 // size is in bytes.
-static uint8_t __not_in_flash_func(swd_write_block)(uint32_t address, uint8_t *data, uint32_t size)
+static bool __not_in_flash_func(swd_write_block)(uint32_t address, uint8_t *data, uint32_t size)
 {
     uint8_t tmp_in[4], req;
     uint32_t size_in_words;
     uint32_t i, ack;
 
     if (size == 0) {
-        return 0;
+        return false;
     }
 
     size_in_words = size / 4;
 
     // CSW register
     if (!swd_write_ap(AP_CSW, CSW_VALUE | CSW_SIZE32)) {
-        return 0;
+        return false;
     }
 
     // TAR write
@@ -269,7 +269,7 @@ static uint8_t __not_in_flash_func(swd_write_block)(uint32_t address, uint8_t *d
     int2array(tmp_in, address, 4);
 
     if (swd_transfer_retry(req, (uint32_t *)tmp_in) != DAP_TRANSFER_OK) {
-        return 0;
+        return false;
     }
 
     // DRW write
@@ -281,7 +281,7 @@ static uint8_t __not_in_flash_func(swd_write_block)(uint32_t address, uint8_t *d
 
             memcpy(&word, data, 4);
             if (swd_transfer_retry(req, &word) != DAP_TRANSFER_OK) {
-                return 0;
+                return false;
             }
             data += 4;
         }
@@ -303,20 +303,20 @@ static uint8_t __not_in_flash_func(swd_write_block)(uint32_t address, uint8_t *d
 
 // Read 32-bit word aligned values from target memory using address auto-increment.
 // size is in bytes.
-static uint8_t __not_in_flash_func(swd_read_block)(uint32_t address, uint8_t *data, uint32_t size)
+static bool __not_in_flash_func(swd_read_block)(uint32_t address, uint8_t *data, uint32_t size)
 {
     uint8_t tmp_in[4], req, ack;
     uint32_t size_in_words;
     uint32_t i;
 
     if (size == 0) {
-        return 0;
+        return false;
     }
 
     size_in_words = size / 4;
 
     if (!swd_write_ap(AP_CSW, CSW_VALUE | CSW_SIZE32)) {
-        return 0;
+        return false;
     }
 
     // TAR write
@@ -324,7 +324,7 @@ static uint8_t __not_in_flash_func(swd_read_block)(uint32_t address, uint8_t *da
     int2array(tmp_in, address, 4);
 
     if (swd_transfer_retry(req, (uint32_t *)tmp_in) != DAP_TRANSFER_OK) {
-        return 0;
+        return false;
     }
 
     // read data
@@ -332,7 +332,7 @@ static uint8_t __not_in_flash_func(swd_read_block)(uint32_t address, uint8_t *da
 
     // initiate first read, data comes back in next read
     if (swd_transfer_retry(req, NULL) != DAP_TRANSFER_OK) {
-        return 0;
+        return false;
     }
 
     if (((uint32_t)data & 0x03) != 0) {
@@ -340,7 +340,7 @@ static uint8_t __not_in_flash_func(swd_read_block)(uint32_t address, uint8_t *da
 
         for (i = 0; i < (size_in_words - 1); i++) {
             if (swd_transfer_retry(req, &word) != DAP_TRANSFER_OK) {
-                return 0;
+                return false;
             }
             memcpy(data, &word, 4);
             data += 4;
@@ -354,7 +354,7 @@ static uint8_t __not_in_flash_func(swd_read_block)(uint32_t address, uint8_t *da
     else {
         for (i = 0; i < (size_in_words - 1); i++) {
             if (swd_transfer_retry(req, (uint32_t *)data) != DAP_TRANSFER_OK) {
-                return 0;
+                return false;
             }
             data += 4;
         }
@@ -367,7 +367,7 @@ static uint8_t __not_in_flash_func(swd_read_block)(uint32_t address, uint8_t *da
 }
 
 // Read target memory.
-static uint8_t __not_in_flash_func(swd_read_data)(uint32_t addr, uint32_t *val)
+static bool __not_in_flash_func(swd_read_data)(uint32_t addr, uint32_t *val)
 {
     uint8_t tmp_in[4];
     uint8_t tmp_out[4];
@@ -378,14 +378,14 @@ static uint8_t __not_in_flash_func(swd_read_data)(uint32_t addr, uint32_t *val)
     req = SWD_REG_AP | SWD_REG_W | (1 << 2);
 
     if (swd_transfer_retry(req, (uint32_t *)tmp_in) != DAP_TRANSFER_OK) {
-        return 0;
+        return false;
     }
 
     // read data
     req = SWD_REG_AP | SWD_REG_R | (3 << 2);
 
     if (swd_transfer_retry(req, (uint32_t *)tmp_out) != DAP_TRANSFER_OK) {
-        return 0;
+        return false;
     }
 
     // dummy read
@@ -404,7 +404,7 @@ static uint8_t __not_in_flash_func(swd_read_data)(uint32_t addr, uint32_t *val)
 }
 
 // Write target memory.
-static uint8_t __not_in_flash_func(swd_write_data)(uint32_t address, uint32_t data)
+static bool __not_in_flash_func(swd_write_data)(uint32_t address, uint32_t data)
 {
     uint8_t tmp_in[4];
     uint8_t req, ack;
@@ -413,7 +413,7 @@ static uint8_t __not_in_flash_func(swd_write_data)(uint32_t address, uint32_t da
     req = SWD_REG_AP | SWD_REG_W | (1 << 2);
 
     if (swd_transfer_retry(req, (uint32_t *)tmp_in) != DAP_TRANSFER_OK) {
-        return 0;
+        return false;
     }
 
     // write data
@@ -421,7 +421,7 @@ static uint8_t __not_in_flash_func(swd_write_data)(uint32_t address, uint32_t da
     req = SWD_REG_AP | SWD_REG_W | (3 << 2);
 
     if (swd_transfer_retry(req, (uint32_t *)tmp_in) != DAP_TRANSFER_OK) {
-        return 0;
+        return false;
     }
 
     // dummy read
@@ -431,78 +431,78 @@ static uint8_t __not_in_flash_func(swd_write_data)(uint32_t address, uint32_t da
 }
 
 // Read 32-bit word from target memory.
-uint8_t __not_in_flash_func(swd_read_word)(uint32_t addr, uint32_t *val)
+bool __not_in_flash_func(swd_read_word)(uint32_t addr, uint32_t *val)
 {
     if (!swd_write_ap(AP_CSW, CSW_VALUE | CSW_SIZE32)) {
-        return 0;
+        return false;
     }
 
     if (!swd_read_data(addr, val)) {
-        return 0;
+        return false;
     }
 
-    return 1;
+    return true;
 }
 
 // Write 32-bit word to target memory.
-uint8_t __not_in_flash_func(swd_write_word)(uint32_t addr, uint32_t val)
+bool __not_in_flash_func(swd_write_word)(uint32_t addr, uint32_t val)
 {
     if (!swd_write_ap(AP_CSW, CSW_VALUE | CSW_SIZE32)) {
-        return 0;
+        return false;
     }
 
     if (!swd_write_data(addr, val)) {
-        return 0;
+        return false;
     }
 
-    return 1;
+    return true;
 }
 
 // Read 8-bit byte from target memory.
-uint8_t __not_in_flash_func(swd_read_byte)(uint32_t addr, uint8_t *val)
+bool __not_in_flash_func(swd_read_byte)(uint32_t addr, uint8_t *val)
 {
     uint32_t tmp;
 
     if (!swd_write_ap(AP_CSW, CSW_VALUE | CSW_SIZE8)) {
-        return 0;
+        return false;
     }
 
     if (!swd_read_data(addr, &tmp)) {
-        return 0;
+        return false;
     }
 
     *val = (uint8_t)(tmp >> ((addr & 0x03) << 3));
-    return 1;
+    return true;
 }
 
 // Write 8-bit byte to target memory.
-uint8_t __not_in_flash_func(swd_write_byte)(uint32_t addr, uint8_t val)
+bool __not_in_flash_func(swd_write_byte)(uint32_t addr, uint8_t val)
 {
     uint32_t tmp;
 
     if (!swd_write_ap(AP_CSW, CSW_VALUE | CSW_SIZE8)) {
-        return 0;
+        return false;
     }
 
     tmp = val << ((addr & 0x03) << 3);
 
     if (!swd_write_data(addr, tmp)) {
-        return 0;
+        return false;
     }
 
-    return 1;
+    return true;
 }
 
 // Read unaligned data from target memory.
 // size is in bytes.
-uint8_t __not_in_flash_func(swd_read_memory)(uint32_t address, uint8_t *data, uint32_t size)
+bool __not_in_flash_func(swd_read_memory)(uint32_t address, uint8_t *data, uint32_t size)
 {
     uint32_t n;
 
     // Read bytes until word aligned
     while ((size > 0) && (address & 0x3)) {
         if (!swd_read_byte(address, data)) {
-            return 0;
+            return false;
         }
 
         address++;
@@ -520,7 +520,7 @@ uint8_t __not_in_flash_func(swd_read_memory)(uint32_t address, uint8_t *data, ui
         }
 
         if (!swd_read_block(address, data, n)) {
-            return 0;
+            return false;
         }
 
         address += n;
@@ -531,7 +531,7 @@ uint8_t __not_in_flash_func(swd_read_memory)(uint32_t address, uint8_t *data, ui
     // Read remaining bytes
     while (size > 0) {
         if (!swd_read_byte(address, data)) {
-            return 0;
+            return false;
         }
 
         address++;
@@ -539,19 +539,19 @@ uint8_t __not_in_flash_func(swd_read_memory)(uint32_t address, uint8_t *data, ui
         size--;
     }
 
-    return 1;
+    return true;
 }
 
 // Write unaligned data to target memory.
 // size is in bytes.
-uint8_t __not_in_flash_func(swd_write_memory)(uint32_t address, uint8_t *data, uint32_t size)
+bool __not_in_flash_func(swd_write_memory)(uint32_t address, uint8_t *data, uint32_t size)
 {
     uint32_t n = 0;
 
     // Write bytes until word aligned
     while ((size > 0) && (address & 0x3)) {
         if (!swd_write_byte(address, *data)) {
-            return 0;
+            return false;
         }
 
         address++;
@@ -569,7 +569,7 @@ uint8_t __not_in_flash_func(swd_write_memory)(uint32_t address, uint8_t *data, u
         }
 
         if (!swd_write_block(address, data, n)) {
-            return 0;
+            return false;
         }
 
         address += n;
@@ -580,7 +580,7 @@ uint8_t __not_in_flash_func(swd_write_memory)(uint32_t address, uint8_t *data, u
     // Write remaining bytes
     while (size > 0) {
         if (!swd_write_byte(address, *data)) {
-            return 0;
+            return false;
         }
 
         address++;
@@ -588,74 +588,74 @@ uint8_t __not_in_flash_func(swd_write_memory)(uint32_t address, uint8_t *data, u
         size--;
     }
 
-    return 1;
+    return true;
 }
 
 // Execute system call.
-static uint8_t swd_write_debug_state(DEBUG_STATE *state)
+static bool swd_write_debug_state(DEBUG_STATE *state)
 {
     uint32_t i, status;
 
     if (!swd_write_dp(DP_SELECT, 0)) {
-        return 0;
+        return false;
     }
 
     // R0, R1, R2, R3
     for (i = 0; i < 4; i++) {
         if (!swd_write_core_register(i, state->r[i])) {
-            return 0;
+            return false;
         }
     }
 
     // R9
     if (!swd_write_core_register(9, state->r[9])) {
-        return 0;
+        return false;
     }
 
     // R13, R14, R15
     for (i = 13; i < 16; i++) {
         if (!swd_write_core_register(i, state->r[i])) {
-            return 0;
+            return false;
         }
     }
 
     // xPSR
     if (!swd_write_core_register(16, state->xpsr)) {
-        return 0;
+        return false;
     }
 
     if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_MASKINTS | C_HALT)) {
-        return 0;
+        return false;
     }
 
     if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_MASKINTS)) {
-        return 0;
+        return false;
     }
 
     // check status
     if (!swd_read_dp(DP_CTRL_STAT, &status)) {
-        return 0;
+        return false;
     }
 
     if (status & (STICKYERR | WDATAERR)) {
-        return 0;
+        return false;
     }
 
-    return 1;
+    return true;
 }
 
-uint8_t swd_read_core_register(uint32_t n, uint32_t *val)
+bool swd_read_core_register(uint32_t n, uint32_t *val)
 {
     int i = 0, timeout = 100;
 
     if (!swd_write_word(DCRSR, n)) {
-        return 0;
+        return false;
     }
 
     // wait for S_REGRDY
     for (i = 0; i < timeout; i++) {
         if (!swd_read_word(DHCSR, val)) {
-            return 0;
+            return false;
         }
 
         if (*val & S_REGRDY) {
@@ -664,61 +664,61 @@ uint8_t swd_read_core_register(uint32_t n, uint32_t *val)
     }
 
     if (i == timeout) {
-        return 0;
+        return false;
     }
 
     if (!swd_read_word(DCRDR, val)) {
-        return 0;
+        return false;
     }
 
-    return 1;
+    return true;
 }
 
-uint8_t swd_write_core_register(uint32_t n, uint32_t val)
+bool swd_write_core_register(uint32_t n, uint32_t val)
 {
     int i = 0, timeout = 100;
 
     if (!swd_write_word(DCRDR, val)) {
-        return 0;
+        return false;
     }
 
     if (!swd_write_word(DCRSR, n | REGWnR)) {
-        return 0;
+        return false;
     }
 
     // wait for S_REGRDY
     for (i = 0; i < timeout; i++) {
         if (!swd_read_word(DHCSR, &val)) {
-            return 0;
+            return false;
         }
 
         if (val & S_REGRDY) {
-            return 1;
+            return true;
         }
     }
 
-    return 0;
+    return false;
 }
 
-static uint8_t swd_wait_until_halted(void)
+static bool swd_wait_until_halted(void)
 {
     // Wait for target to stop
     uint32_t val, i, timeout = MAX_TIMEOUT;
 
     for (i = 0; i < timeout; i++) {
         if (!swd_read_word(DBG_HCSR, &val)) {
-            return 0;
+            return false;
         }
 
         if (val & S_HALT) {
-            return 1;
+            return true;
         }
     }
 
-    return 0;
+    return false;
 }
 
-uint8_t swd_flash_syscall_exec(const program_syscall_t *sysCallParam, uint32_t entry, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, flash_algo_return_t return_type)
+bool swd_flash_syscall_exec(const program_syscall_t *sysCallParam, uint32_t entry, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4, flash_algo_return_t return_type)
 {
     DEBUG_STATE state = {{0}, 0};
     // Call flash algorithm function on target and wait for result.
@@ -733,40 +733,40 @@ uint8_t swd_flash_syscall_exec(const program_syscall_t *sysCallParam, uint32_t e
     state.xpsr     = 0x01000000;          // xPSR: T = 1, ISR = 0
 
     if (!swd_write_debug_state(&state)) {
-        return 0;
+        return false;
     }
 
     if (!swd_wait_until_halted()) {
-        return 0;
+        return false;
     }
 
     if (!swd_read_core_register(0, &state.r[0])) {
-        return 0;
+        return false;
     }
 
     //remove the C_MASKINTS
     if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_HALT)) {
-        return 0;
+        return false;
     }
 
     if ( return_type == FLASHALGO_RETURN_POINTER ) {
         // Flash verify functions return pointer to byte following the buffer if successful.
         if (state.r[0] != (arg1 + arg2)) {
-            return 0;
+            return false;
         }
     }
     else {
         // Flash functions return 0 if successful.
         if (state.r[0] != 0) {
-            return 0;
+            return false;
         }
     }
 
-    return 1;
+    return true;
 }
 
 // SWD Reset
-static uint8_t swd_reset(void)
+static bool swd_reset(void)
 {
     uint8_t tmp_in[8];
     uint8_t i = 0;
@@ -776,21 +776,21 @@ static uint8_t swd_reset(void)
     }
 
     SWJ_Sequence(51, tmp_in);
-    return 1;
+    return true;
 }
 
 // SWD Switch
-static uint8_t swd_switch(uint16_t val)
+static bool swd_switch(uint16_t val)
 {
     uint8_t tmp_in[2];
     tmp_in[0] = val & 0xff;
     tmp_in[1] = (val >> 8) & 0xff;
     SWJ_Sequence(16, tmp_in);
-    return 1;
+    return true;
 }
 
 // SWD Read ID
-static uint8_t swd_read_idcode(uint32_t *id)
+static bool swd_read_idcode(uint32_t *id)
 {
     uint8_t tmp_in[1];
     uint8_t tmp_out[4];
@@ -798,39 +798,39 @@ static uint8_t swd_read_idcode(uint32_t *id)
     SWJ_Sequence(8, tmp_in);
 
     if ( !swd_read_dp(0, (uint32_t *)tmp_out)) {
-        return 0;
+        return false;
     }
 
     *id = (tmp_out[3] << 24) | (tmp_out[2] << 16) | (tmp_out[1] << 8) | tmp_out[0];
 //    printf("swd_read_idcode: 0x%08lx\n", *id);
-    return 1;
+    return true;
 }
 
 
-uint8_t JTAG2SWD()
+bool JTAG2SWD()
 {
     uint32_t tmp = 0;
 
     if (!swd_reset()) {
-        return 0;
+        return false;
     }
 
     if (!swd_switch(0xE79E)) {
-        return 0;
+        return false;
     }
 
     if (!swd_reset()) {
-        return 0;
+        return false;
     }
 
     if (!swd_read_idcode(&tmp)) {
-        return 0;
+        return false;
     }
 
-    return 1;
+    return true;
 }
 
-uint8_t swd_init_debug(void)
+bool swd_init_debug(void)
 {
     uint32_t tmp = 0;
     int i = 0;
@@ -915,14 +915,14 @@ uint8_t swd_init_debug(void)
             continue;
         }
 
-        return 1;
+        return true;
 
     } while (--retries > 0);
 
-    return 0;
+    return false;
 }
 
-uint8_t swd_set_target_state_hw(target_state_t state)
+bool swd_set_target_state_hw(target_state_t state)
 {
     uint32_t val;
     int8_t ap_retries = 2;
@@ -949,7 +949,7 @@ uint8_t swd_set_target_state_hw(target_state_t state)
 
         case RESET_PROGRAM:
             if (!swd_init_debug()) {
-                return 0;
+                return false;
             }
 
             if (reset_connect == CONNECT_UNDER_RESET) {
@@ -961,7 +961,7 @@ uint8_t swd_set_target_state_hw(target_state_t state)
             // Enable debug
             while(swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN) == 0) {
                 if( --ap_retries <=0 )
-                    return 0;
+                    return false;
                 // Target is in invalid state?
                 swd_set_target_reset(1);
                 osDelay(2);
@@ -971,7 +971,7 @@ uint8_t swd_set_target_state_hw(target_state_t state)
 
             // Enable halt on reset
             if (!swd_write_word(DBG_EMCR, VC_CORERESET)) {
-                return 0;
+                return false;
             }
 
             if (reset_connect == CONNECT_NORMAL) {
@@ -986,71 +986,71 @@ uint8_t swd_set_target_state_hw(target_state_t state)
 
             do {
                 if (!swd_read_word(DBG_HCSR, &val)) {
-                    return 0;
+                    return false;
                 }
             } while ((val & S_HALT) == 0);
 
             // Disable halt on reset
             if (!swd_write_word(DBG_EMCR, 0)) {
-                return 0;
+                return false;
             }
 
             break;
 
         case NO_DEBUG:
             if (!swd_write_word(DBG_HCSR, DBGKEY)) {
-                return 0;
+                return false;
             }
 
             break;
 
         case DEBUG:
             if (!JTAG2SWD()) {
-                return 0;
+                return false;
             }
 
             if (!swd_clear_errors()) {
-                return 0;
+                return false;
             }
 
             // Ensure CTRL/STAT register selected in DPBANKSEL
             if (!swd_write_dp(DP_SELECT, 0)) {
-                return 0;
+                return false;
             }
 
             // Power up
             if (!swd_write_dp(DP_CTRL_STAT, CSYSPWRUPREQ | CDBGPWRUPREQ)) {
-                return 0;
+                return false;
             }
 
             // Enable debug
             if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN)) {
-                return 0;
+                return false;
             }
 
             break;
 
         case HALT:
             if (!swd_init_debug()) {
-                return 0;
+                return false;
             }
 
             // Enable debug and halt the core (DHCSR <- 0xA05F0003)
             if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_HALT)) {
-                return 0;
+                return false;
             }
 
             // Wait until core is halted
             do {
                 if (!swd_read_word(DBG_HCSR, &val)) {
-                    return 0;
+                    return false;
                 }
             } while ((val & S_HALT) == 0);
             break;
 
         case RUN:
             if (!swd_write_word(DBG_HCSR, DBGKEY)) {
-                return 0;
+                return false;
             }
             swd_off();
             break;
@@ -1062,18 +1062,18 @@ uint8_t swd_set_target_state_hw(target_state_t state)
         case ATTACH:
             // attach without doing anything else
             if (!swd_init_debug()) {
-                return 0;
+                return false;
             }
             break;
 
         default:
-            return 0;
+            return false;
     }
 
-    return 1;
+    return true;
 }
 
-uint8_t swd_set_target_state_sw(target_state_t state)
+bool swd_set_target_state_sw(target_state_t state)
 {
     uint32_t val;
     int8_t ap_retries = 2;
@@ -1097,34 +1097,34 @@ uint8_t swd_set_target_state_sw(target_state_t state)
             osDelay(2);
 
             if (!swd_init_debug()) {
-                return 0;
+                return false;
             }
 
             // Power down
             // Per ADIv6 spec. Clear first CSYSPWRUPREQ followed by CDBGPWRUPREQ
             if (!swd_read_dp(DP_CTRL_STAT, &val)) {
-                return 0;
+                return false;
             }
 
             if (!swd_write_dp(DP_CTRL_STAT, val & ~CSYSPWRUPREQ)) {
-                return 0;
+                return false;
             }
 
             // Wait until ACK is deasserted
             do {
                 if (!swd_read_dp(DP_CTRL_STAT, &val)) {
-                    return 0;
+                    return false;
                 }
             } while ((val & (CSYSPWRUPACK)) != 0);
 
             if (!swd_write_dp(DP_CTRL_STAT, val & ~CDBGPWRUPREQ)) {
-                return 0;
+                return false;
             }
 
             // Wait until ACK is deasserted
             do {
                 if (!swd_read_dp(DP_CTRL_STAT, &val)) {
-                    return 0;
+                    return false;
                 }
             } while ((val & (CDBGPWRUPACK)) != 0);
 
@@ -1133,13 +1133,13 @@ uint8_t swd_set_target_state_sw(target_state_t state)
 
         case RESET_PROGRAM:
             if (!swd_init_debug()) {
-                return 0;
+                return false;
             }
 
             // Enable debug and halt the core (DHCSR <- 0xA05F0003)
             while (swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_HALT) == 0) {
                 if ( --ap_retries <=0 ) {
-                    return 0;
+                    return false;
                 }
                 // Target is in invalid state?
                 swd_set_target_reset(1);
@@ -1151,93 +1151,93 @@ uint8_t swd_set_target_state_sw(target_state_t state)
             // Wait until core is halted
             do {
                 if (!swd_read_word(DBG_HCSR, &val)) {
-                    return 0;
+                    return false;
                 }
             } while ((val & S_HALT) == 0);
 
             // Enable halt on reset
             if (!swd_write_word(DBG_EMCR, VC_CORERESET)) {
-                return 0;
+                return false;
             }
 
             // Perform a soft reset
             if (!swd_read_word(NVIC_AIRCR, &val)) {
-                return 0;
+                return false;
             }
 
             if (!swd_write_word(NVIC_AIRCR, VECTKEY | (val & SCB_AIRCR_PRIGROUP_Msk) | soft_reset)) {
-                return 0;
+                return false;
             }
 
             osDelay(2);
 
             do {
                 if (!swd_read_word(DBG_HCSR, &val)) {
-                    return 0;
+                    return false;
                 }
             } while ((val & S_HALT) == 0);
 
             // Disable halt on reset
             if (!swd_write_word(DBG_EMCR, 0)) {
-                return 0;
+                return false;
             }
 
             break;
 
         case NO_DEBUG:
             if (!swd_write_word(DBG_HCSR, DBGKEY)) {
-                return 0;
+                return false;
             }
 
             break;
 
         case DEBUG:
             if (!JTAG2SWD()) {
-                return 0;
+                return false;
             }
 
             if (!swd_clear_errors()) {
-                return 0;
+                return false;
             }
 
             // Ensure CTRL/STAT register selected in DPBANKSEL
             if (!swd_write_dp(DP_SELECT, 0)) {
-                return 0;
+                return false;
             }
 
             // Power up
             if (!swd_write_dp(DP_CTRL_STAT, CSYSPWRUPREQ | CDBGPWRUPREQ)) {
-                return 0;
+                return false;
             }
 
             // Enable debug
             if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN)) {
-                return 0;
+                return false;
             }
 
             break;
 
         case HALT:
             if (!swd_init_debug()) {
-                return 0;
+                return false;
             }
 
             // Enable debug and halt the core (DHCSR <- 0xA05F0003)
             if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_HALT)) {
-                return 0;
+                return false;
             }
 
             // Wait until core is halted
             do {
                 if (!swd_read_word(DBG_HCSR, &val)) {
-                    return 0;
+                    return false;
                 }
             } while ((val & S_HALT) == 0);
             break;
 
         case RUN:
             if (!swd_write_word(DBG_HCSR, DBGKEY)) {
-                return 0;
+                return false;
             }
             swd_off();
             break;
@@ -1249,14 +1249,14 @@ uint8_t swd_set_target_state_sw(target_state_t state)
         case ATTACH:
             // attach without doing anything else
             if (!swd_init_debug()) {
-                return 0;
+                return false;
             }
             break;
 
         default:
-            return 0;
+            return false;
     }
 
-    return 1;
+    return true;
 }
 #endif
