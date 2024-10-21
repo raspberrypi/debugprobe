@@ -121,6 +121,8 @@
 #define configMAX_API_CALL_INTERRUPT_PRIORITY   [dependent on processor and application]
 */
 
+#define configKERNEL_PROVIDED_STATIC_MEMORY     1
+
 /* SMP port only */
 #define configNUMBER_OF_CORES                   2
 #define configTICK_CORE                         1

@@ -23,6 +23,9 @@ NOTE: Pico2 / RP2350 can also be used as probe hardware.
       
 WARNING: Pico2 / RP2350 targets are currently not supported.
 
+WARNING: Pico2 target is only working at <= 300kHz reliably. +
+         ``time /home/hardy/.pico-sdk/openocd/0.12.0+dev/openocd.exe -c "gdb_port 50000" -c "tcl_port 50001" -c "telnet_port 50002" -s /home/hardy/.pico-sdk/openocd/0.12.0+dev/scripts -f /home/hardy/.vscode/extensions/marus25.cortex-debug-1.12.1/support/openocd-helpers.tcl -f interface/cmsis-dap.cfg -f target/rp2350.cfg -c "adapter speed 349" -c "program {pio_blink.elf} verify reset; shutdown;"``
+
 
 ## Features
 
@@ -102,10 +105,15 @@ containing the steps from installation until debugging in VSCode.
 |yes 
 |`openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c "adapter speed 25000"    -c "program {firmware.elf}  verify reset; shutdown;"`
 
-|pyOCD 0.34 & 0.35
+|pyOCD 0.34 .. 0.36
 |yes
 |yes
 |`pyocd flash -f 400000 -t nrf52840 firmware.elf`
+
+|probe-rs 0.23 ..
+|yes
+|?
+|`probe-rs benchmark --protocol swd --address 0x20000000 --chip RP2040`
 
 |cp / copy
 |yes
@@ -133,7 +141,11 @@ Those settings are:
 DAP_PACKET_SIZE=512
 
 |OpenOCD / CMSIS-DAPv2
-|DAP_PACKET_COUNT=2 +
+|DAP_PACKET_COUNT=1 +
+DAP_PACKET_SIZE=512
+
+|probe-rs / CMSIS-DAPv2
+|DAP_PACKET_COUNT=8 +
 DAP_PACKET_SIZE=512
 
 |unknown / CMSIS-DAPv2
@@ -623,6 +635,9 @@ Or use simply `make show-options` in the projects root.
 
 | https://github.com/openocd-org/openocd[OpenOCD on github]
 | https://openocd.org/[Official Homepage]
+
+| https://github.com/probe-rs/probe-rs[probe-rs on github]
+|
 
 | https://wiki.segger.com/Use_SystemView_without_RTOS[Use SystemView without RTOS]
 |
