@@ -28,7 +28,7 @@
 #include "pico_target_utils.h"
 
 #include "swd_host.h"
-#include "target_rp2040.h"
+#include "target_rpXXXX.h"
 
 
 

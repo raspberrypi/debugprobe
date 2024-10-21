@@ -3,7 +3,7 @@
 *                        The Embedded Experts                        *
 **********************************************************************
 *                                                                    *
-*            (c) 1995 - 2023 SEGGER Microcontroller GmbH             *
+*            (c) 1995 - 2024 SEGGER Microcontroller GmbH             *
 *                                                                    *
 *       www.segger.com     Support: support@segger.com               *
 *                                                                    *
@@ -42,7 +42,7 @@
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       SystemView version: 3.52a                                    *
+*       SystemView version: 3.56b                                    *
 *                                                                    *
 **********************************************************************
 ---------------------------END-OF-HEADER------------------------------
@@ -194,7 +194,7 @@ int _sys_write(FILEHANDLE hFile, const unsigned char * pBuffer, unsigned NumByte
   (void)Mode;
   if (hFile == STDOUT) {
     SEGGER_RTT_Write(0, (const char*)pBuffer, NumBytes);
-		return 0;
+        return 0;
   }
   return r;
 }
@@ -328,14 +328,19 @@ int _sys_ensure(FILEHANDLE hFile) {
 */
 #if __ARMCC_VERSION >= 6190000
 void _sys_tmpnam(char * pBuffer, int FileNum, unsigned MaxLen) {
+  (void)pBuffer;
+  (void)FileNum;
+  (void)MaxLen;
+  return;      // Not implemented
+}
 #else
 int _sys_tmpnam(char * pBuffer, int FileNum, unsigned MaxLen) {
-#endif
   (void)pBuffer;
   (void)FileNum;
   (void)MaxLen;
   return (1);  // Not implemented
 }
+#endif
 
 /*********************************************************************
 *

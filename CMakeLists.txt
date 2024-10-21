@@ -188,6 +188,8 @@ target_sources(${PROJECT} PRIVATE
         src/daplink-pico/board/rp2040/pico_target_utils.c
         src/daplink-pico/board/rp2040/program_flash_generic.c
         src/daplink-pico/family/raspberry/rp2040/target_reset_rp2040.c
+        
+        src/daplink-pico/family/raspberry/rp2350/target_reset_rp2350.c
 )
 
 target_include_directories(${PROJECT} PRIVATE
@@ -208,8 +210,13 @@ target_include_directories(${PROJECT} PRIVATE
 
 # Both are actually dummies to prevent the DAPLink files from throwing errors
 # Actually not required because picoprobes structure is different
-add_compile_definitions(INTERFACE_RP2040=1
-                        DAPLINK_IF=1)
+if(PICO_BOARD STREQUAL "pico2")
+    add_compile_definitions(INTERFACE_RP2350=1
+                            DAPLINK_IF=1)
+else()
+    add_compile_definitions(INTERFACE_RP2040=1
+                            DAPLINK_IF=1)
+endif()
 
 # not sure if this is still required, but this equals to DAPLINK_HIC_ID_RP2040 in daplink.h
 add_compile_definitions(DAPLINK_HIC_ID=0x08154711)

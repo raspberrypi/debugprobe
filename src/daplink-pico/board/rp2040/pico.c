@@ -25,7 +25,7 @@
  * Note that handling of the rescue DP has been dropped (no idea how to test this).
  *
  * Two important global variables:
- * - \a g_board_info contains information about the probe, e.g. how to perform
+ * - \a g_board_info contains information about the probe and target, e.g. how to perform
  *   probe initialization, send a HW reset to the target, etc
  * - \a g_target_family tells things like: what is the actual reset sequence for
  *   the target (family), how to set the state of the target (family), etc.
@@ -33,11 +33,9 @@
  *   included.  See RP2040 with dual cores and dormant sequence which does not
  *   like the JTAG2SWD sequence.  Others like the nRF52840 have other reset
  *   sequences.
- *
- * TODO I'm really not sure about the architectural idea of DAPLink:  is board the
- *      target board or the probe board?  So is g_board_info a probe or a target
- *      item?  Anyway I have decided to put some probe stuff into this files.
  */
+
+#include <stdio.h>
 
 #include "DAP_config.h"
 #include "DAP.h"
@@ -45,7 +43,7 @@
 
 #include "target_family.h"
 #include "target_board.h"
-#include "target_rp2040.h"
+#include "target_rpXXXX.h"
 #include "program_flash_generic.h"
 
 #include "probe.h"
@@ -55,6 +53,7 @@
 
 // these are IDs for target identification, required registers to identify may/do differ
 const uint32_t swd_id_rp2040    = (0x927) + (0x0002 << 12);    // taken from RP2040 SDK platform.c
+const uint32_t swd_id_rp2350    = (0x927) + (0x0004 << 12);    // taken from RP2350 SDK platform.c
 const uint32_t swd_id_nrf52832  = 0x00052832;                  // see FICR.INFO.PART
 const uint32_t swd_id_nrf52833  = 0x00052833;
 const uint32_t swd_id_nrf52840  = 0x00052840;
@@ -73,8 +72,8 @@ const uint32_t uf2_id_rp2350    = 0xe48bff5b;     // Non-secure Arm image
 #define board_id_nrf52832_dk      "1101"
 #define board_id_nrf52833_dk      "1101"
 #define board_id_nrf52840_dk      "1102"
-#define board_id_rp2040_pico      "7f01"
-#define board_id_rp2350_pico2     "7f02"
+#define board_id_rp2040_pico      "7f01"          // see TARGET_RP2040_FAMILY_ID
+#define board_id_rp2350_pico2     "7f02"          // see TARGET_RP2350_FAMILY_ID
 
 // here we can modify the otherwise constant board/target information
 target_cfg_t target_device;
@@ -101,6 +100,28 @@ target_cfg_t target_device_rp2040 = {
     .rt_board_id                    = board_id_rp2040_pico,
     .rt_uf2_id                      = uf2_id_rp2040,
     .rt_max_swd_khz                 = 25000,
+    .rt_swd_khz                     = 15000,
+};
+
+
+// target information for RP2350 (actually Pico2), must be global
+// because a special algo is used for flashing, corresponding fields below are empty.
+target_cfg_t target_device_rp2350 = {
+    .version                        = kTargetConfigVersion,
+    .sectors_info                   = NULL,
+    .sector_info_length             = 0,
+    .flash_regions[0].start         = 0x10000000,
+    .flash_regions[0].end           = 0x10000000,
+    .flash_regions[0].flags         = kRegionIsDefault,
+    .flash_regions[0].flash_algo    = NULL,
+    .ram_regions[0].start           = 0x20000000,
+    .ram_regions[0].end             = 0x20000000 + KB(512),
+    .target_vendor                  = "RaspberryPi",
+    .target_part_number             = "RP2350",
+    .rt_family_id                   = TARGET_RP2350_FAMILY_ID,
+    .rt_board_id                    = board_id_rp2350_pico2,
+    .rt_uf2_id                      = uf2_id_rp2350,
+    .rt_max_swd_khz                 = 50000,
     .rt_swd_khz                     = 15000,
 };
 
@@ -207,6 +228,30 @@ void pico_prerun_board_config(void)
 
                 // get size of targets flash
                 uint32_t size = target_rp2040_get_external_flash_size();
+                if (size > 0) {
+                    target_device.flash_regions[0].end = target_device.flash_regions[0].start + size;
+                }
+            }
+        }
+    }
+
+    if ( !target_found) {
+        // check for RP2350
+        target_device = target_device_rp2350;
+        search_family();
+        if (target_set_state(ATTACH)) {
+            uint32_t chip_id;
+
+            r = swd_read_word(0x40000000, &chip_id);
+            printf("!!!!!!!!!!!!!!!!!! chip_id: 0x%lx\n", chip_id);
+            if (r  &&  (chip_id & 0x0fffffff) == swd_id_rp2350) {
+                target_found = true;
+                strcpy(board_vendor, "RaspberryPi");
+                strcpy(board_name, "Pico2");
+
+                // get size of targets flash
+// TODO                uint32_t size = target_rp2350_get_external_flash_size();
+                uint32_t size = 4 * 1024 * 1024;
                 if (size > 0) {
                     target_device.flash_regions[0].end = target_device.flash_regions[0].start + size;
                 }

@@ -38,14 +38,20 @@
 #include "max32625.h"
 #elif defined (INTERFACE_SAM3U2C)
 #include "sam3u2c.h"
+#elif defined (INTERFACE_STM32F072XB) || defined (INTERFACE_STM32F072X8)
+#include "stm32f072xb.h"
 #elif defined (INTERFACE_STM32F103XB)
 #include "stm32f1xx.h"
+#elif defined (INTERFACE_STM32H743)
+#include "stm32h7xx.h"
 #elif defined (INTERFACE_M48SSIDAE)
 #include "M480.h"
 #elif defined (INTERFACE_NRF52820)
 #include "nrf52820.h"
 #elif defined (INTERFACE_RP2040)
 //#include "rp2040.h"
+#elif defined (INTERFACE_RP2350)
+//#include "rp2350.h"
 #else
 #error "CMSIS core headers needed"
 #endif
