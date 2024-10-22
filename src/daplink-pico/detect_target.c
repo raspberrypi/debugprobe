@@ -243,7 +243,6 @@ void pico_prerun_board_config(void)
             uint32_t chip_id;
 
             r = swd_read_word(0x40000000, &chip_id);
-            printf("!!!!!!!!!!!!!!!!!! chip_id: 0x%lx\n", chip_id);
             if (r  &&  (chip_id & 0x0fffffff) == swd_id_rp2350) {
                 target_found = true;
                 strcpy(board_vendor, "RaspberryPi");
