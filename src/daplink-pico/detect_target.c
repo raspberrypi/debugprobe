@@ -44,7 +44,7 @@
 #include "target_family.h"
 #include "target_board.h"
 #include "target_rpXXXX.h"
-#include "program_flash_generic.h"
+#include "program_flash_generic_rp2040.h"
 
 #include "probe.h"
 #include "minIni/minIni.h"

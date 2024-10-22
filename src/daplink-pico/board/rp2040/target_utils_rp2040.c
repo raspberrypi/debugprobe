@@ -25,7 +25,7 @@
 
 #include <stdio.h>
 
-#include "rp2040_target_utils.h"
+#include "target_utils_rp2040.h"
 
 #include "swd_host.h"
 #include "target_rpXXXX.h"

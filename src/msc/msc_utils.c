@@ -49,7 +49,7 @@
 #include "error.h"
 #include "flash_intf.h"
 #include "flash_manager.h"
-#include "rp2040_target_utils.h"
+#include "target_utils_rp2040.h"
 
 
 #define DEBUG_MODULE    0
