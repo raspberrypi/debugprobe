@@ -43,7 +43,7 @@
 
 #include "target_family.h"
 #include "target_board.h"
-#include "target_rpXXXX.h"
+#include "target_utils_raspberry.h"
 #include "program_flash_generic_rp2040.h"
 
 #include "probe.h"

@@ -1,5 +1,5 @@
 /* CMSIS-DAP Interface Firmware
- * Copyright (c) 2015-2019 Realtek Semiconductor Corp.
+ * Copyright (c) 2024 Hardy Griech
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +16,11 @@
 
 #include <string.h>
 #include <stdio.h>
-#include <target_rpXXXX.h>
 #include "DAP_config.h"
 #include "target_family.h"
 #include "swd_host.h"
 
+#include "target_utils_raspberry.h"
 
 #include "FreeRTOS.h"
 #include "task.h"
