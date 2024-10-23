@@ -533,57 +533,6 @@ static uint8_t rp2040_target_set_state(target_state_t state)
 
 
 //----------------------------------------------------------------------------------------------------------------------
-//
-// some utility functions
-//
-
-
-bool target_core_is_halted(void)
-{
-    uint32_t value;
-
-    if ( !swd_read_word(DBG_HCSR, &value))
-        return false;
-    if (value & S_HALT)
-        return true;
-    return false;
-}   // target_core_is_halted
-
-
-
-bool target_core_halt(void)
-{
-    if ( !swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_MASKINTS | C_HALT)) {
-        return false;
-    }
-
-    while ( !target_core_is_halted())
-        ;
-    return true;
-}   // target_core_halt
-
-
-
-bool target_core_unhalt(void)
-{
-    if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN)) {
-        return false;
-    }
-    return true;
-}   // target_core_unhalt
-
-
-
-bool target_core_unhalt_with_masked_ints(void)
-{
-    if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_MASKINTS)) {
-        return false;
-    }
-    return true;
-}   // target_core_unhalt_with_masked_ints
-
-
-//----------------------------------------------------------------------------------------------------------------------
 
 const target_family_descriptor_t g_raspberry_rp2040_family = {
     .family_id                = TARGET_RP2040_FAMILY_ID,

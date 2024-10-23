@@ -185,10 +185,10 @@ target_sources(${PROJECT} PRIVATE
         src/lib/daplink/target/target_family.c
         
         src/daplink-pico/detect_target.c
+        src/daplink-pico/family/raspberry/target_utils_raspberry.c
         src/daplink-pico/board/rp2040/target_utils_rp2040.c
         src/daplink-pico/board/rp2040/program_flash_generic_rp2040.c
         src/daplink-pico/family/raspberry/rp2040/target_reset_rp2040.c
-        
         src/daplink-pico/family/raspberry/rp2350/target_reset_rp2350.c
 )
 
