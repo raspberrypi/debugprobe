@@ -44,7 +44,8 @@
 #include "target_family.h"
 #include "target_board.h"
 #include "target_utils_raspberry.h"
-#include "program_flash_generic_rp2040.h"
+#include "rp2040/program_flash_generic_rp2040.h"
+#include "rp2350/program_flash_generic_rp2350.h"
 
 #include "probe.h"
 #include "minIni/minIni.h"
@@ -249,8 +250,7 @@ void pico_prerun_board_config(void)
                 strcpy(board_name, "Pico2");
 
                 // get size of targets flash
-// TODO                uint32_t size = target_rp2350_get_external_flash_size();
-                uint32_t size = 4 * 1024 * 1024;
+                uint32_t size = target_rp2350_get_external_flash_size();
                 if (size > 0) {
                     target_device.flash_regions[0].end = target_device.flash_regions[0].start + size;
                 }

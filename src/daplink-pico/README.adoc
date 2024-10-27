@@ -7,4 +7,4 @@
 
 These modules fit the probe into the DAPLink infrastructure.
 
-link:detect_target.c[] contains the auto-detect me3chanism.
+link:detect_target.c[] contains the auto-detect mechanism.

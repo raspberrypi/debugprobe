@@ -188,6 +188,8 @@ target_sources(${PROJECT} PRIVATE
         src/daplink-pico/family/raspberry/target_utils_raspberry.c
         src/daplink-pico/board/rp2040/target_utils_rp2040.c
         src/daplink-pico/board/rp2040/program_flash_generic_rp2040.c
+        src/daplink-pico/board/rp2350/target_utils_rp2350.c
+        src/daplink-pico/board/rp2350/program_flash_generic_rp2350.c
         src/daplink-pico/family/raspberry/rp2040/target_reset_rp2040.c
         src/daplink-pico/family/raspberry/rp2350/target_reset_rp2350.c
 )
@@ -202,7 +204,7 @@ target_include_directories(${PROJECT} PRIVATE
         src/lib/daplink/hic_hal
         src/lib/daplink/target
         
-        src/daplink-pico/board/rp2040
+        src/daplink-pico/board
         src/daplink-pico/family/raspberry
         src/daplink-pico/hic_hal/raspberry/rp2040
         $ENV{PICO_SDK_PATH}/src/common/boot_uf2_headers/include

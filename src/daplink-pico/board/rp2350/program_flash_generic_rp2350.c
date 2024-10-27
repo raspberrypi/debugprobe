@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "hardware/helper.h"
+#include "rp2040/hardware/helper.h"
 #include "hardware/structs/ssi.h"
 #include "hardware/regs/io_qspi.h"
 
@@ -16,17 +16,19 @@
 
 #include "swd_host.h"
 
-#include "target_utils_rp2040.h"
+#include "target_utils_rp2350.h"
 
-extern char __start_for_target_connect_rp2040[];
-extern char __stop_for_target_connect_rp2040[];
+extern char __start_for_target_connect_rp2350[];
+extern char __stop_for_target_connect_rp2350[];
 
-// Attributes for RP2040 target code
+// Attributes for RP2350 target code
 // NOTE: PICO_NO_CMSE must be set and also "-Og"!
-#define FOR_TARGET_RP2040_CODE        __attribute__((noinline, section("for_target_connect_rp2040"), target("arch=armv6-m"), optimize("-Og")))
+// TODO how to compile correctly for an rp2040 probe here?
+//#define FOR_TARGET_RP2350_CODE        __attribute__((noinline, section("for_target_connect_rp2350"), target("arch=armv8-m.main"), optimize("-Og")))
+#define FOR_TARGET_RP2350_CODE        __attribute__((noinline, section("for_target_connect_rp2350"), optimize("-Og")))
 
-#define TARGET_RP2040_CODE            (TARGET_RP2040_RAM_START + 0x10000)
-#define TARGET_RP2040_FLASH_SIZE      ((uint32_t)rp2040_flash_size - (uint32_t)__start_for_target_connect_rp2040 + TARGET_RP2040_CODE)
+#define TARGET_RP2350_CODE            (TARGET_RP2350_RAM_START + 0x10000)
+#define TARGET_RP2350_FLASH_SIZE      ((uint32_t)rp2350_flash_size - (uint32_t)__start_for_target_connect_rp2350 + TARGET_RP2350_CODE)
 
 //
 // ---------------------------------------------------------------------------------------------------------------------
@@ -62,7 +64,7 @@ typedef enum {
 // Flash code may be heavily interrupted (e.g. if we are running USB MSC
 // handlers concurrently with flash programming) so we control the CS pin
 // manually
-FOR_TARGET_RP2040_CODE static void flash_cs_force(outover_t over) {
+FOR_TARGET_RP2350_CODE static void flash_cs_force(outover_t over) {
     io_rw_32 *reg = (io_rw_32 *) (IO_QSPI_BASE + IO_QSPI_GPIO_QSPI_SS_CTRL_OFFSET);
 #ifndef GENERAL_SIZE_HACKS
     *reg = (*reg & ~IO_QSPI_GPIO_QSPI_SS_CTRL_OUTOVER_BITS)
@@ -83,7 +85,7 @@ FOR_TARGET_RP2040_CODE static void flash_cs_force(outover_t over) {
 // If rx_skip is nonzero, this many bytes will first be consumed from the FIFO,
 // before reading a further count bytes into *rx.
 // E.g. if you have written a command+address just before calling this function.
-FOR_TARGET_RP2040_CODE static void flash_put_get(const uint8_t *tx, uint8_t *rx, size_t count, size_t rx_skip) {
+FOR_TARGET_RP2350_CODE static void flash_put_get(const uint8_t *tx, uint8_t *rx, size_t count, size_t rx_skip) {
     // Make sure there is never more data in flight than the depth of the RX
     // FIFO. Otherwise, when we are interrupted for long periods, hardware
     // will overflow the RX FIFO.
@@ -120,7 +122,7 @@ FOR_TARGET_RP2040_CODE static void flash_put_get(const uint8_t *tx, uint8_t *rx,
 // Convenience wrapper for above
 // (And it's hard for the debug host to get the tight timing between
 // cmd DR0 write and the remaining data)
-FOR_TARGET_RP2040_CODE static void flash_do_cmd(uint8_t cmd, const uint8_t *tx, uint8_t *rx, size_t count) {
+FOR_TARGET_RP2350_CODE static void flash_do_cmd(uint8_t cmd, const uint8_t *tx, uint8_t *rx, size_t count) {
     flash_cs_force(OUTOVER_LOW);
     ssi->dr0 = cmd;
     flash_put_get(tx, rx, count, 1);
@@ -128,7 +130,7 @@ FOR_TARGET_RP2040_CODE static void flash_do_cmd(uint8_t cmd, const uint8_t *tx, 
 
 
 // Timing of this one is critical, so do not expose the symbol to debugger etc
-FOR_TARGET_RP2040_CODE static void flash_put_cmd_addr(uint8_t cmd, uint32_t addr) {
+FOR_TARGET_RP2350_CODE static void flash_put_cmd_addr(uint8_t cmd, uint32_t addr) {
     flash_cs_force(OUTOVER_LOW);
     addr |= cmd << 24;
     for (int i = 0; i < 4; ++i) {
@@ -142,20 +144,20 @@ FOR_TARGET_RP2040_CODE static void flash_put_cmd_addr(uint8_t cmd, uint32_t addr
 // Size determination via SFDP or JEDEC ID (best effort)
 // Relevant XKCD is 927
 
-FOR_TARGET_RP2040_CODE static void flash_read_sfdp(uint32_t addr, uint8_t *rx, size_t count) {
+FOR_TARGET_RP2350_CODE static void flash_read_sfdp(uint32_t addr, uint8_t *rx, size_t count) {
     assert(addr < 0x1000000);
     flash_put_cmd_addr(FLASHCMD_READ_SFDP, addr);
     ssi->dr0 = 0; // dummy byte
     flash_put_get(NULL, rx, count, 5);
 }
 
-FOR_TARGET_RP2040_CODE static uint32_t bytes_to_u32le(const uint8_t *b) {
+FOR_TARGET_RP2350_CODE static uint32_t bytes_to_u32le(const uint8_t *b) {
     return b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24);
 }
 
 // Return value >= 0: log 2 of flash size in bytes.
 // Return value < 0: unable to determine size.
-FOR_TARGET_RP2040_CODE static int __noinline flash_size_log2() {
+FOR_TARGET_RP2350_CODE static int __noinline flash_size_log2() {
     uint8_t rxbuf[16];
 
     // Check magic
@@ -208,7 +210,7 @@ FOR_TARGET_RP2040_CODE static int __noinline flash_size_log2() {
 // YAPicoprobe definitions
 //
 
-FOR_TARGET_RP2040_CODE static uint32_t rp2040_flash_size(void)
+FOR_TARGET_RP2350_CODE static uint32_t rp2350_flash_size(void)
 {
     // Fill in the rom functions...
     rom_table_lookup_fn rom_table_lookup = (rom_table_lookup_fn)rom_hword_as_ptr(0x18);
@@ -224,34 +226,37 @@ FOR_TARGET_RP2040_CODE static uint32_t rp2040_flash_size(void)
     _flash_enter_cmd_xip();
 
     return (r < 0) ? 0 : (1UL << r);
-}   // rp2040_flash_size
+}   // rp2350_flash_size
 
 
 
-static bool rp2040_target_copy_flash_code(void)
+static bool rp2350_target_copy_flash_code(void)
 {
-    int code_len = (__stop_for_target_connect_rp2040 - __start_for_target_connect_rp2040);
+    int code_len = (__stop_for_target_connect_rp2350 - __start_for_target_connect_rp2350);
 
-    picoprobe_info("FLASH: Copying custom flash code to 0x%08x (%d bytes)\r\n", TARGET_RP2040_CODE, code_len);
+    picoprobe_info("FLASH: Copying custom flash code to 0x%08x (%d bytes)\r\n", TARGET_RP2350_CODE, code_len);
 
-    if ( !swd_write_memory(TARGET_RP2040_CODE, (uint8_t *)__start_for_target_connect_rp2040, code_len))
+    if ( !swd_write_memory(TARGET_RP2350_CODE, (uint8_t *)__start_for_target_connect_rp2350, code_len))
         return false;
     return true;
-}   // rp2040_target_copy_flash_code
+}   // rp2350_target_copy_flash_code
 
 
 
-uint32_t target_rp2040_get_external_flash_size(void)
+uint32_t target_rp2350_get_external_flash_size(void)
 {
     uint32_t res = 0;
     bool ok;
 
+    res = 1 * 1024 * 1024;
+#if 1
     ok = target_set_state(RESET_PROGRAM);
     if (ok) {
-        rp2040_target_copy_flash_code();
-        rp2040_target_call_function(TARGET_RP2040_FLASH_SIZE, NULL, 0, &res);
+        rp2350_target_copy_flash_code();
+        rp2350_target_call_function(TARGET_RP2350_FLASH_SIZE, NULL, 0, &res);
         target_set_state(RESET_PROGRAM);
     }
+#endif
 
     return res;
-}   // target_rp2040_get_external_flash_size
+}   // target_rp2350_get_external_flash_size

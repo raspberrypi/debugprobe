@@ -23,8 +23,8 @@
  *
  */
 
-#ifndef _TARGET_UTILS_RP2040_H
-#define _TARGET_UTILS_RP2040_H
+#ifndef _TARGET_UTILS_RP2350_H
+#define _TARGET_UTILS_RP2350_H
 
 
 #include <stdbool.h>
@@ -37,15 +37,15 @@
 #endif
 
 
-#define TARGET_RP2040_FLASH_START     0x10000000
-#define TARGET_RP2040_FLASH_MAX_SIZE  0x10000000
-#define TARGET_RP2040_RAM_START       0x20000000
+#define TARGET_RP2350_FLASH_START     0x10000000
+#define TARGET_RP2350_FLASH_MAX_SIZE  0x10000000
+#define TARGET_RP2350_RAM_START       0x20000000
 
-#define TARGET_RP2040_STACK           (TARGET_RP2040_RAM_START + 0x30800)
+#define TARGET_RP2350_STACK           (TARGET_RP2350_RAM_START + 0x30800)
 
 
 // pre: flash connected, post: generic XIP active
-#define RP2040_FLASH_RANGE_ERASE(OFFS, CNT, BLKSIZE, CMD)       \
+#define RP2350_FLASH_RANGE_ERASE(OFFS, CNT, BLKSIZE, CMD)       \
     do {                                                        \
         _flash_exit_xip();                                      \
         _flash_range_erase((OFFS), (CNT), (BLKSIZE), (CMD));    \
@@ -54,7 +54,7 @@
     } while (0)
 
 // pre: flash connected, post: generic XIP active
-#define RP2040_FLASH_RANGE_PROGRAM(ADDR, DATA, LEN)             \
+#define RP2350_FLASH_RANGE_PROGRAM(ADDR, DATA, LEN)             \
     do {                                                        \
         _flash_exit_xip();                                      \
         _flash_range_program((ADDR), (DATA), (LEN));            \
@@ -63,15 +63,15 @@
     } while (0)
 
 // post: flash connected && fast or generic XIP active
-#define RP2040_FLASH_ENTER_CMD_XIP()                            \
+#define RP2350_FLASH_ENTER_CMD_XIP()                            \
     do {                                                        \
         _connect_internal_flash();                              \
         _flash_flush_cache();                                   \
-        if (*((uint32_t *)TARGET_RP2040_BOOT2) == 0xffffffff) { \
+        if (*((uint32_t *)TARGET_RP2350_BOOT2) == 0xffffffff) { \
             _flash_enter_cmd_xip();                             \
         }                                                       \
         else {                                                  \
-            ((void (*)(void))TARGET_RP2040_BOOT2+1)();          \
+            ((void (*)(void))TARGET_RP2350_BOOT2+1)();          \
         }                                                       \
     } while (0)
 
@@ -86,7 +86,7 @@ typedef void *(*rom_flash_erase_fn)(uint32_t addr, size_t count, uint32_t block_
 typedef void *(*rom_flash_prog_fn)(uint32_t addr, const uint8_t *data, size_t count);
 
 
-bool rp2040_target_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t *result);
+bool rp2350_target_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t *result);
 
 
 #ifdef __cplusplus
