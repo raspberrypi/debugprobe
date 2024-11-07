@@ -32,7 +32,7 @@
 
 #include "led.h"
 #include "probe_config.h"
-#include "probe.pio.h"
+#include "probe.h"
 #include "tusb.h"
 
 #define DIV_ROUND_UP(m, n)	(((m) + (n) - 1) / (n))
