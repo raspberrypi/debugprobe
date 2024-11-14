@@ -26,7 +26,6 @@
 #include <pico/stdlib.h>
 #include "FreeRTOS.h"
 #include "task.h"
-
 #include "tusb.h"
 
 #include "probe_config.h"
@@ -202,7 +201,8 @@ void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding)
    */
   uint32_t micros = (1000 * 1000 * 16 * 10) / MAX(line_coding->bit_rate, 1);
   /* Modifying state, so park the thread before changing it. */
-  vTaskSuspend(uart_taskhandle);
+  if (tud_cdc_connected())
+    vTaskSuspend(uart_taskhandle);
   interval = MAX(1, micros / ((1000 * 1000) / configTICK_RATE_HZ));
   debounce_ticks = MAX(1, configTICK_RATE_HZ / (interval * DEBOUNCE_MS));
   probe_info("New baud rate %ld micros %ld interval %lu\n",
@@ -256,7 +256,10 @@ void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding)
   }
 
   uart_set_format(PROBE_UART_INTERFACE, data_bits, stop_bits, parity);
-  vTaskResume(uart_taskhandle);
+  /* Windows likes to arbitrarily set/get line coding after dtr/rts changes, so
+   * don't resume if we shouldn't */
+  if(tud_cdc_connected())
+    vTaskResume(uart_taskhandle);
 }
 
 void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
@@ -270,7 +273,7 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 
   /* CDC drivers use linestate as a bodge to activate/deactivate the interface.
    * Resume our UART polling on activate, stop on deactivate */
-  if (!dtr && !rts) {
+  if (!dtr) {
     vTaskSuspend(uart_taskhandle);
 #ifdef PROBE_UART_RX_LED
     gpio_put(PROBE_UART_RX_LED, 0);
