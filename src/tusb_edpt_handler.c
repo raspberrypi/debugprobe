@@ -41,6 +41,15 @@ void dap_edpt_init(void) {
 
 }
 
+bool dap_edpt_deinit(void)
+{
+	memset(DAPRequestBuffer, 0, sizeof(DAPRequestBuffer));
+	memset(DAPResponseBuffer, 0, sizeof(DAPResponseBuffer));
+	USBRequestBuffer.wptr = USBRequestBuffer.rptr = 0;
+	USBResponseBuffer.wptr = USBResponseBuffer.rptr = 0;
+	return true;
+}
+
 void dap_edpt_reset(uint8_t __unused rhport)
 {
 	itf_num = 0;
@@ -198,7 +207,7 @@ void dap_thread(void *ptr)
 			 */
 			n = USBRequestBuffer.rptr;
 			while (USBRequestBuffer.data[n % DAP_PACKET_COUNT][0] == ID_DAP_QueueCommands) {
-				probe_info("%u %u DAP queued cmd %s len %02x\n",
+				probe_info("%lu %lu DAP queued cmd %s len %02x\n",
 					       USBRequestBuffer.wptr, USBRequestBuffer.rptr,
 					       dap_cmd_string[USBRequestBuffer.data[n % DAP_PACKET_COUNT][0]], USBRequestBuffer.data[n % DAP_PACKET_COUNT][1]);
 				USBRequestBuffer.data[n % DAP_PACKET_COUNT][0] = ID_DAP_ExecuteCommands;
@@ -211,7 +220,7 @@ void dap_thread(void *ptr)
 			}
 			// Read a single packet from the USB buffer into the DAP Request buffer
 			memcpy(DAPRequestBuffer, RD_SLOT_PTR(USBRequestBuffer), DAP_PACKET_SIZE);
-			probe_info("%u %u DAP cmd %s len %02x\n",
+			probe_info("%lu %lu DAP cmd %s len %02x\n",
 				       USBRequestBuffer.wptr, USBRequestBuffer.rptr,
 				       dap_cmd_string[DAPRequestBuffer[0]], DAPRequestBuffer[1]);
 			USBRequestBuffer.rptr++;
@@ -227,7 +236,7 @@ void dap_thread(void *ptr)
 			}
 
 			_resp_len = DAP_ExecuteCommand(DAPRequestBuffer, DAPResponseBuffer);
-			probe_info("%u %u DAP resp %s\n",
+			probe_info("%lu %lu DAP resp %s\n",
 					USBResponseBuffer.wptr, USBResponseBuffer.rptr,
 					dap_cmd_string[DAPResponseBuffer[0]]);
 
@@ -262,6 +271,7 @@ void dap_thread(void *ptr)
 usbd_class_driver_t const _dap_edpt_driver =
 {
 		.init = dap_edpt_init,
+		.deinit = dap_edpt_deinit,
 		.reset = dap_edpt_reset,
 		.open = dap_edpt_open,
 		.control_xfer_cb = dap_edpt_control_xfer_cb,
