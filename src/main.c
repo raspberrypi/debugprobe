@@ -75,8 +75,11 @@ void usb_thread(void *ptr)
         else
             gpio_put(PROBE_USB_CONNECTED_LED, 0);
 #endif
+        // If suspended or disconnected, delay for 1ms (20 ticks)
+        if (tud_suspended() || !tud_connected())
+            xTaskDelayUntil(&wake, 20);
         // Go to sleep for up to a tick if nothing to do
-        if (!tud_task_event_ready())
+        else if (!tud_task_event_ready())
             xTaskDelayUntil(&wake, 1);
     } while (1);
 }
@@ -188,6 +191,40 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   return false;
 }
 #endif
+
+void tud_suspend_cb(bool remote_wakeup_en)
+{
+  probe_info("Suspended\n");
+  /* Join DAP and UART threads? Or just suspend them, for transparency */
+  vTaskSuspend(uart_taskhandle);
+  vTaskSuspend(dap_taskhandle);
+  /* slow down clk_sys for power saving ? */
+}
+
+void tud_resume_cb(void)
+{
+  probe_info("Resumed\n");
+  vTaskResume(uart_taskhandle);
+  vTaskResume(dap_taskhandle);
+}
+
+void tud_unmount_cb(void)
+{
+  probe_info("Disconnected\n");
+  vTaskSuspend(uart_taskhandle);
+  vTaskSuspend(dap_taskhandle);
+  vTaskDelete(uart_taskhandle);
+  vTaskDelete(dap_taskhandle);
+}
+
+void tud_mount_cb(void)
+{
+  probe_info("Connected, Configured\n");
+  /* UART needs to preempt USB as if we don't, characters get lost */
+  xTaskCreate(cdc_thread, "UART", configMINIMAL_STACK_SIZE, NULL, UART_TASK_PRIO, &uart_taskhandle);
+  /* Lowest priority thread is debug - need to shuffle buffers before we can toggle swd... */
+  xTaskCreate(dap_thread, "DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);
+}
 
 void vApplicationTickHook (void)
 {
