@@ -44,6 +44,7 @@
 #include "get_serial.h"
 #include "tusb_edpt_handler.h"
 #include "DAP.h"
+#include "hardware/structs/usb.h"
 
 // UART0 for debugprobe debug
 // UART1 for debugprobe to target device
@@ -57,7 +58,36 @@ static uint8_t RxDataBuffer[CFG_TUD_HID_EP_BUFSIZE];
 #define TUD_TASK_PRIO  (tskIDLE_PRIORITY + 2)
 #define DAP_TASK_PRIO  (tskIDLE_PRIORITY + 1)
 
-TaskHandle_t dap_taskhandle, tud_taskhandle;
+TaskHandle_t dap_taskhandle, tud_taskhandle, mon_taskhandle;
+
+void dev_mon(void *ptr)
+{
+    uint32_t sof[3];
+    int i = 0;
+    TickType_t wake;
+    wake = xTaskGetTickCount();
+    do {
+        /* ~5 SOF events per tick */
+        xTaskDelayUntil(&wake, 100);
+        if (tud_connected() && !tud_suspended()) {
+            sof[i++] = usb_hw->sof_rd & USB_SOF_RD_BITS;
+            i = i % 3;
+        } else {
+            for (i = 0; i < 3; i++)
+                sof[i] = 0;
+        }
+        if ((sof[0] | sof[1] | sof[2]) != 0) {
+            if ((sof[0] == sof[1]) && (sof[1] == sof[2])) {
+                probe_info("Watchdog timeout! Resetting USBD\n");
+                /* uh oh, signal disconnect (implicitly resets the controller) */
+                tud_deinit(0);
+                /* Make sure the port got the message */
+                xTaskDelayUntil(&wake, 1);
+                tud_init(0);
+            }
+        }
+    } while (1);
+}
 
 void usb_thread(void *ptr)
 {
@@ -104,11 +134,10 @@ int main(void) {
     probe_info("Welcome to debugprobe!\n");
 
     if (THREADED) {
-        /* UART needs to preempt USB as if we don't, characters get lost */
-        xTaskCreate(cdc_thread, "UART", configMINIMAL_STACK_SIZE, NULL, UART_TASK_PRIO, &uart_taskhandle);
         xTaskCreate(usb_thread, "TUD", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, &tud_taskhandle);
-        /* Lowest priority thread is debug - need to shuffle buffers before we can toggle swd... */
-        xTaskCreate(dap_thread, "DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);
+#if PICO_RP2040
+        xTaskCreate(dev_mon, "WDOG", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, &mon_taskhandle);
+#endif
         vTaskStartScheduler();
     }
 
