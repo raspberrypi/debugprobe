@@ -42,7 +42,6 @@
 #include "probe.h"
 #include "cdc_uart.h"
 #include "get_serial.h"
-#include "led.h"
 #include "tusb_edpt_handler.h"
 #include "DAP.h"
 
@@ -94,8 +93,6 @@ int main(void) {
     stdio_uart_init();
 
     DAP_Setup();
-
-    led_init();
 
     probe_info("Welcome to debugprobe!\n");
 

@@ -30,7 +30,6 @@
 #include <hardware/clocks.h>
 #include <hardware/gpio.h>
 
-#include "led.h"
 #include "probe_config.h"
 #include "probe.h"
 #include "tusb.h"
