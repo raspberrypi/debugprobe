@@ -562,6 +562,15 @@ Status LEDs. In detail the operation of Hardware I/O and LED pins are enabled an
 */
 __STATIC_INLINE void DAP_SETUP (void) {
   probe_gpio_init();
+
+#ifdef PROBE_DAP_CONNECTED_LED
+    gpio_init(PROBE_DAP_CONNECTED_LED);
+    gpio_set_dir(PROBE_DAP_CONNECTED_LED, GPIO_OUT);
+#endif
+#ifdef PROBE_DAP_RUNNING_LED
+    gpio_init(PROBE_DAP_RUNNING_LED);
+    gpio_set_dir(PROBE_DAP_RUNNING_LED, GPIO_OUT);
+#endif
 }
 
 /** Reset Target Device with custom specific I/O pin or command sequence.

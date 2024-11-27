@@ -61,6 +61,10 @@ TaskHandle_t dap_taskhandle, tud_taskhandle;
 
 void usb_thread(void *ptr)
 {
+#ifdef PROBE_USB_CONNECTED_LED
+    gpio_init(PROBE_USB_CONNECTED_LED);
+    gpio_set_dir(PROBE_USB_CONNECTED_LED, GPIO_OUT);
+#endif
     TickType_t wake;
     wake = xTaskGetTickCount();
     do {

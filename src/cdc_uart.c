@@ -58,6 +58,17 @@ void cdc_uart_init(void) {
     gpio_set_pulls(PROBE_UART_RX, 1, 0);
     uart_init(PROBE_UART_INTERFACE, PROBE_UART_BAUDRATE);
 
+#ifdef PROBE_UART_TX_LED
+    tx_led_debounce = 0;
+    gpio_init(PROBE_UART_TX_LED);
+    gpio_set_dir(PROBE_UART_TX_LED, GPIO_OUT);
+#endif
+#ifdef PROBE_UART_RX_LED
+    rx_led_debounce = 0;
+    gpio_init(PROBE_UART_RX_LED);
+    gpio_set_dir(PROBE_UART_RX_LED, GPIO_OUT);
+#endif
+
 #ifdef PROBE_UART_HWFC
     /* HWFC implies that hardware flow control is implemented and the
      * UART operates in "full-duplex" mode (See USB CDC PSTN120 6.3.12).
