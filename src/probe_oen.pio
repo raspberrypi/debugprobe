@@ -63,6 +63,21 @@ static inline void probe_gpio_init()
     gpio_pull_up(PROBE_PIN_SWDIOEN);
 }
 
+// DAP interface says all pins have to be High-Z when disabled
+static inline void probe_gpio_deinit()
+{
+#if defined(PROBE_PIN_RESET)
+	gpio_deinit(PROBE_PIN_RESET);
+	gpio_disable_pulls(PROBE_PIN_RESET);
+#endif
+	gpio_deinit(PROBE_PIN_SWCLK);
+	gpio_disable_pulls(PROBE_PIN_SWCLK);
+// Note for SWDIOEN - make sure the driver output enable is removed before removing drive - leave pull-up enabled
+	gpio_deinit(PROBE_PIN_SWDIOEN);
+	gpio_deinit(PROBE_PIN_SWDIO);
+	gpio_disable_pulls(PROBE_PIN_SWDIO);
+}
+
 static inline void probe_sm_init(pio_sm_config* sm_config) {
 
     // Set SWDIOEN and SWCLK as sideset pins
