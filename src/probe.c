@@ -146,6 +146,7 @@ void probe_write_mode(void) {
 
 void probe_init() {
     if (!probe.initted) {
+        probe_gpio_init();
         uint offset = pio_add_program(pio0, &probe_program);
         probe.offset = offset;
 

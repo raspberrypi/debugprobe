@@ -561,7 +561,7 @@ Status LEDs. In detail the operation of Hardware I/O and LED pins are enabled an
  - LED output pins are enabled and LEDs are turned off.
 */
 __STATIC_INLINE void DAP_SETUP (void) {
-  probe_gpio_init();
+// We synchronously setup probe IOs when the respective PIO program is loaded - not at start of day
 
 #ifdef PROBE_DAP_CONNECTED_LED
     gpio_init(PROBE_DAP_CONNECTED_LED);
