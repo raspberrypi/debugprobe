@@ -51,12 +51,20 @@ target_compile_definitions (debugprobe PRIVATE
 
 option (DEBUG_ON_PICO "Compile firmware for the Pico instead of Debug Probe" OFF)
 if (DEBUG_ON_PICO)
-    target_compile_definitions (debugprobe PRIVATE 
+    target_compile_definitions (debugprobe PRIVATE
 	DEBUG_ON_PICO=1
     )
-    set_target_properties(debugprobe PROPERTIES 
-        OUTPUT_NAME "debugprobe_on_pico"
-    )
+    if (PICO_BOARD STREQUAL "pico")
+        set_target_properties(debugprobe PROPERTIES
+            OUTPUT_NAME "debugprobe_on_pico"
+        )
+    elseif (PICO_BOARD STREQUAL "pico2")
+        set_target_properties(debugprobe PROPERTIES
+            OUTPUT_NAME "debugprobe_on_pico2"
+        )
+    else ()
+        error("Unsupported board ${PICO_BOARD}" PICO_BOARD)
+    endif ()
 endif ()
 
 
