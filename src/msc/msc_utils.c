@@ -215,7 +215,7 @@ static bool rp2040_target_copy_flash_code(void)
 {
     int code_len = (__stop_for_target - __start_for_target);
 
-    picoprobe_info("FLASH: Copying custom flash code to 0x%08x (%d bytes)\r\n", TARGET_RP2040_CODE, code_len);
+    picoprobe_info("FLASH: Copying custom flash code to 0x%08x (%d bytes)\n", TARGET_RP2040_CODE, code_len);
     if ( !swd_write_memory(TARGET_RP2040_CODE, (uint8_t *)__start_for_target, code_len))
         return false;
 
@@ -229,7 +229,7 @@ static bool rp2040_target_copy_flash_code(void)
     // copy BOOT2 code (TODO make it right)
 #if 1
     // this works only if target and probe have the same BOOT2 code
-    picoprobe_info("FLASH: Copying BOOT2 code to 0x%08x (%d bytes)\r\n", TARGET_RP2040_BOOT2, TARGET_RP2040_BOOT2_SIZE);
+    picoprobe_info("FLASH: Copying BOOT2 code to 0x%08x (%d bytes)\n", TARGET_RP2040_BOOT2, TARGET_RP2040_BOOT2_SIZE);
     if ( !swd_write_memory(TARGET_RP2040_BOOT2, (uint8_t *)RP2040_FLASH_START, TARGET_RP2040_BOOT2_SIZE))
         return false;
 #else
