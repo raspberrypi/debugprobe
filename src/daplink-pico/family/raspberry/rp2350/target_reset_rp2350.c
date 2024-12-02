@@ -59,19 +59,6 @@ extern void osDelay(uint32_t ticks);
 /*************************************************************************************************/
 
 
-#if 0
-/// taken from pico_debug and output of pyODC
-static void swd_line_reset(void)
-{
-    const uint8_t reset_seq[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x03};
-
-    printf("---swd_line_reset()\n");
-
-    SWJ_Sequence( 52, reset_seq);
-}   // swd_line_reset
-#endif
-
-
 static void swd_from_dormant(void)
 /**
  * Wake up SWD.
@@ -81,7 +68,7 @@ static void swd_from_dormant(void)
     const uint8_t ones_seq[]            = {0xff};
     const uint8_t selection_alert_seq[] = {0x92, 0xf3, 0x09, 0x62, 0x95, 0x2d, 0x85, 0x86, 0xe9, 0xaf, 0xdd, 0xe3, 0xa2, 0x0e, 0xbc, 0x19};
     const uint8_t zero_seq[]            = {0x00};
-    const uint8_t act_seq[]             = { 0x1a };
+    const uint8_t act_seq[]             = {0x1a};
     const uint8_t reset_seq[]           = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x03};
     uint32_t rv;
 
@@ -96,39 +83,6 @@ static void swd_from_dormant(void)
     swd_read_dp(DP_IDCODE, &rv);
 //    printf("---  id(%u)=0x%08lx\n", core, rv);   // 0x4c013477 is the RP2350
 }   // swd_from_dormant
-
-
-#if 0
-static void swd_targetsel(uint8_t core)
-{
-    static const uint8_t out1[]        = {0x99};
-#if 0
-    // RP2040
-    static const uint8_t core_0[]      = {0x27, 0x29, 0x00, 0x01, 0x00};
-    static const uint8_t core_1[]      = {0x27, 0x29, 0x00, 0x11, 0x01};
-    static const uint8_t core_rescue[] = {0x27, 0x29, 0x00, 0xf1, 0x00};
-#else
-    // RP2350
-    static const uint8_t core_0[]      = {0x27, 0x09, 0x04, 0x00, 0x01};
-    static const uint8_t core_1[]      = {0x27, 0x09, 0x04, 0x00, 0x01};
-    static const uint8_t core_rescue[] = {0x27, 0x29, 0x00, 0xf1, 0x00};
-#endif
-    static const uint8_t out2[]        = {0x00};
-    static uint8_t input;
-
-    printf("---swd_targetsel(%u)\n", core);
-
-    SWD_Sequence(8, out1, NULL);
-    SWD_Sequence(0x80 + 5, NULL, &input);
-    if (core == 0)
-        SWD_Sequence(33, core_0, NULL);
-    else if (core == 1)
-        SWD_Sequence(33, core_1, NULL);
-    else
-        SWD_Sequence(33, core_rescue, NULL);
-    SWD_Sequence(2, out2, NULL);
-}   // swd_targetsel
-#endif
 
 
 /**
@@ -147,11 +101,9 @@ static bool dp_core_select(uint8_t _core)
     }
 
     g_raspberry_rp2350_family.apsel = 0x2d00;       // TODO where from is this xd00 ?  taken from openocd
-    if (_core == 1)
+    if (_core == 1) {
         g_raspberry_rp2350_family.apsel = 0x4d00;
-
-    //swd_line_reset();
-    //swd_targetsel(_core);
+    }
 
 #if 0
     CHECK_OK_BOOL(swd_read_dp(DP_IDCODE, &rv));
@@ -416,7 +368,9 @@ static bool rp2350_swd_set_target_state(uint8_t core, target_state_t state)
             if (!rp2350_swd_init_debug(core)) {
                 return false;
             }
-
+#if 1
+#else
+            // TODO this code "crashes" the target
             // Enable debug and halt the core (DHCSR <- 0xA05F0003)
             while (swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_HALT) == 0) {
                 if ( --ap_retries <=0 ) {
@@ -466,6 +420,7 @@ static bool rp2350_swd_set_target_state(uint8_t core, target_state_t state)
             if (!swd_write_word(DBG_EMCR, 0)) {
                 return false;
             }
+#endif
             break;
 
         case NO_DEBUG:
@@ -500,6 +455,9 @@ static bool rp2350_swd_set_target_state(uint8_t core, target_state_t state)
                 return false;
             }
 
+#if 1
+#else
+            // TODO this code "crashes" the target
             // Enable debug and halt the core (DHCSR <- 0xA05F0003)
             if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_HALT)) {
                 return false;
@@ -511,6 +469,7 @@ static bool rp2350_swd_set_target_state(uint8_t core, target_state_t state)
                     return false;
                 }
             } while ((val & S_HALT) == 0);
+#endif
             break;
 
         case RUN:
@@ -563,7 +522,7 @@ static uint8_t rp2350_target_set_state(target_state_t state)
 {
     uint8_t r = false;
 
-//    printf("----- rp2350_target_set_state(%d)\n", state);
+    printf("----- rp2350_target_set_state(%d)\n", state);
 
     switch (state) {
         case RESET_HOLD:
@@ -644,63 +603,10 @@ static uint8_t rp2350_target_set_state(target_state_t state)
 
 
 //----------------------------------------------------------------------------------------------------------------------
-//
-// some utility functions
-//
-
-
-#if 0
-bool target_core_is_halted(void)
-{
-    uint32_t value;
-
-    if ( !swd_read_word(DBG_HCSR, &value))
-        return false;
-    if (value & S_HALT)
-        return true;
-    return false;
-}   // target_core_is_halted
-
-
-
-bool target_core_halt(void)
-{
-    if ( !swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_MASKINTS | C_HALT)) {
-        return false;
-    }
-
-    while ( !target_core_is_halted())
-        ;
-    return true;
-}   // target_core_halt
-
-
-
-bool target_core_unhalt(void)
-{
-    if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN)) {
-        return false;
-    }
-    return true;
-}   // target_core_unhalt
-
-
-
-bool target_core_unhalt_with_masked_ints(void)
-{
-    if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_MASKINTS)) {
-        return false;
-    }
-    return true;
-}   // target_core_unhalt_with_masked_ints
-#endif
-
-
-//----------------------------------------------------------------------------------------------------------------------
 
 target_family_descriptor_t g_raspberry_rp2350_family = {
     .family_id                = TARGET_RP2350_FAMILY_ID,
     .swd_set_target_reset     = &rp2350_swd_set_target_reset,
     .target_set_state         = &rp2350_target_set_state,
-    .apsel = 0 //x2d00
+    .apsel = 0x2d00
 };

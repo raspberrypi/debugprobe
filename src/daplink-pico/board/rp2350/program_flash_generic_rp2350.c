@@ -234,7 +234,7 @@ static bool rp2350_target_copy_flash_code(void)
 {
     int code_len = (__stop_for_target_connect_rp2350 - __start_for_target_connect_rp2350);
 
-    picoprobe_info("FLASH: Copying custom flash code to 0x%08x (%d bytes)\r\n", TARGET_RP2350_CODE, code_len);
+    picoprobe_info("FLASH: Copying custom flash code to 0x%08x (%d bytes)\n", TARGET_RP2350_CODE, code_len);
 
     if ( !swd_write_memory(TARGET_RP2350_CODE, (uint8_t *)__start_for_target_connect_rp2350, code_len))
         return false;
@@ -249,14 +249,25 @@ uint32_t target_rp2350_get_external_flash_size(void)
     bool ok;
 
     res = 1 * 1024 * 1024;
+
+    // TODO target_set_state(RESET_PROGRAM, HALT) crashes the target, bad thing is, that the target only can be reverted from this state via power cycle
+
+    // OK: RESET_HOLD, RESET_RUN, NO_DEBUG, DEBUG, RUN, POST_FLASH_RESET, POWER_ON, SHUTDOWN
+    ok = target_set_state(HALT);
+    picoprobe_info("//////////////////// target_rp2350_get_external_flash_size: HALT %d\n", ok);
 #if 1
-    ok = target_set_state(RESET_PROGRAM);
-    if (ok) {
-        rp2350_target_copy_flash_code();
-        rp2350_target_call_function(TARGET_RP2350_FLASH_SIZE, NULL, 0, &res);
-        target_set_state(RESET_PROGRAM);
-    }
+//    ok = target_set_state(RESET_PROGRAM);
+//    picoprobe_info("//////////////////// target_rp2350_get_external_flash_size: RESET_PROGRAM %d\n", ok);
+//    if (ok) {
+//        rp2350_target_copy_flash_code();
+//        rp2350_target_call_function(TARGET_RP2350_FLASH_SIZE, NULL, 0, &res);
+//        target_set_state(RESET_PROGRAM);
+//    }
 #endif
+    ok = target_set_state(RESET_RUN);
+    picoprobe_info("//////////////////// target_rp2350_get_external_flash_size: RESET_RUN %d\n", ok);
+    ok = target_set_state(ATTACH);
+    picoprobe_info("//////////////////// target_rp2350_get_external_flash_size: ATTACH %d\n", ok);
 
     return res;
 }   // target_rp2350_get_external_flash_size
