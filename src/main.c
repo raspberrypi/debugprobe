@@ -60,6 +60,8 @@ static uint8_t RxDataBuffer[CFG_TUD_HID_EP_BUFSIZE];
 
 TaskHandle_t dap_taskhandle, tud_taskhandle, mon_taskhandle;
 
+static int was_configured;
+
 void dev_mon(void *ptr)
 {
     uint32_t sof[3];
@@ -224,17 +226,21 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 void tud_suspend_cb(bool remote_wakeup_en)
 {
   probe_info("Suspended\n");
-  /* Join DAP and UART threads? Or just suspend them, for transparency */
-  vTaskSuspend(uart_taskhandle);
-  vTaskSuspend(dap_taskhandle);
+  /* Were we actually configured? If not, threads don't exist */
+  if (was_configured) {
+	  vTaskSuspend(uart_taskhandle);
+	  vTaskSuspend(dap_taskhandle);
+  }
   /* slow down clk_sys for power saving ? */
 }
 
 void tud_resume_cb(void)
 {
   probe_info("Resumed\n");
-  vTaskResume(uart_taskhandle);
-  vTaskResume(dap_taskhandle);
+  if (was_configured) {
+	  vTaskResume(uart_taskhandle);
+	  vTaskResume(dap_taskhandle);
+  }
 }
 
 void tud_unmount_cb(void)
@@ -244,15 +250,19 @@ void tud_unmount_cb(void)
   vTaskSuspend(dap_taskhandle);
   vTaskDelete(uart_taskhandle);
   vTaskDelete(dap_taskhandle);
+  was_configured = 0;
 }
 
 void tud_mount_cb(void)
 {
   probe_info("Connected, Configured\n");
-  /* UART needs to preempt USB as if we don't, characters get lost */
-  xTaskCreate(cdc_thread, "UART", configMINIMAL_STACK_SIZE, NULL, UART_TASK_PRIO, &uart_taskhandle);
-  /* Lowest priority thread is debug - need to shuffle buffers before we can toggle swd... */
-  xTaskCreate(dap_thread, "DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);
+  if (!was_configured) {
+    /* UART needs to preempt USB as if we don't, characters get lost */
+    xTaskCreate(cdc_thread, "UART", configMINIMAL_STACK_SIZE, NULL, UART_TASK_PRIO, &uart_taskhandle);
+    /* Lowest priority thread is debug - need to shuffle buffers before we can toggle swd... */
+    xTaskCreate(dap_thread, "DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);
+    was_configured = 1;
+  }
 }
 
 void vApplicationTickHook (void)
