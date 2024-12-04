@@ -1,6 +1,6 @@
 #include "probe_config.h"
 #include "pico/binary_info.h"
-
+#include "probe/version.h"
 
 #define STR_HELPER(x) #x
 #define STR(x) STR_HELPER(x)
@@ -8,6 +8,7 @@
 
 void bi_decl_config()
 {
+    bi_decl(bi_program_version_string(PROBE_VERSION));
 #ifdef PROBE_PIN_RESET
     bi_decl(bi_1pin_with_name(PROBE_PIN_RESET, "PROBE RESET"));
 #endif
