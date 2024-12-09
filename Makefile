@@ -101,9 +101,9 @@ create-images:
 	cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-pico-$(GIT_HASH).uf2
 	#
 	# does not compile with clang because of missing __heap_start/end
-	$(MAKE) cmake-create-release PICO_BOARD=pico_w
-	$(MAKE) all
-	cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-picow-$(GIT_HASH).uf2
+	#$(MAKE) cmake-create-release PICO_BOARD=pico_w
+	#$(MAKE) all
+	#cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-picow-$(GIT_HASH).uf2
 	#
 	$(MAKE) cmake-create-release PICO_BOARD=pico_debug_probe
 	$(MAKE) all

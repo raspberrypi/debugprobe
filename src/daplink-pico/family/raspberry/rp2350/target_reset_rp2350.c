@@ -38,7 +38,7 @@
 
 
 extern target_family_descriptor_t g_raspberry_rp2350_family;
-static const uint32_t soft_reset = SYSRESETREQ;
+////static const uint32_t soft_reset = SYSRESETREQ;
 
 
 
@@ -196,6 +196,7 @@ static void dump_rom_tables(uint32_t apsel, uint32_t offs, uint32_t len)
 #endif
 
 
+#if 0 ////
 /**
  * Clear all HW breakpoints.
  * \pre
@@ -213,7 +214,7 @@ static bool dp_disable_breakpoint()
     }
     return true;
 }   // dp_disable_breakpoint
-
+#endif
 
 /*************************************************************************************************/
 
@@ -311,7 +312,7 @@ static bool rp2350_swd_init_debug(uint8_t core)
 static bool rp2350_swd_set_target_state(uint8_t core, target_state_t state)
 {
     uint32_t val;
-    int8_t ap_retries = 2;
+//    int8_t ap_retries = 2;
 
 //    printf("+++++++++++++++ rp2350_swd_set_target_state(%d, %d)\n", core, state);
 

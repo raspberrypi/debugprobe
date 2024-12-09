@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "rp2040/hardware/helper.h"
-#include "hardware/structs/ssi.h"
-#include "hardware/regs/io_qspi.h"
+//#include "rp2040/hardware/helper.h"
+//#include "hardware/regs/io_qspi.h"
+//#include "hardware/structs/ssi.h"
 
 // ---------------------------------------------------------------------------------------------------------------------
 // YAPicoprobe definitions
@@ -18,6 +18,7 @@
 
 #include "target_utils_rp2350.h"
 
+#if 0
 extern char __start_for_target_connect_rp2350[];
 extern char __stop_for_target_connect_rp2350[];
 
@@ -240,6 +241,7 @@ static bool rp2350_target_copy_flash_code(void)
         return false;
     return true;
 }   // rp2350_target_copy_flash_code
+#endif
 
 
 
