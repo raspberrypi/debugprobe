@@ -106,7 +106,7 @@ uint16_t dap_packet_size  = _DAP_PACKET_SIZE_UNKNOWN;
 
 
 #if OPT_CMSIS_DAPV2
-void tud_vendor_rx_cb(uint8_t itf)
+void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize)
 {
     if (itf == 0) {
         xEventGroupSetBits(dap_events, 0x01);
