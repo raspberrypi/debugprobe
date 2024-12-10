@@ -33,7 +33,8 @@ typedef enum {
     E_DAPTOOL_UNKNOWN,
     E_DAPTOOL_OPENOCD,
     E_DAPTOOL_PYOCD,
-    E_DAPTOOL_PROBERS
+    E_DAPTOOL_PROBERS,
+    E_DAPTOOL_USER
 } daptool_t;
 
 

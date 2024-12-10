@@ -43,6 +43,7 @@
 #include "DAP.h"
 #include "led.h"
 #include "sw_lock.h"
+#include "minIni/minIni.h"
 
 
 #if OPT_CMSIS_DAPV2
@@ -177,18 +178,30 @@ void dap_task(void *ptr)
                     // try to find out which tool is connecting
                     //
                     if (tool == E_DAPTOOL_UNKNOWN) {
-                        tool = DAP_FingerprintTool(RxDataBuffer, request_len);
-                        if (tool == E_DAPTOOL_OPENOCD) {
-                            dap_packet_count = _DAP_PACKET_COUNT_OPENOCD;
-                            dap_packet_size  = _DAP_PACKET_SIZE_OPENOCD;
+                        uint32_t psize;
+
+                        psize = ini_getl(MININI_SECTION, MININI_VAR_DPSIZE, 0, MININI_FILENAME);
+                        if (psize != 0)
+                        {
+                            dap_packet_count = 1;
+                            dap_packet_size  = psize;
+                            tool = E_DAPTOOL_USER;
                         }
-                        else if (tool == E_DAPTOOL_PYOCD) {
-                            dap_packet_count = _DAP_PACKET_COUNT_PYOCD;
-                            dap_packet_size  = _DAP_PACKET_SIZE_PYOCD;
-                        }
-                        else if (tool == E_DAPTOOL_PROBERS) {
-                            dap_packet_count = _DAP_PACKET_COUNT_PROBERS;
-                            dap_packet_size  = _DAP_PACKET_SIZE_PROBERS;
+                        else
+                        {
+                            tool = DAP_FingerprintTool(RxDataBuffer, request_len);
+                            if (tool == E_DAPTOOL_OPENOCD) {
+                                dap_packet_count = _DAP_PACKET_COUNT_OPENOCD;
+                                dap_packet_size  = _DAP_PACKET_SIZE_OPENOCD;
+                            }
+                            else if (tool == E_DAPTOOL_PYOCD) {
+                                dap_packet_count = _DAP_PACKET_COUNT_PYOCD;
+                                dap_packet_size  = _DAP_PACKET_SIZE_PYOCD;
+                            }
+                            else if (tool == E_DAPTOOL_PROBERS) {
+                                dap_packet_count = _DAP_PACKET_COUNT_PROBERS;
+                                dap_packet_size  = _DAP_PACKET_SIZE_PROBERS;
+                            }
                         }
                     }
 
@@ -201,7 +214,8 @@ void dap_task(void *ptr)
                             picoprobe_info("=================================== DAPv2 connect target, host %s, buffer: %dx%dbytes\n",
                                     (tool == E_DAPTOOL_OPENOCD) ? "OpenOCD"    :
                                      (tool == E_DAPTOOL_PYOCD) ? "pyOCD"       :
-                                      (tool == E_DAPTOOL_PROBERS) ? "probe-rs" : "UNKNOWN", dap_packet_count, dap_packet_size);
+                                      (tool == E_DAPTOOL_PROBERS) ? "probe-rs" :
+                                       (tool == E_DAPTOOL_USER) ? "user"       : "UNKNOWN", dap_packet_count, dap_packet_size);
                             led_state(LS_DAPV2_CONNECTED);
                         }
                     }
