@@ -63,7 +63,7 @@ if (DEBUG_ON_PICO)
             OUTPUT_NAME "debugprobe_on_pico2"
         )
     else ()
-        error("Unsupported board ${PICO_BOARD}" PICO_BOARD)
+        message(SEND_ERROR "Unsupported board ${PICO_BOARD}")
     endif ()
 endif ()
 

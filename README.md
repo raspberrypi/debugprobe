@@ -22,7 +22,7 @@ cd debugprobe
 ```
 Initialize and update the submodules:
 ```
- git submodule update --init
+ git submodule update --init --recursive
 ```
 Then create and switch to the build directory:
 ```
