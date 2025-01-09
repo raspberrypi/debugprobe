@@ -48,7 +48,7 @@ tusb_desc_device_t const desc_device =
 
     .idVendor           = 0x2E8A, // Pi
     .idProduct          = 0x000c, // CMSIS-DAP Debug Probe
-    .bcdDevice          = 0x0220, // Version 02.20
+    .bcdDevice          = 0x0221, // Version 02.21
     .iManufacturer      = 0x01,
     .iProduct           = 0x02,
     .iSerialNumber      = 0x03,
