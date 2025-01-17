@@ -24,6 +24,7 @@
  */
 
 #include <pico/stdlib.h>
+#include "hardware/uart.h"
 #include "FreeRTOS.h"
 #include "task.h"
 #include "tusb.h"
@@ -49,6 +50,9 @@ static volatile uint tx_led_debounce;
 #ifdef PROBE_UART_RX_LED
 static uint rx_led_debounce;
 #endif
+
+// Guesstimate FIFO space per task wakeup
+static volatile uint32_t chars_per_interval;
 
 void cdc_uart_init(void) {
     gpio_set_function(PROBE_UART_TX, GPIO_FUNC_UART);
@@ -98,9 +102,29 @@ bool cdc_task(void)
     static uint cdc_tx_oe = 0;
     uint rx_len = 0;
     bool keep_alive = false;
+    uart_hw_t *uart_hw = uart_get_hw(PROBE_UART_INTERFACE);
 
     // Consume uart fifo regardless even if not connected
-    while(uart_is_readable(PROBE_UART_INTERFACE) && (rx_len < sizeof(rx_buf))) {
+    if (uart_hw->ris & UART_UARTRIS_RXRIS_BITS) {
+         // Burst 16 chars - don't use SDK wrapper as it tests RXFE every time
+        rx_buf[rx_len++] = uart_hw->dr;
+        rx_buf[rx_len++] = uart_hw->dr;
+        rx_buf[rx_len++] = uart_hw->dr;
+        rx_buf[rx_len++] = uart_hw->dr;
+        rx_buf[rx_len++] = uart_hw->dr;
+        rx_buf[rx_len++] = uart_hw->dr;
+        rx_buf[rx_len++] = uart_hw->dr;
+        rx_buf[rx_len++] = uart_hw->dr;
+        rx_buf[rx_len++] = uart_hw->dr;
+        rx_buf[rx_len++] = uart_hw->dr;
+        rx_buf[rx_len++] = uart_hw->dr;
+        rx_buf[rx_len++] = uart_hw->dr;
+        rx_buf[rx_len++] = uart_hw->dr;
+        rx_buf[rx_len++] = uart_hw->dr;
+        rx_buf[rx_len++] = uart_hw->dr;
+        rx_buf[rx_len++] = uart_hw->dr;
+    }
+    while (uart_is_readable(PROBE_UART_INTERFACE) && (rx_len < sizeof(rx_buf))) {
         rx_buf[rx_len++] = uart_getc(PROBE_UART_INTERFACE);
     }
 
@@ -132,6 +156,7 @@ bool cdc_task(void)
         }
 
       /* Reading from a firehose and writing to a FIFO. */
+      /* Data available? */
       size_t watermark = MIN(tud_cdc_available(), sizeof(tx_buf));
       if (watermark > 0) {
         size_t tx_len;
@@ -139,9 +164,8 @@ bool cdc_task(void)
         gpio_put(PROBE_UART_TX_LED, 1);
         tx_led_debounce = debounce_ticks;
 #endif
-        /* Batch up to half a FIFO of data - don't clog up on RX */
-        watermark = MIN(watermark, 16);
-        tx_len = tud_cdc_read(tx_buf, watermark);
+        /* Poke a reasonable number of bytes in */
+        tx_len = tud_cdc_read(tx_buf, MIN(chars_per_interval, watermark));
         uart_write_blocking(PROBE_UART_INTERFACE, tx_buf, tx_len);
       } else {
 #ifdef PROBE_UART_TX_LED
@@ -178,16 +202,13 @@ bool cdc_task(void)
 
 void cdc_thread(void *ptr)
 {
-  BaseType_t delayed;
   last_wake = xTaskGetTickCount();
   bool keep_alive;
   /* Threaded with a polling interval that scales according to linerate */
   while (1) {
     keep_alive = cdc_task();
     if (!keep_alive) {
-      delayed = xTaskDelayUntil(&last_wake, interval);
-        if (delayed == pdFALSE)
-          last_wake = xTaskGetTickCount();
+      xTaskDelayUntil(&last_wake, interval);
     }
   }
 }
@@ -196,17 +217,27 @@ void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding)
 {
   uart_parity_t parity;
   uint data_bits, stop_bits;
+  uint32_t micros, rtos_period;
+
+  rtos_period = (1000 * 1000) / configTICK_RATE_HZ;
   /* Set the tick thread interval to the amount of time it takes to
    * fill up half a FIFO. Millis is too coarse for integer divide.
    */
-  uint32_t micros = (1000 * 1000 * 16 * 10) / MAX(line_coding->bit_rate, 1);
+  micros  = (1000 * 1000 * 10) / MAX(line_coding->bit_rate, 1);
+  interval = MAX(1, (micros * 16) / rtos_period);
+  // For very fast baudrates, guesstimate how much the TX FIFO will empty each time
+  chars_per_interval = (uint32_t) (((float)interval * (float)rtos_period) / ((float)micros));
+  if (chars_per_interval == 0)
+    chars_per_interval++;
+
+  debounce_ticks = MAX(1, configTICK_RATE_HZ / (interval * DEBOUNCE_MS));
+  probe_info("New baud rate %ld micros %ld interval %lu chars per %lu\n",
+                  line_coding->bit_rate, micros, interval, chars_per_interval);
+
   /* Modifying state, so park the thread before changing it. */
   if (tud_cdc_connected())
     vTaskSuspend(uart_taskhandle);
-  interval = MAX(1, micros / ((1000 * 1000) / configTICK_RATE_HZ));
-  debounce_ticks = MAX(1, configTICK_RATE_HZ / (interval * DEBOUNCE_MS));
-  probe_info("New baud rate %ld micros %ld interval %lu\n",
-                  line_coding->bit_rate, micros, interval);
+
   uart_deinit(PROBE_UART_INTERFACE);
   tud_cdc_write_clear();
   tud_cdc_read_flush();
