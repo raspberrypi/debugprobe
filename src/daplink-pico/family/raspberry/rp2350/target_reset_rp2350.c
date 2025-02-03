@@ -38,7 +38,7 @@
 
 
 extern target_family_descriptor_t g_raspberry_rp2350_family;
-////static const uint32_t soft_reset = SYSRESETREQ;
+static const uint32_t soft_reset = SYSRESETREQ;
 
 
 
@@ -118,7 +118,8 @@ static bool dp_core_select(uint8_t _core)
 
 
 // TODO desperate tries to read ROM table
-#if 0
+#define xDUMP_ROM_TABLES
+#ifdef DUMP_ROM_TABLES
 static uint32_t cnt;
 static void dump_rom_tables_ap(uint32_t apsel, uint32_t offs, uint32_t len)
 {
@@ -196,7 +197,6 @@ static void dump_rom_tables(uint32_t apsel, uint32_t offs, uint32_t len)
 #endif
 
 
-#if 0 ////
 /**
  * Clear all HW breakpoints.
  * \pre
@@ -204,6 +204,7 @@ static void dump_rom_tables(uint32_t apsel, uint32_t offs, uint32_t len)
  */
 static bool dp_disable_breakpoint()
 {
+#if 0
     static const uint32_t bp_reg[8] = { 0xE0002008, 0xE000200C, 0xE0002010, 0xE0002014, 0xE0002018, 0xE000201c, 0xE0002020, 0xE0002024,  };
 
 //    printf("---dp_disable_breakpoint()\n");
@@ -212,9 +213,9 @@ static bool dp_disable_breakpoint()
     for (int i = 0;  i < 8;  ++i) {
         CHECK_OK_BOOL(swd_write_word(bp_reg[i], 0));
     }
+#endif
     return true;
 }   // dp_disable_breakpoint
-#endif
 
 /*************************************************************************************************/
 
@@ -222,6 +223,7 @@ static bool dp_disable_breakpoint()
 #define CHECK_ABORT(COND)          if ( !(COND)) { do_abort = true; continue; }
 #define CHECK_ABORT_BREAK(COND)    if ( !(COND)) { do_abort = true; break; }
 
+static bool rp2350_swd_init_debug(uint8_t core)
 /**
  * Try very hard to initialize the target processor.
  * Code is very similar to the one in swd_host.c except that the JTAG2SWD() sequence is not used.
@@ -229,7 +231,6 @@ static bool dp_disable_breakpoint()
  * \note
  *    swd_host has to be tricked in it's caching of DP_SELECT and AP_CSW
  */
-static bool rp2350_swd_init_debug(uint8_t core)
 {
     uint32_t tmp = 0;
     int i = 0;
@@ -278,18 +279,18 @@ static bool rp2350_swd_init_debug(uint8_t core)
         CHECK_ABORT( swd_write_ap(AP_CSW, 1) );                                // force dap_state.csw to "0"
         CHECK_ABORT( swd_write_ap(AP_CSW, 0) );
 
-        CHECK_ABORT( swd_read_ap(AP_IDR, &tmp) );                                // AP IDR: must it be 0x4770031?
+        CHECK_ABORT( swd_read_ap(AP_IDR, &tmp) );                                // AP IDR: must it be 0x34770008?
 //        printf("##########1 0x%08lx\n", tmp);
-        CHECK_ABORT( swd_read_ap(AP_ROM, &tmp) );                                // AP IDR: must it be 0x4770031?
+        CHECK_ABORT( swd_read_ap(AP_ROM, &tmp) );                                // AP IDR: must it be 0xe00ff003?
 //        printf("##########2 0x%08lx\n", tmp);
         CHECK_ABORT( swd_write_dp(DP_SELECT, 0) );
 
-#if 0
+#ifdef DUMP_ROM_TABLES
         // obtain some info about the ROM table
         // openocd -f interface/cmsis-dap.cfg -f ./rp2350.cfg -c "init; dap info"
         dump_rom_tables_ap(0x00000000, 0x00000000, 256);
-        dump_rom_tables_ap(0x00000000, 0xe0002003, 64);
-        dump_rom_tables(0x00002d00, 0x00002fd0, 0x400);
+        dump_rom_tables_ap(0x00000000, 0xe0002003, 256);
+        dump_rom_tables(0x00002d00, 0x00002fd0, 256);
 #endif
 
         return true;
@@ -312,7 +313,7 @@ static bool rp2350_swd_init_debug(uint8_t core)
 static bool rp2350_swd_set_target_state(uint8_t core, target_state_t state)
 {
     uint32_t val;
-//    int8_t ap_retries = 2;
+    int8_t ap_retries = 2;
 
 //    printf("+++++++++++++++ rp2350_swd_set_target_state(%d, %d)\n", core, state);
 
@@ -369,9 +370,7 @@ static bool rp2350_swd_set_target_state(uint8_t core, target_state_t state)
             if (!rp2350_swd_init_debug(core)) {
                 return false;
             }
-#if 1
-#else
-            // TODO this code "crashes" the target
+
             // Enable debug and halt the core (DHCSR <- 0xA05F0003)
             while (swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_HALT) == 0) {
                 if ( --ap_retries <=0 ) {
@@ -421,7 +420,6 @@ static bool rp2350_swd_set_target_state(uint8_t core, target_state_t state)
             if (!swd_write_word(DBG_EMCR, 0)) {
                 return false;
             }
-#endif
             break;
 
         case NO_DEBUG:
@@ -456,9 +454,6 @@ static bool rp2350_swd_set_target_state(uint8_t core, target_state_t state)
                 return false;
             }
 
-#if 1
-#else
-            // TODO this code "crashes" the target
             // Enable debug and halt the core (DHCSR <- 0xA05F0003)
             if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_HALT)) {
                 return false;
@@ -470,7 +465,6 @@ static bool rp2350_swd_set_target_state(uint8_t core, target_state_t state)
                     return false;
                 }
             } while ((val & S_HALT) == 0);
-#endif
             break;
 
         case RUN:
@@ -523,7 +517,7 @@ static uint8_t rp2350_target_set_state(target_state_t state)
 {
     uint8_t r = false;
 
-    printf("----- rp2350_target_set_state(%d)\n", state);
+//    printf("---------------------------------------------- rp2350_target_set_state(%d)\n", state);
 
     switch (state) {
         case RESET_HOLD:
