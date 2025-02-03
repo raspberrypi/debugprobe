@@ -307,7 +307,7 @@ static bool rp2040_swd_set_target_state(uint8_t core, target_state_t state)
             }
 
             // Enable debug and halt the core (DHCSR <- 0xA05F0003)
-            while (swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_HALT) == 0) {
+            while ( !swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_HALT)) {
                 if ( --ap_retries <=0 ) {
                     return false;
                 }
