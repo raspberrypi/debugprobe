@@ -36,6 +36,16 @@
     #define SCB_AIRCR_PRIGROUP_Msk             (7UL << SCB_AIRCR_PRIGROUP_Pos)                /*!< SCB AIRCR: PRIGROUP Mask */
 #endif
 
+#define BIT(nr)                    (1UL << (nr))
+
+#define DCB_DSCSR                  0xE000EE08
+#define DSCSR_CDSKEY               BIT(17)
+#define DSCSR_CDS                  BIT(16)
+
+#define ACCESSCTRL_LOCK_OFFSET     0x40060000u
+#define ACCESSCTRL_LOCK_DEBUG_BITS 0x00000008u
+#define ACCESSCTRL_CFGRESET_OFFSET 0x40060008u
+#define ACCESSCTRL_WRITE_PASSWORD  0xacce0000u
 
 extern target_family_descriptor_t g_raspberry_rp2350_family;
 static const uint32_t soft_reset = SYSRESETREQ;
@@ -217,6 +227,67 @@ static bool dp_disable_breakpoint()
     return true;
 }   // dp_disable_breakpoint
 
+
+static bool rp2350_init_accessctrl(void)
+/**
+ * Attempt to reset ACCESSCTRL, in case Secure access to SRAM has been
+ * blocked, which will stop us from loading/running algorithms such as RCP
+ * init. (Also ROM, QMI regs are needed later)
+ *
+ * More or less taken from https://github.com/raspberrypi/openocd/blob/sdk-2.0.0/src/flash/nor/rp2040.c
+ */
+{
+    uint32_t accessctrl_lock_reg;
+
+    if ( !swd_read_word(ACCESSCTRL_LOCK_OFFSET, &accessctrl_lock_reg)) {
+        picoprobe_error("Failed to read ACCESSCTRL lock register");
+        // Failed to read an APB register which should always be readable from
+        // any security/privilege level. Something fundamental is wrong. E.g.:
+        //
+        // - The debugger is attempting to perform Secure bus accesses on a
+        //   system where Secure debug has been disabled
+        // - clk_sys or busfabric clock are stopped (try doing a rescue reset)
+        return false;
+    }
+
+    picoprobe_debug("ACCESSCTRL_LOCK:  %08lx\n", accessctrl_lock_reg);
+
+    if (accessctrl_lock_reg & ACCESSCTRL_LOCK_DEBUG_BITS) {
+        picoprobe_error("ACCESSCTRL is locked, so can't reset permissions. Following steps might fail.\n");
+    }
+    else {
+        picoprobe_debug("Reset ACCESSCTRL permissions via CFGRESET\n");
+        return swd_write_word(ACCESSCTRL_CFGRESET_OFFSET, ACCESSCTRL_WRITE_PASSWORD | 1u);
+    }
+    return true;
+}   // rp2350_init_accessctrl
+
+
+static void rp2350_init_arm_core0(void)
+/**
+ * Flash algorithms (and the RCP init stub called by this function) must
+ * run in the Secure state, so flip the state now before attempting to
+ * execute any code on the core.
+ *
+ * \note
+ *    Currently no init code is executed...
+ *
+ * Parts taken from https://github.com/raspberrypi/openocd/blob/sdk-2.0.0/src/flash/nor/rp2040.c
+ */
+{
+    uint32_t dscsr;
+
+    (void)swd_read_word(DCB_DSCSR, &dscsr);
+    picoprobe_debug("DSCSR:  %08lx\n", dscsr);
+    if ( !(dscsr & DSCSR_CDS)) {
+        picoprobe_info("Setting Current Domain Secure in DSCSR\n");
+        (void)swd_write_word(DCB_DSCSR, (dscsr & ~DSCSR_CDSKEY) | DSCSR_CDS);
+        (void)swd_read_word(DCB_DSCSR, &dscsr);
+        picoprobe_info("DSCSR*: %08lx\n", dscsr);
+    }
+}
+
+
 /*************************************************************************************************/
 
 
@@ -255,6 +326,11 @@ static bool rp2350_swd_init_debug(uint8_t core)
             do_abort = false;
         }
 
+        if (core == 0) {
+            CHECK_ABORT( rp2350_init_accessctrl() );
+            rp2350_init_arm_core0();
+        }
+
         CHECK_ABORT( dp_core_select(core) );
 
         CHECK_ABORT( swd_clear_errors() );
@@ -281,7 +357,7 @@ static bool rp2350_swd_init_debug(uint8_t core)
 
         CHECK_ABORT( swd_read_ap(AP_IDR, &tmp) );                                // AP IDR: must it be 0x34770008?
 //        printf("##########1 0x%08lx\n", tmp);
-        CHECK_ABORT( swd_read_ap(AP_ROM, &tmp) );                                // AP IDR: must it be 0xe00ff003?
+        CHECK_ABORT( swd_read_ap(AP_ROM, &tmp) );                                // AP ROM: must it be 0xe00ff003?
 //        printf("##########2 0x%08lx\n", tmp);
         CHECK_ABORT( swd_write_dp(DP_SELECT, 0) );
 
@@ -334,6 +410,11 @@ static bool rp2350_swd_set_target_state(uint8_t core, target_state_t state)
             osDelay(2);
 
             if (!rp2350_swd_init_debug(core)) {
+                return false;
+            }
+
+            // reset C_HALT (required for RP2350)
+            if (!swd_write_word(DBG_HCSR, DBGKEY)) {
                 return false;
             }
 
