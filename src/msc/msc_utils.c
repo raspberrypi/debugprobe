@@ -99,7 +99,7 @@ static volatile bool          is_connected;
 extern char __start_for_target[];
 extern char __stop_for_target[];
 
-#define FOR_TARGET_RP2040_CODE        __attribute__((noinline, section("for_target")))
+#define FOR_TARGET_RP2040_CODE        __attribute__((noinline, section("for_target"), target("arch=armv6-m"), optimize("-Og")))
 
 #define TARGET_RP2040_CODE            (TARGET_RP2040_RAM_START + 0x10000)
 #define TARGET_RP2040_FLASH_BLOCK     ((uint32_t)rp2040_flash_block - (uint32_t)__start_for_target + TARGET_RP2040_CODE)
@@ -130,12 +130,12 @@ FOR_TARGET_RP2040_CODE uint32_t rp2040_flash_block(uint32_t addr, uint32_t *src,
     rom_table_lookup_fn rom_table_lookup = (rom_table_lookup_fn)rom_hword_as_ptr(0x18);
     uint16_t            *function_table = (uint16_t *)rom_hword_as_ptr(0x14);
 
-    rom_void_fn         _connect_internal_flash = rom_table_lookup(function_table, fn('I', 'F'));
-    rom_void_fn         _flash_exit_xip         = rom_table_lookup(function_table, fn('E', 'X'));
-    rom_flash_erase_fn  _flash_range_erase      = rom_table_lookup(function_table, fn('R', 'E'));
-    rom_flash_prog_fn   _flash_range_program    = rom_table_lookup(function_table, fn('R', 'P'));
-    rom_void_fn         _flash_flush_cache      = rom_table_lookup(function_table, fn('F', 'C'));
-    rom_void_fn         _flash_enter_cmd_xip    = rom_table_lookup(function_table, fn('C', 'X'));
+    rp2040_rom_void_fn         _connect_internal_flash = rom_table_lookup(function_table, fn('I', 'F'));
+    rp2040_rom_void_fn         _flash_exit_xip         = rom_table_lookup(function_table, fn('E', 'X'));
+    rp2040_rom_flash_erase_fn  _flash_range_erase      = rom_table_lookup(function_table, fn('R', 'E'));
+    rp2040_rom_flash_prog_fn   _flash_range_program    = rom_table_lookup(function_table, fn('R', 'P'));
+    rp2040_rom_void_fn         _flash_flush_cache      = rom_table_lookup(function_table, fn('F', 'C'));
+    rp2040_rom_void_fn         _flash_enter_cmd_xip    = rom_table_lookup(function_table, fn('C', 'X'));
 
     const uint32_t erase_block_size = 0x10000;               // 64K - if this is changed, then some logic below has to be changed as well
     uint32_t offset = addr - TARGET_RP2040_FLASH_START;      // this is actually the physical flash address

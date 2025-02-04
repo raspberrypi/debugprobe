@@ -206,12 +206,12 @@ FOR_TARGET_RP2040_CODE static int __noinline flash_size_log2() {
 FOR_TARGET_RP2040_CODE static uint32_t rp2040_flash_size(void)
 {
     // Fill in the rom functions...
-    rom_table_lookup_fn rom_table_lookup = (rom_table_lookup_fn)rom_hword_as_ptr(0x18);
+    rp2040_rom_table_lookup_fn rom_table_lookup = (rp2040_rom_table_lookup_fn)rom_hword_as_ptr(0x18);
     uint16_t            *function_table = (uint16_t *)rom_hword_as_ptr(0x14);
 
-    rom_void_fn         _flash_exit_xip         = rom_table_lookup(function_table, fn('E', 'X'));
-    rom_void_fn         _flash_flush_cache      = rom_table_lookup(function_table, fn('F', 'C'));
-    rom_void_fn         _flash_enter_cmd_xip    = rom_table_lookup(function_table, fn('C', 'X'));
+    rp2040_rom_void_fn  _flash_exit_xip         = rom_table_lookup(function_table, fn('E', 'X'));
+    rp2040_rom_void_fn  _flash_flush_cache      = rom_table_lookup(function_table, fn('F', 'C'));
+    rp2040_rom_void_fn  _flash_enter_cmd_xip    = rom_table_lookup(function_table, fn('C', 'X'));
 
     _flash_exit_xip();
     int r = flash_size_log2();

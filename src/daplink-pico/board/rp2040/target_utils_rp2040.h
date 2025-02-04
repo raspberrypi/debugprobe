@@ -79,12 +79,12 @@
 
 #define rom_hword_as_ptr(rom_address) (void *)(uintptr_t)(*(uint16_t *)rom_address)
 #define fn(a, b)        (uint32_t)((b << 8) | a)
-typedef void *(*rom_table_lookup_fn)(uint16_t *table, uint32_t code);
+typedef void *(*rp2040_rom_table_lookup_fn)(uint16_t *table, uint32_t code);
 
 
-typedef void *(*rom_void_fn)(void);
-typedef void *(*rom_flash_erase_fn)(uint32_t addr, size_t count, uint32_t block_size, uint8_t block_cmd);
-typedef void *(*rom_flash_prog_fn)(uint32_t addr, const uint8_t *data, size_t count);
+typedef void *(*rp2040_rom_void_fn)(void);
+typedef void *(*rp2040_rom_flash_erase_fn)(uint32_t addr, size_t count, uint32_t block_size, uint8_t block_cmd);
+typedef void *(*rp2040_rom_flash_prog_fn)(uint32_t addr, const uint8_t *data, size_t count);
 
 
 bool rp2040_target_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t *result);
