@@ -27,6 +27,7 @@ extern char __stop_for_target_connect_rp2350[];
 #define TARGET_RP2350_CODE            (TARGET_RP2350_RAM_START + 0x10000)
 #define TARGET_RP2350_BREAKPOINT      ((uint32_t)rp2350_breakpoint - (uint32_t)__start_for_target_connect_rp2350 + TARGET_RP2350_CODE)
 #define TARGET_RP2350_FLASH_SIZE      ((uint32_t)rp2350_flash_size - (uint32_t)__start_for_target_connect_rp2350 + TARGET_RP2350_CODE)
+#define TARGET_RP2350_RCP_INIT        ((uint32_t)rp2350_rcp_init   - (uint32_t)__start_for_target_connect_rp2350 + TARGET_RP2350_CODE)
 
 //
 // ---------------------------------------------------------------------------------------------------------------------
@@ -179,8 +180,36 @@ extern char __stop_for_target_connect_rp2350[];
 #endif
 
 // ---------------------------------------------------------------------------------------------------------------------
-// YAPicoprobe definitions
 //
+// Functions running in the target
+//
+
+FOR_TARGET_RP2350_CODE __attribute__((naked)) void rp2350_rcp_init(void)
+/**
+ * Just enable the RCP which is fine if it already was (we assume no other
+ * co-processors are enabled at this point to save space)
+ *
+ * \note
+ *    stolen from https://github.com/raspberrypi/openocd/blob/sdk-2.0.0/src/flash/nor/rp2040.c
+ */
+{
+    __asm volatile(".byte 0x06, 0x48            "); // ldr r0, = PPB_BASE + M33_CPACR_OFFSET
+    __asm volatile(".byte 0x5f, 0xf4, 0x40, 0x41"); // movs r1, #M33_CPACR_CP7_BITS
+    __asm volatile(".byte 0x01, 0x60            "); // str r1, [r0]
+                                                     // Only initialize canary seeds if they haven't been (as to do so twice is a fault)
+    __asm volatile(".byte 0x30, 0xee, 0x10, 0xf7"); // mrc p7, #1, r15, c0, c0, #0
+    __asm volatile(".byte 0x04, 0xd4            "); // bmi 1f
+                                                     // Todo should we use something random here and pass it into the algorithm?
+    __asm volatile(".byte 0x40, 0xec, 0x80, 0x07"); // mcrr p7, #8, r0, r0, c0
+    __asm volatile(".byte 0x40, 0xec, 0x81, 0x07"); // mcrr p7, #8, r0, r0, c1
+                                                     // Let other core know
+    __asm volatile(".byte 0x40, 0xbf            "); // sev
+                                                     // 1:
+    __asm volatile(".byte 0x00, 0xbe            "); // bkpt (end of algorithm)
+    __asm volatile(".byte 0x00, 0x00            "); // pad
+    __asm volatile(".byte 0x88, 0xed, 0x00, 0xe0"); // PPB_BASE + M33_CPACR_OFFSET
+}   // rp2350_breakpoint
+
 
 FOR_TARGET_RP2350_CODE __attribute__((naked)) void rp2350_breakpoint(void)
 {
@@ -188,19 +217,12 @@ FOR_TARGET_RP2350_CODE __attribute__((naked)) void rp2350_breakpoint(void)
 }   // rp2350_breakpoint
 
 
-FOR_TARGET_RP2350_CODE static uint32_t rp2350_test(uint32_t *buff)
-{
-    for (int i = 0;  i < 5;  ++i)
-        buff[i] = 0x12345678;
-    return 0x0815;
-}
-
 #define RT_FLAG_FUNC_ARM_SEC    0x0004
 #define RT_FLAG_FUNC_ARM_NONSEC 0x0010
 #define RT_FLAG_DATA            0x0040
 
 #define BOOTROM_TABLE_LOOKUP_OFFSET 0x18
-typedef void *(*rom_table_lookup_fn)(uint32_t code, uint32_t mask);
+typedef void *(*rp2350_rom_table_lookup_fn)(uint32_t code, uint32_t mask);
 #define ROM_TABLE_CODE(c1, c2) ((c1) | ((c2) << 8))
 
 FOR_TARGET_RP2350_CODE static uint32_t rp2350_flash_size(void)
@@ -209,29 +231,16 @@ FOR_TARGET_RP2350_CODE static uint32_t rp2350_flash_size(void)
     int r = 1234;
     rp2350_rom_get_sys_info_fn sys_info = NULL;
 
-    rom_table_lookup_fn rom_table_lookup = (rom_table_lookup_fn) (uintptr_t) *(uint16_t*) (BOOTROM_TABLE_LOOKUP_OFFSET);
+    rp2350_rom_table_lookup_fn rom_table_lookup = (rp2350_rom_table_lookup_fn) (uintptr_t) *(uint16_t*) (BOOTROM_TABLE_LOOKUP_OFFSET);
     sys_info = (rp2350_rom_get_sys_info_fn)0x09c1;
 
-    rp2350_test(buff);
+    // TODO lookup does not work!
 
-    // TODO if one of the below functions is called, then target seems top crash
-    // TODO must there anything additional be set!?
+    //sys_info = rom_table_lookup(ROM_TABLE_CODE('G', 'S'), RT_FLAG_FUNC_ARM_SEC);
+    r = sys_info(buff, 2, 0x0008);
 
-//    sys_info = rom_table_lookup(ROM_TABLE_CODE('G', 'S'), RT_FLAG_FUNC_ARM_SEC);
-//    r = (*sys_info)(buff, 5, 0x0008);
-#if 0
-    if (pico_processor_state_is_nonsecure()) {
-        return rom_table_lookup(ROM_TABLE_CODE('G', 'S'), RT_FLAG_FUNC_ARM_NONSEC);
-    }
-    else {
-        return rom_table_lookup(ROM_TABLE_CODE('G', 'S'), RT_FLAG_FUNC_ARM_SEC);
-    }
-#endif
-//    return rp2350_test(buff);
-//    return 0x6789;
-    return (uint32_t)rom_table_lookup;
-//    return 234567;
-    return buff[0];
+    // TODO returned value is non-sense (I guess, the rp2350 has to boot first)
+    return buff[1];
 }   // rp2350_flash_size
 
 
@@ -260,6 +269,7 @@ uint32_t target_rp2350_get_external_flash_size(void)
         rp2350_target_find_rom_func('G', 'S');
         printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
         ok = rp2350_target_copy_flash_code();
+        ok = rp2350_target_call_function(TARGET_RP2350_RCP_INIT,   NULL, 0, TARGET_RP2350_RCP_INIT+24, &res);
         ok = rp2350_target_call_function(TARGET_RP2350_FLASH_SIZE, NULL, 0, TARGET_RP2350_BREAKPOINT, &res);
         target_set_state(RESET_PROGRAM);
     }
