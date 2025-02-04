@@ -227,13 +227,15 @@ FOR_TARGET_RP2350_CODE static void *rp2350_rom_table_lookup(char c1, char c2)
  * This seems to have one more indirection as documented.
  */
 {
-    const uint16_t BOOTROM_TABLE_LOOKUP_OFFSET = 0x18;
-    rp2350_rom_table_lookup_fn rom_table_lookup = (rp2350_rom_table_lookup_fn) (uintptr_t) *(uint16_t*) (BOOTROM_TABLE_LOOKUP_OFFSET);
-    uint16_t *addr;
+    uint32_t addr;
+    const uint32_t BOOTROM_TABLE_LOOKUP_OFFSET = 0x18;
+    rp2350_rom_table_lookup_fn rom_table_lookup;
+
+    rom_table_lookup = (rp2350_rom_table_lookup_fn) (uintptr_t)(*(uint16_t*) (BOOTROM_TABLE_LOOKUP_OFFSET));
 
     uint16_t code = (c2 << 8) | c1;
-    addr = rom_table_lookup(code, RT_FLAG_FUNC_ARM_SEC);
-    return (void *)*addr;
+    addr = *rom_table_lookup(code, RT_FLAG_FUNC_ARM_SEC);
+    return (void *)addr;
 }  // rp2350_rom_table_lookup
 
 
