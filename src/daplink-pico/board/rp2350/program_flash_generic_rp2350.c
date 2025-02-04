@@ -219,28 +219,37 @@ FOR_TARGET_RP2350_CODE __attribute__((naked)) void rp2350_breakpoint(void)
 
 #define RT_FLAG_FUNC_ARM_SEC    0x0004
 #define RT_FLAG_FUNC_ARM_NONSEC 0x0010
-#define RT_FLAG_DATA            0x0040
+typedef uint16_t *(*rp2350_rom_table_lookup_fn)(uint32_t code, uint32_t mask);
 
-#define BOOTROM_TABLE_LOOKUP_OFFSET 0x18
-typedef void *(*rp2350_rom_table_lookup_fn)(uint32_t code, uint32_t mask);
-#define ROM_TABLE_CODE(c1, c2) ((c1) | ((c2) << 8))
+FOR_TARGET_RP2350_CODE static void *rp2350_rom_table_lookup(char c1, char c2)
+/**
+ * Lookup ROM table.
+ * This seems to have one more indirection as documented.
+ */
+{
+    const uint16_t BOOTROM_TABLE_LOOKUP_OFFSET = 0x18;
+    rp2350_rom_table_lookup_fn rom_table_lookup = (rp2350_rom_table_lookup_fn) (uintptr_t) *(uint16_t*) (BOOTROM_TABLE_LOOKUP_OFFSET);
+    uint16_t *addr;
+
+    uint16_t code = (c2 << 8) | c1;
+    addr = rom_table_lookup(code, RT_FLAG_FUNC_ARM_SEC);
+    return (void *)*addr;
+}  // rp2350_rom_table_lookup
+
+
 
 FOR_TARGET_RP2350_CODE static uint32_t rp2350_flash_size(void)
 {
-    uint32_t buff[5];
-    int r = 1234;
-    rp2350_rom_get_sys_info_fn sys_info = NULL;
+    uint32_t buff[2];
+    int r;
+    rp2350_rom_get_sys_info_fn sys_info = rp2350_rom_table_lookup('G', 'S');
 
-    rp2350_rom_table_lookup_fn rom_table_lookup = (rp2350_rom_table_lookup_fn) (uintptr_t) *(uint16_t*) (BOOTROM_TABLE_LOOKUP_OFFSET);
-    sys_info = (rp2350_rom_get_sys_info_fn)0x09c1;
-
-    // TODO lookup does not work!
-
-    //sys_info = rom_table_lookup(ROM_TABLE_CODE('G', 'S'), RT_FLAG_FUNC_ARM_SEC);
     r = sys_info(buff, 2, 0x0008);
-
-    // TODO returned value is non-sense (I guess, the rp2350 has to boot first)
-    return buff[1];
+    if (r != 2)
+        return 1024 * 1024;
+    if (buff[1] == 0)
+        return 0;
+    return 4096 << ((buff[1] & 0xf00) >> 8);
 }   // rp2350_flash_size
 
 
