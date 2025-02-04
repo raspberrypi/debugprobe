@@ -19,11 +19,9 @@
 #include "DAP_config.h"
 #include "target_family.h"
 #include "swd_host.h"
+#include "cmsis_os2.h"
 
 #include "target_utils_raspberry.h"
-
-#include "FreeRTOS.h"
-#include "task.h"
 
 
 #define NVIC_Addr    (0xe000e000)
@@ -51,16 +49,6 @@ static const uint32_t soft_reset = SYSRESETREQ;
 
 // Core will point at whichever one is current...
 static uint8_t core;
-
-
-
-/*************************************************************************************************/
-
-
-void osDelay(uint32_t ticks)
-{
-    vTaskDelay(pdMS_TO_TICKS(ticks));
-}   // osDelay
 
 
 /*************************************************************************************************/
