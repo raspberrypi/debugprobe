@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-//#include "rp2040/hardware/helper.h"
-//#include "hardware/regs/io_qspi.h"
-//#include "hardware/structs/ssi.h"
+#include "rp2040/hardware/helper.h"
+#include "hardware/regs/io_qspi.h"
+#include "hardware/structs/ssi.h"
 
 // ---------------------------------------------------------------------------------------------------------------------
 // YAPicoprobe definitions
@@ -18,17 +18,14 @@
 
 #include "target_utils_rp2350.h"
 
-#if 0
 extern char __start_for_target_connect_rp2350[];
 extern char __stop_for_target_connect_rp2350[];
 
-// Attributes for RP2350 target code
-// NOTE: PICO_NO_CMSE must be set and also "-Og"!
-// TODO how to compile correctly for an rp2040 probe here?
-//#define FOR_TARGET_RP2350_CODE        __attribute__((noinline, section("for_target_connect_rp2350"), target("arch=armv8-m.main"), optimize("-Og")))
+// Attributes for RP2350 target code (doesn't matter if code is compiled for cortex-m0 or m33, executes both on target)
 #define FOR_TARGET_RP2350_CODE        __attribute__((noinline, section("for_target_connect_rp2350"), optimize("-Og")))
 
 #define TARGET_RP2350_CODE            (TARGET_RP2350_RAM_START + 0x10000)
+#define TARGET_RP2350_BREAKPOINT      ((uint32_t)rp2350_breakpoint - (uint32_t)__start_for_target_connect_rp2350 + TARGET_RP2350_CODE)
 #define TARGET_RP2350_FLASH_SIZE      ((uint32_t)rp2350_flash_size - (uint32_t)__start_for_target_connect_rp2350 + TARGET_RP2350_CODE)
 
 //
@@ -211,8 +208,16 @@ FOR_TARGET_RP2350_CODE static int __noinline flash_size_log2() {
 // YAPicoprobe definitions
 //
 
+FOR_TARGET_RP2350_CODE __attribute__((naked)) void rp2350_breakpoint(void)
+{
+    __asm volatile ("bkpt 0");
+}   // rp2350_breakpoint
+
+
+
 FOR_TARGET_RP2350_CODE static uint32_t rp2350_flash_size(void)
 {
+#if 0
     // Fill in the rom functions...
     rom_table_lookup_fn rom_table_lookup = (rom_table_lookup_fn)rom_hword_as_ptr(0x18);
     uint16_t            *function_table = (uint16_t *)rom_hword_as_ptr(0x14);
@@ -227,6 +232,10 @@ FOR_TARGET_RP2350_CODE static uint32_t rp2350_flash_size(void)
     _flash_enter_cmd_xip();
 
     return (r < 0) ? 0 : (1UL << r);
+    __BKPT(0);
+#else
+    return 8 * 1024 * 1024;
+#endif
 }   // rp2350_flash_size
 
 
@@ -241,7 +250,6 @@ static bool rp2350_target_copy_flash_code(void)
         return false;
     return true;
 }   // rp2350_target_copy_flash_code
-#endif
 
 
 
@@ -250,26 +258,12 @@ uint32_t target_rp2350_get_external_flash_size(void)
     uint32_t res = 0;
     bool ok;
 
-    res = 1 * 1024 * 1024;
-
-    // TODO target_set_state(RESET_PROGRAM, HALT) crashes the target, bad thing is, that the target only can be reverted from this state via power cycle
-
-    // OK: RESET_HOLD, RESET_RUN, NO_DEBUG, DEBUG, RUN, POST_FLASH_RESET, POWER_ON, SHUTDOWN
-    ok = target_set_state(HALT);
-    picoprobe_info("//////////////////// target_rp2350_get_external_flash_size: HALT %d\n", ok);
-#if 1
-//    ok = target_set_state(RESET_PROGRAM);
-//    picoprobe_info("//////////////////// target_rp2350_get_external_flash_size: RESET_PROGRAM %d\n", ok);
-//    if (ok) {
-//        rp2350_target_copy_flash_code();
-//        rp2350_target_call_function(TARGET_RP2350_FLASH_SIZE, NULL, 0, &res);
-//        target_set_state(RESET_PROGRAM);
-//    }
-#endif
-    ok = target_set_state(RESET_RUN);
-    picoprobe_info("//////////////////// target_rp2350_get_external_flash_size: RESET_RUN %d\n", ok);
-    ok = target_set_state(ATTACH);
-    picoprobe_info("//////////////////// target_rp2350_get_external_flash_size: ATTACH %d\n", ok);
+    ok = target_set_state(RESET_PROGRAM);
+    if (ok) {
+        ok = rp2350_target_copy_flash_code();
+        ok = rp2350_target_call_function(TARGET_RP2350_FLASH_SIZE, NULL, 0, TARGET_RP2350_BREAKPOINT, &res);
+        target_set_state(RESET_PROGRAM);
+    }
 
     return res;
 }   // target_rp2350_get_external_flash_size

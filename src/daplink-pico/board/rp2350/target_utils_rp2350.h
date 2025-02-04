@@ -40,8 +40,9 @@
 #define TARGET_RP2350_FLASH_START     0x10000000
 #define TARGET_RP2350_FLASH_MAX_SIZE  0x10000000
 #define TARGET_RP2350_RAM_START       0x20000000
+#define TARGET_RP2350_RAM_SIZE        (512*1024)
 
-#define TARGET_RP2350_STACK           (TARGET_RP2350_RAM_START + 0x30800)
+#define TARGET_RP2350_STACK           (TARGET_RP2350_RAM_START + TARGET_RP2350_RAM_SIZE - 32768)
 
 
 // pre: flash connected, post: generic XIP active
@@ -85,8 +86,7 @@ typedef void *(*rom_void_fn)(void);
 typedef void *(*rom_flash_erase_fn)(uint32_t addr, size_t count, uint32_t block_size, uint8_t block_cmd);
 typedef void *(*rom_flash_prog_fn)(uint32_t addr, const uint8_t *data, size_t count);
 
-
-bool rp2350_target_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t *result);
+bool rp2350_target_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t breakpoint, uint32_t *result);
 
 
 #ifdef __cplusplus

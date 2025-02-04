@@ -31,9 +31,16 @@
 #include "target_utils_raspberry.h"
 
 
+// this is 'M' 'u', 2 (version)
+#define RP2350_BOOTROM_MAGIC       0x02754d
+#define RP2350_BOOTROM_MAGIC_ADDR  0x00000010
 
-// Read 16-bit word from target memory.
+
+
 static uint8_t swd_read_word16(uint32_t addr, uint16_t *val)
+/**
+ * Read 16-bit word from target memory.
+ */
 {
     uint8_t v1, v2;
 
@@ -48,25 +55,23 @@ static uint8_t swd_read_word16(uint32_t addr, uint16_t *val)
 
 
 
-// this is 'M' 'u', 1 (version)
-#define RP2350_BOOTROM_MAGIC 0x01754d
-#define RP2350_BOOTROM_MAGIC_ADDR 0x00000010
-
-
-//
-// find a function in the bootrom, see RP2350 datasheet, chapter 2.8
-//
 static uint32_t rp2350_target_find_rom_func(char ch1, char ch2)
+/**
+ * find a function in the bootrom, see RP2350 datasheet, chapter 2.8
+ */
 {
     uint16_t tag = (ch2 << 8) | ch1;
 
     // First read the bootrom magic value...
     uint32_t magic;
 
+    printf("a %c %c\n", ch1, ch2);
     if ( !swd_read_word(RP2350_BOOTROM_MAGIC_ADDR, &magic))
         return 0;
+    printf("b 0x%08lx\n", magic);
     if ((magic & 0x00ffffff) != RP2350_BOOTROM_MAGIC)
         return 0;
+    printf("c\n");
 
     // Now find the start of the table...
     uint16_t v;
@@ -74,6 +79,7 @@ static uint32_t rp2350_target_find_rom_func(char ch1, char ch2)
     if ( !swd_read_word16(RP2350_BOOTROM_MAGIC_ADDR+4, &v))
         return 0;
     tabaddr = v;
+    printf("d\n");
 
     // Now try to find our function...
     uint16_t value;
@@ -101,28 +107,14 @@ static uint32_t rp2350_target_find_rom_func(char ch1, char ch2)
 ///    - target MCU must be connected
 ///    - code must be already uploaded to target
 ///
-/// \note
-///    The called function could end with __breakpoint(), but with the help of the used trampoline
-///    functions in ROM, the functions can be fetched.
-///
-bool rp2350_target_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t *result)
+bool rp2350_target_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t breakpoint, uint32_t *result)
 {
-    static uint32_t trampoline_addr = 0;  // trampoline is fine to get the return value of the callee
-    static uint32_t trampoline_end;
     bool interrupted = false;
-
-    if ( !target_core_halt())
-        return false;
 
     assert(argc <= 4);
 
-    // First get the trampoline address...  (actually not required, because the functions reside in RAM...)
-    if (trampoline_addr == 0) {
-        trampoline_addr = rp2350_target_find_rom_func('D', 'T');
-        trampoline_end = rp2350_target_find_rom_func('D', 'E');
-        if (trampoline_addr == 0  ||  trampoline_end == 0)
-            return false;
-    }
+    if ( !target_core_halt())
+        return false;
 
     // Set the registers for the trampoline call...
     // function in r7, args in r0, r1, r2, and r3, end in lr?
@@ -130,15 +122,14 @@ bool rp2350_target_call_function(uint32_t addr, uint32_t args[], int argc, uint3
         if ( !swd_write_core_register(i, args[i]))
             return false;
     }
-    if ( !swd_write_core_register(7, addr))
-        return false;
-
     // Set the stack pointer to something sensible... (MSP)
     if ( !swd_write_core_register(13, TARGET_RP2350_STACK))
         return false;
 
-    // Now set the PC to go to our address
-    if ( !swd_write_core_register(15, trampoline_addr))
+    if ( !swd_write_core_register(14, breakpoint | 1))
+        return false;
+
+    if ( !swd_write_core_register(15, addr | 1))
         return false;
 
     // Set xPSR for the thumb thingy...
@@ -148,13 +139,8 @@ bool rp2350_target_call_function(uint32_t addr, uint32_t args[], int argc, uint3
     if ( !target_core_halt())
         return false;
 
-#if DEBUG_MODULE
-    for (int i = 0;  i < 18;  ++i)
-        display_reg(i);
-#endif
-
     // start execution
-//    picoprobe_info(".................... execute\n");
+    picoprobe_info(".................... execute  0x%08lx() -> 0x%08lx\n", addr, breakpoint);
     if ( !target_core_unhalt_with_masked_ints())
         return false;
 
@@ -191,12 +177,8 @@ bool rp2350_target_call_function(uint32_t addr, uint32_t args[], int argc, uint3
                 picoprobe_debug("rp2350_target_call_function: execution finished after %lu ms\n", dt_ms);
             }
         }
+        picoprobe_info("....................   time: %lu[us]\n", time_us_32() - start_us);
     }
-
-#if DEBUG_MODULE
-    for (int i = 0;  i < 18;  ++i)
-        display_reg(i);
-#endif
 
     if (result != NULL  &&  !interrupted) {
         // fetch result of function (r0)
@@ -204,6 +186,7 @@ bool rp2350_target_call_function(uint32_t addr, uint32_t args[], int argc, uint3
             picoprobe_error("rp2350_target_call_function: cannot read core register 0\n");
             return false;
         }
+        picoprobe_info("....................   res:  %lu\n", *result);
     }
 
     {
@@ -214,9 +197,9 @@ bool rp2350_target_call_function(uint32_t addr, uint32_t args[], int argc, uint3
             return false;
         }
 
-        if (r15 != (trampoline_end & 0xfffffffe)) {
+        if (r15 != (breakpoint & 0xfffffffe)) {
             picoprobe_error("rp2350_target_call_function: invoked target function did not run til end: 0x%0x != 0x%0x\n",
-                            (unsigned)r15, (unsigned)trampoline_end);
+                            (unsigned)r15, (unsigned)breakpoint);
             return false;
         }
     }
