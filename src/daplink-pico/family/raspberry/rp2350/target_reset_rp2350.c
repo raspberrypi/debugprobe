@@ -30,6 +30,10 @@
 #define DBG_Addr     (0xe000edf0)
 #include "debug_cm.h"
 
+// notes:
+// - DBG_HCSR -> DHCSR - Debug Halting Control and Status Register
+// - DBG_EMCR -> DEMCR - Debug Exception and Monitor Control Register
+
 // Use the CMSIS-Core definition if available.
 #if !defined(SCB_AIRCR_PRIGROUP_Pos)
     #define SCB_AIRCR_PRIGROUP_Pos              8U                                            /*!< SCB AIRCR: PRIGROUP Position */
@@ -38,6 +42,12 @@
 
 #define BIT(nr)                    (1UL << (nr))
 
+// Flash Patch Control Register (breakpoints)
+#define FP_CTRL                    0xE0002000
+#define FP_CTRL_KEY                BIT(1)
+#define FP_CTRL_ENABLE             BIT(0)
+
+// Debug Security Control and Status Register
 #define DCB_DSCSR                  0xE000EE08
 #define DSCSR_CDSKEY               BIT(17)
 #define DSCSR_CDS                  BIT(16)
@@ -208,24 +218,14 @@ static void dump_rom_tables(uint32_t apsel, uint32_t offs, uint32_t len)
 
 
 /**
- * Clear all HW breakpoints.
+ * Disable HW breakpoints.
  * \pre
  *    DP must be powered on
  */
-static bool dp_disable_breakpoint()
+static bool dp_disable_breakpoints()
 {
-#if 0
-    static const uint32_t bp_reg[8] = { 0xE0002008, 0xE000200C, 0xE0002010, 0xE0002014, 0xE0002018, 0xE000201c, 0xE0002020, 0xE0002024,  };
-
-//    printf("---dp_disable_breakpoint()\n");
-
-    // Clear each of the breakpoints...
-    for (int i = 0;  i < 8;  ++i) {
-        CHECK_OK_BOOL(swd_write_word(bp_reg[i], 0));
-    }
-#endif
-    return true;
-}   // dp_disable_breakpoint
+    return swd_write_word(FP_CTRL, FP_CTRL_KEY);
+}   // dp_disable_breakpoints
 
 
 static bool rp2350_init_accessctrl(void)
@@ -471,7 +471,7 @@ static bool rp2350_swd_set_target_state(uint8_t core, target_state_t state)
                 }
             } while ((val & S_HALT) == 0);
 
-            if ( !dp_disable_breakpoint()) {
+            if ( !dp_disable_breakpoints()) {
                 return false;
             }
 
