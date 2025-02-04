@@ -179,7 +179,7 @@ extern char __stop_for_target_connect_rp2350[];
 0.183 (  0) - - e: 32236
 #endif
 
-// ---------------------------------------------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------------------------------------------
 //
 // Functions running in the target
 //
@@ -217,27 +217,23 @@ FOR_TARGET_RP2350_CODE __attribute__((naked)) void rp2350_breakpoint(void)
 }   // rp2350_breakpoint
 
 
-#define RT_FLAG_FUNC_ARM_SEC    0x0004
-#define RT_FLAG_FUNC_ARM_NONSEC 0x0010
-typedef uint16_t *(*rp2350_rom_table_lookup_fn)(uint32_t code, uint32_t mask);
-
 FOR_TARGET_RP2350_CODE static void *rp2350_rom_table_lookup(char c1, char c2)
 /**
  * Lookup ROM table.
  * This seems to have one more indirection as documented.
  */
 {
+    typedef uint16_t (*rp2350_rom_table_lookup_fn)(uint32_t code, uint32_t mask);
     uint32_t addr;
-    const uint32_t BOOTROM_TABLE_LOOKUP_OFFSET = 0x18;
-    rp2350_rom_table_lookup_fn rom_table_lookup;
-
-    rom_table_lookup = (rp2350_rom_table_lookup_fn) (uintptr_t)(*(uint16_t*) (BOOTROM_TABLE_LOOKUP_OFFSET));
+    const uint32_t BOOTROM_TABLE_LOOKUP_OFFSET  = 0x16;
+    const uint16_t RT_FLAG_FUNC_ARM_SEC         = 0x0004;
+    //const uint16_t RT_FLAG_FUNC_ARM_NONSEC      = 0x0010;
+    rp2350_rom_table_lookup_fn rom_table_lookup = (rp2350_rom_table_lookup_fn) (uintptr_t)(*(uint16_t*) (BOOTROM_TABLE_LOOKUP_OFFSET));
 
     uint16_t code = (c2 << 8) | c1;
-    addr = *rom_table_lookup(code, RT_FLAG_FUNC_ARM_SEC);
+    addr = rom_table_lookup(code, RT_FLAG_FUNC_ARM_SEC);
     return (void *)addr;
 }  // rp2350_rom_table_lookup
-
 
 
 FOR_TARGET_RP2350_CODE static uint32_t rp2350_flash_size(void)
@@ -245,6 +241,9 @@ FOR_TARGET_RP2350_CODE static uint32_t rp2350_flash_size(void)
     uint32_t buff[2];
     int r;
     rp2350_rom_get_sys_info_fn sys_info = rp2350_rom_table_lookup('G', 'S');
+    rp2350_rom_connect_internal_flash_fn connect_flash = rp2350_rom_table_lookup('I', 'F');
+
+    connect_flash();
 
     r = sys_info(buff, 2, 0x0008);
     if (r != 2)
@@ -255,6 +254,10 @@ FOR_TARGET_RP2350_CODE static uint32_t rp2350_flash_size(void)
 }   // rp2350_flash_size
 
 
+//----------------------------------------------------------------------------------------------------------------------
+//
+// Actual functions
+//
 
 static bool rp2350_target_copy_flash_code(void)
 {
@@ -266,7 +269,6 @@ static bool rp2350_target_copy_flash_code(void)
         return false;
     return true;
 }   // rp2350_target_copy_flash_code
-
 
 
 uint32_t target_rp2350_get_external_flash_size(void)
