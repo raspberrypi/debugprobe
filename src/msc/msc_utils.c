@@ -127,7 +127,7 @@ extern char __stop_for_target[];
 FOR_TARGET_RP2040_CODE uint32_t rp2040_flash_block(uint32_t addr, uint32_t *src, int length)
 {
     // Fill in the rom functions...
-    rom_table_lookup_fn rom_table_lookup = (rom_table_lookup_fn)rom_hword_as_ptr(0x18);
+    rp2040_rom_table_lookup_fn rom_table_lookup = (rp2040_rom_table_lookup_fn)rom_hword_as_ptr(0x18);
     uint16_t            *function_table = (uint16_t *)rom_hword_as_ptr(0x14);
 
     rp2040_rom_void_fn         _connect_internal_flash = rom_table_lookup(function_table, fn('I', 'F'));
