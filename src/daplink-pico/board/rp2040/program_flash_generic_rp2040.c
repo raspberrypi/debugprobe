@@ -33,11 +33,6 @@ extern char __stop_for_target_connect_rp2040[];
 
 
 // These are supported by almost any SPI flash
-#define FLASHCMD_PAGE_PROGRAM     0x02
-#define FLASHCMD_READ_DATA        0x03
-#define FLASHCMD_READ_STATUS      0x05
-#define FLASHCMD_WRITE_ENABLE     0x06
-#define FLASHCMD_SECTOR_ERASE     0x20
 #define FLASHCMD_READ_SFDP        0x5a
 #define FLASHCMD_READ_JEDEC_ID    0x9f
 
