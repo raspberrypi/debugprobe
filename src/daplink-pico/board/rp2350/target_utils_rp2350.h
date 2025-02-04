@@ -42,7 +42,7 @@
 #define TARGET_RP2350_RAM_START       0x20000000
 #define TARGET_RP2350_RAM_SIZE        (512*1024)
 
-#define TARGET_RP2350_STACK           (TARGET_RP2350_RAM_START + TARGET_RP2350_RAM_SIZE - 32768)
+#define TARGET_RP2350_STACK           (TARGET_RP2350_RAM_START + 0x20000) //TARGET_RP2350_RAM_SIZE - 32768)
 
 
 // pre: flash connected, post: generic XIP active
@@ -79,13 +79,14 @@
 
 #define rom_hword_as_ptr(rom_address) (void *)(uintptr_t)(*(uint16_t *)rom_address)
 #define fn(a, b)        (uint32_t)((b << 8) | a)
-typedef void *(*rom_table_lookup_fn)(uint16_t *table, uint32_t code);
 
 
-typedef void *(*rom_void_fn)(void);
-typedef void *(*rom_flash_erase_fn)(uint32_t addr, size_t count, uint32_t block_size, uint8_t block_cmd);
-typedef void *(*rom_flash_prog_fn)(uint32_t addr, const uint8_t *data, size_t count);
+typedef void *(*rp2350_rom_void_fn)(void);
+typedef void *(*rp2350_rom_flash_erase_fn)(uint32_t addr, size_t count, uint32_t block_size, uint8_t block_cmd);
+typedef void *(*rp2350_rom_flash_prog_fn)(uint32_t addr, const uint8_t *data, size_t count);
+typedef int   (*rp2350_rom_get_sys_info_fn)(uint32_t *out_buffer, uint32_t out_buffer_word_size, uint32_t flags);
 
+uint32_t rp2350_target_find_rom_func(char ch1, char ch2);
 bool rp2350_target_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t breakpoint, uint32_t *result);
 
 

@@ -55,17 +55,18 @@ static uint8_t swd_read_word16(uint32_t addr, uint16_t *val)
 
 
 
-static uint32_t rp2350_target_find_rom_func(char ch1, char ch2)
+uint32_t rp2350_target_find_rom_func(char ch1, char ch2)
 /**
  * find a function in the bootrom, see RP2350 datasheet, chapter 2.8
  */
 {
+    uint16_t flags = 0x0004;   // RT_FLAG_FUNC_ARM_SEC
     uint16_t tag = (ch2 << 8) | ch1;
 
     // First read the bootrom magic value...
     uint32_t magic;
 
-    printf("a %c %c\n", ch1, ch2);
+    printf("a %c %c -> %d\n", ch1, ch2, tag);
     if ( !swd_read_word(RP2350_BOOTROM_MAGIC_ADDR, &magic))
         return 0;
     printf("b 0x%08lx\n", magic);
@@ -75,24 +76,58 @@ static uint32_t rp2350_target_find_rom_func(char ch1, char ch2)
 
     // Now find the start of the table...
     uint16_t v;
-    uint32_t tabaddr;
+    uint32_t addr;
     if ( !swd_read_word16(RP2350_BOOTROM_MAGIC_ADDR+4, &v))
         return 0;
-    tabaddr = v;
+    addr = v;
     printf("d\n");
 
     // Now try to find our function...
-    uint16_t value;
-    do {
-        if ( !swd_read_word16(tabaddr, &value))
+    uint16_t entry_tag;
+    uint16_t entry_flags;
+
+    for (;;) {
+        printf("- e: %ld\n", addr);
+        if ( !swd_read_word16(addr, &entry_tag))
             return 0;
-        if (value == tag) {
-            if ( !swd_read_word16(tabaddr+2, &value))
+        if (entry_tag == 0)
+            break;
+
+        addr += 2;
+        if ( !swd_read_word16(addr, &entry_flags))
+            return 0;
+        addr += 2;
+        printf("     %c %c, flags 0x%04x\n", entry_tag, entry_tag >> 8, entry_flags);
+
+        if (entry_tag == tag  &&  (entry_flags & flags) != 0) {
+            uint16_t entry_addr;
+
+            while ((flags & 0x01) == 0) {
+                if ((entry_flags & 1) != 0)
+                    addr += 2;
+                flags >>= 1;
+                entry_flags >>= 1;
+            }
+            if ( !swd_read_word16(addr, &entry_addr))
                 return 0;
-            return (uint32_t)value;
+
+            printf("       found: 0x%04x\n", entry_addr);
+            return (uint32_t)entry_addr;
         }
-        tabaddr += 4;
-    } while (value != 0);
+        else {
+            while (entry_flags != 0) {
+                uint16_t dummy;
+
+                if ( !swd_read_word16(addr, &dummy))
+                    return 0;
+                printf("       0x%04x\n", dummy);
+
+                entry_flags &= (entry_flags - 1);
+                addr += 2;
+            }
+        }
+    }
+    printf("bootrom function not found\n");
     return 0;
 }   // rp2350_target_find_rom_func
 
@@ -122,6 +157,11 @@ bool rp2350_target_call_function(uint32_t addr, uint32_t args[], int argc, uint3
         if ( !swd_write_core_register(i, args[i]))
             return false;
     }
+
+    // Set LR
+    if ( !swd_write_core_register(9, TARGET_RP2350_STACK + 0x10000))
+        return false;
+
     // Set the stack pointer to something sensible... (MSP)
     if ( !swd_write_core_register(13, TARGET_RP2350_STACK))
         return false;
