@@ -179,12 +179,19 @@ void dap_task(void *ptr)
                     //
                     if (tool == E_DAPTOOL_UNKNOWN) {
                         uint32_t psize;
+                        uint32_t pcnt;
 
-                        psize = ini_getl(MININI_SECTION, MININI_VAR_DPSIZE, 0, MININI_FILENAME);
-                        if (psize != 0)
+                        psize = ini_getl(MININI_SECTION, MININI_VAR_DAP_PSIZE, 0, MININI_FILENAME);
+                        pcnt  = ini_getl(MININI_SECTION, MININI_VAR_DAP_PCNT,  0, MININI_FILENAME);
+                        if (psize != 0  ||  pcnt != 0)
                         {
-                            dap_packet_count = 1;
-                            dap_packet_size  = psize;
+                            dap_packet_count = (pcnt  != 0) ? pcnt  : _DAP_PACKET_COUNT_UNKNOWN;
+                            dap_packet_size  = (psize != 0) ? psize : _DAP_PACKET_SIZE_UNKNOWN;
+                            dap_packet_size  = MIN(dap_packet_size, PACKET_MAXSIZE);
+                            if (dap_packet_count * dap_packet_size > BUFFER_MAXSIZE) {
+                                dap_packet_size  = MIN(dap_packet_size, BUFFER_MAXSIZE);
+                                dap_packet_count = BUFFER_MAXSIZE / dap_packet_size;
+                            }
                             tool = E_DAPTOOL_USER;
                         }
                         else
@@ -215,7 +222,7 @@ void dap_task(void *ptr)
                                     (tool == E_DAPTOOL_OPENOCD) ? "OpenOCD"    :
                                      (tool == E_DAPTOOL_PYOCD) ? "pyOCD"       :
                                       (tool == E_DAPTOOL_PROBERS) ? "probe-rs" :
-                                       (tool == E_DAPTOOL_USER) ? "user"       : "UNKNOWN", dap_packet_count, dap_packet_size);
+                                       (tool == E_DAPTOOL_USER) ? "user-set"   : "UNKNOWN", dap_packet_count, dap_packet_size);
                             led_state(LS_DAPV2_CONNECTED);
                         }
                     }

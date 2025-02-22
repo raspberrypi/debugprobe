@@ -21,10 +21,7 @@ Finally there is **Y**et **A**nother **Picoprobe** around, the YAPicoprobe.
 NOTE: Pico2 / RP2350 can also be used as probe hardware.
       This is an experimental feature.
       
-WARNING: Pico2 / RP2350 targets are currently not supported.
-
-WARNING: Pico2 target is only working at <= 300kHz reliably. +
-         ``time /home/hardy/.pico-sdk/openocd/0.12.0+dev/openocd.exe -c "gdb_port 50000" -c "tcl_port 50001" -c "telnet_port 50002" -s /home/hardy/.pico-sdk/openocd/0.12.0+dev/scripts -f /home/hardy/.vscode/extensions/marus25.cortex-debug-1.12.1/support/openocd-helpers.tcl -f interface/cmsis-dap.cfg -f target/rp2350.cfg -c "adapter speed 349" -c "program {pio_blink.elf} verify reset; shutdown;"``
+WARNING: Pico2 / RP2350 targets are under development and experimental.
 
 
 ## Features
@@ -125,6 +122,7 @@ NOTE: For best RP2040 support, OpenOCD bundled with PlatformIO is recommended.
       See <<platformio>>
 
 
+[[dap-optimization]]
 #### Parameter Optimization
 
 YAPicoprobe tries to identify the connecting tool and sets some internal parameters for best performance.
@@ -156,6 +154,8 @@ DAP_PACKET_SIZE=64
 |DAP_PACKET_COUNT=1 +
 DAP_PACKET_SIZE=64
 |===
+
+Both parameters are also user settable, see <<runtime-configuration>>.
 
 
 #### SWD Adapter Speed
@@ -339,6 +339,7 @@ The Pico Debug Probe has four additional LEDs.  Assignment is as follows:
 
 ## Configuration
 
+[[runtime-configuration]]
 ### Runtime Configuration of Probe Parameters
 
 Several parameters can be configured via the Debug CDC of the probe.  These parameters include
@@ -351,25 +352,39 @@ Following procedure applies:
 * connect with a terminal program to the Debug CDC of the probe
 * unlock configuration thru hitting <enter>, this works as long there is no `pwd`
 * commands: `<cmd>`
-** `lock` - lock the configuration parameters
-** `killall` - kill all current configuration parameters
-** `reset` - restart the probe
-** `show` - shows the current configuration (initially empty)
++
+[%autowidth]
+|====
+| `help`     | show available variables/cmds
+| `lock`     | lock the configuration parameters
+| `killall`  | kill all current configuration parameters
+| `reset`    | restart the probe
+| `show`     | show the current configuration (initially empty)
+|====
 * variables: `<variable>=<value>`
-** `f_cpu` - set CPU frequency in MHz
-** `f_swd` - set SWD frequency in kHz
-** `net` - set the net of the probes IP address `192.168.<net>.1`
-** `nick` - set nickname of the probe.  Use this with care because it also changes
-            the USB serial number (which might be intended)
-** `pwd` - set a password for locking the configuration.  Unlocking is done subsequently
-   with `pwd:<your-pwd>`
-** `r_start` / `r_end` - RAM start/end for generic target to override default 0x20000000..0x20040000.
-** `rtt` - enable/disable RTT access, default is RTT enabled (0: disable, 1:enable).
++
+[%autowidth]
+|====
+| `f_cpu`   | set CPU frequency in MHz
+| `f_swd`   | set SWD frequency in kHz
+| `net`     | set the net of the probes IP address `192.168.<net>.1`, defaults to "14"
+| `nick`    | set nickname of the probe.  Use this with care because it also changes
+              the USB serial number (which might be intended)
+| `pwd`     | set a password for locking the configuration.  Unlocking is done subsequently with `pwd:<your-pwd>`
+| `ram_start` +
+  `ram_end` | RAM start/end for generic target to override default 0x20000000..0x20040000.  This is mainly for
+              RTT detection
+| `rtt`     | enable/disable RTT access, default is RTT enabled (0: disable, 1:enable)
+| `dap_psize` +
+  `dap_pcnt`| set `DAP_PACKET_SIZE` and `DAP_PACKET_COUNT`, see <<dap-optimization>>.  If only one of those values
+              is set, the other goes to a default (64/1)
+|====
 * special characters:
 ** CR/LF - end the line
 ** BS - backspace one character
-* unknown commands / variables are ignored
+* unknown commands / variables are ignored and lock configuration
 * if configuration is locked, all commands are ignored (except `pwd:<your-pwd>`)
+
 
 [NOTE]
 ====

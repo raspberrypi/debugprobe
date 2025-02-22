@@ -216,10 +216,10 @@ static void cdc_debug_command_if(uint8_t ch)
             }
         }
         else if (unlocked) {
+            static const char *minini_varnames[] = {MININI_VAR_NAMES, NULL};
+
             p = strchr(cmd, '=');
             if (p != NULL) {
-                static const char *minini_varnames[] = {MININI_VAR_NAMES, NULL};
-
                 *p = '\0';
                 ++p;
 
@@ -245,7 +245,8 @@ static void cdc_debug_command_if(uint8_t ch)
                     }
                 }
                 else {
-                    picoprobe_error("unknown var: '%s'\n", cmd);
+                    picoprobe_error("unknown var: '%s' -> locked\n", cmd);
+                    unlocked = false;
                 }
             }
             else if (strcmp(cmd, "lock") == 0) {
@@ -268,8 +269,23 @@ static void cdc_debug_command_if(uint8_t ch)
                 for (;;) {
                 }
             }
+            else if (strcmp(cmd, "help") == 0) {
+                printf("------------- commands\n");
+                printf("   help    - show available variables/cmds\n");
+                printf("   lock    - lock the configuration parameters\n");
+                printf("   killall - kill all current configuration parameters\n");
+                printf("   reset   - restart the probe\n");
+                printf("   show    - show the current configuration (initially empty)\n");
+                printf("   <var>=<value> set a variable <var> to <value>\n             (probe resets after every change)\n");
+                printf("------------- ini variables\n");
+                for (uint32_t ndx = 0;  minini_varnames[ndx] != NULL;  ++ndx) {
+                    printf("   %s\n", minini_varnames[ndx]);
+                }
+                printf("-------------\n");
+            }
             else {
-                picoprobe_error("unknown cmd: '%s'\n", cmd);
+                picoprobe_error("unknown cmd: '%s' (use 'help') -> locked\n", cmd);
+                unlocked = false;
             }
         }
         else {

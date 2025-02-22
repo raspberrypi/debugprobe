@@ -372,13 +372,13 @@ int ini_init(void)
 
 static void PrintDataStatus(MinIniFlashFileHeader *hp, const unsigned char *dataName)
 {
-    picoprobe_info("magic 0x%08x\n", hp->magicNumber);
+    printf("magic 0x%08x\n", hp->magicNumber);
     if (hp->magicNumber == MININI_FLASH_MAGIC_DATA_NUMBER_ID) {
-        picoprobe_info("    name: %s\n", hp->dataName);
-        picoprobe_info("    size: %d\n", hp->dataSize);
+        printf("    name: %s\n", hp->dataName);
+        printf("    size: %d\n", hp->dataSize);
     }
     else {
-        picoprobe_info("    <not valid>\n");
+        printf("    <not valid>\n");
     }
 }   // PrintDataStatus
 
@@ -389,9 +389,10 @@ void ini_print_all(void)
     MinIniFlashFileHeader *hp;
     const unsigned char *p;
 
+    printf("------------- ini status\n");
     hp = (MinIniFlashFileHeader*)MININI_CONFIG_FLASH_NVM_ADDR_START;
     PrintDataStatus(hp, (const unsigned char*)MININI_FILENAME);
-    picoprobe_info("------------- device configuration\n");
+    printf("------------- device configuration\n");
     if (hp->magicNumber == MININI_FLASH_MAGIC_DATA_NUMBER_ID) {
         p = (const unsigned char*)hp + sizeof(MinIniFlashFileHeader);
         for (size_t i = 0;  i < hp->dataSize;  i++) {
@@ -399,5 +400,5 @@ void ini_print_all(void)
             p++;
         }
     }
-    picoprobe_info("-------------\n");
+    printf("-------------\n");
 }   // ini_print_all
