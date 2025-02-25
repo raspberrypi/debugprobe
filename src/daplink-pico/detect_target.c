@@ -101,7 +101,7 @@ target_cfg_t target_device_rp2040 = {
     .rt_board_id                    = board_id_rp2040_pico,
     .rt_uf2_id                      = uf2_id_rp2040,
     .rt_max_swd_khz                 = 25000,
-    .rt_swd_khz                     = 15000,
+    .rt_swd_khz                     = 10000,
 };
 
 
@@ -122,8 +122,8 @@ target_cfg_t target_device_rp2350 = {
     .rt_family_id                   = TARGET_RP2350_FAMILY_ID,
     .rt_board_id                    = board_id_rp2350_pico2,
     .rt_uf2_id                      = uf2_id_rp2350,
-    .rt_max_swd_khz                 = 50000,
-    .rt_swd_khz                     = 15000,
+    .rt_max_swd_khz                 = 25000,
+    .rt_swd_khz                     = 10000,
 };
 
 

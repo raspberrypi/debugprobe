@@ -209,6 +209,7 @@ bool rp2350_target_call_function(uint32_t addr, uint32_t args[], int argc, uint3
                 picoprobe_error("rp2350_target_call_function: execution timed out after %u ms\n",
                                 (unsigned)(dt_us / 1000));
                 interrupted = true;
+                break;
             }
         }
         if ( !interrupted) {

@@ -322,10 +322,13 @@ static bool rp2350_swd_init_debug(uint8_t core)
             do_abort = false;
         }
 
+#if 0
+// required or not!?
         if (core == 0) {
             CHECK_ABORT( rp2350_init_accessctrl() );
             rp2350_init_arm_core0();
         }
+#endif
 
         CHECK_ABORT( dp_core_select(core) );
 
