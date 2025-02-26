@@ -72,7 +72,7 @@
 #define _DAP_PACKET_COUNT_PROBERS   8
 #define _DAP_PACKET_SIZE_PROBERS    512
 #define _DAP_PACKET_COUNT_PYOCD     1
-#define _DAP_PACKET_SIZE_PYOCD      512                     // pyocd does not like packets > 128 if COUNT != 1,
+#define _DAP_PACKET_SIZE_PYOCD      128                     // pyocd does not like packets > 128 if COUNT != 1,
                                                             //    there seems to be also a problem with flashing if
                                                             //    packet size exceeds flash page size (?)
                                                             //    see https://github.com/rgrr/yapicoprobe/issues/112
