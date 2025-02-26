@@ -49,6 +49,7 @@
 #include "flash_intf.h"
 #include "flash_manager.h"
 #include "rp2040/target_utils_rp2040.h"
+#include "rp2350/target_utils_rp2350.h"
 #include "raspberry/target_utils_raspberry.h"
 
 
@@ -57,15 +58,11 @@
 // DAPLink needs bigger buffer
 #define TARGET_WRITER_THREAD_MSGBUFF_SIZE   (16 * sizeof(struct uf2_block) + 100)
 
-#define USE_DAPLINK()         (UF2_ID != RP2040_FAMILY_ID)
-#define UF2_ID                (g_board_info.target_cfg->rt_uf2_id)
-#define UF2_ID_IS_PRESENT()   (UF2_ID != 0)
-
-extern target_cfg_t target_device_rp2040;
-
-// these constants are for range checking on the probe
-#define RP2040_FLASH_START    (target_device_rp2040.flash_regions[0].start)
-#define RP2040_FLASH_END      (target_device_rp2040.flash_regions[0].end)
+#define USE_RP2040()          (UF2_ID(0) == RP2040_FAMILY_ID)
+#define USE_RP2350()          (UF2_ID(0) == RP2350_ARM_S_FAMILY_ID  ||  UF2_ID(1) == RP2350_ARM_S_FAMILY_ID  ||  UF2_ID(2) == RP2350_ARM_S_FAMILY_ID  ||  UF2_ID(3) == RP2350_ARM_S_FAMILY_ID)
+#define UF2_ID(NDX)           (g_board_info.target_cfg->rt_uf2_id[NDX])
+#define UF2_ID_LEN()          (sizeof(g_board_info.target_cfg->rt_uf2_id) / sizeof(g_board_info.target_cfg->rt_uf2_id[0]))
+#define UF2_ID_IS_PRESENT()   (UF2_ID(0) != 0)
 
 #define TARGET_FLASH_START    (g_board_info.target_cfg->flash_regions[0].start)
 #define TARGET_FLASH_END      (g_board_info.target_cfg->flash_regions[0].end)
@@ -96,19 +93,31 @@ static volatile bool          is_connected;
 //
 
 
-extern char __start_for_target[];
-extern char __stop_for_target[];
+extern char __start_for_target_msc_rp2040[];
+extern char __stop_for_target_msc_rp2040[];
 
-#define FOR_TARGET_RP2040_CODE        __attribute__((noinline, section("for_target"), target("arch=armv6-m"), optimize("-Og")))
+#define FOR_TARGET_RP2040_CODE        __attribute__((noinline, section("for_target_msc_rp2040"), target("arch=armv6-m"), optimize("-Og")))
 
 #define TARGET_RP2040_CODE            (TARGET_RP2040_RAM_START + 0x10000)
-#define TARGET_RP2040_FLASH_BLOCK     ((uint32_t)rp2040_flash_block - (uint32_t)__start_for_target + TARGET_RP2040_CODE)
+#define TARGET_RP2040_FLASH_BLOCK     ((uint32_t)rp2040_flash_block - (uint32_t)__start_for_target_msc_rp2040 + TARGET_RP2040_CODE)
 #define TARGET_RP2040_BOOT2           (TARGET_RP2040_RAM_START + 0x20000)
 #define TARGET_RP2040_BOOT2_SIZE      256
 #define TARGET_RP2040_ERASE_MAP       (TARGET_RP2040_BOOT2 + TARGET_RP2040_BOOT2_SIZE)
 #define TARGET_RP2040_ERASE_MAP_SIZE  256
 #define TARGET_RP2040_DATA            (TARGET_RP2040_RAM_START + 0x00000)
 
+
+extern char __start_for_target_msc_rp2350[];
+extern char __stop_for_target_msc_rp2350[];
+
+#define FOR_TARGET_RP2350_CODE        __attribute__((noinline, section("for_target_msc_rp2350")))
+
+#define TARGET_RP2350_CODE            (TARGET_RP2350_RAM_START + 0x10000)
+#define TARGET_RP2350_FLASH_BLOCK     ((uint32_t)rp2350_flash_block     - (uint32_t)__start_for_target_msc_rp2350 + TARGET_RP2350_CODE)
+#define TARGET_RP2350_BREAKPOINT      ((uint32_t)rp2350_msc_breakpoint  - (uint32_t)__start_for_target_msc_rp2350 + TARGET_RP2350_CODE)
+#define TARGET_RP2350_ERASE_MAP       (TARGET_RP2350_RAM_START + 0x20000)
+#define TARGET_RP2350_ERASE_MAP_SIZE  256
+#define TARGET_RP2350_DATA            (TARGET_RP2350_RAM_START + 0x00000)
 
 
 
@@ -194,6 +203,81 @@ FOR_TARGET_RP2040_CODE uint32_t rp2040_flash_block(uint32_t addr, uint32_t *src,
 // -----------------------------------------------------------------------------------
 
 
+FOR_TARGET_RP2350_CODE uint32_t rp2350_flash_block(uint32_t addr, uint32_t *src, int length)
+{
+    // Fill in the rom functions...
+    rp2040_rom_table_lookup_fn rom_table_lookup = (rp2040_rom_table_lookup_fn)rom_hword_as_ptr(0x18);
+    uint16_t            *function_table = (uint16_t *)rom_hword_as_ptr(0x14);
+
+    rp2040_rom_void_fn         _connect_internal_flash = rom_table_lookup(function_table, fn('I', 'F'));
+    rp2040_rom_void_fn         _flash_exit_xip         = rom_table_lookup(function_table, fn('E', 'X'));
+    rp2040_rom_flash_erase_fn  _flash_range_erase      = rom_table_lookup(function_table, fn('R', 'E'));
+    rp2040_rom_flash_prog_fn   _flash_range_program    = rom_table_lookup(function_table, fn('R', 'P'));
+    rp2040_rom_void_fn         _flash_flush_cache      = rom_table_lookup(function_table, fn('F', 'C'));
+    rp2040_rom_void_fn         _flash_enter_cmd_xip    = rom_table_lookup(function_table, fn('C', 'X'));
+
+    const uint32_t erase_block_size = 0x10000;               // 64K - if this is changed, then some logic below has to be changed as well
+    uint32_t offset = addr - TARGET_RP2350_FLASH_START;      // this is actually the physical flash address
+    uint32_t erase_map_offset = (offset >> 16);              // 64K per map entry
+    uint8_t *erase_map_entry = ((uint8_t *)TARGET_RP2350_ERASE_MAP) + erase_map_offset;
+    uint32_t res = 0;
+
+    if (offset > TARGET_RP2350_FLASH_MAX_SIZE)
+        return 0x40000000;
+
+    // We want to make sure the flash is connected so that we can check its current content
+    RP2040_FLASH_ENTER_CMD_XIP();
+
+    if (*erase_map_entry == 0) {
+        //
+        // erase 64K page if on 64K boundary
+        //
+        bool already_erased = true;
+        uint32_t *a_64k = (uint32_t *)addr;
+
+        for (int i = 0; i < erase_block_size / sizeof(uint32_t); ++i) {
+            if (a_64k[i] != 0xffffffff) {
+                already_erased = false;
+                break;
+            }
+        }
+
+        if ( !already_erased) {
+            RP2040_FLASH_RANGE_ERASE(offset, erase_block_size, erase_block_size, 0xD8);     // 64K erase
+            res |= 0x0001;
+        }
+        *erase_map_entry = 0xff;
+    }
+
+    if (src != NULL  &&  length != 0) {
+        RP2040_FLASH_RANGE_PROGRAM(offset, (uint8_t *)src, length);
+        res |= 0x0002;
+    }
+
+    RP2040_FLASH_ENTER_CMD_XIP();
+
+    // does data match?
+    {
+        for (int i = 0;  i < length / 4;  ++i) {
+            if (((uint32_t *)addr)[i] != src[i]) {
+                res |= 0x80000000;
+                break;
+            }
+        }
+    }
+
+    return res;
+}   // rp2350_flash_block
+
+
+FOR_TARGET_RP2350_CODE __attribute__((naked)) void rp2350_msc_breakpoint(void)
+{
+    __asm volatile ("bkpt 0");
+}   // rp2350_msc_breakpoint
+
+
+// -----------------------------------------------------------------------------------
+
 
 #if DEBUG_MODULE
 static bool display_reg(uint8_t num)
@@ -213,10 +297,30 @@ static bool display_reg(uint8_t num)
 
 static bool rp2040_target_copy_flash_code(void)
 {
-    int code_len = (__stop_for_target - __start_for_target);
+    // dump sometime ago (2025-02-26)
+    // this is required for connect_internal_flash()
+    static const uint8_t boot2_rp2040[] = {
+        0x00, 0xb5, 0x32, 0x4b, 0x21, 0x20, 0x58, 0x60, 0x98, 0x68, 0x02, 0x21, 0x88, 0x43, 0x98, 0x60,
+        0xd8, 0x60, 0x18, 0x61, 0x58, 0x61, 0x2e, 0x4b, 0x00, 0x21, 0x99, 0x60, 0x02, 0x21, 0x59, 0x61,
+        0x01, 0x21, 0xf0, 0x22, 0x99, 0x50, 0x2b, 0x49, 0x19, 0x60, 0x01, 0x21, 0x99, 0x60, 0x35, 0x20,
+        0x00, 0xf0, 0x44, 0xf8, 0x02, 0x22, 0x90, 0x42, 0x14, 0xd0, 0x06, 0x21, 0x19, 0x66, 0x00, 0xf0,
+        0x34, 0xf8, 0x19, 0x6e, 0x01, 0x21, 0x19, 0x66, 0x00, 0x20, 0x18, 0x66, 0x1a, 0x66, 0x00, 0xf0,
+        0x2c, 0xf8, 0x19, 0x6e, 0x19, 0x6e, 0x19, 0x6e, 0x05, 0x20, 0x00, 0xf0, 0x2f, 0xf8, 0x01, 0x21,
+        0x08, 0x42, 0xf9, 0xd1, 0x00, 0x21, 0x99, 0x60, 0x1b, 0x49, 0x19, 0x60, 0x00, 0x21, 0x59, 0x60,
+        0x1a, 0x49, 0x1b, 0x48, 0x01, 0x60, 0x01, 0x21, 0x99, 0x60, 0xeb, 0x21, 0x19, 0x66, 0xa0, 0x21,
+        0x19, 0x66, 0x00, 0xf0, 0x12, 0xf8, 0x00, 0x21, 0x99, 0x60, 0x16, 0x49, 0x14, 0x48, 0x01, 0x60,
+        0x01, 0x21, 0x99, 0x60, 0x01, 0xbc, 0x00, 0x28, 0x00, 0xd0, 0x00, 0x47, 0x12, 0x48, 0x13, 0x49,
+        0x08, 0x60, 0x03, 0xc8, 0x80, 0xf3, 0x08, 0x88, 0x08, 0x47, 0x03, 0xb5, 0x99, 0x6a, 0x04, 0x20,
+        0x01, 0x42, 0xfb, 0xd0, 0x01, 0x20, 0x01, 0x42, 0xf8, 0xd1, 0x03, 0xbd, 0x02, 0xb5, 0x18, 0x66,
+        0x18, 0x66, 0xff, 0xf7, 0xf2, 0xff, 0x18, 0x6e, 0x18, 0x6e, 0x02, 0xbd, 0x00, 0x00, 0x02, 0x40,
+        0x00, 0x00, 0x00, 0x18, 0x00, 0x00, 0x07, 0x00, 0x00, 0x03, 0x5f, 0x00, 0x21, 0x22, 0x00, 0x00,
+        0xf4, 0x00, 0x00, 0x18, 0x22, 0x20, 0x00, 0xa0, 0x00, 0x01, 0x00, 0x10, 0x08, 0xed, 0x00, 0xe0,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x74, 0xb2, 0x4e, 0x7a
+    };
+    int code_len = (__stop_for_target_msc_rp2040 - __start_for_target_msc_rp2040);
 
     picoprobe_info("FLASH: Copying custom flash code to 0x%08x (%d bytes)\n", TARGET_RP2040_CODE, code_len);
-    if ( !swd_write_memory(TARGET_RP2040_CODE, (uint8_t *)__start_for_target, code_len))
+    if ( !swd_write_memory(TARGET_RP2040_CODE, (uint8_t *)__start_for_target_msc_rp2040, code_len))
         return false;
 
     // clear TARGET_RP2040_ERASE_MAP
@@ -226,20 +330,30 @@ static bool rp2040_target_copy_flash_code(void)
         }
     }
 
-    // copy BOOT2 code (TODO make it right)
-#if 1
-    // this works only if target and probe have the same BOOT2 code
     picoprobe_info("FLASH: Copying BOOT2 code to 0x%08x (%d bytes)\n", TARGET_RP2040_BOOT2, TARGET_RP2040_BOOT2_SIZE);
-    if ( !swd_write_memory(TARGET_RP2040_BOOT2, (uint8_t *)RP2040_FLASH_START, TARGET_RP2040_BOOT2_SIZE))
+    if ( !swd_write_memory(TARGET_RP2040_BOOT2, (uint8_t *)boot2_rp2040, sizeof(boot2_rp2040)))
         return false;
-#else
-    // TODO this means, that the target function fetches the code from the image (actually this could be done here...)
-    if ( !swd_write_word(TARGET_RP2040_BOOT2, 0xffffffff))
-        return false;
-#endif
-
     return true;
 }   // rp2040_target_copy_flash_code
+
+
+
+static bool rp2350_target_copy_flash_code(void)
+{
+    int code_len = (__stop_for_target_msc_rp2350 - __start_for_target_msc_rp2350);
+
+    picoprobe_info("FLASH: Copying custom flash code to 0x%08x (%d bytes)\n", TARGET_RP2350_CODE, code_len);
+    if ( !swd_write_memory(TARGET_RP2350_CODE, (uint8_t *)__start_for_target_msc_rp2350, code_len))
+        return false;
+
+    // clear TARGET_RP2350_ERASE_MAP
+    for (int i = 0;  i < TARGET_RP2350_ERASE_MAP_SIZE;  i += sizeof(uint32_t)) {
+        if ( !swd_write_word(TARGET_RP2350_ERASE_MAP + i, 0)) {
+            return false;
+        }
+    }
+    return true;
+}   // rp2350_target_copy_flash_code
 
 
 
@@ -254,13 +368,21 @@ static void target_disconnect(TimerHandle_t xTimer)
 {
     if (xSemaphoreTake(sema_swd_in_use, 0)) {
         if (is_connected) {
-            picoprobe_info("=================================== MSC disconnect target\n");
+            picoprobe_info("=================================== MSC disconnect target %d\n", had_write);
             led_state(LS_MSC_DISCONNECTED);
             if (had_write) {
-                if (USE_DAPLINK()) {
+                if (USE_RP2040()) {
+                }
+                else if (USE_RP2350()) {
+                }
+                else {
+                    printf("xxxxxxxxxxxxxx\n");
                     flash_manager_uninit();
                 }
-                target_set_state(RESET_RUN);
+                bool r1 = target_set_state(RESET_PROGRAM);
+                bool r2 = target_set_state(RESET_RUN);
+                printf("<<<<<<<<<<<<<<<<< %d %d\n", r1, r2);
+
             }
             is_connected = false;
         }
@@ -296,7 +418,7 @@ bool msc_target_connect(bool write_mode)
             led_state(LS_MSC_CONNECTED);
 
             ok = target_set_state(ATTACH);
-//            picoprobe_debug("---------------------------------- %d\n", ok);
+            printf("---------------------------------- %d\n", ok);
 
             must_initialize = ok;
             is_connected = true;                   // disconnect must be issued!
@@ -323,19 +445,39 @@ static void setup_uf2_record(struct uf2_block *uf2, uint32_t target_addr, uint32
     uf2->payload_size = payload_size;
     uf2->block_no     = block_no;
     uf2->num_blocks   = num_blocks;
-    uf2->file_size    = UF2_ID;
+    uf2->file_size    = UF2_ID(0);
     uf2->magic_end    = UF2_MAGIC_END;
 }   // setup_uf2_record
 
 
 
 bool msc_is_uf2_record(const void *sector, uint32_t sector_size)
+/**
+ * Check if the data really contains a UF2 record.
+ */
 {
     const uint32_t payload_size = 256;
     bool r = false;
 
+//    printf("   sector_size: %ld\n", sector_size);
+
     if (sector_size >= sizeof(struct uf2_block)) {
         const struct uf2_block *uf2 = (const struct uf2_block *)sector;
+
+#if 0
+        printf("   uf2->magic_start0:  0x%08lx\n", uf2->magic_start0);
+        printf("   uf2->magic_start1:  0x%08lx\n", uf2->magic_start1);
+        printf("   uf2->magic_end:     0x%08lx\n", uf2->magic_end);
+        printf("   uf2->block_no:      0x%08lx\n", uf2->block_no);
+        printf("   uf2->num_blocks:    0x%08lx\n", uf2->num_blocks);
+        printf("   uf2->payload_size:  0x%08lx\n", uf2->payload_size);
+        printf("   uf2->target_addr:   0x%08lx\n", uf2->target_addr);
+        printf("   uf2->flags:         0x%08lx\n", uf2->flags);
+        printf("   uf2->file_size:     0x%08lx\n", uf2->file_size);
+        printf("   UF2_ID:             0x%08lx\n", UF2_ID(0));
+        printf("   TARGET_FLASH_START: 0x%08lx\n", TARGET_FLASH_START);
+        printf("   TARGET_FLASH_END:   0x%08lx\n", TARGET_FLASH_END);
+#endif
 
         if (    uf2->magic_start0 == UF2_MAGIC_START0
             &&  uf2->magic_start1 == UF2_MAGIC_START1
@@ -343,12 +485,14 @@ bool msc_is_uf2_record(const void *sector, uint32_t sector_size)
             &&  uf2->block_no < uf2->num_blocks
             &&  uf2->payload_size == payload_size
             &&  uf2->target_addr >= TARGET_FLASH_START
-            &&  uf2->target_addr - payload_size * uf2->block_no >= TARGET_FLASH_START             // could underflow
-            &&  uf2->target_addr - payload_size * uf2->block_no + payload_size * uf2->num_blocks
-                        <= TARGET_FLASH_END) {
+            &&  uf2->target_addr + payload_size <= TARGET_FLASH_END
+           ) {
             if ((uf2->flags & UF2_FLAG_FAMILY_ID_PRESENT) != 0) {
-                if (uf2->file_size == UF2_ID) {
-                    r = true;
+                for (int i = 0;  i < UF2_ID_LEN();  ++i) {
+                    if (uf2->file_size == UF2_ID(i)) {
+                        r = true;
+                        break;
+                    }
                 }
             }
             else {
@@ -398,22 +542,12 @@ void target_writer_thread(void *ptr)
         len = xMessageBufferReceive(msgbuff_target_writer_thread, &uf2, sizeof(uf2), portMAX_DELAY);
         assert(len == 512);
 
-//        picoprobe_info("target_writer_thread(0x%lx, %ld, %ld), %u\n", uf2.target_addr, uf2.block_no, uf2.num_blocks, len);
+//        printf("target_writer_thread(0x%lx, %ld, %ld), %u\n", uf2.target_addr, uf2.block_no, uf2.num_blocks, len);
 
         xSemaphoreTake(sema_swd_in_use, portMAX_DELAY);
 
         if (must_initialize) {
-            if (USE_DAPLINK()) {
-                error_t sts;
-
-//              flash_manager_set_page_erase(false);
-                sts = flash_manager_init(flash_intf_target);
-//                picoprobe_info("flash_manager_init = %d\n", sts);
-                if (sts == ERROR_SUCCESS) {
-                    must_initialize = false;
-                }
-            }
-            else {
+            if (USE_RP2040()) {
                 bool ok;
 
                 ok = target_set_state(RESET_PROGRAM);
@@ -422,13 +556,29 @@ void target_writer_thread(void *ptr)
                     rp2040_target_copy_flash_code();
                 }
             }
+            else if (USE_RP2350()) {
+                bool ok;
+
+                ok = target_set_state(RESET_PROGRAM);
+                if (ok) {
+                    must_initialize = false;
+                    rp2350_target_copy_flash_code();
+                }
+            }
+            else {
+                error_t sts;
+
+//              flash_manager_set_page_erase(false);
+                sts = flash_manager_init(flash_intf_target);
+                printf("flash_manager_init = %d\n", sts);
+                if (sts == ERROR_SUCCESS) {
+                    must_initialize = false;
+                }
+            }
             had_write = true;
         }
 
-        if (USE_DAPLINK()) {
-            flash_manager_data(uf2.target_addr, uf2.data, uf2.payload_size);
-        }
-        else {
+        if (USE_RP2040()) {
             uint32_t arg[3];
             uint32_t res;
 
@@ -436,7 +586,7 @@ void target_writer_thread(void *ptr)
             arg[1] = TARGET_RP2040_DATA;
             arg[2] = uf2.payload_size;
 
-//          picoprobe_info("     0x%lx, 0x%lx, 0x%lx, %ld\n", TARGET_RP2040_FLASH_BLOCK, arg[0], arg[1], arg[2]);
+//            printf("   xxx  0x%lx, 0x%lx, 0x%lx, %ld\n", TARGET_RP2040_FLASH_BLOCK, arg[0], arg[1], arg[2]);
 
             if (swd_write_memory(TARGET_RP2040_DATA, (uint8_t *)uf2.data, uf2.payload_size)) {
                 rp2040_target_call_function(TARGET_RP2040_FLASH_BLOCK, arg, sizeof(arg) / sizeof(arg[0]), &res);
@@ -447,6 +597,31 @@ void target_writer_thread(void *ptr)
             else {
                 picoprobe_error("target_writer_thread: failed to write to 0x%x/%d\n", (unsigned)uf2.target_addr, (unsigned)uf2.payload_size);
             }
+        }
+        else if (USE_RP2350()) {
+#if 0
+            uint32_t arg[3];
+            uint32_t res;
+
+            arg[0] = uf2.target_addr;
+            arg[1] = TARGET_RP2350_DATA;
+            arg[2] = uf2.payload_size;
+
+            printf("     0x%lx, 0x%lx, 0x%lx, %ld\n", TARGET_RP2350_FLASH_BLOCK, arg[0], arg[1], arg[2]);
+
+            if (swd_write_memory(TARGET_RP2350_DATA, (uint8_t *)uf2.data, uf2.payload_size)) {
+                rp2350_target_call_function(TARGET_RP2350_FLASH_BLOCK, arg, sizeof(arg) / sizeof(arg[0]), TARGET_RP2350_BREAKPOINT, &res);
+                if (res & 0xf0000000) {
+                    picoprobe_error("target_writer_thread: target operation returned 0x%x\n", (unsigned)res);
+                }
+            }
+            else {
+                picoprobe_error("target_writer_thread: failed to write to 0x%x/%d\n", (unsigned)uf2.target_addr, (unsigned)uf2.payload_size);
+            }
+#endif
+        }
+        else {
+            flash_manager_data(uf2.target_addr, uf2.data, uf2.payload_size);
         }
 
         xTimerReset(timer_disconnect, pdMS_TO_TICKS(10));    // the above operation could take several 100ms!
@@ -465,7 +640,7 @@ bool msc_target_is_writable(void)
 
 void msc_init(uint32_t task_prio)
 {
-    picoprobe_debug("msc_init()\n");
+    printf("msc_init()\n");
 
     sema_swd_in_use = xSemaphoreCreateMutex();
     if (sema_swd_in_use == NULL) {
