@@ -50,6 +50,8 @@
 #include "probe.h"
 #include "minIni/minIni.h"
 
+// include only here!
+#include "raspberry/flash_blob.c"
 
 
 // these are IDs for target identification, required registers to identify may/do differ
@@ -65,7 +67,8 @@ const uint32_t uf2_id_nrf52     = 0x1b57745f;
 const uint32_t uf2_id_nrf52833  = 0x621e937a;
 const uint32_t uf2_id_nrf52840  = 0xada52840;
 const uint32_t uf2_id_rp2040    = 0xe48bff56;
-const uint32_t uf2_id_rp2350    = 0xe48bff5b;     // Non-secure Arm image
+const uint32_t uf2_id_rp2350    = 0xe48bff57;
+//const uint32_t uf2_id_rp2350    = 0xe48bff5b;     // Non-secure Arm image
 //const uint32_t uf2_id_rp2350    = 0xe48bff5a;     // RISC-V image
 //const uint32_t uf2_id_rp2350    = 0xe48bff59;     // Secure Arm image
 
@@ -87,12 +90,12 @@ static char board_name[30];
 // because a special algo is used for flashing, corresponding fields below are empty.
 target_cfg_t target_device_rp2040 = {
     .version                        = kTargetConfigVersion,
-    .sectors_info                   = NULL,
-    .sector_info_length             = 0,
+    .sectors_info                   = sectors_info_rp2040,
+    .sector_info_length             = (sizeof(sectors_info_rp2040))/(sizeof(sector_info_t)),
     .flash_regions[0].start         = 0x10000000,
     .flash_regions[0].end           = 0x10000000,
     .flash_regions[0].flags         = kRegionIsDefault,
-    .flash_regions[0].flash_algo    = NULL,
+    .flash_regions[0].flash_algo    = (program_target_t *)&flash_rp2040,
     .ram_regions[0].start           = 0x20000000,
     .ram_regions[0].end             = 0x20000000 + KB(256),
     .target_vendor                  = "RaspberryPi",
@@ -109,12 +112,12 @@ target_cfg_t target_device_rp2040 = {
 // because a special algo is used for flashing, corresponding fields below are empty.
 target_cfg_t target_device_rp2350 = {
     .version                        = kTargetConfigVersion,
-    .sectors_info                   = NULL,
-    .sector_info_length             = 0,
+    .sectors_info                   = sectors_info_rp2350,
+    .sector_info_length             = (sizeof(sectors_info_rp2350))/(sizeof(sector_info_t)),
     .flash_regions[0].start         = 0x10000000,
     .flash_regions[0].end           = 0x10000000,
     .flash_regions[0].flags         = kRegionIsDefault,
-    .flash_regions[0].flash_algo    = NULL,
+    .flash_regions[0].flash_algo    = (program_target_t *)&flash_rp2350,
     .ram_regions[0].start           = 0x20000000,
     .ram_regions[0].end             = 0x20000000 + KB(512),
     .target_vendor                  = "RaspberryPi",
