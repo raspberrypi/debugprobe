@@ -36,7 +36,6 @@
     extern "C" {
 #endif
 
-
 #define TARGET_RP2350_FLASH_START     0x10000000
 #define TARGET_RP2350_FLASH_MAX_SIZE  0x10000000
 #define TARGET_RP2350_RAM_START       0x20000000
@@ -44,46 +43,6 @@
 
 #define TARGET_RP2350_STACK           (TARGET_RP2350_RAM_START + 0x20000) //TARGET_RP2350_RAM_SIZE - 32768)
 
-
-// pre: flash connected, post: generic XIP active
-#define RP2350_FLASH_RANGE_ERASE(OFFS, CNT, BLKSIZE, CMD)       \
-    do {                                                        \
-        _flash_exit_xip();                                      \
-        _flash_range_erase((OFFS), (CNT), (BLKSIZE), (CMD));    \
-        _flash_flush_cache();                                   \
-        _flash_enter_cmd_xip();                                 \
-    } while (0)
-
-// pre: flash connected, post: generic XIP active
-#define RP2350_FLASH_RANGE_PROGRAM(ADDR, DATA, LEN)             \
-    do {                                                        \
-        _flash_exit_xip();                                      \
-        _flash_range_program((ADDR), (DATA), (LEN));            \
-        _flash_flush_cache();                                   \
-        _flash_enter_cmd_xip();                                 \
-    } while (0)
-
-// post: flash connected && fast or generic XIP active
-#define RP2350_FLASH_ENTER_CMD_XIP()                            \
-    do {                                                        \
-        _connect_internal_flash();                              \
-        _flash_flush_cache();                                   \
-        if (*((uint32_t *)TARGET_RP2350_BOOT2) == 0xffffffff) { \
-            _flash_enter_cmd_xip();                             \
-        }                                                       \
-        else {                                                  \
-            ((void (*)(void))TARGET_RP2350_BOOT2+1)();          \
-        }                                                       \
-    } while (0)
-
-
-#define rom_hword_as_ptr(rom_address) (void *)(uintptr_t)(*(uint16_t *)rom_address)
-#define fn(a, b)        (uint32_t)((b << 8) | a)
-
-
-typedef void *(*rp2350_rom_void_fn)(void);
-typedef void *(*rp2350_rom_flash_erase_fn)(uint32_t addr, size_t count, uint32_t block_size, uint8_t block_cmd);
-typedef void *(*rp2350_rom_flash_prog_fn)(uint32_t addr, const uint8_t *data, size_t count);
 typedef int   (*rp2350_rom_get_sys_info_fn)(uint32_t *out_buffer, uint32_t out_buffer_word_size, uint32_t flags);
 typedef void  (*rp2350_rom_connect_internal_flash_fn)(void);
 
