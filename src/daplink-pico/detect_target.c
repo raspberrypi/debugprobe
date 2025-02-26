@@ -43,7 +43,7 @@
 
 #include "target_family.h"
 #include "target_board.h"
-#include "target_utils_raspberry.h"
+#include "raspberry/target_utils_raspberry.h"
 #include "rp2040/program_flash_generic_rp2040.h"
 #include "rp2350/program_flash_generic_rp2350.h"
 
@@ -198,6 +198,8 @@ static void search_family(void)
  *
  * \note
  *    I'm not sure if the usage of board_vendor/name is correct here.
+ *
+ * TODO create a manual configuration possibility via INI
  */
 void pico_prerun_board_config(void)
 {

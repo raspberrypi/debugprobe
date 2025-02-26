@@ -28,7 +28,7 @@
 #include "target_utils_rp2040.h"
 
 #include "swd_host.h"
-#include "target_utils_raspberry.h"
+#include "raspberry/target_utils_raspberry.h"
 
 
 

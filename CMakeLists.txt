@@ -205,7 +205,7 @@ target_include_directories(${PROJECT} PRIVATE
         src/lib/daplink/target
         
         src/daplink-pico/board
-        src/daplink-pico/family/raspberry
+        src/daplink-pico/family
         src/daplink-pico/hic_hal/raspberry/rp2040
         $ENV{PICO_SDK_PATH}/src/common/boot_uf2_headers/include
 )

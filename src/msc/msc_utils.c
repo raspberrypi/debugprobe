@@ -49,7 +49,7 @@
 #include "flash_intf.h"
 #include "flash_manager.h"
 #include "rp2040/target_utils_rp2040.h"
-#include "target_utils_raspberry.h"
+#include "raspberry/target_utils_raspberry.h"
 
 
 #define DEBUG_MODULE    0

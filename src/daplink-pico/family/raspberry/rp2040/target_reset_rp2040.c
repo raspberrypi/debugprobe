@@ -21,7 +21,7 @@
 #include "swd_host.h"
 #include "cmsis_os2.h"
 
-#include "target_utils_raspberry.h"
+#include "raspberry/target_utils_raspberry.h"
 
 
 #define NVIC_Addr    (0xe000e000)
