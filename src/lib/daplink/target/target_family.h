@@ -68,6 +68,7 @@ enum _vendor_ids {
     kRenesas_VendorID = 117,
     kRealtek_VendorID = 124,
     kAmbiq_VendorID = 120,
+    hRPi_VendorID = 170,
 };
 
 //! @brief Unique IDs for device families supported by DAPLink.

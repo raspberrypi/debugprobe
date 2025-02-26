@@ -40,8 +40,8 @@
 
 
 // required for linking of \a g_board_info.target_cfg and \a g_raspberry_rp2040_family
-#define TARGET_RP2040_FAMILY_ID       CREATE_FAMILY_ID(127, 1)
-#define TARGET_RP2350_FAMILY_ID       CREATE_FAMILY_ID(127, 2)
+#define TARGET_RP2040_FAMILY_ID       CREATE_FAMILY_ID(hRPi_VendorID, 1)
+#define TARGET_RP2350_FAMILY_ID       CREATE_FAMILY_ID(hRPi_VendorID, 2)
 
 
 bool target_core_is_halted(void);
