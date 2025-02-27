@@ -16,28 +16,24 @@
 
 #include "swd_host.h"
 
-#include "pico_target_utils.h"
+#include "raspberry/target_utils_raspberry.h"
+#include "target_utils_rp2040.h"
 
-extern char __start_for_target_connect[];
-extern char __stop_for_target_connect[];
+extern char __start_for_target_connect_rp2040[];
+extern char __stop_for_target_connect_rp2040[];
 
 // Attributes for RP2040 target code
 // NOTE: PICO_NO_CMSE must be set and also "-Og"!
-#define FOR_TARGET_RP2040_CODE        __attribute__((noinline, section("for_target_connect"), target("arch=armv6-m"), optimize("-Og")))
+#define FOR_TARGET_RP2040_CODE        __attribute__((noinline, section("for_target_connect_rp2040"), target("arch=armv6-m"), optimize("-Og")))
 
 #define TARGET_RP2040_CODE            (TARGET_RP2040_RAM_START + 0x10000)
-#define TARGET_RP2040_FLASH_SIZE      ((uint32_t)rp2040_flash_size - (uint32_t)__start_for_target_connect + TARGET_RP2040_CODE)
+#define TARGET_RP2040_FLASH_SIZE      ((uint32_t)rp2040_flash_size - (uint32_t)__start_for_target_connect_rp2040 + TARGET_RP2040_CODE)
 
 //
 // ---------------------------------------------------------------------------------------------------------------------
 
 
 // These are supported by almost any SPI flash
-#define FLASHCMD_PAGE_PROGRAM     0x02
-#define FLASHCMD_READ_DATA        0x03
-#define FLASHCMD_READ_STATUS      0x05
-#define FLASHCMD_WRITE_ENABLE     0x06
-#define FLASHCMD_SECTOR_ERASE     0x20
 #define FLASHCMD_READ_SFDP        0x5a
 #define FLASHCMD_READ_JEDEC_ID    0x9f
 
@@ -211,12 +207,12 @@ FOR_TARGET_RP2040_CODE static int __noinline flash_size_log2() {
 FOR_TARGET_RP2040_CODE static uint32_t rp2040_flash_size(void)
 {
     // Fill in the rom functions...
-    rom_table_lookup_fn rom_table_lookup = (rom_table_lookup_fn)rom_hword_as_ptr(0x18);
+    rp2040_rom_table_lookup_fn rom_table_lookup = (rp2040_rom_table_lookup_fn)rom_hword_as_ptr(0x18);
     uint16_t            *function_table = (uint16_t *)rom_hword_as_ptr(0x14);
 
-    rom_void_fn         _flash_exit_xip         = rom_table_lookup(function_table, fn('E', 'X'));
-    rom_void_fn         _flash_flush_cache      = rom_table_lookup(function_table, fn('F', 'C'));
-    rom_void_fn         _flash_enter_cmd_xip    = rom_table_lookup(function_table, fn('C', 'X'));
+    rp2xxx_rom_void_fn  _flash_exit_xip         = rom_table_lookup(function_table, ROM_FN('E', 'X'));
+    rp2xxx_rom_void_fn  _flash_flush_cache      = rom_table_lookup(function_table, ROM_FN('F', 'C'));
+    rp2xxx_rom_void_fn  _flash_enter_cmd_xip    = rom_table_lookup(function_table, ROM_FN('C', 'X'));
 
     _flash_exit_xip();
     int r = flash_size_log2();
@@ -230,11 +226,11 @@ FOR_TARGET_RP2040_CODE static uint32_t rp2040_flash_size(void)
 
 static bool rp2040_target_copy_flash_code(void)
 {
-    int code_len = (__stop_for_target_connect - __start_for_target_connect);
+    int code_len = (__stop_for_target_connect_rp2040 - __start_for_target_connect_rp2040);
 
     picoprobe_info("FLASH: Copying custom flash code to 0x%08x (%d bytes)\r\n", TARGET_RP2040_CODE, code_len);
 
-    if ( !swd_write_memory(TARGET_RP2040_CODE, (uint8_t *)__start_for_target_connect, code_len))
+    if ( !swd_write_memory(TARGET_RP2040_CODE, (uint8_t *)__start_for_target_connect_rp2040, code_len))
         return false;
     return true;
 }   // rp2040_target_copy_flash_code

@@ -6,3 +6,5 @@
 # DAPLink adoptions for the probe
 
 These modules fit the probe into the DAPLink infrastructure.
+
+link:detect_target.c[] contains the auto-detect mechanism.

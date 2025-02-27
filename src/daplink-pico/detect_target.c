@@ -36,6 +36,7 @@
  */
 
 #include <stdio.h>
+#include "boot/uf2.h"
 
 #include "DAP_config.h"
 #include "DAP.h"
@@ -43,12 +44,15 @@
 
 #include "target_family.h"
 #include "target_board.h"
-#include "target_rpXXXX.h"
-#include "program_flash_generic.h"
+#include "raspberry/target_utils_raspberry.h"
+#include "rp2040/program_flash_generic_rp2040.h"
+#include "rp2350/program_flash_generic_rp2350.h"
 
 #include "probe.h"
 #include "minIni/minIni.h"
 
+// include only here!
+#include "raspberry/flash_blob.c"
 
 
 // these are IDs for target identification, required registers to identify may/do differ
@@ -60,13 +64,14 @@ const uint32_t swd_id_nrf52840  = 0x00052840;
 
 // IDs for UF2 identification, use the following command to obtain recent list:
 // curl https://raw.githubusercontent.com/microsoft/uf2/master/utils/uf2families.json | jq -r '.[] | "\(.id)\t\(.description)"' | sort -k 2
-const uint32_t uf2_id_nrf52     = 0x1b57745f;
-const uint32_t uf2_id_nrf52833  = 0x621e937a;
-const uint32_t uf2_id_nrf52840  = 0xada52840;
-const uint32_t uf2_id_rp2040    = 0xe48bff56;
-const uint32_t uf2_id_rp2350    = 0xe48bff5b;     // Non-secure Arm image
-//const uint32_t uf2_id_rp2350    = 0xe48bff5a;     // RISC-V image
-//const uint32_t uf2_id_rp2350    = 0xe48bff59;     // Secure Arm image
+const uint32_t uf2_id_nrf52          = 0x1b57745f;
+const uint32_t uf2_id_nrf52833       = 0x621e937a;
+const uint32_t uf2_id_nrf52840       = 0xada52840;
+const uint32_t uf2_id_rp2040         = RP2040_FAMILY_ID;
+const uint32_t uf2_id_rp2            = ABSOLUTE_FAMILY_ID;
+const uint32_t uf2_id_rp2350_nonsec  = RP2350_ARM_NS_FAMILY_ID;    // Non-secure Arm image
+const uint32_t uf2_id_rp2350_sec_rv  = RP2350_RISCV_FAMILY_ID;     // RISC-V image
+const uint32_t uf2_id_rp2350_sec_arm = RP2350_ARM_S_FAMILY_ID;     // Secure Arm image
 
 // IDs for board identification (but whatfor?)
 #define board_id_nrf52832_dk      "1101"
@@ -86,21 +91,22 @@ static char board_name[30];
 // because a special algo is used for flashing, corresponding fields below are empty.
 target_cfg_t target_device_rp2040 = {
     .version                        = kTargetConfigVersion,
-    .sectors_info                   = NULL,
-    .sector_info_length             = 0,
+    .sectors_info                   = sectors_info_rp2040,
+    .sector_info_length             = (sizeof(sectors_info_rp2040))/(sizeof(sector_info_t)),
     .flash_regions[0].start         = 0x10000000,
     .flash_regions[0].end           = 0x10000000,
     .flash_regions[0].flags         = kRegionIsDefault,
-    .flash_regions[0].flash_algo    = NULL,
+    .flash_regions[0].flash_algo    = (program_target_t *)&flash_rp2040,
     .ram_regions[0].start           = 0x20000000,
     .ram_regions[0].end             = 0x20000000 + KB(256),
     .target_vendor                  = "RaspberryPi",
     .target_part_number             = "RP2040",
     .rt_family_id                   = TARGET_RP2040_FAMILY_ID,
     .rt_board_id                    = board_id_rp2040_pico,
-    .rt_uf2_id                      = uf2_id_rp2040,
+    .rt_uf2_id[0]                   = uf2_id_rp2040,
+    .rt_uf2_id[1]                   = 0,
     .rt_max_swd_khz                 = 25000,
-    .rt_swd_khz                     = 15000,
+    .rt_swd_khz                     = 10000,
 };
 
 
@@ -108,21 +114,25 @@ target_cfg_t target_device_rp2040 = {
 // because a special algo is used for flashing, corresponding fields below are empty.
 target_cfg_t target_device_rp2350 = {
     .version                        = kTargetConfigVersion,
-    .sectors_info                   = NULL,
-    .sector_info_length             = 0,
+    .sectors_info                   = sectors_info_rp2350,
+    .sector_info_length             = (sizeof(sectors_info_rp2350))/(sizeof(sector_info_t)),
     .flash_regions[0].start         = 0x10000000,
     .flash_regions[0].end           = 0x10000000,
     .flash_regions[0].flags         = kRegionIsDefault,
-    .flash_regions[0].flash_algo    = NULL,
+    .flash_regions[0].flash_algo    = (program_target_t *)&flash_rp2350,
     .ram_regions[0].start           = 0x20000000,
     .ram_regions[0].end             = 0x20000000 + KB(512),
     .target_vendor                  = "RaspberryPi",
     .target_part_number             = "RP2350",
     .rt_family_id                   = TARGET_RP2350_FAMILY_ID,
     .rt_board_id                    = board_id_rp2350_pico2,
-    .rt_uf2_id                      = uf2_id_rp2350,
-    .rt_max_swd_khz                 = 50000,
-    .rt_swd_khz                     = 15000,
+    .rt_uf2_id[0]                   = uf2_id_rp2350_sec_arm,
+    .rt_uf2_id[1]                   = uf2_id_rp2350_nonsec,
+    .rt_uf2_id[2]                   = uf2_id_rp2350_sec_rv,
+    .rt_uf2_id[3]                   = uf2_id_rp2,
+    .rt_uf2_id[4]                   = 0,
+    .rt_max_swd_khz                 = 25000,
+    .rt_swd_khz                     = 10000,
 };
 
 
@@ -142,7 +152,7 @@ target_cfg_t target_device_generic = {
     .target_part_number             = "cortex_m",
     .rt_family_id                   = kStub_SWSysReset_FamilyID,
     .rt_board_id                    = "ffff",
-    .rt_uf2_id                      = 0,                               // this also implies no write operation
+    .rt_uf2_id[0]                   = 0,                               // this also implies no write operation
     .rt_max_swd_khz                 = 10000,
     .rt_swd_khz                     = 2000,
 };
@@ -164,7 +174,7 @@ target_cfg_t target_device_disconnected = {
     .target_part_number             = "Disconnected",
     .rt_family_id                   = kStub_SWSysReset_FamilyID,
     .rt_board_id                    = NULL,                            // indicates not connected
-    .rt_uf2_id                      = 0,                               // this also implies no write operation
+    .rt_uf2_id[0]                   = 0,                               // this also implies no write operation
     .rt_max_swd_khz                 = 10000,
     .rt_swd_khz                     = 2000,
 };
@@ -197,6 +207,8 @@ static void search_family(void)
  *
  * \note
  *    I'm not sure if the usage of board_vendor/name is correct here.
+ *
+ * TODO create a manual configuration possibility via INI
  */
 void pico_prerun_board_config(void)
 {
@@ -243,15 +255,13 @@ void pico_prerun_board_config(void)
             uint32_t chip_id;
 
             r = swd_read_word(0x40000000, &chip_id);
-            printf("!!!!!!!!!!!!!!!!!! chip_id: 0x%lx\n", chip_id);
             if (r  &&  (chip_id & 0x0fffffff) == swd_id_rp2350) {
                 target_found = true;
                 strcpy(board_vendor, "RaspberryPi");
                 strcpy(board_name, "Pico2");
 
                 // get size of targets flash
-// TODO                uint32_t size = target_rp2350_get_external_flash_size();
-                uint32_t size = 4 * 1024 * 1024;
+                uint32_t size = target_rp2350_get_external_flash_size();
                 if (size > 0) {
                     target_device.flash_regions[0].end = target_device.flash_regions[0].start + size;
                 }
@@ -265,7 +275,8 @@ void pico_prerun_board_config(void)
         target_device = target_device_nrf52840;
         target_device.rt_family_id   = kNordic_Nrf52_FamilyID;
         target_device.rt_board_id    = board_id_nrf52840_dk;
-        target_device.rt_uf2_id      = uf2_id_nrf52840;
+        target_device.rt_uf2_id[0]   = uf2_id_nrf52840;
+        target_device.rt_uf2_id[1]   = 0;
         target_device.rt_max_swd_khz = 10000;
         target_device.rt_swd_khz     = 6000;
         target_device.target_part_number = "nRF52840";
@@ -285,7 +296,8 @@ void pico_prerun_board_config(void)
                 target_device = target_device_nrf52;
                 target_device.rt_family_id   = kNordic_Nrf52_FamilyID;
                 target_device.rt_board_id    = board_id_nrf52832_dk;
-                target_device.rt_uf2_id      = uf2_id_nrf52;
+                target_device.rt_uf2_id[0]   = uf2_id_nrf52;
+                target_device.rt_uf2_id[1]   = 0;
                 target_device.rt_max_swd_khz = 10000;
                 target_device.rt_swd_khz     = 6000;
                 target_device.target_part_number = "nRF52832";
@@ -299,7 +311,8 @@ void pico_prerun_board_config(void)
                 target_device = target_device_nrf52833;
                 target_device.rt_family_id   = kNordic_Nrf52_FamilyID;
                 target_device.rt_board_id    = board_id_nrf52833_dk;
-                target_device.rt_uf2_id      = uf2_id_nrf52833;
+                target_device.rt_uf2_id[0]   = uf2_id_nrf52833;
+                target_device.rt_uf2_id[1]   = 0;
                 target_device.rt_max_swd_khz = 10000;
                 target_device.rt_swd_khz     = 6000;
                 target_device.target_part_number = "nRF52833";

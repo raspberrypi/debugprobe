@@ -109,7 +109,7 @@
 #define PROBE_PIN_SWCLK          (PROBE_PIN_OFFSET + 1) // 2
 #define PROBE_PIN_SWDIO          (PROBE_PIN_OFFSET + 2) // 3
 #define PROBE_PIN_RESET          6                      // Target reset config
-// #define PROBE_MAX_KHZ         now in g_board_info.target_cfg->rt_max_swd_kHz, setup in pico::pico_prerun_board_config()
+//#define PROBE_MAX_KHZ         now in g_board_info.target_cfg->rt_max_swd_kHz, setup in pico::pico_prerun_board_config()
 
 // UART config (UART target -> probe)
 #define PICOPROBE_UART_TX        4

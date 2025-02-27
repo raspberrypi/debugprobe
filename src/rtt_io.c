@@ -474,8 +474,8 @@ static void do_rtt_io(uint32_t rtt_cb, bool with_alive_check)
 
 #if OPT_TARGET_UART
         {
-            static bool working_uart = false;
             static TickType_t lastTimeWorked;
+            bool working_uart = false;
 
             if ( !working_uart  &&  xTaskGetTickCount() - lastTimeWorked < pdMS_TO_TICKS(RTT_CONSOLE_POLL_INT_MS)) {
                 //

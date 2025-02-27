@@ -87,30 +87,36 @@
 #define PICO_RP2040_B1_SUPPORTED 0
 #endif
 
-#ifndef CYW43_PIN_WL_HOST_WAKE
-#define CYW43_PIN_WL_HOST_WAKE 24
+#ifndef CYW43_DEFAULT_PIN_WL_HOST_WAKE
+#define CYW43_DEFAULT_PIN_WL_HOST_WAKE 24
 #endif
 
-#ifndef CYW43_PIN_WL_REG_ON
-#define CYW43_PIN_WL_REG_ON 23
+#ifndef CYW43_DEFAULT_PIN_WL_REG_ON
+#define CYW43_DEFAULT_PIN_WL_REG_ON 23
 #endif
 
-#ifndef CYW43_WL_GPIO_COUNT
-#define CYW43_WL_GPIO_COUNT 3
+// gpio pin for spi data out to the cyw43 chip
+#ifndef CYW43_DEFAULT_PIN_WL_DATA_OUT
+#define CYW43_DEFAULT_PIN_WL_DATA_OUT 24u
+#endif
+
+// gpio pin for spi data in from the cyw43 chip
+#ifndef CYW43_DEFAULT_PIN_WL_DATA_IN
+#define CYW43_DEFAULT_PIN_WL_DATA_IN 24u
+#endif
+
+// gpio pin for the spi clock line to the cyw43 chip
+#ifndef CYW43_DEFAULT_PIN_WL_CLOCK
+#define CYW43_DEFAULT_PIN_WL_CLOCK 29u
+#endif
+
+// gpio pin for the spi chip select to the cyw43 chip
+#ifndef CYW43_DEFAULT_PIN_WL_CS
+#define CYW43_DEFAULT_PIN_WL_CS 25u
 #endif
 
 #ifndef CYW43_WL_GPIO_LED_PIN
 #define CYW43_WL_GPIO_LED_PIN 0
-#endif
-
-// CYW43 GPIO to get VBUS
-#ifndef CYW43_WL_GPIO_VBUS_PIN
-#define CYW43_WL_GPIO_VBUS_PIN 2
-#endif
-
-// VSYS pin is shared with CYW43
-#ifndef CYW43_USES_VSYS_PIN
-#define CYW43_USES_VSYS_PIN 1
 #endif
 
 // Pin used to monitor VSYS using ADC
@@ -130,7 +136,7 @@
 #define PROBE_PIN_SWCLK          (PROBE_PIN_OFFSET + 1) // 2
 #define PROBE_PIN_SWDIO          (PROBE_PIN_OFFSET + 2) // 3
 #define PROBE_PIN_RESET          6                      // Target reset config
-// #define PROBE_MAX_KHZ         now in g_board_info.target_cfg->rt_max_swd_kHz, setup in pico::pico_prerun_board_config()
+//#define PROBE_MAX_KHZ         now in g_board_info.target_cfg->rt_max_swd_kHz, setup in pico::pico_prerun_board_config()
 
 // UART config (UART target -> probe)
 #define PICOPROBE_UART_TX        4

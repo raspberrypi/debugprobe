@@ -23,25 +23,42 @@
  *
  */
 
-#ifndef DAP_UTIL_H
-#define DAP_UTIL_H
+#ifndef _TARGET_UTILS_RP2350_H
+#define _TARGET_UTILS_RP2350_H
 
+
+#include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 
-typedef enum {
-    E_DAPTOOL_UNKNOWN,
-    E_DAPTOOL_OPENOCD,
-    E_DAPTOOL_PYOCD,
-    E_DAPTOOL_PROBERS,
-    E_DAPTOOL_USER
-} daptool_t;
+#ifdef __cplusplus
+    extern "C" {
+#endif
+
+#define TARGET_RP2350_FLASH_START     0x10000000
+#define TARGET_RP2350_FLASH_MAX_SIZE  0x10000000
+#define TARGET_RP2350_RAM_START       0x20000000
+#define TARGET_RP2350_RAM_SIZE        (512*1024)
+
+#define TARGET_RP2350_STACK           (TARGET_RP2350_RAM_START + 0x20000) //TARGET_RP2350_RAM_SIZE - 32768)
 
 
-static const uint32_t DAP_CHECK_ABORT = 99999999;
+// post: flash connected && generic XIP active
+#define RP2350_FLASH_ENTER_CMD_XIP()                                \
+    do {                                                            \
+        _connect_internal_flash();                                  \
+        _flash_flush_cache();                                       \
+        _flash_enter_cmd_xip();                                     \
+    } while (0)
 
-uint32_t DAP_GetCommandLength(const uint8_t *request_data, uint32_t request_len);
-daptool_t DAP_FingerprintTool(const uint8_t *request, uint32_t request_len);
-bool DAP_OfflineCommand(const uint8_t *request_data);
+
+uint32_t rp2350_target_find_rom_func(char ch1, char ch2);
+bool rp2350_target_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t breakpoint, uint32_t *result);
+
+
+#ifdef __cplusplus
+    }
+#endif
 
 #endif

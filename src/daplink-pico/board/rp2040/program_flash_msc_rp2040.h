@@ -20,28 +20,17 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
  */
 
-#ifndef DAP_UTIL_H
-#define DAP_UTIL_H
+#ifndef _PROGRAM_FLASH_MSC_RP2040_H
+#define _PROGRAM_FLASH_MSC_RP2040_H
+
 
 #include <stdint.h>
+#include <stdbool.h>
 
 
-typedef enum {
-    E_DAPTOOL_UNKNOWN,
-    E_DAPTOOL_OPENOCD,
-    E_DAPTOOL_PYOCD,
-    E_DAPTOOL_PROBERS,
-    E_DAPTOOL_USER
-} daptool_t;
-
-
-static const uint32_t DAP_CHECK_ABORT = 99999999;
-
-uint32_t DAP_GetCommandLength(const uint8_t *request_data, uint32_t request_len);
-daptool_t DAP_FingerprintTool(const uint8_t *request, uint32_t request_len);
-bool DAP_OfflineCommand(const uint8_t *request_data);
+uint32_t target_rp2040_msc_flash(uint32_t addr, const uint8_t *data, uint32_t size);
+bool     target_rp2040_msc_copy_flash_code(void);
 
 #endif

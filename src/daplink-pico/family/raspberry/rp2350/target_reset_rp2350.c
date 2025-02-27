@@ -1,5 +1,5 @@
 /* CMSIS-DAP Interface Firmware
- * Copyright (c) 2015-2019 Realtek Semiconductor Corp.
+ * Copyright (c) 2024 Hardy Griech
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,19 +16,21 @@
 
 #include <string.h>
 #include <stdio.h>
-#include <target_rpXXXX.h>
 #include "DAP_config.h"
 #include "target_family.h"
 #include "swd_host.h"
+#include "cmsis_os2.h"
 
-
-#include "FreeRTOS.h"
-#include "task.h"
+#include "raspberry/target_utils_raspberry.h"
 
 
 #define NVIC_Addr    (0xe000e000)
 #define DBG_Addr     (0xe000edf0)
 #include "debug_cm.h"
+
+// notes:
+// - DBG_HCSR -> DHCSR - Debug Halting Control and Status Register
+// - DBG_EMCR -> DEMCR - Debug Exception and Monitor Control Register
 
 // Use the CMSIS-Core definition if available.
 #if !defined(SCB_AIRCR_PRIGROUP_Pos)
@@ -36,6 +38,22 @@
     #define SCB_AIRCR_PRIGROUP_Msk             (7UL << SCB_AIRCR_PRIGROUP_Pos)                /*!< SCB AIRCR: PRIGROUP Mask */
 #endif
 
+#define BIT(nr)                    (1UL << (nr))
+
+// Flash Patch Control Register (breakpoints)
+#define FP_CTRL                    0xE0002000
+#define FP_CTRL_KEY                BIT(1)
+#define FP_CTRL_ENABLE             BIT(0)
+
+// Debug Security Control and Status Register
+#define DCB_DSCSR                  0xE000EE08
+#define DSCSR_CDSKEY               BIT(17)
+#define DSCSR_CDS                  BIT(16)
+
+#define ACCESSCTRL_LOCK_OFFSET     0x40060000u
+#define ACCESSCTRL_LOCK_DEBUG_BITS 0x00000008u
+#define ACCESSCTRL_CFGRESET_OFFSET 0x40060008u
+#define ACCESSCTRL_WRITE_PASSWORD  0xacce0000u
 
 extern target_family_descriptor_t g_raspberry_rp2350_family;
 static const uint32_t soft_reset = SYSRESETREQ;
@@ -53,23 +71,8 @@ static const uint32_t soft_reset = SYSRESETREQ;
 // Core will point at whichever one is current...
 static uint8_t core;
 
-extern void osDelay(uint32_t ticks);
-
 
 /*************************************************************************************************/
-
-
-#if 0
-/// taken from pico_debug and output of pyODC
-static void swd_line_reset(void)
-{
-    const uint8_t reset_seq[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x03};
-
-    printf("---swd_line_reset()\n");
-
-    SWJ_Sequence( 52, reset_seq);
-}   // swd_line_reset
-#endif
 
 
 static void swd_from_dormant(void)
@@ -81,7 +84,7 @@ static void swd_from_dormant(void)
     const uint8_t ones_seq[]            = {0xff};
     const uint8_t selection_alert_seq[] = {0x92, 0xf3, 0x09, 0x62, 0x95, 0x2d, 0x85, 0x86, 0xe9, 0xaf, 0xdd, 0xe3, 0xa2, 0x0e, 0xbc, 0x19};
     const uint8_t zero_seq[]            = {0x00};
-    const uint8_t act_seq[]             = { 0x1a };
+    const uint8_t act_seq[]             = {0x1a};
     const uint8_t reset_seq[]           = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x03};
     uint32_t rv;
 
@@ -96,39 +99,6 @@ static void swd_from_dormant(void)
     swd_read_dp(DP_IDCODE, &rv);
 //    printf("---  id(%u)=0x%08lx\n", core, rv);   // 0x4c013477 is the RP2350
 }   // swd_from_dormant
-
-
-#if 0
-static void swd_targetsel(uint8_t core)
-{
-    static const uint8_t out1[]        = {0x99};
-#if 0
-    // RP2040
-    static const uint8_t core_0[]      = {0x27, 0x29, 0x00, 0x01, 0x00};
-    static const uint8_t core_1[]      = {0x27, 0x29, 0x00, 0x11, 0x01};
-    static const uint8_t core_rescue[] = {0x27, 0x29, 0x00, 0xf1, 0x00};
-#else
-    // RP2350
-    static const uint8_t core_0[]      = {0x27, 0x09, 0x04, 0x00, 0x01};
-    static const uint8_t core_1[]      = {0x27, 0x09, 0x04, 0x00, 0x01};
-    static const uint8_t core_rescue[] = {0x27, 0x29, 0x00, 0xf1, 0x00};
-#endif
-    static const uint8_t out2[]        = {0x00};
-    static uint8_t input;
-
-    printf("---swd_targetsel(%u)\n", core);
-
-    SWD_Sequence(8, out1, NULL);
-    SWD_Sequence(0x80 + 5, NULL, &input);
-    if (core == 0)
-        SWD_Sequence(33, core_0, NULL);
-    else if (core == 1)
-        SWD_Sequence(33, core_1, NULL);
-    else
-        SWD_Sequence(33, core_rescue, NULL);
-    SWD_Sequence(2, out2, NULL);
-}   // swd_targetsel
-#endif
 
 
 /**
@@ -147,11 +117,9 @@ static bool dp_core_select(uint8_t _core)
     }
 
     g_raspberry_rp2350_family.apsel = 0x2d00;       // TODO where from is this xd00 ?  taken from openocd
-    if (_core == 1)
+    if (_core == 1) {
         g_raspberry_rp2350_family.apsel = 0x4d00;
-
-    //swd_line_reset();
-    //swd_targetsel(_core);
+    }
 
 #if 0
     CHECK_OK_BOOL(swd_read_dp(DP_IDCODE, &rv));
@@ -166,7 +134,8 @@ static bool dp_core_select(uint8_t _core)
 
 
 // TODO desperate tries to read ROM table
-#if 0
+#define xDUMP_ROM_TABLES
+#ifdef DUMP_ROM_TABLES
 static uint32_t cnt;
 static void dump_rom_tables_ap(uint32_t apsel, uint32_t offs, uint32_t len)
 {
@@ -245,22 +214,74 @@ static void dump_rom_tables(uint32_t apsel, uint32_t offs, uint32_t len)
 
 
 /**
- * Clear all HW breakpoints.
+ * Disable HW breakpoints.
  * \pre
  *    DP must be powered on
  */
-static bool dp_disable_breakpoint()
+static bool dp_disable_breakpoints()
 {
-    static const uint32_t bp_reg[8] = { 0xE0002008, 0xE000200C, 0xE0002010, 0xE0002014, 0xE0002018, 0xE000201c, 0xE0002020, 0xE0002024,  };
+    return swd_write_word(FP_CTRL, FP_CTRL_KEY);
+}   // dp_disable_breakpoints
 
-//    printf("---dp_disable_breakpoint()\n");
 
-    // Clear each of the breakpoints...
-    for (int i = 0;  i < 8;  ++i) {
-        CHECK_OK_BOOL(swd_write_word(bp_reg[i], 0));
+static bool rp2350_init_accessctrl(void)
+/**
+ * Attempt to reset ACCESSCTRL, in case Secure access to SRAM has been
+ * blocked, which will stop us from loading/running algorithms such as RCP
+ * init. (Also ROM, QMI regs are needed later)
+ *
+ * More or less taken from https://github.com/raspberrypi/openocd/blob/sdk-2.0.0/src/flash/nor/rp2040.c
+ */
+{
+    uint32_t accessctrl_lock_reg;
+
+    if ( !swd_read_word(ACCESSCTRL_LOCK_OFFSET, &accessctrl_lock_reg)) {
+        picoprobe_error("Failed to read ACCESSCTRL lock register");
+        // Failed to read an APB register which should always be readable from
+        // any security/privilege level. Something fundamental is wrong. E.g.:
+        //
+        // - The debugger is attempting to perform Secure bus accesses on a
+        //   system where Secure debug has been disabled
+        // - clk_sys or busfabric clock are stopped (try doing a rescue reset)
+        return false;
+    }
+
+    picoprobe_debug("ACCESSCTRL_LOCK:  %08lx\n", accessctrl_lock_reg);
+
+    if (accessctrl_lock_reg & ACCESSCTRL_LOCK_DEBUG_BITS) {
+        picoprobe_error("ACCESSCTRL is locked, so can't reset permissions. Following steps might fail.\n");
+    }
+    else {
+        picoprobe_debug("Reset ACCESSCTRL permissions via CFGRESET\n");
+        return swd_write_word(ACCESSCTRL_CFGRESET_OFFSET, ACCESSCTRL_WRITE_PASSWORD | 1u);
     }
     return true;
-}   // dp_disable_breakpoint
+}   // rp2350_init_accessctrl
+
+
+static void rp2350_init_arm_core0(void)
+/**
+ * Flash algorithms (and the RCP init stub called by this function) must
+ * run in the Secure state, so flip the state now before attempting to
+ * execute any code on the core.
+ *
+ * \note
+ *    Currently no init code is executed...
+ *
+ * Parts taken from https://github.com/raspberrypi/openocd/blob/sdk-2.0.0/src/flash/nor/rp2040.c
+ */
+{
+    uint32_t dscsr;
+
+    (void)swd_read_word(DCB_DSCSR, &dscsr);
+    picoprobe_debug("DSCSR:  %08lx\n", dscsr);
+    if ( !(dscsr & DSCSR_CDS)) {
+        picoprobe_info("Setting Current Domain Secure in DSCSR\n");
+        (void)swd_write_word(DCB_DSCSR, (dscsr & ~DSCSR_CDSKEY) | DSCSR_CDS);
+        (void)swd_read_word(DCB_DSCSR, &dscsr);
+        picoprobe_info("DSCSR*: %08lx\n", dscsr);
+    }
+}
 
 
 /*************************************************************************************************/
@@ -269,6 +290,7 @@ static bool dp_disable_breakpoint()
 #define CHECK_ABORT(COND)          if ( !(COND)) { do_abort = true; continue; }
 #define CHECK_ABORT_BREAK(COND)    if ( !(COND)) { do_abort = true; break; }
 
+static bool rp2350_swd_init_debug(uint8_t core)
 /**
  * Try very hard to initialize the target processor.
  * Code is very similar to the one in swd_host.c except that the JTAG2SWD() sequence is not used.
@@ -276,7 +298,6 @@ static bool dp_disable_breakpoint()
  * \note
  *    swd_host has to be tricked in it's caching of DP_SELECT and AP_CSW
  */
-static bool rp2350_swd_init_debug(uint8_t core)
 {
     uint32_t tmp = 0;
     int i = 0;
@@ -300,6 +321,14 @@ static bool rp2350_swd_init_debug(uint8_t core)
             osDelay(2);
             do_abort = false;
         }
+
+#if 0
+// required or not!?
+        if (core == 0) {
+            CHECK_ABORT( rp2350_init_accessctrl() );
+            rp2350_init_arm_core0();
+        }
+#endif
 
         CHECK_ABORT( dp_core_select(core) );
 
@@ -325,18 +354,18 @@ static bool rp2350_swd_init_debug(uint8_t core)
         CHECK_ABORT( swd_write_ap(AP_CSW, 1) );                                // force dap_state.csw to "0"
         CHECK_ABORT( swd_write_ap(AP_CSW, 0) );
 
-        CHECK_ABORT( swd_read_ap(AP_IDR, &tmp) );                                // AP IDR: must it be 0x4770031?
+        CHECK_ABORT( swd_read_ap(AP_IDR, &tmp) );                                // AP IDR: must it be 0x34770008?
 //        printf("##########1 0x%08lx\n", tmp);
-        CHECK_ABORT( swd_read_ap(AP_ROM, &tmp) );                                // AP IDR: must it be 0x4770031?
+        CHECK_ABORT( swd_read_ap(AP_ROM, &tmp) );                                // AP ROM: must it be 0xe00ff003?
 //        printf("##########2 0x%08lx\n", tmp);
         CHECK_ABORT( swd_write_dp(DP_SELECT, 0) );
 
-#if 0
+#ifdef DUMP_ROM_TABLES
         // obtain some info about the ROM table
         // openocd -f interface/cmsis-dap.cfg -f ./rp2350.cfg -c "init; dap info"
         dump_rom_tables_ap(0x00000000, 0x00000000, 256);
-        dump_rom_tables_ap(0x00000000, 0xe0002003, 64);
-        dump_rom_tables(0x00002d00, 0x00002fd0, 0x400);
+        dump_rom_tables_ap(0x00000000, 0xe0002003, 256);
+        dump_rom_tables(0x00002d00, 0x00002fd0, 256);
 #endif
 
         return true;
@@ -380,6 +409,11 @@ static bool rp2350_swd_set_target_state(uint8_t core, target_state_t state)
             osDelay(2);
 
             if (!rp2350_swd_init_debug(core)) {
+                return false;
+            }
+
+            // reset C_HALT (required for RP2350)
+            if (!swd_write_word(DBG_HCSR, DBGKEY)) {
                 return false;
             }
 
@@ -436,7 +470,7 @@ static bool rp2350_swd_set_target_state(uint8_t core, target_state_t state)
                 }
             } while ((val & S_HALT) == 0);
 
-            if ( !dp_disable_breakpoint()) {
+            if ( !dp_disable_breakpoints()) {
                 return false;
             }
 
@@ -563,7 +597,7 @@ static uint8_t rp2350_target_set_state(target_state_t state)
 {
     uint8_t r = false;
 
-//    printf("----- rp2350_target_set_state(%d)\n", state);
+//    printf("---------------------------------------------- rp2350_target_set_state(%d)\n", state);
 
     switch (state) {
         case RESET_HOLD:
@@ -644,63 +678,10 @@ static uint8_t rp2350_target_set_state(target_state_t state)
 
 
 //----------------------------------------------------------------------------------------------------------------------
-//
-// some utility functions
-//
-
-
-#if 0
-bool target_core_is_halted(void)
-{
-    uint32_t value;
-
-    if ( !swd_read_word(DBG_HCSR, &value))
-        return false;
-    if (value & S_HALT)
-        return true;
-    return false;
-}   // target_core_is_halted
-
-
-
-bool target_core_halt(void)
-{
-    if ( !swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_MASKINTS | C_HALT)) {
-        return false;
-    }
-
-    while ( !target_core_is_halted())
-        ;
-    return true;
-}   // target_core_halt
-
-
-
-bool target_core_unhalt(void)
-{
-    if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN)) {
-        return false;
-    }
-    return true;
-}   // target_core_unhalt
-
-
-
-bool target_core_unhalt_with_masked_ints(void)
-{
-    if (!swd_write_word(DBG_HCSR, DBGKEY | C_DEBUGEN | C_MASKINTS)) {
-        return false;
-    }
-    return true;
-}   // target_core_unhalt_with_masked_ints
-#endif
-
-
-//----------------------------------------------------------------------------------------------------------------------
 
 target_family_descriptor_t g_raspberry_rp2350_family = {
     .family_id                = TARGET_RP2350_FAMILY_ID,
     .swd_set_target_reset     = &rp2350_swd_set_target_reset,
     .target_set_state         = &rp2350_target_set_state,
-    .apsel = 0 //x2d00
+    .apsel = 0x2d00
 };

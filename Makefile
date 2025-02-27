@@ -3,7 +3,7 @@
 # ATTENTION: to get the version number & git hash into the image, cmake-create-* has to be invoked.
 #
 VERSION_MAJOR        := 1
-VERSION_MINOR        := 23
+VERSION_MINOR        := 24
 
 BUILD_DIR            := _build
 PROJECT              := picoprobe
@@ -19,7 +19,7 @@ CMAKE_FLAGS += -DCMAKE_EXPORT_COMPILE_COMMANDS=True
 
 ifeq ($(PICO_BOARD),)
     # pico|pico_w|pico_debug_probe|pico2
-    PICO_BOARD := pico2
+    PICO_BOARD := pico
 endif
 
 
@@ -31,7 +31,7 @@ clean:
 
 .PHONY: clean-build
 clean-build:
-	rm -rf $(BUILD_DIR)
+	-rm -rf $(BUILD_DIR)
 
 
 .PHONY: all

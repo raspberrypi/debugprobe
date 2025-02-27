@@ -20,38 +20,17 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
  */
 
-/**
- * This module holds some additional SWD functions.
- */
-
-#ifndef _TARGET_RP2040_H
-#define _TARGET_RP2040_H
+#ifndef _PROGRAM_FLASH_MSC_RP2350_H
+#define _PROGRAM_FLASH_MSC_RP2350_H
 
 
+#include <stdint.h>
 #include <stdbool.h>
 
 
-#ifdef __cplusplus
-    extern "C" {
-#endif
-
-
-// required for linking of \a g_board_info.target_cfg and \a g_raspberry_rp2040_family
-#define TARGET_RP2040_FAMILY_ID       CREATE_FAMILY_ID(127, 1)
-#define TARGET_RP2350_FAMILY_ID       CREATE_FAMILY_ID(127, 2)
-
-
-bool target_core_is_halted(void);
-bool target_core_halt(void);
-bool target_core_unhalt(void);
-bool target_core_unhalt_with_masked_ints(void);
-
-
-#ifdef __cplusplus
-    }
-#endif
+uint32_t target_rp2350_msc_flash(uint32_t addr, const uint8_t *data, uint32_t size);
+bool     target_rp2350_msc_copy_flash_code(void);
 
 #endif

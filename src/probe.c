@@ -129,6 +129,7 @@ void probe_set_swclk_freq_khz(uint32_t freq_khz, bool message)
     uint32_t div_int;
     uint32_t div_frac;
 
+//    printf("probe_set_swclk_freq_khz(%d, %d)\n", freq_khz, message);
 #if OPT_SPECIAL_CLK_FOR_PIO
     // This very defensive frequency setting was introduced by either Max or Earle.  We prefer higher clock rates.
     // Clock rate can be set via tool, e.g. "pyocd reset -f 50000000" to get maximum target SWD frequency.
@@ -208,7 +209,6 @@ void probe_reset_pin_set(uint32_t state)
         /* Change the direction to input to emulate open drain */
         gpio_pull_up(PROBE_PIN_RESET);
         gpio_set_dir(PROBE_PIN_RESET, false);
-        sleep_ms(1);                               // give it some time...
     }
 #endif
 }   // probe_reset_pin_set

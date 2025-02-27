@@ -3,12 +3,19 @@
 
 #include <stdint.h>
 
+#include "FreeRTOS.h"
+#include "task.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 
-void osDelay(uint32_t ticks);
+static inline void osDelay(uint32_t ticks)
+{
+    vTaskDelay(pdMS_TO_TICKS(ticks));
+}
+
 
 #ifdef __cplusplus
 }

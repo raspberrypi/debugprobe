@@ -2,7 +2,7 @@
 #
 # Parameters
 # ----------
-# - PICO_BOARD                   pico|pico_w|pico_debug_probe, default "pico"
+# - PICO_BOARD                   pico|pico_w|pico2|pico_debug_probe, default "pico"
 # - PICOPROBE_VERSION_MAJOR      major version number
 # - PICOPROBE_VERSION_MINOR      minor version number
 # - lot more options below
@@ -184,11 +184,13 @@ target_sources(${PROJECT} PRIVATE
         src/lib/daplink/target/target_board.c
         src/lib/daplink/target/target_family.c
         
-        src/daplink-pico/board/rp2040/pico.c
-        src/daplink-pico/board/rp2040/pico_target_utils.c
-        src/daplink-pico/board/rp2040/program_flash_generic.c
+        src/daplink-pico/detect_target.c
+        src/daplink-pico/family/raspberry/target_utils_raspberry.c
+        src/daplink-pico/board/rp2040/target_utils_rp2040.c
+        src/daplink-pico/board/rp2040/program_flash_generic_rp2040.c
+        src/daplink-pico/board/rp2350/target_utils_rp2350.c
+        src/daplink-pico/board/rp2350/program_flash_generic_rp2350.c
         src/daplink-pico/family/raspberry/rp2040/target_reset_rp2040.c
-        
         src/daplink-pico/family/raspberry/rp2350/target_reset_rp2350.c
 )
 
@@ -202,8 +204,8 @@ target_include_directories(${PROJECT} PRIVATE
         src/lib/daplink/hic_hal
         src/lib/daplink/target
         
-        src/daplink-pico/board/rp2040
-        src/daplink-pico/family/raspberry
+        src/daplink-pico/board
+        src/daplink-pico/family
         src/daplink-pico/hic_hal/raspberry/rp2040
         $ENV{PICO_SDK_PATH}/src/common/boot_uf2_headers/include
 )
@@ -366,6 +368,8 @@ if(OPT_MSC)
     target_sources(${PROJECT} PRIVATE
         src/msc/msc_drive.c
         src/msc/msc_utils.c
+        src/daplink-pico/board/rp2040/program_flash_msc_rp2040.c
+        src/daplink-pico/board/rp2350/program_flash_msc_rp2350.c
     )
     
     if(OPT_MSC_RAM_UF2)
