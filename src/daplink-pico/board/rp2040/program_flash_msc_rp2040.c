@@ -52,9 +52,9 @@ extern char __start_for_target_msc_rp2040[];
 extern char __stop_for_target_msc_rp2040[];
 
 #if defined(__clang__)
-    #define FOR_TARGET_RP2040_CODE        __attribute__((noinline, section("for_target_msc_rp2040"), target("arch=cortex-m0"), optnone))
+    #define FOR_TARGET_RP2040_CODE        __attribute__((noinline, section("for_target_msc_rp2040"), target("arch=cortex-m0")))
 #else
-    #define FOR_TARGET_RP2040_CODE        __attribute__((noinline, section("for_target_msc_rp2040"), target("arch=armv6-m"), optimize("-O0")))
+    #define FOR_TARGET_RP2040_CODE        __attribute__((noinline, section("for_target_msc_rp2040"), target("arch=armv6-m"), optimize("-Og")))
 #endif
 
 #define TARGET_RP2040_CODE            (TARGET_RP2040_RAM_START + 0x10000)
