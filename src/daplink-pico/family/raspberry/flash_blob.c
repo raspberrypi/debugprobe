@@ -168,7 +168,7 @@ static const program_target_t flash_rp2040 = {
     .erase_sector = 0x200000c9,
     .program_page = 0x20000115,
     .verify       = 0x0,
-    {
+    .sys_call_s   = {
         .breakpoint    = 0x20000001,
         .static_base   = 0x20000000 + 0x00000004 + 0x00000254,
         .stack_pointer = 0x20002000
@@ -188,7 +188,7 @@ static const program_target_t flash_rp2350 = {
     .erase_sector = 0x200001cd,
     .program_page = 0x20000201,
     .verify       = 0x0,
-    {
+    .sys_call_s   = {
         .breakpoint    = 0x20000001,
         .static_base   = 0x20000000 + 0x00000004 + 0x000002c4,
         .stack_pointer = 0x200020d0

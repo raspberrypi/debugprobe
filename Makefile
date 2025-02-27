@@ -31,7 +31,7 @@ clean:
 
 .PHONY: clean-build
 clean-build:
-	rm -rf $(BUILD_DIR)
+	-rm -rf $(BUILD_DIR)
 
 
 .PHONY: all

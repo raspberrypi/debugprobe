@@ -36,6 +36,7 @@
  */
 
 #include <stdio.h>
+#include "boot/uf2.h"
 
 #include "DAP_config.h"
 #include "DAP.h"
@@ -63,14 +64,14 @@ const uint32_t swd_id_nrf52840  = 0x00052840;
 
 // IDs for UF2 identification, use the following command to obtain recent list:
 // curl https://raw.githubusercontent.com/microsoft/uf2/master/utils/uf2families.json | jq -r '.[] | "\(.id)\t\(.description)"' | sort -k 2
-const uint32_t uf2_id_nrf52     = 0x1b57745f;
-const uint32_t uf2_id_nrf52833  = 0x621e937a;
-const uint32_t uf2_id_nrf52840  = 0xada52840;
-const uint32_t uf2_id_rp2040    = 0xe48bff56;
-const uint32_t uf2_id_rp2350    = 0xe48bff57;
-//const uint32_t uf2_id_rp2350    = 0xe48bff5b;     // Non-secure Arm image
-//const uint32_t uf2_id_rp2350    = 0xe48bff5a;     // RISC-V image
-//const uint32_t uf2_id_rp2350    = 0xe48bff59;     // Secure Arm image
+const uint32_t uf2_id_nrf52          = 0x1b57745f;
+const uint32_t uf2_id_nrf52833       = 0x621e937a;
+const uint32_t uf2_id_nrf52840       = 0xada52840;
+const uint32_t uf2_id_rp2040         = RP2040_FAMILY_ID;
+const uint32_t uf2_id_rp2            = ABSOLUTE_FAMILY_ID;
+const uint32_t uf2_id_rp2350_nonsec  = RP2350_ARM_NS_FAMILY_ID;    // Non-secure Arm image
+const uint32_t uf2_id_rp2350_sec_rv  = RP2350_RISCV_FAMILY_ID;     // RISC-V image
+const uint32_t uf2_id_rp2350_sec_arm = RP2350_ARM_S_FAMILY_ID;     // Secure Arm image
 
 // IDs for board identification (but whatfor?)
 #define board_id_nrf52832_dk      "1101"
@@ -102,7 +103,8 @@ target_cfg_t target_device_rp2040 = {
     .target_part_number             = "RP2040",
     .rt_family_id                   = TARGET_RP2040_FAMILY_ID,
     .rt_board_id                    = board_id_rp2040_pico,
-    .rt_uf2_id                      = uf2_id_rp2040,
+    .rt_uf2_id[0]                   = uf2_id_rp2040,
+    .rt_uf2_id[1]                   = 0,
     .rt_max_swd_khz                 = 25000,
     .rt_swd_khz                     = 10000,
 };
@@ -124,7 +126,11 @@ target_cfg_t target_device_rp2350 = {
     .target_part_number             = "RP2350",
     .rt_family_id                   = TARGET_RP2350_FAMILY_ID,
     .rt_board_id                    = board_id_rp2350_pico2,
-    .rt_uf2_id                      = uf2_id_rp2350,
+    .rt_uf2_id[0]                   = uf2_id_rp2350_sec_arm,
+    .rt_uf2_id[1]                   = uf2_id_rp2350_nonsec,
+    .rt_uf2_id[2]                   = uf2_id_rp2350_sec_rv,
+    .rt_uf2_id[3]                   = uf2_id_rp2,
+    .rt_uf2_id[4]                   = 0,
     .rt_max_swd_khz                 = 25000,
     .rt_swd_khz                     = 10000,
 };
@@ -146,7 +152,7 @@ target_cfg_t target_device_generic = {
     .target_part_number             = "cortex_m",
     .rt_family_id                   = kStub_SWSysReset_FamilyID,
     .rt_board_id                    = "ffff",
-    .rt_uf2_id                      = 0,                               // this also implies no write operation
+    .rt_uf2_id[0]                   = 0,                               // this also implies no write operation
     .rt_max_swd_khz                 = 10000,
     .rt_swd_khz                     = 2000,
 };
@@ -168,7 +174,7 @@ target_cfg_t target_device_disconnected = {
     .target_part_number             = "Disconnected",
     .rt_family_id                   = kStub_SWSysReset_FamilyID,
     .rt_board_id                    = NULL,                            // indicates not connected
-    .rt_uf2_id                      = 0,                               // this also implies no write operation
+    .rt_uf2_id[0]                   = 0,                               // this also implies no write operation
     .rt_max_swd_khz                 = 10000,
     .rt_swd_khz                     = 2000,
 };
@@ -269,7 +275,8 @@ void pico_prerun_board_config(void)
         target_device = target_device_nrf52840;
         target_device.rt_family_id   = kNordic_Nrf52_FamilyID;
         target_device.rt_board_id    = board_id_nrf52840_dk;
-        target_device.rt_uf2_id      = uf2_id_nrf52840;
+        target_device.rt_uf2_id[0]   = uf2_id_nrf52840;
+        target_device.rt_uf2_id[1]   = 0;
         target_device.rt_max_swd_khz = 10000;
         target_device.rt_swd_khz     = 6000;
         target_device.target_part_number = "nRF52840";
@@ -289,7 +296,8 @@ void pico_prerun_board_config(void)
                 target_device = target_device_nrf52;
                 target_device.rt_family_id   = kNordic_Nrf52_FamilyID;
                 target_device.rt_board_id    = board_id_nrf52832_dk;
-                target_device.rt_uf2_id      = uf2_id_nrf52;
+                target_device.rt_uf2_id[0]   = uf2_id_nrf52;
+                target_device.rt_uf2_id[1]   = 0;
                 target_device.rt_max_swd_khz = 10000;
                 target_device.rt_swd_khz     = 6000;
                 target_device.target_part_number = "nRF52832";
@@ -303,7 +311,8 @@ void pico_prerun_board_config(void)
                 target_device = target_device_nrf52833;
                 target_device.rt_family_id   = kNordic_Nrf52_FamilyID;
                 target_device.rt_board_id    = board_id_nrf52833_dk;
-                target_device.rt_uf2_id      = uf2_id_nrf52833;
+                target_device.rt_uf2_id[0]   = uf2_id_nrf52833;
+                target_device.rt_uf2_id[1]   = 0;
                 target_device.rt_max_swd_khz = 10000;
                 target_device.rt_swd_khz     = 6000;
                 target_device.target_part_number = "nRF52833";

@@ -208,7 +208,7 @@ FOR_TARGET_RP2350_CODE __attribute__((naked)) void rp2350_rcp_init(void)
     __asm volatile(".byte 0x00, 0xbe            "); // bkpt (end of algorithm)
     __asm volatile(".byte 0x00, 0x00            "); // pad
     __asm volatile(".byte 0x88, 0xed, 0x00, 0xe0"); // PPB_BASE + M33_CPACR_OFFSET
-}   // rp2350_breakpoint
+}   // rp2350_rcp_init
 
 
 FOR_TARGET_RP2350_CODE __attribute__((naked)) void rp2350_breakpoint(void)

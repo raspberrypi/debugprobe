@@ -81,7 +81,7 @@ typedef struct __attribute__((__packed__)) target_cfg {
                                      of the device's CMSIS DFP. Maximum 60 characters including terminal NULL. */
     //@}
 
-    uint32_t rt_uf2_id;                         //!< UF2 identification, see pico.c (rt = remote target?)
+    uint32_t rt_uf2_id[8];                      //!< UF2 identification, see pico.c (rt = remote target?)
     uint16_t rt_max_swd_khz;                    //!< maximum SWD frequency in kHz
     uint16_t rt_swd_khz;                        //!< fair SWD frequency in kHz
 } target_cfg_t;
