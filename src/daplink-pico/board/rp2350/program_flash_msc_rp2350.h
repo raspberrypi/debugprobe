@@ -22,32 +22,15 @@
  * THE SOFTWARE.
  */
 
-#ifndef _MSC_UTILS_H
-#define _MSC_UTILS_H
+#ifndef _PROGRAM_FLASH_MSC_RP2350_H
+#define _PROGRAM_FLASH_MSC_RP2350_H
 
 
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "boot/uf2.h"                // this is the Pico variant of the UF2 header
 
-
-#ifdef __cplusplus
-    extern "C" {
-#endif
-
-
-bool msc_target_connect(bool write_mode);
-bool msc_target_write_memory(const struct uf2_block *uf2);
-bool msc_target_read_memory(struct uf2_block *uf2, uint32_t target_addr, uint32_t block_no, uint32_t num_blocks);
-bool msc_target_is_writable(void);
-
-bool msc_is_uf2_record(const void *sector, uint32_t sector_size);
-
-void msc_init(uint32_t task_prio);
-
-#ifdef __cplusplus
-    }
-#endif
+uint32_t target_rp2350_msc_flash(uint32_t addr, const uint8_t *data, uint32_t size);
+bool     target_rp2350_msc_copy_flash_code(void);
 
 #endif

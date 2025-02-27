@@ -368,6 +368,8 @@ if(OPT_MSC)
     target_sources(${PROJECT} PRIVATE
         src/msc/msc_drive.c
         src/msc/msc_utils.c
+        src/daplink-pico/board/rp2040/program_flash_msc_rp2040.c
+        src/daplink-pico/board/rp2350/program_flash_msc_rp2350.c
     )
     
     if(OPT_MSC_RAM_UF2)
