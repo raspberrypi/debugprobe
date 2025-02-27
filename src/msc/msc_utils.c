@@ -115,8 +115,9 @@ extern char __stop_for_target_msc_rp2350[];
 #define FOR_TARGET_RP2350_CODE        __attribute__((noinline, section("for_target_msc_rp2350")))
 
 #define TARGET_RP2350_CODE            (TARGET_RP2350_RAM_START + 0x10000)
-#define TARGET_RP2350_FLASH_BLOCK     ((uint32_t)rp2350_flash_block     - (uint32_t)__start_for_target_msc_rp2350 + TARGET_RP2350_CODE)
-#define TARGET_RP2350_BREAKPOINT      ((uint32_t)rp2350_msc_breakpoint  - (uint32_t)__start_for_target_msc_rp2350 + TARGET_RP2350_CODE)
+#define TARGET_RP2350_FLASH_BLOCK     ((uint32_t)rp2350_flash_block    - (uint32_t)__start_for_target_msc_rp2350 + TARGET_RP2350_CODE)
+#define TARGET_RP2350_BREAKPOINT      ((uint32_t)rp2350_msc_breakpoint - (uint32_t)__start_for_target_msc_rp2350 + TARGET_RP2350_CODE)
+#define TARGET_RP2350_RCP_INIT        ((uint32_t)rp2350_msc_rcp_init   - (uint32_t)__start_for_target_msc_rp2350 + TARGET_RP2350_CODE)
 #define TARGET_RP2350_ERASE_MAP       (TARGET_RP2350_RAM_START + 0x20000)
 #define TARGET_RP2350_ERASE_MAP_SIZE  256
 #define TARGET_RP2350_DATA            (TARGET_RP2350_RAM_START + 0x00000)
@@ -205,31 +206,48 @@ FOR_TARGET_RP2040_CODE uint32_t rp2040_flash_block(uint32_t addr, uint32_t *src,
 // -----------------------------------------------------------------------------------
 
 
+FOR_TARGET_RP2350_CODE __attribute__((naked)) void rp2350_msc_rcp_init(void)
+/**
+ * Just enable the RCP which is fine if it already was (we assume no other
+ * co-processors are enabled at this point to save space)
+ *
+ * \note
+ *    stolen from https://github.com/raspberrypi/openocd/blob/sdk-2.0.0/src/flash/nor/rp2040.c
+ */
+{
+    __asm volatile(".byte 0x06, 0x48            "); // ldr r0, = PPB_BASE + M33_CPACR_OFFSET
+    __asm volatile(".byte 0x5f, 0xf4, 0x40, 0x41"); // movs r1, #M33_CPACR_CP7_BITS
+    __asm volatile(".byte 0x01, 0x60            "); // str r1, [r0]
+                                                     // Only initialize canary seeds if they haven't been (as to do so twice is a fault)
+    __asm volatile(".byte 0x30, 0xee, 0x10, 0xf7"); // mrc p7, #1, r15, c0, c0, #0
+    __asm volatile(".byte 0x04, 0xd4            "); // bmi 1f
+                                                     // Todo should we use something random here and pass it into the algorithm?
+    __asm volatile(".byte 0x40, 0xec, 0x80, 0x07"); // mcrr p7, #8, r0, r0, c0
+    __asm volatile(".byte 0x40, 0xec, 0x81, 0x07"); // mcrr p7, #8, r0, r0, c1
+                                                     // Let other core know
+    __asm volatile(".byte 0x40, 0xbf            "); // sev
+                                                     // 1:
+    __asm volatile(".byte 0x00, 0xbe            "); // bkpt (end of algorithm)
+    __asm volatile(".byte 0x00, 0x00            "); // pad
+    __asm volatile(".byte 0x88, 0xed, 0x00, 0xe0"); // PPB_BASE + M33_CPACR_OFFSET
+}   // rp2350_msc_rcp_init
+
+
+#define _FN(a, b)        (uint32_t)((b << 8) | a)
+
 FOR_TARGET_RP2350_CODE uint32_t rp2350_flash_block(uint32_t addr, uint32_t *src, int length)
 {
-#if 1
-//    typedef uint16_t (*rp2350_rom_table_lookup_fn)(uint32_t code, uint32_t mask);
     typedef void *(*rp2350_rom_table_lookup_fn)(uint32_t code, uint32_t mask);
-//    uint32_t addr;
     const uint32_t BOOTROM_TABLE_LOOKUP_OFFSET  = 0x16;
     const uint16_t RT_FLAG_FUNC_ARM_SEC         = 0x0004;
-    //const uint16_t RT_FLAG_FUNC_ARM_NONSEC      = 0x0010;
     rp2350_rom_table_lookup_fn rom_table_lookup = (rp2350_rom_table_lookup_fn) (uintptr_t)(*(uint16_t*) (BOOTROM_TABLE_LOOKUP_OFFSET));
 
-//    uint16_t code = (c2 << 8) | c1;
-//    addr = rom_table_lookup(code, RT_FLAG_FUNC_ARM_SEC);
-#endif
-
-    // Fill in the rom functions...
-//    rp2040_rom_table_lookup_fn rom_table_lookup = (rp2040_rom_table_lookup_fn)rom_hword_as_ptr(0x18);
-//    uint16_t            *function_table = (uint16_t *)rom_hword_as_ptr(0x14);
-
-    rp2040_rom_void_fn         _connect_internal_flash = rom_table_lookup(fn('I', 'F'), RT_FLAG_FUNC_ARM_SEC);
-    rp2040_rom_void_fn         _flash_exit_xip         = rom_table_lookup(fn('E', 'X'), RT_FLAG_FUNC_ARM_SEC);
-    rp2040_rom_flash_erase_fn  _flash_range_erase      = rom_table_lookup(fn('R', 'E'), RT_FLAG_FUNC_ARM_SEC);
-    rp2040_rom_flash_prog_fn   _flash_range_program    = rom_table_lookup(fn('R', 'P'), RT_FLAG_FUNC_ARM_SEC);
-    rp2040_rom_void_fn         _flash_flush_cache      = rom_table_lookup(fn('F', 'C'), RT_FLAG_FUNC_ARM_SEC);
-    rp2040_rom_void_fn         _flash_enter_cmd_xip    = rom_table_lookup(fn('C', 'X'), RT_FLAG_FUNC_ARM_SEC);
+    rp2040_rom_void_fn         _connect_internal_flash = rom_table_lookup(_FN('I', 'F'), RT_FLAG_FUNC_ARM_SEC);
+    rp2040_rom_void_fn         _flash_exit_xip         = rom_table_lookup(_FN('E', 'X'), RT_FLAG_FUNC_ARM_SEC);
+    rp2040_rom_flash_erase_fn  _flash_range_erase      = rom_table_lookup(_FN('R', 'E'), RT_FLAG_FUNC_ARM_SEC);
+    rp2040_rom_flash_prog_fn   _flash_range_program    = rom_table_lookup(_FN('R', 'P'), RT_FLAG_FUNC_ARM_SEC);
+    rp2040_rom_void_fn         _flash_flush_cache      = rom_table_lookup(_FN('F', 'C'), RT_FLAG_FUNC_ARM_SEC);
+    rp2040_rom_void_fn         _flash_enter_cmd_xip    = rom_table_lookup(_FN('C', 'X'), RT_FLAG_FUNC_ARM_SEC);
 
     const uint32_t erase_block_size = 0x10000;               // 64K - if this is changed, then some logic below has to be changed as well
     uint32_t offset = addr - TARGET_RP2350_FLASH_START;      // this is actually the physical flash address
@@ -592,6 +610,7 @@ void target_writer_thread(void *ptr)
                 if (ok) {
                     must_initialize = false;
                     rp2350_target_copy_flash_code();
+                    rp2350_target_call_function(TARGET_RP2350_RCP_INIT, NULL, 0, TARGET_RP2350_RCP_INIT+24, NULL);
                 }
             }
             else {
@@ -636,9 +655,10 @@ void target_writer_thread(void *ptr)
             arg[1] = TARGET_RP2350_DATA;
             arg[2] = uf2.payload_size;
 
-            printf("     0x%lx, 0x%lx, 0x%lx, %ld\n", TARGET_RP2350_FLASH_BLOCK, arg[0], arg[1], arg[2]);
+//            printf("   yyy  0x%lx, 0x%lx, 0x%lx, %ld\n", TARGET_RP2350_FLASH_BLOCK, arg[0], arg[1], arg[2]);
 
             if (swd_write_memory(TARGET_RP2350_DATA, (uint8_t *)uf2.data, uf2.payload_size)) {
+//                rp2350_target_call_function(TARGET_RP2350_RCP_INIT,   NULL, 0, TARGET_RP2350_RCP_INIT+24, NULL);
                 rp2350_target_call_function(TARGET_RP2350_FLASH_BLOCK, arg, sizeof(arg) / sizeof(arg[0]), TARGET_RP2350_BREAKPOINT, &res);
                 if (res & 0xf0000000) {
                     picoprobe_error("target_writer_thread: target operation returned 0x%x\n", (unsigned)res);

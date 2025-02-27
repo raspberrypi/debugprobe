@@ -180,7 +180,7 @@ bool rp2350_target_call_function(uint32_t addr, uint32_t args[], int argc, uint3
         return false;
 
     // start execution
-    picoprobe_info(".................... execute  0x%08lx() -> 0x%08lx\n", addr, breakpoint);
+//    picoprobe_info(".................... execute  0x%08lx() -> 0x%08lx\n", addr, breakpoint);
     if ( !target_core_unhalt_with_masked_ints())
         return false;
 
@@ -214,11 +214,11 @@ bool rp2350_target_call_function(uint32_t addr, uint32_t args[], int argc, uint3
         }
         if ( !interrupted) {
             uint32_t dt_ms = (time_us_32() - start_us) / 1000;
-            if (dt_ms > 10) {
+            if (dt_ms > 100) {
                 picoprobe_debug("rp2350_target_call_function: execution finished after %lu ms\n", dt_ms);
             }
         }
-        picoprobe_info("....................   time: %lu[us]\n", time_us_32() - start_us);
+//        picoprobe_info("....................   time: %lu[us]\n", time_us_32() - start_us);
     }
 
     if (result != NULL  &&  !interrupted) {
@@ -227,7 +227,7 @@ bool rp2350_target_call_function(uint32_t addr, uint32_t args[], int argc, uint3
             picoprobe_error("rp2350_target_call_function: cannot read core register 0\n");
             return false;
         }
-        picoprobe_info("....................   res:  %lu\n", *result);
+//        picoprobe_info("....................   res:  %lu\n", *result);
     }
 
     {
