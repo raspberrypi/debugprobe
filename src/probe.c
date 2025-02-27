@@ -209,7 +209,6 @@ void probe_reset_pin_set(uint32_t state)
         /* Change the direction to input to emulate open drain */
         gpio_pull_up(PROBE_PIN_RESET);
         gpio_set_dir(PROBE_PIN_RESET, false);
-        sleep_ms(1);                               // give it some time...
     }
 #endif
 }   // probe_reset_pin_set
