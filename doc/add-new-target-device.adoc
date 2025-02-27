@@ -1,0 +1,59 @@
+:imagesdir: png
+:source-highlighter: rouge
+:toc:
+:toclevels: 5
+
+## Motivation
+
+Collecting algorithms to flash or reset the target CPU can be quite cumbersome.  To make life simpler, there already exists
+resources doing exactly this.  Following is a description how to add a new target devices to YAPicoprobe.
+
+NOTE: Actually only for drag-n-drop this procedure is required,
+      for RTT perhaps. +
+      Normal probe operation is target independent.
+
+
+## CMSIS Packs
+
+* link:https://www.open-cmsis-pack.org/[Open-CMSIS-Pack]
+* https://interrupt.memfault.com/blog/cmsis-packs[memfault blog] - good starting point
+
+
+### Flash Algorithms
+
+Aim is to use the flash algorithms either from PDSC/FLM files or to pick them from there.
+
+* link:https://open-cmsis-pack.github.io/Open-CMSIS-Pack-Spec/main/html/flashAlgorithm.html[Flash Programming]
+** DAPLink, like link:https://github.com/ARMmbed/DAPLink/blob/main/source/family/nordic/nrf52/flash_blob.c[here]
+** pyocd, like link:https://github.com/pyocd/pyOCD/blob/develop/pyocd/target/family/target_rp2.py[here]
+* lowest priority openocd, like link:https://github.com/raspberrypi/openocd/blob/sdk-2.0.0/src/flash/nor/rp2040.c[here]
+* nRF54L15: https://github.com/pyocd/pyOCD/blob/develop/pyocd/target/builtin/target_nRF54L15.py
+
+Blobs ready for disassembly with "pyocd cmd" can be found in link:../src/daplink-pico/family/raspberry/flash_blob.c[flash_blob.c].
+
+
+
+### pyocd FlashAlgo
+
+https://github.com/pyocd/FlashAlgo/[FlashAlgo], not sure what to do about that... but procedure (after installation) is as follows:
+
+ progen build -t make_gcc_arm
+ ./scripts/generate_blobs.py ./projectfiles/make_gcc_arm/nrf52833/build/nrf52833.elf
+ cat ./projectfiles/make_gcc_arm/nrf52833/build/c_blob.c
+
+
+### Miscellaneous
+
+* link:https://open-cmsis-pack.github.io/Open-CMSIS-Pack-Spec/main/html/debug_description.html[Debug Description]
+
+
+## Autodetection of the Target Device
+
+To make drag-n-drop work, the target device has to be detected.
+This is actually done in link:../picoprobe/src/daplink-pico/detect_target.c[detect_target].
+
+Code is more or less trivial, but order of detection might be important, because sensitive target devices perhaps crashes on
+illegal register access.
+
+The autodetect code does also disturb execution of the firmware
+running on the target device.  Keep this in mind.
