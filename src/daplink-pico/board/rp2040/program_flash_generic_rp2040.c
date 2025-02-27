@@ -22,11 +22,12 @@
 extern char __start_for_target_connect_rp2040[];
 extern char __stop_for_target_connect_rp2040[];
 
-// Attributes for RP2040 target code
+// Attributes for RP2040 target code - DO NOT CHANGE THIS
+// Note that there is also compile option setup in CMakeLists.txt
 #if defined(__clang__)
     #define FOR_TARGET_RP2040_CODE        __attribute__((noinline, section("for_target_connect_rp2040"), target("arch=cortex-m0")))
 #else
-    #define FOR_TARGET_RP2040_CODE        __attribute__((noinline, section("for_target_connect_rp2040"), target("arch=armv6-m"), optimize("-Og")))
+    #define FOR_TARGET_RP2040_CODE        __attribute__((noinline, section("for_target_connect_rp2040"), target("arch=armv6-m")))
 #endif
 
 #define TARGET_RP2040_CODE            (TARGET_RP2040_RAM_START + 0x10000)
