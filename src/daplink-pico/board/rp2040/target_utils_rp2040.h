@@ -47,24 +47,6 @@
 #define TARGET_RP2040_STACK           (TARGET_RP2040_RAM_START + TARGET_RP2040_RAM_SIZE - 32768)
 
 
-// pre: flash connected, post: generic XIP active
-#define RP2040_FLASH_RANGE_ERASE(OFFS, CNT, BLKSIZE, CMD)           \
-    do {                                                            \
-        _flash_exit_xip();                                          \
-        _flash_range_erase((OFFS), (CNT), (BLKSIZE), (CMD));        \
-        _flash_flush_cache();                                       \
-        _flash_enter_cmd_xip();                                     \
-    } while (0)
-
-// pre: flash connected, post: generic XIP active
-#define RP2040_FLASH_RANGE_PROGRAM(ADDR, DATA, LEN)                 \
-    do {                                                            \
-        _flash_exit_xip();                                          \
-        _flash_range_program((ADDR), (DATA), (LEN));                \
-        _flash_flush_cache();                                       \
-        _flash_enter_cmd_xip();                                     \
-    } while (0)
-
 #if TARGET_RP2040_CONSIDER_BOOT2
     // post: flash connected && fast or generic XIP active
     #define RP2040_FLASH_ENTER_CMD_XIP()                            \
@@ -87,24 +69,6 @@
             _flash_enter_cmd_xip();                                 \
         } while (0)
 #endif
-
-// post: flash connected && generic XIP active
-#define RP2350_FLASH_ENTER_CMD_XIP()                                \
-    do {                                                            \
-        _connect_internal_flash();                                  \
-        _flash_flush_cache();                                       \
-        _flash_enter_cmd_xip();                                     \
-    } while (0)
-
-
-#define rom_hword_as_ptr(rom_address) (void *)(uintptr_t)(*(uint16_t *)rom_address)
-#define fn(a, b)        (uint32_t)((b << 8) | a)
-typedef void *(*rp2040_rom_table_lookup_fn)(uint16_t *table, uint32_t code);
-
-
-typedef void *(*rp2040_rom_void_fn)(void);
-typedef void *(*rp2040_rom_flash_erase_fn)(uint32_t addr, size_t count, uint32_t block_size, uint8_t block_cmd);
-typedef void *(*rp2040_rom_flash_prog_fn)(uint32_t addr, const uint8_t *data, size_t count);
 
 
 bool rp2040_target_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t *result);

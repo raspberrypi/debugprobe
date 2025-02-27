@@ -28,6 +28,7 @@
 
 #include "picoprobe_config.h"
 
+#include "raspberry/target_utils_raspberry.h"
 #include "program_flash_msc_rp2350.h"
 #include "target_utils_rp2350.h"
 #include "rp2040/target_utils_rp2040.h"
@@ -93,8 +94,6 @@ FOR_TARGET_RP2350_CODE __attribute__((naked)) void rp2350_msc_rcp_init(void)
 
 
 
-#define _FN(a, b)        (uint32_t)((b << 8) | a)
-
 ///
 /// Code should be checked via "arm-none-eabi-objdump -S build/picoprobe.elf"
 /// \param addr     \a TARGET_RP2040_FLASH_START....  A 64KByte block will be erased if \a addr is on a 64K boundary
@@ -109,17 +108,16 @@ FOR_TARGET_RP2350_CODE __attribute__((naked)) void rp2350_msc_rcp_init(void)
 ///
 FOR_TARGET_RP2350_CODE uint32_t rp2350_flash_block(uint32_t addr, uint32_t *src, int length)
 {
-    typedef void *(*rp2350_rom_table_lookup_fn)(uint32_t code, uint32_t mask);
     const uint32_t BOOTROM_TABLE_LOOKUP_OFFSET  = 0x16;
     const uint16_t RT_FLAG_FUNC_ARM_SEC         = 0x0004;
     rp2350_rom_table_lookup_fn rom_table_lookup = (rp2350_rom_table_lookup_fn) (uintptr_t)(*(uint16_t*) (BOOTROM_TABLE_LOOKUP_OFFSET));
 
-    rp2040_rom_void_fn         _connect_internal_flash = rom_table_lookup(_FN('I', 'F'), RT_FLAG_FUNC_ARM_SEC);
-    rp2040_rom_void_fn         _flash_exit_xip         = rom_table_lookup(_FN('E', 'X'), RT_FLAG_FUNC_ARM_SEC);
-    rp2040_rom_flash_erase_fn  _flash_range_erase      = rom_table_lookup(_FN('R', 'E'), RT_FLAG_FUNC_ARM_SEC);
-    rp2040_rom_flash_prog_fn   _flash_range_program    = rom_table_lookup(_FN('R', 'P'), RT_FLAG_FUNC_ARM_SEC);
-    rp2040_rom_void_fn         _flash_flush_cache      = rom_table_lookup(_FN('F', 'C'), RT_FLAG_FUNC_ARM_SEC);
-    rp2040_rom_void_fn         _flash_enter_cmd_xip    = rom_table_lookup(_FN('C', 'X'), RT_FLAG_FUNC_ARM_SEC);
+    rp2xxx_rom_void_fn         _connect_internal_flash = rom_table_lookup(ROM_FN('I', 'F'), RT_FLAG_FUNC_ARM_SEC);
+    rp2xxx_rom_void_fn         _flash_exit_xip         = rom_table_lookup(ROM_FN('E', 'X'), RT_FLAG_FUNC_ARM_SEC);
+    rp2xxx_rom_flash_erase_fn  _flash_range_erase      = rom_table_lookup(ROM_FN('R', 'E'), RT_FLAG_FUNC_ARM_SEC);
+    rp2xxx_rom_flash_prog_fn   _flash_range_program    = rom_table_lookup(ROM_FN('R', 'P'), RT_FLAG_FUNC_ARM_SEC);
+    rp2xxx_rom_void_fn         _flash_flush_cache      = rom_table_lookup(ROM_FN('F', 'C'), RT_FLAG_FUNC_ARM_SEC);
+    rp2xxx_rom_void_fn         _flash_enter_cmd_xip    = rom_table_lookup(ROM_FN('C', 'X'), RT_FLAG_FUNC_ARM_SEC);
 
     const uint32_t erase_block_size = 0x10000;               // 64K - if this is changed, then some logic below has to be changed as well
     uint32_t offset = addr - TARGET_RP2350_FLASH_START;      // this is actually the physical flash address
@@ -148,14 +146,14 @@ FOR_TARGET_RP2350_CODE uint32_t rp2350_flash_block(uint32_t addr, uint32_t *src,
         }
 
         if ( !already_erased) {
-            RP2040_FLASH_RANGE_ERASE(offset, erase_block_size, erase_block_size, 0xD8);     // 64K erase
+            RP2xxx_FLASH_RANGE_ERASE(offset, erase_block_size, erase_block_size, 0xD8);     // 64K erase
             res |= 0x0001;
         }
         *erase_map_entry = 0xff;
     }
 
     if (src != NULL  &&  length != 0) {
-        RP2040_FLASH_RANGE_PROGRAM(offset, (uint8_t *)src, length);
+        RP2xxx_FLASH_RANGE_PROGRAM(offset, (uint8_t *)src, length);
         res |= 0x0002;
     }
 

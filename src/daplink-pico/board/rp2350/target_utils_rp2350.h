@@ -43,8 +43,15 @@
 
 #define TARGET_RP2350_STACK           (TARGET_RP2350_RAM_START + 0x20000) //TARGET_RP2350_RAM_SIZE - 32768)
 
-typedef int   (*rp2350_rom_get_sys_info_fn)(uint32_t *out_buffer, uint32_t out_buffer_word_size, uint32_t flags);
-typedef void  (*rp2350_rom_connect_internal_flash_fn)(void);
+
+// post: flash connected && generic XIP active
+#define RP2350_FLASH_ENTER_CMD_XIP()                                \
+    do {                                                            \
+        _connect_internal_flash();                                  \
+        _flash_flush_cache();                                       \
+        _flash_enter_cmd_xip();                                     \
+    } while (0)
+
 
 uint32_t rp2350_target_find_rom_func(char ch1, char ch2);
 bool rp2350_target_call_function(uint32_t addr, uint32_t args[], int argc, uint32_t breakpoint, uint32_t *result);

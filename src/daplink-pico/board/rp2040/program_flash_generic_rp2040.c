@@ -16,6 +16,7 @@
 
 #include "swd_host.h"
 
+#include "raspberry/target_utils_raspberry.h"
 #include "target_utils_rp2040.h"
 
 extern char __start_for_target_connect_rp2040[];
@@ -209,9 +210,9 @@ FOR_TARGET_RP2040_CODE static uint32_t rp2040_flash_size(void)
     rp2040_rom_table_lookup_fn rom_table_lookup = (rp2040_rom_table_lookup_fn)rom_hword_as_ptr(0x18);
     uint16_t            *function_table = (uint16_t *)rom_hword_as_ptr(0x14);
 
-    rp2040_rom_void_fn  _flash_exit_xip         = rom_table_lookup(function_table, fn('E', 'X'));
-    rp2040_rom_void_fn  _flash_flush_cache      = rom_table_lookup(function_table, fn('F', 'C'));
-    rp2040_rom_void_fn  _flash_enter_cmd_xip    = rom_table_lookup(function_table, fn('C', 'X'));
+    rp2xxx_rom_void_fn  _flash_exit_xip         = rom_table_lookup(function_table, ROM_FN('E', 'X'));
+    rp2xxx_rom_void_fn  _flash_flush_cache      = rom_table_lookup(function_table, ROM_FN('F', 'C'));
+    rp2xxx_rom_void_fn  _flash_enter_cmd_xip    = rom_table_lookup(function_table, ROM_FN('C', 'X'));
 
     _flash_exit_xip();
     int r = flash_size_log2();

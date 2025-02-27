@@ -27,6 +27,7 @@
 
 #include "picoprobe_config.h"
 
+#include "raspberry/target_utils_raspberry.h"
 #include "program_flash_msc_rp2040.h"
 #include "target_utils_rp2040.h"
 #include "swd_host.h"
@@ -79,12 +80,12 @@ FOR_TARGET_RP2040_CODE uint32_t rp2040_flash_block(uint32_t addr, uint32_t *src,
     rp2040_rom_table_lookup_fn rom_table_lookup = (rp2040_rom_table_lookup_fn)rom_hword_as_ptr(0x18);
     uint16_t            *function_table = (uint16_t *)rom_hword_as_ptr(0x14);
 
-    rp2040_rom_void_fn         _connect_internal_flash = rom_table_lookup(function_table, fn('I', 'F'));
-    rp2040_rom_void_fn         _flash_exit_xip         = rom_table_lookup(function_table, fn('E', 'X'));
-    rp2040_rom_flash_erase_fn  _flash_range_erase      = rom_table_lookup(function_table, fn('R', 'E'));
-    rp2040_rom_flash_prog_fn   _flash_range_program    = rom_table_lookup(function_table, fn('R', 'P'));
-    rp2040_rom_void_fn         _flash_flush_cache      = rom_table_lookup(function_table, fn('F', 'C'));
-    rp2040_rom_void_fn         _flash_enter_cmd_xip    = rom_table_lookup(function_table, fn('C', 'X'));
+    rp2xxx_rom_void_fn         _connect_internal_flash = rom_table_lookup(function_table, ROM_FN('I', 'F'));
+    rp2xxx_rom_void_fn         _flash_exit_xip         = rom_table_lookup(function_table, ROM_FN('E', 'X'));
+    rp2xxx_rom_flash_erase_fn  _flash_range_erase      = rom_table_lookup(function_table, ROM_FN('R', 'E'));
+    rp2xxx_rom_flash_prog_fn   _flash_range_program    = rom_table_lookup(function_table, ROM_FN('R', 'P'));
+    rp2xxx_rom_void_fn         _flash_flush_cache      = rom_table_lookup(function_table, ROM_FN('F', 'C'));
+    rp2xxx_rom_void_fn         _flash_enter_cmd_xip    = rom_table_lookup(function_table, ROM_FN('C', 'X'));
 
     const uint32_t erase_block_size = 0x10000;               // 64K - if this is changed, then some logic below has to be changed as well
     uint32_t offset = addr - TARGET_RP2040_FLASH_START;      // this is actually the physical flash address
@@ -113,14 +114,14 @@ FOR_TARGET_RP2040_CODE uint32_t rp2040_flash_block(uint32_t addr, uint32_t *src,
         }
 
         if ( !already_erased) {
-            RP2040_FLASH_RANGE_ERASE(offset, erase_block_size, erase_block_size, 0xD8);     // 64K erase
+            RP2xxx_FLASH_RANGE_ERASE(offset, erase_block_size, erase_block_size, 0xD8);     // 64K erase
             res |= 0x0001;
         }
         *erase_map_entry = 0xff;
     }
 
     if (src != NULL  &&  length != 0) {
-        RP2040_FLASH_RANGE_PROGRAM(offset, (uint8_t *)src, length);
+        RP2xxx_FLASH_RANGE_PROGRAM(offset, (uint8_t *)src, length);
         res |= 0x0002;
     }
 

@@ -16,6 +16,7 @@
 
 #include "swd_host.h"
 
+#include "raspberry/target_utils_raspberry.h"
 #include "target_utils_rp2350.h"
 
 extern char __start_for_target_connect_rp2350[];
@@ -223,16 +224,13 @@ FOR_TARGET_RP2350_CODE static void *rp2350_rom_table_lookup(char c1, char c2)
  * This seems to have one more indirection as documented.
  */
 {
-    typedef uint16_t (*rp2350_rom_table_lookup_fn)(uint32_t code, uint32_t mask);
-    uint32_t addr;
     const uint32_t BOOTROM_TABLE_LOOKUP_OFFSET  = 0x16;
     const uint16_t RT_FLAG_FUNC_ARM_SEC         = 0x0004;
     //const uint16_t RT_FLAG_FUNC_ARM_NONSEC      = 0x0010;
     rp2350_rom_table_lookup_fn rom_table_lookup = (rp2350_rom_table_lookup_fn) (uintptr_t)(*(uint16_t*) (BOOTROM_TABLE_LOOKUP_OFFSET));
 
     uint16_t code = (c2 << 8) | c1;
-    addr = rom_table_lookup(code, RT_FLAG_FUNC_ARM_SEC);
-    return (void *)addr;
+    return (void *)rom_table_lookup(code, RT_FLAG_FUNC_ARM_SEC);
 }  // rp2350_rom_table_lookup
 
 
