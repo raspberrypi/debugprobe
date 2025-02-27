@@ -66,13 +66,13 @@ uint32_t rp2350_target_find_rom_func(char ch1, char ch2)
     // First read the bootrom magic value...
     uint32_t magic;
 
-    printf("a %c %c -> %d\n", ch1, ch2, tag);
+//    printf("a %c %c -> %d\n", ch1, ch2, tag);
     if ( !swd_read_word(RP2350_BOOTROM_MAGIC_ADDR, &magic))
         return 0;
-    printf("b 0x%08lx\n", magic);
+//    printf("b 0x%08lx\n", magic);
     if ((magic & 0x00ffffff) != RP2350_BOOTROM_MAGIC)
         return 0;
-    printf("c\n");
+//    printf("c\n");
 
     // Now find the start of the table...
     uint16_t v;
@@ -80,14 +80,14 @@ uint32_t rp2350_target_find_rom_func(char ch1, char ch2)
     if ( !swd_read_word16(RP2350_BOOTROM_MAGIC_ADDR+4, &v))
         return 0;
     addr = v;
-    printf("d\n");
+//    printf("d\n");
 
     // Now try to find our function...
     uint16_t entry_tag;
     uint16_t entry_flags;
 
     for (;;) {
-        printf("- e: %ld\n", addr);
+//        printf("- e: %ld\n", addr);
         if ( !swd_read_word16(addr, &entry_tag))
             return 0;
         if (entry_tag == 0)
@@ -97,7 +97,7 @@ uint32_t rp2350_target_find_rom_func(char ch1, char ch2)
         if ( !swd_read_word16(addr, &entry_flags))
             return 0;
         addr += 2;
-        printf("     %c %c, flags 0x%04x\n", entry_tag, entry_tag >> 8, entry_flags);
+//        printf("     %c %c, flags 0x%04x\n", entry_tag, entry_tag >> 8, entry_flags);
 
         if (entry_tag == tag  &&  (entry_flags & flags) != 0) {
             uint16_t entry_addr;
@@ -111,7 +111,7 @@ uint32_t rp2350_target_find_rom_func(char ch1, char ch2)
             if ( !swd_read_word16(addr, &entry_addr))
                 return 0;
 
-            printf("       found: 0x%04x\n", entry_addr);
+//            printf("       found: 0x%04x\n", entry_addr);
             return (uint32_t)entry_addr;
         }
         else {
@@ -120,14 +120,14 @@ uint32_t rp2350_target_find_rom_func(char ch1, char ch2)
 
                 if ( !swd_read_word16(addr, &dummy))
                     return 0;
-                printf("       0x%04x\n", dummy);
+//                printf("       0x%04x\n", dummy);
 
                 entry_flags &= (entry_flags - 1);
                 addr += 2;
             }
         }
     }
-    printf("bootrom function not found\n");
+    picoprobe_error("bootrom function not found\n");
     return 0;
 }   // rp2350_target_find_rom_func
 

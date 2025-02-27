@@ -245,7 +245,7 @@ uint8_t __TIME_CRITICAL_FUNCTION(SWD_Transfer)(uint32_t request, uint32_t *data)
     //
     // debugging output
     //
-#define DEBUG_LEVEL   1
+#define DEBUG_LEVEL   0
 
     if (ack == DAP_TRANSFER_OK) {
         // debugging, note that bits are reversed
@@ -302,10 +302,10 @@ uint8_t __TIME_CRITICAL_FUNCTION(SWD_Transfer)(uint32_t request, uint32_t *data)
     else if (ack != DAP_TRANSFER_WAIT) {
 #if (DEBUG_LEVEL >= 1)
         if (request & DAP_TRANSFER_RnW) {
-            printf("SWD_transfer - unknown FAILED read: 0x%02x (%d)\n", prq, ack);
+            picoprobe_error("SWD_transfer - unknown FAILED read: 0x%02x (%d)\n", prq, ack);
         }
         else {
-            printf("SWD_transfer - unknown FAILED write: 0x%02x 0x%lx (%d)\n", prq, *data, ack);
+            picoprobe_error("SWD_transfer - unknown FAILED write: 0x%02x 0x%lx (%d)\n", prq, *data, ack);
         }
 #endif
     }

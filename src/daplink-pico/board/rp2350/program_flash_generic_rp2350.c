@@ -278,9 +278,6 @@ uint32_t target_rp2350_get_external_flash_size(void)
 
     ok = target_set_state(RESET_PROGRAM);
     if (ok) {
-        printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
-        rp2350_target_find_rom_func('G', 'S');
-        printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
         ok = rp2350_target_copy_flash_code();
         ok = rp2350_target_call_function(TARGET_RP2350_RCP_INIT,   NULL, 0, TARGET_RP2350_RCP_INIT+24, NULL);
         ok = rp2350_target_call_function(TARGET_RP2350_FLASH_SIZE, NULL, 0, TARGET_RP2350_BREAKPOINT, &res);

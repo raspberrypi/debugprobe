@@ -419,12 +419,10 @@ static void target_disconnect(TimerHandle_t xTimer)
                 else if (USE_RP2350()) {
                 }
                 else {
-                    printf("xxxxxxxxxxxxxx\n");
                     flash_manager_uninit();
                 }
                 bool r1 = target_set_state(RESET_PROGRAM);
                 bool r2 = target_set_state(RESET_RUN);
-                printf("<<<<<<<<<<<<<<<<< %d %d\n", r1, r2);
 
             }
             is_connected = false;
@@ -461,8 +459,6 @@ bool msc_target_connect(bool write_mode)
             led_state(LS_MSC_CONNECTED);
 
             ok = target_set_state(ATTACH);
-            printf("---------------------------------- %d\n", ok);
-
             must_initialize = ok;
             is_connected = true;                   // disconnect must be issued!
             had_write = false;
@@ -618,7 +614,6 @@ void target_writer_thread(void *ptr)
 
 //              flash_manager_set_page_erase(false);
                 sts = flash_manager_init(flash_intf_target);
-                printf("flash_manager_init = %d\n", sts);
                 if (sts == ERROR_SUCCESS) {
                     must_initialize = false;
                 }
@@ -658,7 +653,6 @@ void target_writer_thread(void *ptr)
 //            printf("   yyy  0x%lx, 0x%lx, 0x%lx, %ld\n", TARGET_RP2350_FLASH_BLOCK, arg[0], arg[1], arg[2]);
 
             if (swd_write_memory(TARGET_RP2350_DATA, (uint8_t *)uf2.data, uf2.payload_size)) {
-//                rp2350_target_call_function(TARGET_RP2350_RCP_INIT,   NULL, 0, TARGET_RP2350_RCP_INIT+24, NULL);
                 rp2350_target_call_function(TARGET_RP2350_FLASH_BLOCK, arg, sizeof(arg) / sizeof(arg[0]), TARGET_RP2350_BREAKPOINT, &res);
                 if (res & 0xf0000000) {
                     picoprobe_error("target_writer_thread: target operation returned 0x%x\n", (unsigned)res);
@@ -689,8 +683,6 @@ bool msc_target_is_writable(void)
 
 void msc_init(uint32_t task_prio)
 {
-    printf("msc_init()\n");
-
     sema_swd_in_use = xSemaphoreCreateMutex();
     if (sema_swd_in_use == NULL) {
         panic("msc_init: cannot create sema_swd_in_use\n");
