@@ -609,7 +609,7 @@ bool tud_msc_is_writable_cb(uint8_t lun)
 {
     (void)lun;
 
-//    picoprobe_info("tud_msc_is_writable_cb(%d)\n", lun);
+//    picoprobe_info("tud_msc_is_writable_cb(%d): %d\n", lun, msc_target_is_writable());
 
     return msc_target_is_writable();
 }   // tud_msc_is_writable_cb
@@ -678,15 +678,15 @@ int32_t tud_msc_scsi_cb(uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, u
     int32_t resplen = 0;
 
     switch (scsi_cmd[0]) {
-    	case SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL:
+        case SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL:
             /* SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL is the Prevent/Allow Medium Removal
             command (1Eh) that requests the library to enable or disable user access to
             the storage media/partition. */
-//    		picoprobe_debug("tud_msc_scsi_cb() invoked: SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL\n");
+//            picoprobe_debug("tud_msc_scsi_cb() invoked: SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL\n");
             resplen = 0;
             break;
-	   default:
-//		    picoprobe_info("tud_msc_scsi_cb(%d, %02x %02x %02x %02x, 0x%p, %u)\n", lun, scsi_cmd[0], scsi_cmd[1], scsi_cmd[2], scsi_cmd[3], buffer, bufsize);
+        default:
+//            picoprobe_info("tud_msc_scsi_cb(%d, %02x %02x %02x %02x, 0x%p, %u)\n", lun, scsi_cmd[0], scsi_cmd[1], scsi_cmd[2], scsi_cmd[3], buffer, bufsize);
 
             // Set Sense = Invalid Command Operation
             tud_msc_set_sense(lun, SCSI_SENSE_ILLEGAL_REQUEST, 0x20, 0x00);
