@@ -2,7 +2,7 @@
 #
 # Parameters
 # ----------
-# - PICO_BOARD                   pico|pico_w|pico_debug_probe, default "pico"
+# - PICO_BOARD                   pico|pico_w|pico2|pico_debug_probe, default "pico"
 # - PICOPROBE_VERSION_MAJOR      major version number
 # - PICOPROBE_VERSION_MINOR      minor version number
 # - lot more options below

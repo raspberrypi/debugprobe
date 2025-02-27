@@ -3,7 +3,7 @@
 # ATTENTION: to get the version number & git hash into the image, cmake-create-* has to be invoked.
 #
 VERSION_MAJOR        := 1
-VERSION_MINOR        := 23
+VERSION_MINOR        := 24
 
 BUILD_DIR            := _build
 PROJECT              := picoprobe
@@ -101,17 +101,17 @@ create-images:
 	cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-pico-$(GIT_HASH).uf2
 	#
 	# does not compile with clang because of missing __heap_start/end
-	#$(MAKE) cmake-create-release PICO_BOARD=pico_w
-	#$(MAKE) all
-	#cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-picow-$(GIT_HASH).uf2
+	$(MAKE) cmake-create-release PICO_BOARD=pico_w
+	$(MAKE) all
+	cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-picow-$(GIT_HASH).uf2
 	#
 	$(MAKE) cmake-create-release PICO_BOARD=pico_debug_probe
 	$(MAKE) all
 	cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-picodebugprobe-$(GIT_HASH).uf2
 	#
-	#$(MAKE) cmake-create-release PICO_BOARD=pico2
-	#$(MAKE) all
-	#cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-pico2-$(GIT_HASH).uf2
+	$(MAKE) cmake-create-release PICO_BOARD=pico2
+	$(MAKE) all
+	cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-pico2-$(GIT_HASH).uf2
 	#
 	# put development environment in a clean state
 	$(MAKE) cmake-create-debug
