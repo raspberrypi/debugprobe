@@ -4,10 +4,6 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "rp2040/hardware/helper.h"
-#include "hardware/regs/io_qspi.h"
-#include "hardware/structs/ssi.h"
-
 // ---------------------------------------------------------------------------------------------------------------------
 // YAPicoprobe definitions
 //
