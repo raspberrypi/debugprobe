@@ -36,6 +36,8 @@
     extern "C" {
 #endif
 
+// see https://vanhunteradams.com/Pico/Bootloader/Boot_sequence.html
+#define TARGET_RP2040_CONSIDER_BOOT2  0
 
 #define TARGET_RP2040_FLASH_START     0x10000000
 #define TARGET_RP2040_FLASH_MAX_SIZE  0x10000000
@@ -46,34 +48,52 @@
 
 
 // pre: flash connected, post: generic XIP active
-#define RP2040_FLASH_RANGE_ERASE(OFFS, CNT, BLKSIZE, CMD)       \
-    do {                                                        \
-        _flash_exit_xip();                                      \
-        _flash_range_erase((OFFS), (CNT), (BLKSIZE), (CMD));    \
-        _flash_flush_cache();                                   \
-        _flash_enter_cmd_xip();                                 \
+#define RP2040_FLASH_RANGE_ERASE(OFFS, CNT, BLKSIZE, CMD)           \
+    do {                                                            \
+        _flash_exit_xip();                                          \
+        _flash_range_erase((OFFS), (CNT), (BLKSIZE), (CMD));        \
+        _flash_flush_cache();                                       \
+        _flash_enter_cmd_xip();                                     \
     } while (0)
 
 // pre: flash connected, post: generic XIP active
-#define RP2040_FLASH_RANGE_PROGRAM(ADDR, DATA, LEN)             \
-    do {                                                        \
-        _flash_exit_xip();                                      \
-        _flash_range_program((ADDR), (DATA), (LEN));            \
-        _flash_flush_cache();                                   \
-        _flash_enter_cmd_xip();                                 \
+#define RP2040_FLASH_RANGE_PROGRAM(ADDR, DATA, LEN)                 \
+    do {                                                            \
+        _flash_exit_xip();                                          \
+        _flash_range_program((ADDR), (DATA), (LEN));                \
+        _flash_flush_cache();                                       \
+        _flash_enter_cmd_xip();                                     \
     } while (0)
 
-// post: flash connected && fast or generic XIP active
-#define RP2040_FLASH_ENTER_CMD_XIP()                            \
-    do {                                                        \
-        _connect_internal_flash();                              \
-        _flash_flush_cache();                                   \
-        if (*((uint32_t *)TARGET_RP2040_BOOT2) == 0xffffffff) { \
-            _flash_enter_cmd_xip();                             \
-        }                                                       \
-        else {                                                  \
-            ((void (*)(void))TARGET_RP2040_BOOT2+1)();          \
-        }                                                       \
+#if TARGET_RP2040_CONSIDER_BOOT2
+    // post: flash connected && fast or generic XIP active
+    #define RP2040_FLASH_ENTER_CMD_XIP()                            \
+        do {                                                        \
+            _connect_internal_flash();                              \
+            _flash_flush_cache();                                   \
+            if (*((uint32_t *)TARGET_RP2040_BOOT2) == 0xffffffff) { \
+                _flash_enter_cmd_xip();                             \
+            }                                                       \
+            else {                                                  \
+                ((void (*)(void))TARGET_RP2040_BOOT2+1)();          \
+            }                                                       \
+        } while (0)
+#else
+    // post: flash connected && generic XIP active
+    #define RP2040_FLASH_ENTER_CMD_XIP()                            \
+        do {                                                        \
+            _connect_internal_flash();                              \
+            _flash_flush_cache();                                   \
+            _flash_enter_cmd_xip();                                 \
+        } while (0)
+#endif
+
+// post: flash connected && generic XIP active
+#define RP2350_FLASH_ENTER_CMD_XIP()                                \
+    do {                                                            \
+        _connect_internal_flash();                                  \
+        _flash_flush_cache();                                       \
+        _flash_enter_cmd_xip();                                     \
     } while (0)
 
 

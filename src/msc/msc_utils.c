@@ -76,6 +76,8 @@ static bool                   have_lock;
 static bool                   must_initialize = true;
 static bool                   had_write;
 static volatile bool          is_connected;
+static uint32_t               transferred_bytes;
+static uint64_t               transfer_start_us;
 
 
 // -----------------------------------------------------------------------------------
@@ -205,16 +207,29 @@ FOR_TARGET_RP2040_CODE uint32_t rp2040_flash_block(uint32_t addr, uint32_t *src,
 
 FOR_TARGET_RP2350_CODE uint32_t rp2350_flash_block(uint32_t addr, uint32_t *src, int length)
 {
-    // Fill in the rom functions...
-    rp2040_rom_table_lookup_fn rom_table_lookup = (rp2040_rom_table_lookup_fn)rom_hword_as_ptr(0x18);
-    uint16_t            *function_table = (uint16_t *)rom_hword_as_ptr(0x14);
+#if 1
+//    typedef uint16_t (*rp2350_rom_table_lookup_fn)(uint32_t code, uint32_t mask);
+    typedef void *(*rp2350_rom_table_lookup_fn)(uint32_t code, uint32_t mask);
+//    uint32_t addr;
+    const uint32_t BOOTROM_TABLE_LOOKUP_OFFSET  = 0x16;
+    const uint16_t RT_FLAG_FUNC_ARM_SEC         = 0x0004;
+    //const uint16_t RT_FLAG_FUNC_ARM_NONSEC      = 0x0010;
+    rp2350_rom_table_lookup_fn rom_table_lookup = (rp2350_rom_table_lookup_fn) (uintptr_t)(*(uint16_t*) (BOOTROM_TABLE_LOOKUP_OFFSET));
 
-    rp2040_rom_void_fn         _connect_internal_flash = rom_table_lookup(function_table, fn('I', 'F'));
-    rp2040_rom_void_fn         _flash_exit_xip         = rom_table_lookup(function_table, fn('E', 'X'));
-    rp2040_rom_flash_erase_fn  _flash_range_erase      = rom_table_lookup(function_table, fn('R', 'E'));
-    rp2040_rom_flash_prog_fn   _flash_range_program    = rom_table_lookup(function_table, fn('R', 'P'));
-    rp2040_rom_void_fn         _flash_flush_cache      = rom_table_lookup(function_table, fn('F', 'C'));
-    rp2040_rom_void_fn         _flash_enter_cmd_xip    = rom_table_lookup(function_table, fn('C', 'X'));
+//    uint16_t code = (c2 << 8) | c1;
+//    addr = rom_table_lookup(code, RT_FLAG_FUNC_ARM_SEC);
+#endif
+
+    // Fill in the rom functions...
+//    rp2040_rom_table_lookup_fn rom_table_lookup = (rp2040_rom_table_lookup_fn)rom_hword_as_ptr(0x18);
+//    uint16_t            *function_table = (uint16_t *)rom_hword_as_ptr(0x14);
+
+    rp2040_rom_void_fn         _connect_internal_flash = rom_table_lookup(fn('I', 'F'), RT_FLAG_FUNC_ARM_SEC);
+    rp2040_rom_void_fn         _flash_exit_xip         = rom_table_lookup(fn('E', 'X'), RT_FLAG_FUNC_ARM_SEC);
+    rp2040_rom_flash_erase_fn  _flash_range_erase      = rom_table_lookup(fn('R', 'E'), RT_FLAG_FUNC_ARM_SEC);
+    rp2040_rom_flash_prog_fn   _flash_range_program    = rom_table_lookup(fn('R', 'P'), RT_FLAG_FUNC_ARM_SEC);
+    rp2040_rom_void_fn         _flash_flush_cache      = rom_table_lookup(fn('F', 'C'), RT_FLAG_FUNC_ARM_SEC);
+    rp2040_rom_void_fn         _flash_enter_cmd_xip    = rom_table_lookup(fn('C', 'X'), RT_FLAG_FUNC_ARM_SEC);
 
     const uint32_t erase_block_size = 0x10000;               // 64K - if this is changed, then some logic below has to be changed as well
     uint32_t offset = addr - TARGET_RP2350_FLASH_START;      // this is actually the physical flash address
@@ -226,7 +241,7 @@ FOR_TARGET_RP2350_CODE uint32_t rp2350_flash_block(uint32_t addr, uint32_t *src,
         return 0x40000000;
 
     // We want to make sure the flash is connected so that we can check its current content
-    RP2040_FLASH_ENTER_CMD_XIP();
+    RP2350_FLASH_ENTER_CMD_XIP();
 
     if (*erase_map_entry == 0) {
         //
@@ -254,7 +269,7 @@ FOR_TARGET_RP2350_CODE uint32_t rp2350_flash_block(uint32_t addr, uint32_t *src,
         res |= 0x0002;
     }
 
-    RP2040_FLASH_ENTER_CMD_XIP();
+    RP2350_FLASH_ENTER_CMD_XIP();
 
     // does data match?
     {
@@ -297,8 +312,11 @@ static bool display_reg(uint8_t num)
 
 static bool rp2040_target_copy_flash_code(void)
 {
+#if TARGET_RP2040_CONSIDER_BOOT2
+    // BOOT2 code from a RPi Pico
     // dump sometime ago (2025-02-26)
     // this is required for connect_internal_flash()
+    // different external flashs might require different BOOT2 area
     static const uint8_t boot2_rp2040[] = {
         0x00, 0xb5, 0x32, 0x4b, 0x21, 0x20, 0x58, 0x60, 0x98, 0x68, 0x02, 0x21, 0x88, 0x43, 0x98, 0x60,
         0xd8, 0x60, 0x18, 0x61, 0x58, 0x61, 0x2e, 0x4b, 0x00, 0x21, 0x99, 0x60, 0x02, 0x21, 0x59, 0x61,
@@ -317,22 +335,26 @@ static bool rp2040_target_copy_flash_code(void)
         0xf4, 0x00, 0x00, 0x18, 0x22, 0x20, 0x00, 0xa0, 0x00, 0x01, 0x00, 0x10, 0x08, 0xed, 0x00, 0xe0,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x74, 0xb2, 0x4e, 0x7a
     };
-    int code_len = (__stop_for_target_msc_rp2040 - __start_for_target_msc_rp2040);
+#endif
+    const uint32_t code_len = (__stop_for_target_msc_rp2040 - __start_for_target_msc_rp2040);
 
-    picoprobe_info("FLASH: Copying custom flash code to 0x%08x (%d bytes)\n", TARGET_RP2040_CODE, code_len);
+    picoprobe_info("FLASH: Copying custom flash code to 0x%08x (%d bytes)\n", TARGET_RP2040_CODE, (int)code_len);
     if ( !swd_write_memory(TARGET_RP2040_CODE, (uint8_t *)__start_for_target_msc_rp2040, code_len))
         return false;
 
     // clear TARGET_RP2040_ERASE_MAP
-    for (int i = 0;  i < TARGET_RP2040_ERASE_MAP_SIZE;  i += sizeof(uint32_t)) {
+    for (uint32_t i = 0;  i < TARGET_RP2040_ERASE_MAP_SIZE;  i += sizeof(uint32_t)) {
         if ( !swd_write_word(TARGET_RP2040_ERASE_MAP + i, 0)) {
             return false;
         }
     }
 
+#if TARGET_RP2040_CONSIDER_BOOT2
     picoprobe_info("FLASH: Copying BOOT2 code to 0x%08x (%d bytes)\n", TARGET_RP2040_BOOT2, TARGET_RP2040_BOOT2_SIZE);
     if ( !swd_write_memory(TARGET_RP2040_BOOT2, (uint8_t *)boot2_rp2040, sizeof(boot2_rp2040)))
         return false;
+#endif
+
     return true;
 }   // rp2040_target_copy_flash_code
 
@@ -340,14 +362,14 @@ static bool rp2040_target_copy_flash_code(void)
 
 static bool rp2350_target_copy_flash_code(void)
 {
-    int code_len = (__stop_for_target_msc_rp2350 - __start_for_target_msc_rp2350);
+    const uint32_t code_len = (__stop_for_target_msc_rp2350 - __start_for_target_msc_rp2350);
 
-    picoprobe_info("FLASH: Copying custom flash code to 0x%08x (%d bytes)\n", TARGET_RP2350_CODE, code_len);
+    picoprobe_info("FLASH: Copying custom flash code to 0x%08x (%d bytes)\n", TARGET_RP2350_CODE, (int)code_len);
     if ( !swd_write_memory(TARGET_RP2350_CODE, (uint8_t *)__start_for_target_msc_rp2350, code_len))
         return false;
 
     // clear TARGET_RP2350_ERASE_MAP
-    for (int i = 0;  i < TARGET_RP2350_ERASE_MAP_SIZE;  i += sizeof(uint32_t)) {
+    for (uint32_t i = 0;  i < TARGET_RP2350_ERASE_MAP_SIZE;  i += sizeof(uint32_t)) {
         if ( !swd_write_word(TARGET_RP2350_ERASE_MAP + i, 0)) {
             return false;
         }
@@ -368,7 +390,10 @@ static void target_disconnect(TimerHandle_t xTimer)
 {
     if (xSemaphoreTake(sema_swd_in_use, 0)) {
         if (is_connected) {
-            picoprobe_info("=================================== MSC disconnect target %d\n", had_write);
+            uint32_t dt_ms = (uint32_t)((time_us_64() - transfer_start_us) / 1000);
+            uint32_t t_bps = (100 * transferred_bytes) / (dt_ms / 10);
+            picoprobe_info("=================================== MSC disconnect target: %d bytes transferred, %d bytes/s\n",
+                           (int)transferred_bytes, (int)t_bps);
             led_state(LS_MSC_DISCONNECTED);
             if (had_write) {
                 if (USE_RP2040()) {
@@ -423,6 +448,8 @@ bool msc_target_connect(bool write_mode)
             must_initialize = ok;
             is_connected = true;                   // disconnect must be issued!
             had_write = false;
+            transferred_bytes = 0;
+            transfer_start_us = now_us;
         }
         last_trigger_us = now_us;
         xTimerReset(timer_disconnect, pdMS_TO_TICKS(1000));
@@ -527,6 +554,7 @@ bool msc_target_read_memory(struct uf2_block *uf2, uint32_t target_addr, uint32_
     xSemaphoreTake(sema_swd_in_use, portMAX_DELAY);
     setup_uf2_record(uf2, target_addr, payload_size, block_no, num_blocks);
     ok = swd_read_memory(target_addr, uf2->data, payload_size);
+    transferred_bytes += payload_size;
     xSemaphoreGive(sema_swd_in_use);
     return ok;
 }   // msc_target_read_memory
@@ -541,6 +569,7 @@ void target_writer_thread(void *ptr)
     for (;;) {
         len = xMessageBufferReceive(msgbuff_target_writer_thread, &uf2, sizeof(uf2), portMAX_DELAY);
         assert(len == 512);
+        transferred_bytes += uf2.payload_size;
 
 //        printf("target_writer_thread(0x%lx, %ld, %ld), %u\n", uf2.target_addr, uf2.block_no, uf2.num_blocks, len);
 
@@ -599,7 +628,7 @@ void target_writer_thread(void *ptr)
             }
         }
         else if (USE_RP2350()) {
-#if 0
+#if 1
             uint32_t arg[3];
             uint32_t res;
 
