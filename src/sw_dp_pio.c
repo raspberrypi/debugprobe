@@ -251,50 +251,50 @@ uint8_t __TIME_CRITICAL_FUNCTION(SWD_Transfer)(uint32_t request, uint32_t *data)
         // debugging, note that bits are reversed
 #if (DEBUG_LEVEL == 2)
         if (prq == 0x81) {
-            picoprobe_debug("SWD_transfer - DP write ABORT 0x%lx (%d)\n", *data, ack);
+            printf("SWD_transfer - DP write ABORT 0x%lx (%d)\n", *data, ack);
         }
         else if (prq == 0x87) {
-            picoprobe_debug("SWD_transfer - AP read CSW = 0x%lx (%d)\n", *data, ack);
+            printf("SWD_transfer - AP read CSW = 0x%lx (%d)\n", *data, ack);
         }
         else if (prq == 0x8b) {
-            picoprobe_debug("SWD_transfer - AP write TAR 0x%lx (%d)\n", *data, ack);
+            printf("SWD_transfer - AP write TAR 0x%lx (%d)\n", *data, ack);
         }
         else if (prq == 0x8d) {
-            picoprobe_debug("SWD_transfer - DP read CTRL/STAT = 0x%lx (%d)\n", *data, ack);
+            printf("SWD_transfer - DP read CTRL/STAT = 0x%lx (%d)\n", *data, ack);
         }
         else if (prq == 0x95) {
-            picoprobe_debug("SWD_transfer - DP read RESEND = 0x%lx (%d)\n", *data, ack);
+            printf("SWD_transfer - DP read RESEND = 0x%lx (%d)\n", *data, ack);
         }
         else if (prq == 0x9f) {
-            picoprobe_debug("SWD_transfer - AP read DRW = 0x%lx (%d)\n", *data, ack);
+            printf("SWD_transfer - AP read DRW = 0x%lx (%d)\n", *data, ack);
         }
         else if (prq == 0xa3) {
-            picoprobe_debug("SWD_transfer - AP write CSW 0x%lx (%d)\n", *data, ack);
+            printf("SWD_transfer - AP write CSW 0x%lx (%d)\n", *data, ack);
         }
         else if (prq == 0xa5) {
-            picoprobe_debug("SWD_transfer - DP read DPIDR = 0x%lx (%d)\n", *data, ack);
+            printf("SWD_transfer - DP read DPIDR = 0x%lx (%d)\n", *data, ack);
         }
         else if (prq == 0xa9) {
-            picoprobe_debug("SWD_transfer - DP write CTRL/STAT 0x%lx (%d)\n", *data, ack);
+            printf("SWD_transfer - DP write CTRL/STAT 0x%lx (%d)\n", *data, ack);
         }
         else if (prq == 0xaf) {
-            picoprobe_debug("SWD_transfer - AP read TAR = 0x%lx (%d)\n", *data, ack);
+            printf("SWD_transfer - AP read TAR = 0x%lx (%d)\n", *data, ack);
         }
         else if (prq == 0xb1) {
-            picoprobe_debug("SWD_transfer - DP write SELECT 0x%lx (%d)\n", *data, ack);
+            printf("SWD_transfer - DP write SELECT 0x%lx (%d)\n", *data, ack);
         }
         else if (prq == 0xbb) {
-            picoprobe_debug("SWD_transfer - AP write DRW 0x%lx (%d)\n", *data, ack);
+            printf("SWD_transfer - AP write DRW 0x%lx (%d)\n", *data, ack);
         }
         else if (prq == 0xbd) {
-            picoprobe_debug("SWD_transfer - DP read buffer = 0x%lx (%d)\n", *data, ack);
+            printf("SWD_transfer - DP read buffer = 0x%lx (%d)\n", *data, ack);
         }
         else {
             if (request & DAP_TRANSFER_RnW) {
-                picoprobe_debug("SWD_transfer - unknown write: 0x%02x 0x%lx (%d)\n", prq, *data, ack);
+                printf("SWD_transfer - unknown write: 0x%02x 0x%lx (%d)\n", prq, *data, ack);
             }
             else {
-                picoprobe_debug("SWD_transfer - unknown read: 0x%02x 0x%lx (%d)\n", prq, *data, ack);
+                printf("SWD_transfer - unknown read: 0x%02x 0x%lx (%d)\n", prq, *data, ack);
             }
         }
 #endif
@@ -302,10 +302,10 @@ uint8_t __TIME_CRITICAL_FUNCTION(SWD_Transfer)(uint32_t request, uint32_t *data)
     else if (ack != DAP_TRANSFER_WAIT) {
 #if (DEBUG_LEVEL >= 1)
         if (request & DAP_TRANSFER_RnW) {
-            picoprobe_debug("SWD_transfer - unknown FAILED read: 0x%02x (%d)\n", prq, ack);
+            printf("SWD_transfer - unknown FAILED read: 0x%02x (%d)\n", prq, ack);
         }
         else {
-            picoprobe_debug("SWD_transfer - unknown FAILED write: 0x%02x 0x%lx (%d)\n", prq, *data, ack);
+            printf("SWD_transfer - unknown FAILED write: 0x%02x 0x%lx (%d)\n", prq, *data, ack);
         }
 #endif
     }
