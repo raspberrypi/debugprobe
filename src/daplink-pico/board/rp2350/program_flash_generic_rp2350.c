@@ -19,7 +19,11 @@ extern char __start_for_target_connect_rp2350[];
 extern char __stop_for_target_connect_rp2350[];
 
 // Attributes for RP2350 target code (doesn't matter if code is compiled for cortex-m0 or m33, executes both on target)
-#define FOR_TARGET_RP2350_CODE        __attribute__((noinline, section("for_target_connect_rp2350")))
+#if defined(__clang__)
+    #define FOR_TARGET_RP2350_CODE        __attribute__((noinline, section("for_target_connect_rp2350"), optnone))
+#else
+    #define FOR_TARGET_RP2350_CODE        __attribute__((noinline, section("for_target_connect_rp2350"), optimize("-O0")))
+#endif
 
 #define TARGET_RP2350_CODE            (TARGET_RP2350_RAM_START + 0x10000)
 #define TARGET_RP2350_BREAKPOINT      ((uint32_t)rp2350_breakpoint - (uint32_t)__start_for_target_connect_rp2350 + TARGET_RP2350_CODE)
