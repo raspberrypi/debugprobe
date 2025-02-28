@@ -46,7 +46,7 @@
         /*!< maximum line length, maximum path length, buffer is allocated on the stack! */
 
 #ifndef NDEBUG
-    #define NDEBUG
+//    #define NDEBUG
         /*!< comment above define to turn on assertions */
 #endif
 

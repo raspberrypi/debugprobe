@@ -54,6 +54,8 @@
 extern char __start_for_target_msc_rp2350[];
 extern char __stop_for_target_msc_rp2350[];
 
+// Attributes for RP2350 target code - DO NOT CHANGE THIS (but doesn't matter if code is compiled for cortex-m0 or m33, executes both on target)
+// Note that there is also compile option setup in CMakeLists.txt
 #define FOR_TARGET_RP2350_CODE        __attribute__((noinline, section("for_target_msc_rp2350")))
 
 #define TARGET_RP2350_CODE            (TARGET_RP2350_RAM_START + 0x10000)

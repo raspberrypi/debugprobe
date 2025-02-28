@@ -54,7 +54,7 @@ option(OPT_SPECIAL_CLK_FOR_PIO "Ignore clock frequency request of 1MHz (this is 
 #
 if("${PICO_COMPILER}" STREQUAL "pico_arm_clang")
     if(NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-        message(STATUS "link time optimization for clang release builds enabled")
+        message(STATUS "Link time optimization for clang release builds enabled")
         set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
     endif()
 endif()
@@ -138,6 +138,19 @@ if(GIT_HASH)
         add_definitions(-DGIT_HASH="${GIT_HASH}")
 endif()
 
+# Be very careful with code which has to run on the target CPU, the following options have been found by trial and error,
+# actually the best thing would be to include binary blobs of precompiled functions, just like pyocd/daplink is doing 
+if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    # clang
+    set(TARGET_CODE_OPT COMPILE_FLAGS -O3)
+else()
+    # gcc
+    set(TARGET_CODE_OPT COMPILE_FLAGS -Og)
+endif()
+set_source_files_properties(src/daplink-pico/board/rp2040/program_flash_generic_rp2040.c PROPERTIES ${TARGET_CODE_OPT})
+set_source_files_properties(src/daplink-pico/board/rp2350/program_flash_generic_rp2350.c PROPERTIES ${TARGET_CODE_OPT})
+set_source_files_properties(src/daplink-pico/board/rp2040/program_flash_msc_rp2040.c     PROPERTIES ${TARGET_CODE_OPT})
+set_source_files_properties(src/daplink-pico/board/rp2350/program_flash_msc_rp2350.c     PROPERTIES ${TARGET_CODE_OPT})
 
 ########################################################################################################################
 
@@ -404,7 +417,12 @@ target_sources(${PROJECT} PRIVATE
 target_compile_options(${PROJECT} PRIVATE -Wall)
 
 if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    message(STATUS "compiling for clang")
+    message(STATUS "Compiling for clang")
+    if(NOT PICO_BOARD STREQUAL "pico2")
+        message(FATAL_ERROR "clang currently works only for pico2/rp2350")
+    endif()
+else()
+    message(STATUS "Compiling for gcc")
 endif()
 
 if(DEFINED ENV{PICOPROBE_LED})

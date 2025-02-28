@@ -51,7 +51,13 @@
 extern char __start_for_target_msc_rp2040[];
 extern char __stop_for_target_msc_rp2040[];
 
-#define FOR_TARGET_RP2040_CODE        __attribute__((noinline, section("for_target_msc_rp2040"), target("arch=armv6-m"), optimize("-Og")))
+// Attributes for RP2040 target code - DO NOT CHANGE THIS
+// Note that there is also compile option setup in CMakeLists.txt
+#if defined(__clang__)
+    #define FOR_TARGET_RP2040_CODE        __attribute__((noinline, section("for_target_msc_rp2040"), target("arch=cortex-m0")))
+#else
+    #define FOR_TARGET_RP2040_CODE        __attribute__((noinline, section("for_target_msc_rp2040"), target("arch=armv6-m")))
+#endif
 
 #define TARGET_RP2040_CODE            (TARGET_RP2040_RAM_START + 0x10000)
 #define TARGET_RP2040_FLASH_BLOCK     ((uint32_t)rp2040_flash_block - (uint32_t)__start_for_target_msc_rp2040 + TARGET_RP2040_CODE)

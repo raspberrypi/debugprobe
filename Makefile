@@ -19,14 +19,14 @@ CMAKE_FLAGS += -DCMAKE_EXPORT_COMPILE_COMMANDS=True
 
 ifeq ($(PICO_BOARD),)
     # pico|pico_w|pico_debug_probe|pico2
-    PICO_BOARD := pico
+    PICO_BOARD := pico2
 endif
 
 
 
 .PHONY: clean
 clean:
-	ninja -C $(BUILD_DIR) -v clean
+	ninja -C $(BUILD_DIR) clean
 
 
 .PHONY: clean-build
@@ -36,7 +36,7 @@ clean-build:
 
 .PHONY: all
 all:
-	ninja -C $(BUILD_DIR) -v all
+	ninja -C $(BUILD_DIR) all
 	@echo "--------------------------"
 	@arm-none-eabi-size -Ax $(BUILD_DIR)/$(PROJECT).elf | awk '{size=strtonum($$2); addr=strtonum($$3); if (addr>=0x20000000 && addr<0x20040000) ram += size; if (addr>=0x10000000 && addr<0x20000000) rom += size; } END {print "Flash: " rom "  RAM: " ram}'
 	@echo "--------------------------"
@@ -61,7 +61,7 @@ cmake-create-release: clean-build
 
 .PHONY: cmake-create-debug-clang
 cmake-create-debug-clang: clean-build
-	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi-18.1.3/bin; \
+	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin; \
 	export PICO_COMPILER=pico_arm_clang;                     \
 	export xxPICO_CLIB=llvm-libc;                                 \
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
