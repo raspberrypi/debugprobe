@@ -37,6 +37,7 @@ extern char __stop_for_target_connect_rp2040[];
 // ---------------------------------------------------------------------------------------------------------------------
 //
 // Parts of the following code has been stolen from pico-bootrom/bootrom/program_flash_generic.c
+//                                              and pico-sdk2/src/rp2_common/hardware_flash/flash.c
 //
 // ---------------------------------------------------------------------------------------------------------------------
 

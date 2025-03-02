@@ -218,6 +218,7 @@ FOR_TARGET_RP2350_CODE __attribute__((naked)) void rp2350_breakpoint(void)
 // ---------------------------------------------------------------------------------------------------------------------
 //
 // Parts of the following code has been stolen from pico-bootrom-rp2350/src/main/arm/varm_generic_flash.c
+//                                              and pico-sdk2/src/rp2_common/hardware_flash/flash.c
 //
 // ---------------------------------------------------------------------------------------------------------------------
 
