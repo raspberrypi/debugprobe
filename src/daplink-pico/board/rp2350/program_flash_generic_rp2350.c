@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#include "hardware/helper.h"
+#include "hardware/structs/qmi.h"
+
 // ---------------------------------------------------------------------------------------------------------------------
 // YAPicoprobe definitions
 //
@@ -228,109 +231,59 @@ FOR_TARGET_RP2350_CODE __attribute__((naked)) void rp2350_breakpoint(void)
 #define FLASHCMD_READ_JEDEC_ID    0x9f
 
 
-
-FOR_TARGET_RP2350_CODE static void flash_put_get(uint8_t cs, const uint8_t *tx, uint8_t *rx, size_t count, size_t rx_skip)
+FOR_TARGET_RP2350_CODE static void flash_cs_force(bool high)
 {
-}
-
-
-// returns its first argument to allow it to be preserved across calls without
-// a callee save register
-FOR_TARGET_RP2350_CODE static void flash_do_cmd(uint8_t cs, uint8_t cmd, const uint8_t *tx, uint8_t *rx, size_t count)
-{
-    //qmi_hw->direct_tx = cmd | QMI_DIRECT_TX_NOPUSH_BITS;
-    flash_put_get(cs, tx, rx, count, 0);
-    rx[2] = 22;
-}
-
-
-#if 0
-// Timing of this one is critical, so do not expose the symbol to debugger etc
-FOR_TARGET_RP2350_CODE static void flash_put_cmd_addr(uint8_t cmd, uint32_t addr)
-{
-    flash_cs_force(OUTOVER_LOW);
-    addr |= cmd << 24;
-    for (int i = 0; i < 4; ++i) {
-        ssi->dr0 = addr >> 24;
-        addr <<= 8;
+    if (high) {
+        hw_clear_bits(&qmi_hw->direct_csr, QMI_DIRECT_CSR_ASSERT_CS0N_BITS);
+    }
+    else {
+        hw_set_bits(&qmi_hw->direct_csr, QMI_DIRECT_CSR_ASSERT_CS0N_BITS);
     }
 }
-#endif
+
+
+FOR_TARGET_RP2350_CODE static void flash_do_cmd(const uint8_t *txbuf, uint8_t *rxbuf, size_t count)
+{
+    flash_cs_force(0);
+    size_t tx_remaining = count;
+    size_t rx_remaining = count;
+
+    // QMI version -- no need to bound FIFO contents as QMI stalls on full DIRECT_RX.
+    hw_set_bits(&qmi_hw->direct_csr, QMI_DIRECT_CSR_EN_BITS);
+    while (tx_remaining || rx_remaining) {
+        uint32_t flags = qmi_hw->direct_csr;
+        bool can_put = !(flags & QMI_DIRECT_CSR_TXFULL_BITS);
+        bool can_get = !(flags & QMI_DIRECT_CSR_RXEMPTY_BITS);
+        if (can_put && tx_remaining) {
+            qmi_hw->direct_tx = *txbuf++;
+            --tx_remaining;
+        }
+        if (can_get && rx_remaining) {
+            *rxbuf++ = (uint8_t)qmi_hw->direct_rx;
+            --rx_remaining;
+        }
+    }
+    hw_clear_bits(&qmi_hw->direct_csr, QMI_DIRECT_CSR_EN_BITS);
+    flash_cs_force(1);
+}
 
 
 // ----------------------------------------------------------------------------
 // Size determination via SFDP or JEDEC ID (best effort)
 // Relevant XKCD: https://xkcd.com/927/
 
-FOR_TARGET_RP2350_CODE static void flash_read_sfdp(uint32_t addr, uint8_t *rx, size_t count)
-{
-#if 0
-    assert(addr < 0x1000000);
-    flash_put_cmd_addr(FLASHCMD_READ_SFDP, addr);
-    ssi->dr0 = 0; // dummy byte
-    flash_put_get(NULL, rx, count, 5);
-#else
-    // TODO this is a dummy...
-    for (int i = 0;  i < count;  ++i)
-        rx[i] = 0;
-#endif
-}
-
-
-FOR_TARGET_RP2350_CODE static uint32_t bytes_to_u32le(const uint8_t *b)
-{
-    return b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24);
-}
-
-
 // Return value >= 0: log 2 of flash size in bytes.
 // Return value < 0: unable to determine size.
 FOR_TARGET_RP2350_CODE static int flash_size_log2(void)
 {
-    uint8_t rxbuf[16];
+    const uint8_t txbuf[4] = { FLASHCMD_READ_JEDEC_ID, 0, 0, 0 };
+    uint8_t rxbuf[4];
 
-    // Check magic
-    flash_read_sfdp(0, rxbuf, 16);
-    if (bytes_to_u32le(rxbuf) != ('S' | ('F' << 8) | ('D' << 16) | ('P' << 24)))
-        goto sfdp_fail;
-    // Skip NPH -- we don't care about nonmandatory parameters.
-    // Offset 8 is header for mandatory parameter table
-    // | ID | MinRev | MajRev | Length in words | ptr[2] | ptr[1] | ptr[0] | unused|
-    // ID must be 0 (JEDEC) for mandatory PTH
-    if (rxbuf[8] != 0)
-        goto sfdp_fail;
-
-    uint32_t param_table_ptr = bytes_to_u32le(rxbuf + 12) & 0xffffffu;
-    flash_read_sfdp(param_table_ptr, rxbuf, 8);
-    uint32_t array_size_word = bytes_to_u32le(rxbuf + 4);
-    // MSB set: array >= 2 Gbit, encoded as log2 of number of bits
-    // MSB clear: array < 2 Gbit, encoded as direct bit count
-    if (array_size_word & (1u << 31)) {
-        array_size_word &= ~(1u << 31);
-    } else {
-        uint32_t ctr = 0;
-        array_size_word += 1;
-        while (array_size_word >>= 1)
-            ++ctr;
-        array_size_word = ctr;
-    }
-    // Sanity check... 2kbit is minimum for 2nd stage, 128 Gbit is 1000x bigger than we can XIP
-    if (array_size_word < 11 || array_size_word > 37)
-        goto sfdp_fail;
-    return array_size_word - 3;
-
-sfdp_fail:
-    // If no SFDP, it's common to encode log2 of main array size in second
-    // byte of JEDEC ID
-    flash_do_cmd(0, FLASHCMD_READ_JEDEC_ID, NULL, rxbuf, 3);
-    uint8_t array_size_byte = rxbuf[2];
-    // Confusingly this is log2 of size in bytes, not bits like SFDP. Sanity check:
-    if (array_size_byte < 8 || array_size_byte > 34)
-        goto jedec_id_fail;
-    return array_size_byte;
-
-jedec_id_fail:
-    return -1;
+    flash_do_cmd(txbuf, rxbuf, 4);
+    uint8_t size_log2 = rxbuf[3];
+    if (size_log2 < 8 || size_log2 > 34)
+        return -1;
+    return size_log2;
 }   // flash_size_log2
 
 
