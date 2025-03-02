@@ -33,6 +33,11 @@ extern char __stop_for_target_connect_rp2040[];
 #define TARGET_RP2040_CODE            (TARGET_RP2040_RAM_START + 0x10000)
 #define TARGET_RP2040_FLASH_SIZE      ((uint32_t)rp2040_flash_size - (uint32_t)__start_for_target_connect_rp2040 + TARGET_RP2040_CODE)
 
+
+// ---------------------------------------------------------------------------------------------------------------------
+//
+// Parts of the following code has been stolen from pico-bootrom/bootrom/program_flash_generic.c
+//                                              and pico-sdk2/src/rp2_common/hardware_flash/flash.c
 //
 // ---------------------------------------------------------------------------------------------------------------------
 
@@ -140,7 +145,7 @@ FOR_TARGET_RP2040_CODE static void flash_put_cmd_addr(uint8_t cmd, uint32_t addr
 
 // ----------------------------------------------------------------------------
 // Size determination via SFDP or JEDEC ID (best effort)
-// Relevant XKCD is 927
+// Relevant XKCD: https://xkcd.com/927/
 
 FOR_TARGET_RP2040_CODE static void flash_read_sfdp(uint32_t addr, uint8_t *rx, size_t count) {
     assert(addr < 0x1000000);
@@ -188,7 +193,7 @@ FOR_TARGET_RP2040_CODE static int __noinline flash_size_log2() {
         goto sfdp_fail;
     return array_size_word - 3;
 
-    sfdp_fail:
+sfdp_fail:
     // If no SFDP, it's common to encode log2 of main array size in second
     // byte of JEDEC ID
     flash_do_cmd(FLASHCMD_READ_JEDEC_ID, NULL, rxbuf, 3);
@@ -198,7 +203,7 @@ FOR_TARGET_RP2040_CODE static int __noinline flash_size_log2() {
         goto jedec_id_fail;
     return array_size_byte;
 
-    jedec_id_fail:
+jedec_id_fail:
     return -1;
 }
 

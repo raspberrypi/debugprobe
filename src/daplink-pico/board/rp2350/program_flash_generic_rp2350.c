@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#include "hardware/helper.h"
+#include "hardware/structs/qmi.h"
+
 // ---------------------------------------------------------------------------------------------------------------------
 // YAPicoprobe definitions
 //
@@ -215,6 +218,104 @@ FOR_TARGET_RP2350_CODE __attribute__((naked)) void rp2350_breakpoint(void)
 }   // rp2350_breakpoint
 
 
+// ---------------------------------------------------------------------------------------------------------------------
+//
+// Parts of the following code has been stolen from pico-bootrom-rp2350/src/main/arm/varm_generic_flash.c
+//                                              and pico-sdk2/src/rp2_common/hardware_flash/flash.c
+//
+// ---------------------------------------------------------------------------------------------------------------------
+
+
+// These are supported by almost any SPI flash
+#define FLASHCMD_READ_SFDP        0x5a
+#define FLASHCMD_READ_JEDEC_ID    0x9f
+
+
+FOR_TARGET_RP2350_CODE static void flash_cs_force(bool high)
+{
+    if (high) {
+        hw_clear_bits(&qmi_hw->direct_csr, QMI_DIRECT_CSR_ASSERT_CS0N_BITS);
+    }
+    else {
+        hw_set_bits(&qmi_hw->direct_csr, QMI_DIRECT_CSR_ASSERT_CS0N_BITS);
+    }
+}
+
+
+FOR_TARGET_RP2350_CODE static uint32_t bytes_to_u32le(const uint8_t *b)
+{
+    return b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24);
+}
+
+
+FOR_TARGET_RP2350_CODE static void flash_do_cmd(const uint8_t *txbuf, uint8_t *rxbuf, size_t count)
+{
+    flash_cs_force(0);
+    size_t tx_remaining = count;
+    size_t rx_remaining = count;
+
+    // QMI version -- no need to bound FIFO contents as QMI stalls on full DIRECT_RX.
+    hw_set_bits(&qmi_hw->direct_csr, QMI_DIRECT_CSR_EN_BITS);
+    while (tx_remaining || rx_remaining) {
+        uint32_t flags = qmi_hw->direct_csr;
+        bool can_put = !(flags & QMI_DIRECT_CSR_TXFULL_BITS);
+        bool can_get = !(flags & QMI_DIRECT_CSR_RXEMPTY_BITS);
+        if (can_put && tx_remaining) {
+            qmi_hw->direct_tx = *txbuf++;
+            --tx_remaining;
+        }
+        if (can_get && rx_remaining) {
+            *rxbuf++ = (uint8_t)qmi_hw->direct_rx;
+            --rx_remaining;
+        }
+    }
+    hw_clear_bits(&qmi_hw->direct_csr, QMI_DIRECT_CSR_EN_BITS);
+    flash_cs_force(1);
+}
+
+
+// ----------------------------------------------------------------------------
+// Size determination via SFDP or JEDEC ID (best effort)
+// Relevant XKCD: https://xkcd.com/927/
+
+// Return value >= 0: flash size in bytes.
+// Return value < 0: unable to determine size.
+FOR_TARGET_RP2350_CODE static int flash_size(void)
+{
+    const uint8_t txbuf_jedec_id[4] = { FLASHCMD_READ_JEDEC_ID, 0, 0, 0 };
+    uint8_t txbuf_sfdp[20];
+    uint8_t rxbuf[20];
+
+    // try it with SFDP
+    txbuf_sfdp[0] = FLASHCMD_READ_SFDP;
+    txbuf_sfdp[1] = 0;
+    txbuf_sfdp[2] = 0;
+    txbuf_sfdp[3] = 0;
+    txbuf_sfdp[4] = 0xff;
+    flash_do_cmd(txbuf_sfdp, rxbuf, 20);
+    if (bytes_to_u32le(rxbuf + 5) == 0x50444653) {   // "PDFS"
+        txbuf_sfdp[1] = rxbuf[17 + 2];
+        txbuf_sfdp[2] = rxbuf[17 + 1];
+        txbuf_sfdp[3] = rxbuf[17 + 0];
+        flash_do_cmd(txbuf_sfdp, rxbuf, 13);
+        uint32_t size = bytes_to_u32le(rxbuf + 9);
+        if (size & (1u << 31)) {
+            // we are not interested in that...
+        }
+        else {
+            return (size + 1) / 8;
+        }
+    }
+
+    // try it with JEDEC ID
+    flash_do_cmd(txbuf_jedec_id, rxbuf, 4);
+    uint8_t size_log2 = rxbuf[3];
+    if (size_log2 < 8 || size_log2 > 34)
+        return -1;
+    return 1 << size_log2;
+}   // flash_size
+
+
 FOR_TARGET_RP2350_CODE static void *rp2350_rom_table_lookup(char c1, char c2)
 /**
  * Lookup ROM table.
@@ -233,19 +334,17 @@ FOR_TARGET_RP2350_CODE static void *rp2350_rom_table_lookup(char c1, char c2)
 
 FOR_TARGET_RP2350_CODE static uint32_t rp2350_flash_size(void)
 {
-    uint32_t buff[2];
-    int r;
-    rp2350_rom_get_sys_info_fn sys_info = rp2350_rom_table_lookup('G', 'S');
-    rp2350_rom_connect_internal_flash_fn connect_flash = rp2350_rom_table_lookup('I', 'F');
 
-    connect_flash();
+    rp2xxx_rom_void_fn  _flash_exit_xip         = rp2350_rom_table_lookup('E', 'X');
+    rp2xxx_rom_void_fn  _flash_flush_cache      = rp2350_rom_table_lookup('F', 'C');
+    rp2xxx_rom_void_fn  _flash_enter_cmd_xip    = rp2350_rom_table_lookup('C', 'X');
 
-    r = sys_info(buff, 2, 0x0008);
-    if (r != 2)
-        return 1024 * 1024;
-    if (buff[1] == 0)
-        return 0;
-    return 4096 << ((buff[1] & 0xf00) >> 8);
+    _flash_exit_xip();
+    int r = flash_size();
+    _flash_flush_cache();
+    _flash_enter_cmd_xip();
+
+    return (r < 0) ? 0 : r;
 }   // rp2350_flash_size
 
 
