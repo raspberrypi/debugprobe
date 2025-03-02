@@ -242,6 +242,12 @@ FOR_TARGET_RP2350_CODE static void flash_cs_force(bool high)
 }
 
 
+FOR_TARGET_RP2350_CODE static uint32_t bytes_to_u32le(const uint8_t *b)
+{
+    return b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24);
+}
+
+
 FOR_TARGET_RP2350_CODE static void flash_do_cmd(const uint8_t *txbuf, uint8_t *rxbuf, size_t count)
 {
     flash_cs_force(0);
@@ -272,19 +278,42 @@ FOR_TARGET_RP2350_CODE static void flash_do_cmd(const uint8_t *txbuf, uint8_t *r
 // Size determination via SFDP or JEDEC ID (best effort)
 // Relevant XKCD: https://xkcd.com/927/
 
-// Return value >= 0: log 2 of flash size in bytes.
+// Return value >= 0: flash size in bytes.
 // Return value < 0: unable to determine size.
-FOR_TARGET_RP2350_CODE static int flash_size_log2(void)
+FOR_TARGET_RP2350_CODE static int flash_size(void)
 {
-    const uint8_t txbuf[4] = { FLASHCMD_READ_JEDEC_ID, 0, 0, 0 };
-    uint8_t rxbuf[4];
+    const uint8_t txbuf_jedec_id[4] = { FLASHCMD_READ_JEDEC_ID, 0, 0, 0 };
+    uint8_t txbuf_sfdp[20];
+    uint8_t rxbuf[20];
 
-    flash_do_cmd(txbuf, rxbuf, 4);
+    // try it with SFDP
+    txbuf_sfdp[0] = FLASHCMD_READ_SFDP;
+    txbuf_sfdp[1] = 0;
+    txbuf_sfdp[2] = 0;
+    txbuf_sfdp[3] = 0;
+    txbuf_sfdp[4] = 0xff;
+    flash_do_cmd(txbuf_sfdp, rxbuf, 20);
+    if (bytes_to_u32le(rxbuf + 5) == 0x50444653) {   // "PDFS"
+        txbuf_sfdp[1] = rxbuf[17 + 2];
+        txbuf_sfdp[2] = rxbuf[17 + 1];
+        txbuf_sfdp[3] = rxbuf[17 + 0];
+        flash_do_cmd(txbuf_sfdp, rxbuf, 13);
+        uint32_t size = bytes_to_u32le(rxbuf + 9);
+        if (size & (1u << 31)) {
+            // we are not interested in that...
+        }
+        else {
+            return (size + 1) / 8;
+        }
+    }
+
+    // try it with JEDEC ID
+    flash_do_cmd(txbuf_jedec_id, rxbuf, 4);
     uint8_t size_log2 = rxbuf[3];
     if (size_log2 < 8 || size_log2 > 34)
         return -1;
-    return size_log2;
-}   // flash_size_log2
+    return 1 << size_log2;
+}   // flash_size
 
 
 FOR_TARGET_RP2350_CODE static void *rp2350_rom_table_lookup(char c1, char c2)
@@ -311,11 +340,11 @@ FOR_TARGET_RP2350_CODE static uint32_t rp2350_flash_size(void)
     rp2xxx_rom_void_fn  _flash_enter_cmd_xip    = rp2350_rom_table_lookup('C', 'X');
 
     _flash_exit_xip();
-    int r = flash_size_log2();
+    int r = flash_size();
     _flash_flush_cache();
     _flash_enter_cmd_xip();
 
-    return (r < 0) ? 0 : (1UL << r);
+    return (r < 0) ? 0 : r;
 }   // rp2350_flash_size
 
 
