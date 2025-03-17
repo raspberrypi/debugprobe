@@ -36,6 +36,8 @@
 #else
 #include "bsp/board.h"
 #endif
+#include <hardware/clocks.h>
+
 #include "tusb.h"
 
 #include "probe_config.h"
@@ -122,6 +124,7 @@ void usb_thread(void *ptr)
 #endif
 
 int main(void) {
+    set_sys_clock_khz(CPU_CLOCK / 1000, false);
     // Declare pins in binary information
     bi_decl_config();
 

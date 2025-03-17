@@ -53,8 +53,11 @@ This information includes:
 /// Processor Clock of the Cortex-M MCU used in the Debug Unit.
 /// This value is used to calculate the SWD/JTAG clock speed.
 /* Debugprobe actually uses kHz rather than Hz, so just lie about it here */
+#ifdef PICO_BOARD_PICO2
+#define CPU_CLOCK               150000000U      ///< Specifies the CPU Clock in Hz.
+#else
 #define CPU_CLOCK               125000000U      ///< Specifies the CPU Clock in Hz.
-
+#endif
 /// Number of processor cycles for I/O Port write operations.
 /// This value is used to calculate the SWD/JTAG clock speed that is generated with I/O
 /// Port write operations in the Debug Unit by a Cortex-M MCU. Most Cortex-M processors

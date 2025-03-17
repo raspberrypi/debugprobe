@@ -59,6 +59,7 @@ if (DEBUG_ON_PICO)
             OUTPUT_NAME "debugprobe_on_pico"
         )
     elseif (PICO_BOARD STREQUAL "pico2")
+        add_compile_definitions(PICO_BOARD_PICO2)
         set_target_properties(debugprobe PROPERTIES
             OUTPUT_NAME "debugprobe_on_pico2"
         )
