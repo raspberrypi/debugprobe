@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.12)
 
 include(pico_sdk_import.cmake)
 
-set(FREERTOS_KERNEL_PATH "${CMAKE_CURRENT_LIST_DIR}/freertos")
+set(FREERTOS_KERNEL_PATH ${CMAKE_CURRENT_LIST_DIR}/freertos)
 include(FreeRTOS_Kernel_import.cmake)
 
 project(debugprobe)
@@ -40,8 +40,8 @@ target_include_directories(debugprobe PRIVATE
 
 target_compile_options(debugprobe PRIVATE -Wall)
 
-pico_generate_pio_header(debugprobe "${CMAKE_CURRENT_LIST_DIR}/src/probe.pio")
-pico_generate_pio_header(debugprobe "${CMAKE_CURRENT_LIST_DIR}/src/probe_oen.pio")
+pico_generate_pio_header(debugprobe ${CMAKE_CURRENT_LIST_DIR}/src/probe.pio)
+pico_generate_pio_header(debugprobe ${CMAKE_CURRENT_LIST_DIR}/src/probe_oen.pio)
 
 target_include_directories(debugprobe PRIVATE src)
 
