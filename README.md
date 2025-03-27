@@ -9,7 +9,7 @@ Firmware source for the Raspberry Pi Debug Probe SWD/UART accessory. Can also be
 
 # Documentation
 
-Debug Probe documentation can be found in the [Pico Getting Started Guide](https://datasheets.raspberrypi.com/pico/getting-started-with-pico.pdf). See "Appendix A: Using the Debug Probe".
+Debug Probe documentation can be found at the [Raspberry Pi Microcontroller Documentation portal](https://www.raspberrypi.com/documentation/microcontrollers/debug-probe.html#about-the-debug-probe).
 
 # Hacking
 
