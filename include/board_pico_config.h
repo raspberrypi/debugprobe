@@ -35,9 +35,7 @@
 #define PROBE_PIN_SWCLK (PROBE_PIN_OFFSET + 0) // 2
 #define PROBE_PIN_SWDIO (PROBE_PIN_OFFSET + 1) // 3
 // Target reset config
-#if false
 #define PROBE_PIN_RESET 1
-#endif
 
 // UART config
 #define PROBE_UART_TX 4
