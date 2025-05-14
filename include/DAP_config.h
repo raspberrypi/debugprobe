@@ -44,6 +44,7 @@ This information includes:
  - Optional information about a connected Target Device (for Evaluation Boards).
 */
 #include <pico/stdlib.h>
+#include <hardware/clocks.h>
 #include <hardware/gpio.h>
 
 #include "cmsis_compiler.h"
@@ -52,8 +53,8 @@ This information includes:
 
 /// Processor Clock of the Cortex-M MCU used in the Debug Unit.
 /// This value is used to calculate the SWD/JTAG clock speed.
-/* Debugprobe actually uses kHz rather than Hz, so just lie about it here */
-#define CPU_CLOCK               125000000U      ///< Specifies the CPU Clock in Hz.
+/* Debugprobe uses PIO for clock generation, so return the current system clock. */
+#define CPU_CLOCK               clock_get_hz(clk_sys)
 
 /// Number of processor cycles for I/O Port write operations.
 /// This value is used to calculate the SWD/JTAG clock speed that is generated with I/O
