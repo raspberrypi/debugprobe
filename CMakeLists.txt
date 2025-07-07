@@ -25,16 +25,16 @@ add_executable(debugprobe
 )
 
 target_sources(debugprobe PRIVATE
-        CMSIS_5/CMSIS/DAP/Firmware/Source/DAP.c
-        CMSIS_5/CMSIS/DAP/Firmware/Source/JTAG_DP.c
-        CMSIS_5/CMSIS/DAP/Firmware/Source/DAP_vendor.c
-        CMSIS_5/CMSIS/DAP/Firmware/Source/SWO.c
-        #CMSIS_5/CMSIS/DAP/Firmware/Source/SW_DP.c
+        CMSIS_DAP/CMSIS/DAP/Firmware/Source/DAP.c
+        CMSIS_DAP/CMSIS/DAP/Firmware/Source/JTAG_DP.c
+        CMSIS_DAP/CMSIS/DAP/Firmware/Source/DAP_vendor.c
+        CMSIS_DAP/CMSIS/DAP/Firmware/Source/SWO.c
+        #CMSIS_DAP/CMSIS/DAP/Firmware/Source/SW_DP.c
         )
 
 target_include_directories(debugprobe PRIVATE
-        CMSIS_5/CMSIS/DAP/Firmware/Include/
-        CMSIS_5/CMSIS/Core/Include/
+        CMSIS_DAP/CMSIS/DAP/Firmware/Include/
+        CMSIS_DAP/CMSIS/Core/Include/
         include/
         )
 
