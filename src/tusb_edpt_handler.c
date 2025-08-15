@@ -284,7 +284,7 @@ usbd_class_driver_t const _dap_edpt_driver =
 
 static usbd_class_driver_t const _edpt_drivers[] = {
 	_dap_edpt_driver,
-	_resetd_driver,
+	pico_usb_reset_interface_driver,
 };
 
 // Add the custom driver to the tinyUSB stack

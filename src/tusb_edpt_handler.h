@@ -12,7 +12,7 @@
 #include "device/usbd_pvt.h"
 #include "DAP_config.h"
 
-#include "pico/usb_reset_interface.h"
+#include "pico/usb_reset_interface_device.h"
 
 #define DAP_INTERFACE_SUBCLASS 0x00
 #define DAP_INTERFACE_PROTOCOL 0x00
