@@ -57,7 +57,7 @@ If using an existing debugprobe clone:
 
 ```
 git submodule sync
-git submodule update --init
+git submodule update --init --recursive
 mkdir build-pico2
 cd build-pico2
 cmake -DDEBUG_ON_PICO=1 -DPICO_BOARD=pico2 -DPICO_PLATFORM=rp2350 ../
