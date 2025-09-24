@@ -45,6 +45,7 @@
 #include "tusb_edpt_handler.h"
 #include "DAP.h"
 #include "hardware/structs/usb.h"
+#include "ws2812.h"
 
 // UART0 for debugprobe debug
 // UART1 for debugprobe to target device
@@ -54,13 +55,26 @@ static uint8_t RxDataBuffer[CFG_TUD_HID_EP_BUFSIZE];
 
 #define THREADED 1
 
-#define UART_TASK_PRIO (tskIDLE_PRIORITY + 3)
-#define TUD_TASK_PRIO  (tskIDLE_PRIORITY + 2)
-#define DAP_TASK_PRIO  (tskIDLE_PRIORITY + 1)
+#define UART_TASK_PRIO (tskIDLE_PRIORITY + 4)
+#define TUD_TASK_PRIO  (tskIDLE_PRIORITY + 3)
+#define DAP_TASK_PRIO  (tskIDLE_PRIORITY + 2)
+#define LED_TASK_PRIO  (tskIDLE_PRIORITY + 1)
 
-TaskHandle_t dap_taskhandle, tud_taskhandle, mon_taskhandle;
+TaskHandle_t dap_taskhandle, tud_taskhandle, mon_taskhandle, led_taskhandle;
 
 static int was_configured;
+
+void led_thread(void *ptr)
+{
+    TickType_t wake;
+
+    ws2812_init();
+    wake = xTaskGetTickCount();
+    do {
+      refresh_led();
+      xTaskDelayUntil(&wake, pdMS_TO_TICKS(20));
+    } while (true);
+}
 
 void dev_mon(void *ptr)
 {
@@ -106,7 +120,12 @@ void usb_thread(void *ptr)
             gpio_put(PROBE_USB_CONNECTED_LED, 1);
         else
             gpio_put(PROBE_USB_CONNECTED_LED, 0);
+#else
+#ifdef PROBE_WS2812_USB_CONNECTED
+        PROBE_WS2812_USB_CONNECTED(tud_ready());
 #endif
+#endif
+
         // If suspended or disconnected, delay for 1ms (20 ticks)
         if (tud_suspended() || !tud_connected())
             xTaskDelayUntil(&wake, 20);
@@ -139,6 +158,10 @@ int main(void) {
         xTaskCreate(usb_thread, "TUD", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, &tud_taskhandle);
 #if PICO_RP2040
         xTaskCreate(dev_mon, "WDOG", configMINIMAL_STACK_SIZE, NULL, TUD_TASK_PRIO, &mon_taskhandle);
+#endif
+#ifdef PROBE_WS2812_LED
+        // #pragma message("WS2812 support enabled")
+        xTaskCreate(led_thread, "LED", configMINIMAL_STACK_SIZE, NULL, LED_TASK_PRIO, &led_taskhandle);
 #endif
         vTaskStartScheduler();
     }
