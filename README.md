@@ -63,6 +63,21 @@ cd build-pico2
 cmake -DDEBUG_ON_PICO=1 -DPICO_BOARD=pico2 -DPICO_PLATFORM=rp2350 ../
 ```
 
+# Building for Waveshare RP2040 Zero
+
+To build for the Waveshare RP2040 Zero, configure CMake with the DEBUG_ON_PICO option and set the target board:
+
+- Requires Pico SDK v2.0.0 or newer (PICO_SDK_PATH must be set).
+- The output file will be named debugprobe_on_zero.uf2 (default build produces debugprobe.uf2).
+
+```
+git submodule sync
+git submodule update --init --recursive
+mkdir build-zero
+cd build-zero
+cmake .. -DDEBUG_ON_PICO=1 -DPICO_BOARD=waveshare_rp2040_zero
+```
+
 # TODO
 - AutoBaud selection, as PIO is a capable frequency counter
 - Possibly include RTT support
