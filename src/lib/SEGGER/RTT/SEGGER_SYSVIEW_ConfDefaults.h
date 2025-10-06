@@ -42,7 +42,7 @@
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       SystemView version: 3.56b                                    *
+*       SystemView version: 3.60d                                    *
 *                                                                    *
 **********************************************************************
 -------------------------- END-OF-HEADER -----------------------------
@@ -266,22 +266,6 @@ extern "C" {
 */
 #ifndef   SEGGER_SYSVIEW_RTT_BUFFER_SIZE
   #define SEGGER_SYSVIEW_RTT_BUFFER_SIZE          1024
-#endif
-
-/*********************************************************************
-*
-*       Define: SEGGER_SYSVIEW_SECTION
-*
-*  Description
-*    Section to place the SystemView RTT Buffer into.
-*  Default
-*    undefined: Do not place into a specific section.
-*  Notes
-*    If SEGGER_RTT_SECTION is defined, the default changes to use
-*    this section for the SystemView RTT Buffer, too.
-*/
-#if !(defined SEGGER_SYSVIEW_SECTION) && (defined SEGGER_RTT_SECTION)
-  #define SEGGER_SYSVIEW_SECTION                  SEGGER_RTT_SECTION
 #endif
 
 /*********************************************************************

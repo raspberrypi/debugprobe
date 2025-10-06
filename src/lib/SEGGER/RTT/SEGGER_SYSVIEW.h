@@ -42,7 +42,7 @@
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       SystemView version: 3.56b                                    *
+*       SystemView version: 3.60d                                    *
 *                                                                    *
 **********************************************************************
 -------------------------- END-OF-HEADER -----------------------------
@@ -212,7 +212,7 @@ typedef struct {
     U32*   pU32;
     I32*   pI32;
     float* pFloat;
-  } pValue;
+  } pValue;  
 } SEGGER_SYSVIEW_DATA_SAMPLE;
 
 typedef enum {
@@ -227,7 +227,7 @@ typedef struct {
   I32                           Offset;
   I32                           RangeMin;
   I32                           RangeMax;
-  float                         ScalingFactor;
+  float                         ScalingFactor;                   
   const char*                   sName;
   const char*                   sUnit;
 }  SEGGER_SYSVIEW_DATA_REGISTER;

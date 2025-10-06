@@ -42,7 +42,7 @@
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       SystemView version: 3.56b                                    *
+*       SystemView version: 3.60d                                    *
 *                                                                    *
 **********************************************************************
 -------------------------- END-OF-HEADER -----------------------------
@@ -372,7 +372,7 @@ static U8                     _NumModules;
                                    U8* pSysviewPointer;                             \
                                    U32 SysViewData;                                 \
                                    pSysviewPointer = pDest;                         \
-                                   SysViewData = Value;                             \
+                                   SysViewData = (U32)Value;                        \
                                    while(SysViewData > 0x7F) {                      \
                                      *pSysviewPointer++ = (U8)(SysViewData | 0x80); \
                                      SysViewData >>= 7;                             \
@@ -460,18 +460,18 @@ static U8* _EncodeData(U8* pPayload, const char* pSrc, unsigned int NumBytes) {
 *    content.
 */
 static U8* _EncodeFloat(U8* pPayload, float Value) {
-  float  Val;
-  U8*    pSysviewPointer;
+  float  Val;                                
+  U8*    pSysviewPointer;                             
   U32*   SysViewData;
 
-  Val = Value;
-  pSysviewPointer = pPayload;
-  SysViewData = (U32*)&Val;
-  while((*SysViewData) > 0x7F) {
-    *pSysviewPointer++ = (U8)((*SysViewData) | 0x80);
-    (*SysViewData) >>= 7;
-  }
-  *pSysviewPointer++ = (U8)(*SysViewData);
+  Val = Value;                                 
+  pSysviewPointer = pPayload;                        
+  SysViewData = (U32*)&Val;                             
+  while((*SysViewData) > 0x7F) {          
+    *pSysviewPointer++ = (U8)((*SysViewData) | 0x80); 
+    (*SysViewData) >>= 7;                            
+  }                                               
+  *pSysviewPointer++ = (U8)(*SysViewData);            
   pPayload = pSysviewPointer;
 
   return pPayload;
@@ -655,7 +655,7 @@ static int _TrySendOverflowPacket(void) {
   // Compute time stamp delta and append it to packet.
   //
   TimeStamp  = SEGGER_SYSVIEW_GET_TIMESTAMP();
-  Delta = TimeStamp - _SYSVIEW_Globals.LastTxTimeStamp;
+  Delta = (I32)(TimeStamp - _SYSVIEW_Globals.LastTxTimeStamp);
   MAKE_DELTA_32BIT(Delta);
   ENCODE_U32(pPayload, Delta);
   //
@@ -1429,12 +1429,6 @@ static void _VPrintTarget(const char* sFormat, U32 Options, va_list* pParamList)
 *    The channel is configured with the macro SEGGER_SYSVIEW_RTT_CHANNEL.
 */
 void SEGGER_SYSVIEW_Init(U32 SysFreq, U32 CPUFreq, const SEGGER_SYSVIEW_OS_API *pOSAPI, SEGGER_SYSVIEW_SEND_SYS_DESC_FUNC pfSendSysDesc) {
-#ifdef SEGGER_RTT_SECTION
-  //
-  // Explicitly initialize the RTT Control Block if it is in its dedicated section.
-  //
-  SEGGER_RTT_Init();
-#endif
 #if (SEGGER_SYSVIEW_POST_MORTEM_MODE == 1)
 #if SEGGER_SYSVIEW_RTT_CHANNEL > 0
   SEGGER_RTT_ConfigUpBuffer(SEGGER_SYSVIEW_RTT_CHANNEL, "SysView", &_UpBuffer[0],   sizeof(_UpBuffer),   SEGGER_RTT_MODE_NO_BLOCK_SKIP);
@@ -2002,8 +1996,8 @@ void SEGGER_SYSVIEW_SendTaskInfo(const SEGGER_SYSVIEW_TASKINFO *pInfo) {
 *
 *  Function description
 *    Send a Stack Info Packet, containing TaskId for identification,
-*    stack base, stack size and stack usage.
-*
+*    stack base, stack size and stack usage. 
+*    
 *
 *  Parameters
 *    pInfo - Pointer to stack information to send.
@@ -2027,8 +2021,8 @@ void SEGGER_SYSVIEW_SendStackInfo(const SEGGER_SYSVIEW_STACKINFO *pInfo) {
 *        SEGGER_SYSVIEW_SampleData()
 *
 *  Function description
-*    Send a Data Sample Packet, containing the data Id and the value.
-*
+*    Send a Data Sample Packet, containing the data Id and the value. 
+*    
 *
 *  Parameters
 *    pInfo - Pointer to data sample struct to send.
@@ -2042,7 +2036,7 @@ void SEGGER_SYSVIEW_SampleData(const SEGGER_SYSVIEW_DATA_SAMPLE *pInfo) {
   ENCODE_U32(pPayload, pInfo->ID);
   pPayload = _EncodeFloat(pPayload, *(pInfo->pValue.pFloat));
   _SendPacket(pPayloadStart, pPayload, SYSVIEW_EVTID_DATA_SAMPLE);
-
+  
   RECORD_END();
 }
 
@@ -2553,7 +2547,7 @@ void SEGGER_SYSVIEW_RegisterData(SEGGER_SYSVIEW_DATA_REGISTER* pInfo) {
   ENCODE_U32(pPayload, SYSVIEW_EVTID_EX_REGISTER_DATA);
   ENCODE_U32(pPayload, pInfo->ID);
   pPayload = _EncodeStr(pPayload, pInfo->sName, SEGGER_SYSVIEW_MAX_STRING_LEN);
-
+  
   if (pInfo->sUnit != 0) {
     ENCODE_U32(pPayload, pInfo->DataType);
     ENCODE_U32(pPayload, pInfo->Offset);
