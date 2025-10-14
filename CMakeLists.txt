@@ -192,7 +192,7 @@ target_sources(${PROJECT} PRIVATE
         src/lib/daplink/daplink/interface/swd_host.c
         src/lib/daplink/daplink/interface/target_flash.c
         src/lib/daplink/daplink/settings/settings_rom_stub.c
-        src/lib/daplink/family/nordic/target_reset_nrf52.c
+        src/lib/daplink/family/nordic/nrf52/target_reset.c
         src/lib/daplink/family/nordic/nrf52/target.c
         src/lib/daplink/target/target_board.c
         src/lib/daplink/target/target_family.c
