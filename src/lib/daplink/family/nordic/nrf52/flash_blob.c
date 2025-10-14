@@ -73,7 +73,7 @@ static const program_target_t flash_nrf52 = {
     },
     .program_buffer = 0x20000200,
     .algo_start = 0x20000000,
-    .algo_size = 0x00000150,
+    .algo_size = sizeof(nRF52832AA_FLM),
     .algo_blob = nRF52832AA_FLM,
     .program_buffer_size = 512 // should be USBD_MSC_BlockSize
 };
@@ -92,7 +92,7 @@ static const program_target_t flash_nrf52833 = {
     },
     .program_buffer = 0x20000000 + 0x00000A00,
     .algo_start = 0x20000000,
-    sizeof(nRF52833_flash_algo),
+    .algo_size = sizeof(nRF52833_flash_algo),
     .algo_blob = nRF52833_flash_algo,
     .program_buffer_size = 512 // should be USBD_MSC_BlockSize
 };
