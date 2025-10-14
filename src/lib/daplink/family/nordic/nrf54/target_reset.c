@@ -26,17 +26,23 @@
 
 // TODO not sure if this all works
 
+// datasheet, 9.1 Debug access port
+static const uint32_t CTRL_AP = 2 << 24;
+
+// locations of CTRL-AP registers in datasheet, 9.6.5.1 Debug side registers (search for 0x32880000)
+
+
 static void swd_set_target_reset_nrf54(uint8_t asserted)
 {
-    uint32_t ap_index_return;
+    uint32_t ap_idr_return;
 
     if (asserted) {
         // swd_init_debug();   leads to a recursion
 
-        swd_read_ap(0x010000FC, &ap_index_return);
-        if (ap_index_return == 0x02880000) {
+        swd_read_ap(CTRL_AP + 0xfc, &ap_idr_return);
+        if (ap_idr_return == 0x32880000) {
             // Have CTRL-AP
-            swd_write_ap(0x01000000, 1);  // CTRL-AP reset hold
+            swd_write_ap(CTRL_AP + 0x00, 1);  // CTRL-AP set SoftReset
         }
         else {
             // No CTRL-AP - Perform a soft reset
@@ -48,10 +54,10 @@ static void swd_set_target_reset_nrf54(uint8_t asserted)
             g_board_info.swd_set_target_reset(asserted);
         }
     } else {
-        swd_read_ap(0x010000FC, &ap_index_return);
-        if (ap_index_return == 0x02880000) {
+        swd_read_ap(CTRL_AP + 0xfc, &ap_idr_return);
+        if (ap_idr_return == 0x32880000) {
             // Device has CTRL-AP
-            swd_write_ap(0x01000000, 0);  // CTRL-AP reset release
+            swd_write_ap(CTRL_AP + 0x00, 0);  // CTRL-AP release reset
         }
         else {
             // No CTRL-AP - Soft reset has been performed

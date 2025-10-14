@@ -26,13 +26,13 @@
 
 static void swd_set_target_reset_nrf52(uint8_t asserted)
 {
-    uint32_t ap_index_return;
+    uint32_t ap_idr_return;
 
     if (asserted) {
         // swd_init_debug();   leads to a recursion
 
-        swd_read_ap(0x010000FC, &ap_index_return);
-        if (ap_index_return == 0x02880000) {
+        swd_read_ap(0x010000FC, &ap_idr_return);
+        if (ap_idr_return == 0x02880000) {
             // Have CTRL-AP
             swd_write_ap(0x01000000, 1);  // CTRL-AP reset hold
         }
@@ -46,8 +46,8 @@ static void swd_set_target_reset_nrf52(uint8_t asserted)
             g_board_info.swd_set_target_reset(asserted);
         }
     } else {
-        swd_read_ap(0x010000FC, &ap_index_return);
-        if (ap_index_return == 0x02880000) {
+        swd_read_ap(0x010000FC, &ap_idr_return);
+        if (ap_idr_return == 0x02880000) {
             // Device has CTRL-AP
             swd_write_ap(0x01000000, 0);  // CTRL-AP reset release
         }
