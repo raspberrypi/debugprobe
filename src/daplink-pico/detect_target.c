@@ -61,12 +61,18 @@ const uint32_t swd_id_rp2350    = (0x927) + (0x0004 << 12);    // taken from RP2
 const uint32_t swd_id_nrf52832  = 0x00052832;                  // see FICR.INFO.PART
 const uint32_t swd_id_nrf52833  = 0x00052833;
 const uint32_t swd_id_nrf52840  = 0x00052840;
+const uint32_t swd_id_nrf54l05  = 0x00054b05;
+const uint32_t swd_id_nrf54l10  = 0x00054b10;
+const uint32_t swd_id_nrf54l15  = 0x00054b15;
 
 // IDs for UF2 identification, use the following command to obtain recent list:
 // curl https://raw.githubusercontent.com/microsoft/uf2/master/utils/uf2families.json | jq -r '.[] | "\(.id)\t\(.description)"' | sort -k 2
 const uint32_t uf2_id_nrf52          = 0x1b57745f;
 const uint32_t uf2_id_nrf52833       = 0x621e937a;
 const uint32_t uf2_id_nrf52840       = 0xada52840;
+const uint32_t uf2_id_nrf54l05       = 0xada54b05;                 // TODO not defined yet (14.10.2025)
+const uint32_t uf2_id_nrf54l10       = 0xada54b10;
+const uint32_t uf2_id_nrf54l15       = 0xada54b15;
 const uint32_t uf2_id_rp2040         = RP2040_FAMILY_ID;
 const uint32_t uf2_id_rp2            = ABSOLUTE_FAMILY_ID;
 const uint32_t uf2_id_rp2350_nonsec  = RP2350_ARM_NS_FAMILY_ID;    // Non-secure Arm image
@@ -77,6 +83,9 @@ const uint32_t uf2_id_rp2350_sec_arm = RP2350_ARM_S_FAMILY_ID;     // Secure Arm
 #define board_id_nrf52832_dk      "1101"
 #define board_id_nrf52833_dk      "1101"
 #define board_id_nrf52840_dk      "1102"
+#define board_id_nrf54l05_dk      "1103"
+#define board_id_nrf54l10_dk      "1104"
+#define board_id_nrf54l15_dk      "1105"
 #define board_id_rp2040_pico      "7f01"          // see TARGET_RP2040_FAMILY_ID
 #define board_id_rp2350_pico2     "7f02"          // see TARGET_RP2350_FAMILY_ID
 
@@ -84,8 +93,6 @@ const uint32_t uf2_id_rp2350_sec_arm = RP2350_ARM_S_FAMILY_ID;     // Secure Arm
 target_cfg_t target_device;
 static char board_vendor[30];
 static char board_name[30];
-
-
 
 // target information for RP2040 (actually Pico), must be global
 // because a special algo is used for flashing, corresponding fields below are empty.
@@ -184,6 +191,9 @@ target_cfg_t target_device_disconnected = {
 extern target_cfg_t target_device_nrf52;
 extern target_cfg_t target_device_nrf52833;
 extern target_cfg_t target_device_nrf52840;
+extern target_cfg_t target_device_nrf54l05;
+extern target_cfg_t target_device_nrf54l10;
+extern target_cfg_t target_device_nrf54l15;
 
 
 
@@ -277,8 +287,8 @@ void pico_prerun_board_config(void)
         target_device.rt_board_id    = board_id_nrf52840_dk;
         target_device.rt_uf2_id[0]   = uf2_id_nrf52840;
         target_device.rt_uf2_id[1]   = 0;
-        target_device.rt_max_swd_khz = 10000;
-        target_device.rt_swd_khz     = 6000;
+        target_device.rt_max_swd_khz = 8000;
+        target_device.rt_swd_khz     = 5000;
         target_device.target_part_number = "nRF52840";
         strcpy(board_vendor, "NordicSemiconductor");
         strcpy(board_name, "Generic nRF52840");                 // e.g. PCA10056
@@ -294,36 +304,77 @@ void pico_prerun_board_config(void)
             if (r  &&  info_part == swd_id_nrf52832) {
                 target_found = true;
                 target_device = target_device_nrf52;
-                target_device.rt_family_id   = kNordic_Nrf52_FamilyID;
-                target_device.rt_board_id    = board_id_nrf52832_dk;
-                target_device.rt_uf2_id[0]   = uf2_id_nrf52;
-                target_device.rt_uf2_id[1]   = 0;
-                target_device.rt_max_swd_khz = 10000;
-                target_device.rt_swd_khz     = 6000;
+                target_device.rt_board_id  = board_id_nrf52832_dk;
+                target_device.rt_uf2_id[0] = uf2_id_nrf52;
                 target_device.target_part_number = "nRF52832";
                 strcpy(board_vendor, "NordicSemiconductor");
                 strcpy(board_name, "Generic nRF52832");         // e.g. PCA10040
-                target_device.flash_regions[0].end = target_device.flash_regions[0].start + 1024 * info_flash;
-                target_device.ram_regions[0].end   = target_device.ram_regions[0].start + 1024 * info_ram;
             }
             else if (r  &&  info_part == swd_id_nrf52833) {
                 target_found = true;
                 target_device = target_device_nrf52833;
-                target_device.rt_family_id   = kNordic_Nrf52_FamilyID;
-                target_device.rt_board_id    = board_id_nrf52833_dk;
-                target_device.rt_uf2_id[0]   = uf2_id_nrf52833;
-                target_device.rt_uf2_id[1]   = 0;
-                target_device.rt_max_swd_khz = 10000;
-                target_device.rt_swd_khz     = 6000;
+                target_device.rt_board_id  = board_id_nrf52833_dk;
+                target_device.rt_uf2_id[0] = uf2_id_nrf52833;
                 target_device.target_part_number = "nRF52833";
                 strcpy(board_vendor, "NordicSemiconductor");
                 strcpy(board_name, "Generic nRF52833");         // e.g. PCA10100
-                target_device.flash_regions[0].end = target_device.flash_regions[0].start + 1024 * info_flash;
-                target_device.ram_regions[0].end   = target_device.ram_regions[0].start + 1024 * info_ram;
             }
             else if (r  &&  info_part == swd_id_nrf52840) {
                 target_found = true;
+            }
+            if (target_found) {
                 target_device.flash_regions[0].end = target_device.flash_regions[0].start + 1024 * info_flash;
+                target_device.ram_regions[0].end   = target_device.ram_regions[0].start + 1024 * info_ram;
+            }
+        }
+    }
+
+    if ( !target_found) {
+        // TODO this is all just theory and not tested!
+        // check for nRF54L05/10/15
+        // DK names taken from https://infocenter.nordicsemi.com/topic/ug_gsg_ses/UG/gsg/chips_and_sds.html
+        target_device = target_device_nrf54l15;
+        target_device.rt_family_id   = kNordic_Nrf54_FamilyID;
+        target_device.rt_board_id    = board_id_nrf54l15_dk;
+        target_device.rt_uf2_id[0]   = uf2_id_nrf54l15;
+        target_device.rt_uf2_id[1]   = 0;
+        target_device.rt_max_swd_khz = 8000;
+        target_device.rt_swd_khz     = 5000;
+        target_device.target_part_number = "nRF54L15";
+        strcpy(board_vendor, "NordicSemiconductor");
+        strcpy(board_name, "Generic nRF54L15");                 // e.g. PCA10156
+
+        search_family();
+        if (target_set_state(ATTACH)) {
+            uint32_t info_part;
+            uint32_t info_ram;
+            uint32_t info_rram;
+
+            // reading flash/RAM size is Nordic special
+            r = swd_read_word(0xffc000 + 0x31c, &info_part)  &&  swd_read_word(0xffc000 + 0x328, &info_ram)  &&  swd_read_word(0xffc000 + 0x32c, &info_rram);
+            if (r  &&  info_part == swd_id_nrf54l05) {
+                target_found = true;
+                target_device = target_device_nrf54l05;
+                target_device.rt_board_id  = board_id_nrf54l05_dk;
+                target_device.rt_uf2_id[0] = uf2_id_nrf54l05;
+                target_device.target_part_number = "nRF54L05";
+                strcpy(board_vendor, "NordicSemiconductor");
+                strcpy(board_name, "Generic nRF54L05");         // e.g. PCA10156
+            }
+            else if (r  &&  info_part == swd_id_nrf54l10) {
+                target_found = true;
+                target_device = target_device_nrf54l10;
+                target_device.rt_board_id  = board_id_nrf54l10_dk;
+                target_device.rt_uf2_id[0] = uf2_id_nrf54l10;
+                target_device.target_part_number = "nRF54L10";
+                strcpy(board_vendor, "NordicSemiconductor");
+                strcpy(board_name, "Generic nRF54L10");         // e.g. PCA10156
+            }
+            else if (r  &&  info_part == swd_id_nrf54l15) {
+                target_found = true;
+            }
+            if (target_found) {
+                target_device.flash_regions[0].end = target_device.flash_regions[0].start + 1024 * info_rram;
                 target_device.ram_regions[0].end   = target_device.ram_regions[0].start + 1024 * info_ram;
             }
         }
