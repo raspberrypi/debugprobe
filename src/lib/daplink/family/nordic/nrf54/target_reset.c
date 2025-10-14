@@ -24,11 +24,12 @@
 #include "target_board.h"
 #include "swd_host.h"
 
+// TODO not sure if this all works
+
 static void swd_set_target_reset_nrf54(uint8_t asserted)
 {
     uint32_t ap_index_return;
 
-    // TODO not sure if this all works
     if (asserted) {
         // swd_init_debug();   leads to a recursion
 

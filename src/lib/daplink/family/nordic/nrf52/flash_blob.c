@@ -57,7 +57,7 @@ static const uint32_t nRF52833_flash_algo[] = {
 */
 static const sector_info_t sectors_info_nrf52[] = {
     {0, 4096},
- };
+};
 
 static const program_target_t flash_nrf52 = {
     .init = 0x20000021,
