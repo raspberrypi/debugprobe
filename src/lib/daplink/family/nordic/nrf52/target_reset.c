@@ -1,5 +1,5 @@
 /**
- * @file    target_reset_nrf52.c
+ * @file    target_reset.c
  * @brief   Target reset for the nrf52
  *
  * DAPLink Interface Firmware
@@ -24,7 +24,7 @@
 #include "target_board.h"
 #include "swd_host.h"
 
-static void swd_set_target_reset_nrf(uint8_t asserted)
+static void swd_set_target_reset_nrf52(uint8_t asserted)
 {
     uint32_t ap_index_return;
 
@@ -64,5 +64,5 @@ const target_family_descriptor_t g_nordic_nrf52 = {
     .family_id = kNordic_Nrf52_FamilyID,
     .default_reset_type = kSoftwareReset,
     .soft_reset_type = SYSRESETREQ,
-    .swd_set_target_reset = swd_set_target_reset_nrf,
+    .swd_set_target_reset = swd_set_target_reset_nrf52,
 };
