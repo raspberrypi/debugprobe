@@ -3,7 +3,7 @@
 # ATTENTION: to get the version number & git hash into the image, cmake-create-* has to be invoked.
 #
 VERSION_MAJOR        := 1
-VERSION_MINOR        := 25
+VERSION_MINOR        := 26
 
 BUILD_DIR            := _build
 PROJECT              := picoprobe
@@ -15,7 +15,7 @@ CMAKE_FLAGS  = -DPICOPROBE_VERSION_MAJOR=$(VERSION_MAJOR)
 CMAKE_FLAGS += -DPICOPROBE_VERSION_MINOR=$(VERSION_MINOR)
 CMAKE_FLAGS += -DPROJECT=$(PROJECT)
 CMAKE_FLAGS += -DGIT_HASH=$(GIT_HASH)
-CMAKE_FLAGS += -DCMAKE_EXPORT_COMPILE_COMMANDS=True
+CMAKE_FLAGS += -DCMAKE_EXPORT_COMPILE_COMMANDS=1
 
 ifeq ($(PICO_BOARD),)
     # pico|pico_w|pico_debug_probe|pico2
@@ -47,40 +47,55 @@ details: all
 	@arm-none-eabi-size -Ax $(BUILD_DIR)/$(PROJECT).elf
 
 
+# cmake parameter: -DPICO_CLIB=llvm_libc;picolibc;newlib
+#       gcc                14.2.1
+#              llvm_libc -  FAIL      (mixture of newlib/llvm_libc)
+#              picolibc  -  FAIL      (FDEV_SETUP_STREAM is unknown, mixture if newlib/picolibc)
+#              newlib    -   OK       (same as -DPICO_CLIB=)
 .PHONY: cmake-create-debug
 cmake-create-debug: clean-build
-	export PICO_COMPILER=pico_arm_gcc;                     \
-	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) $(if $(OPT_SIGROK),-DOPT_SIGROK=$(OPT_SIGROK)) $(CMAKE_FLAGS)
+	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=$(PICO_BOARD) \
+	      $(if $(OPT_SIGROK),-DOPT_SIGROK=$(OPT_SIGROK)) $(CMAKE_FLAGS) \
+	      -DPICO_CLIB=newlib \
+	      $(CMAKE_FLAGS)
 
 
 .PHONY: cmake-create-release
 cmake-create-release: clean-build
-	export PICO_COMPILER=pico_arm_gcc;                     \
-	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) $(CMAKE_FLAGS)
+	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=$(PICO_BOARD) $(CMAKE_FLAGS)
 
 
+# cmake parameter: -DPICO_CLIB=llvm_libc;picolibc;newlib
+#       clang              19.1.5   21.1.1
+#              llvm_libc -  FAIL      OK       (19.1.5: llvm_libc has some incompatibilities)
+#              picolibc  -   OK       OK       (21.1.1: DOES NOT RUN)
+#              newlib    -   OK       OK       (same as -DPICO_CLIB=)
 .PHONY: cmake-create-debug-clang
 cmake-create-debug-clang: clean-build
 	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin; \
-	export PICO_COMPILER=pico_arm_clang;                     \
-	export xxPICO_CLIB=llvm-libc;                                 \
-	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
+	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=$(PICO_BOARD) \
 	         $(if $(OPT_SIGROK),-DOPT_SIGROK=$(OPT_SIGROK)) \
-	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang
+	         -DPICO_CLIB=llvm_libc \
+	         -DPICO_COMPILER=pico_arm_clang \
+	         $(CMAKE_FLAGS)
 
 
 .PHONY: cmake-create-release-clang
 cmake-create-release-clang: clean-build
 	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin; \
-	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
-	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang
+	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=$(PICO_BOARD) \
+	         -DPICO_CLIB= \
+	         -DPICO_COMPILER=pico_arm_clang \
+	         $(CMAKE_FLAGS)
 
 
 .PHONY: cmake-create-minsizerel-clang
 cmake-create-minsizerel-clang: clean-build
 	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin; \
-	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
-	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang
+	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DPICO_BOARD=$(PICO_BOARD) \
+	         -DPICO_CLIB= \
+	         -DPICO_COMPILER=pico_arm_clang \
+	         $(CMAKE_FLAGS) 
 
 
 .PHONY: flash
@@ -96,20 +111,20 @@ create-images:
 	# with SDK2 clang no longer works.  This is a TODO
 	mkdir -p images
 	#
-	$(MAKE) cmake-create-release PICO_BOARD=pico
+	$(MAKE) cmake-create-release-clang PICO_BOARD=pico
 	$(MAKE) all
 	cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-pico-$(GIT_HASH).uf2
 	#
 	# does not compile with clang because of missing __heap_start/end
-	$(MAKE) cmake-create-release PICO_BOARD=pico_w
+	$(MAKE) cmake-create-release-clang PICO_BOARD=pico_w
 	$(MAKE) all
 	cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-picow-$(GIT_HASH).uf2
 	#
-	$(MAKE) cmake-create-release PICO_BOARD=pico_debug_probe
+	$(MAKE) cmake-create-release-clang PICO_BOARD=pico_debug_probe
 	$(MAKE) all
 	cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-picodebugprobe-$(GIT_HASH).uf2
 	#
-	$(MAKE) cmake-create-release PICO_BOARD=pico2
+	$(MAKE) cmake-create-release-clang PICO_BOARD=pico2
 	$(MAKE) all
 	cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-pico2-$(GIT_HASH).uf2
 	#
@@ -159,7 +174,7 @@ debuggEE-reset:
 .PHONY: cmake-create-debuggEE
 cmake-create-debuggEE: clean-build
 	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin; \
-	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
+	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=$(PICO_BOARD) \
 	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang                                                               \
 	         -DOPT_NET=NCM -DOPT_PROBE_DEBUG_OUT=RTT                                                                     \
 	         -DOPT_SIGROK=0 -DOPT_MSC=0 -DOPT_CMSIS_DAPV1=0 -DOPT_CMSIS_DAPV2=0 -DOPT_TARGET_UART=0
@@ -168,6 +183,6 @@ cmake-create-debuggEE: clean-build
 .PHONY: cmake-create-debugger
 cmake-create-debugger: clean-build
 	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin; \
-	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DPICO_BOARD=$(PICO_BOARD) \
+	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=$(PICO_BOARD) \
 	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang                                                                 \
 	         -DOPT_NET= -DOPT_SIGROK=0 -DOPT_MSC=0
