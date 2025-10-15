@@ -69,12 +69,19 @@ endif()
 
 #
 # CMSE must be disabled, otherwise FOR_TARGET_RP2040_CODE does not work
+#
 set(PICO_NO_CMSE true)
 
+#
+# set path for locally installed tools to prevent build of them
+# tools downloaded from https://github.com/raspberrypi/pico-sdk-tools/releases
+#
+set(picotool_DIR $ENV{HOME}/bin/picotool)
+set(pioasm_DIR   $ENV{HOME}/bin/pioasm)
 
-#
+# ------------------------------------
 # below (and above) order is important
-#
+# ------------------------------------
 
 set(PICO_BOARD_HEADER_DIRS  ${CMAKE_CURRENT_LIST_DIR}/include/boards)
 include(pico_sdk_import.cmake)
