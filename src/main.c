@@ -108,6 +108,16 @@
     #define BUILD_TYPE "debug build"
 #endif
 
+#if defined(_PICOLIBC_VERSION)
+    #define LIB_TYPE "picolibc " _PICOLIBC_VERSION
+#elif defined(_NEWLIB_VERSION)
+    #define LIB_TYPE "newlib " _NEWLIB_VERSION
+#elif defined(LLVM_LIBC_STDIO_H)
+    #define LIB_TYPE "llvm_libc"
+#else
+    #define LIB_TYPE "UNKNOWN LIBC"
+#endif
+
 #if PICO_RP2350
     #define PROBE_MCU "rp2350"
 #else
@@ -528,9 +538,9 @@ int main(void)
 #endif
     picoprobe_info("Compiler:\n");
 #if defined(__clang__)
-    picoprobe_info("  clang %d.%d.%d - " BUILD_TYPE "\n", __clang_major__, __clang_minor__, __clang_patchlevel__);
+    picoprobe_info("  clang %d.%d.%d - " LIB_TYPE " - " BUILD_TYPE "\n", __clang_major__, __clang_minor__, __clang_patchlevel__);
 #elif defined(__GNUC__)
-    picoprobe_info("  gcc %d.%d.%d - " BUILD_TYPE "\n", __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__);
+    picoprobe_info("  gcc %d.%d.%d - " LIB_TYPE " - " BUILD_TYPE "\n", __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__);
 #else
     picoprobe_info("  UNKNOWN\n");
 #endif
