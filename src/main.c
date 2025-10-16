@@ -109,9 +109,15 @@
 #endif
 
 #if defined(_PICOLIBC_VERSION)
-    #define LIB_TYPE "picolibc " _PICOLIBC_VERSION
+    // this seems to be defined for older picolibc (e.g. 1.8.6)
+    #define LIB_TYPE "picolibc "  _PICOLIBC_VERSION   "/"  _NEWLIB_VERSION
+#elif defined(__PICOLIBC_VERSION__)
+    // this seems to be defined for newer picolibc (e.g. 1.8.10)
+    #define LIB_TYPE "picolibc " __PICOLIBC_VERSION__ "/" __NEWLIB_VERSION__
 #elif defined(_NEWLIB_VERSION)
     #define LIB_TYPE "newlib " _NEWLIB_VERSION
+#elif defined(__NEWLIB_VERSION__)
+    #define LIB_TYPE "newlib " __NEWLIB_VERSION__
 #elif defined(LLVM_LIBC_STDIO_H)
     #define LIB_TYPE "llvm_libc"
 #else
