@@ -397,17 +397,23 @@ Under Linux one wants to use the following udev rules for convenience.
 # set mode to allow access for regular user
 SUBSYSTEM=="usb", ATTR{idVendor}=="2e8a", ATTR{idProduct}=="000c", MODE:="0666"
 
-# create COM port for target CDC
+# create tty devices for target CDC
 ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-UART",    MODE:="0666", SYMLINK+="ttyPicoTarget"
 ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-DEBUG",   MODE:="0666", SYMLINK+="ttyPicoProbe"
 ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-SIGROK",  MODE:="0666", SYMLINK+="ttyPicoSigRok
 ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ATTRS{interface}=="YAPicoprobe CDC-SysView", MODE:="0666", SYMLINK+="ttyPicoSysView"
 
+# create tty devices for a specific serial number (useful if you have multiple probes connected). Get serial numbers with `lsusb -v`, or `openocd`.
+ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ENV{ID_SERIAL_SHORT}=="E6633861ABCDABCD", ATTRS{interface}=="YAPicoprobe CDC-UART",   MODE:="0666", SYMLINK+="ttyPicoRTT-A"
+ACTION=="add", SUBSYSTEMS=="usb", KERNEL=="ttyACM[0-9]*", ENV{ID_SERIAL_SHORT}=="E6633861A2341234", ATTRS{interface}=="YAPicoprobe CDC-UART",   MODE:="0666", SYMLINK+="ttyPicoRTT-B"
+
 # mount Picoprobe to /media/picoprobe
+# This example has hard-coded username and groupname. Modify them, or use a relevant group.
 ACTION=="add", SUBSYSTEMS=="usb", SUBSYSTEM=="block", ENV{ID_FS_USAGE}=="filesystem", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000c", RUN+="/usr/bin/logger --tag picoprobe-mount Mounting what seems to be a Raspberry Pi Picoprobe", RUN+="/usr/bin/systemd-mount --no-block --collect --fsck=0 -o uid=hardy,gid=hardy,flush $devnode /media/picoprobe"
 ACTION=="remove", SUBSYSTEMS=="usb", SUBSYSTEM=="block", ENV{ID_FS_USAGE}=="filesystem", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000c", RUN+="/usr/bin/logger --tag picoprobe-mount Unmounting what seems to be a Raspberry Pi Picoprobe", RUN+="/usr/bin/systemd-umount /media/picoprobe"
 
 # mount RPi bootloader to /media/pico
+# This example has hard-coded username and groupname. Modify them, or use a relevant group.
 ACTION=="add", SUBSYSTEMS=="usb", SUBSYSTEM=="block", ENV{ID_FS_USAGE}=="filesystem", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="0003", RUN+="/usr/bin/logger --tag rpi-pico-mount Mounting what seems to be a Raspberry Pi Pico", RUN+="/usr/bin/systemd-mount --no-block --collect --fsck=0 -o uid=hardy,gid=hardy,flush $devnode /media/pico"
 ACTION=="remove", SUBSYSTEMS=="usb", SUBSYSTEM=="block", ENV{ID_FS_USAGE}=="filesystem", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="0003", RUN+="/usr/bin/logger --tag rpi-pico-mount Unmounting what seems to be a Raspberry Pi Pico", RUN+="/usr/bin/systemd-umount /media/pico"
 ----
