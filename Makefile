@@ -3,7 +3,7 @@
 # ATTENTION: to get the version number & git hash into the image, cmake-create-* has to be invoked.
 #
 VERSION_MAJOR        := 1
-VERSION_MINOR        := 26
+VERSION_MINOR        := 25
 
 BUILD_DIR            := _build
 PROJECT              := picoprobe
@@ -48,15 +48,20 @@ details: all
 
 
 # cmake parameter: -DPICO_CLIB=llvm_libc;picolibc;newlib
-#       gcc                14.2.1
-#              llvm_libc -  FAIL      (mixture of newlib/llvm_libc)
-#              picolibc  -  FAIL      (FDEV_SETUP_STREAM is unknown, mixture if newlib/picolibc)
-#              newlib    -   OK       (same as -DPICO_CLIB=)
+#     gcc                 14.2.1
+#         develop-8fcd
+#             llvm_libc    FAIL      (mixture of newlib/llvm_libc)
+#             picolibc     FAIL      (FDEV_SETUP_STREAM is unknown, mixture if newlib/picolibc)
+#             newlib        OK       (same as -DPICO_CLIB=)
+#         new
+#             llvm_libc    FAIL      (mixture of newlib/llvm_libc)
+#             picolibc     FAIL      (FDEV_SETUP_STREAM is unknown, mixture if newlib/picolibc)
+#             newlib        OK       (same as -DPICO_CLIB=)
 .PHONY: cmake-create-debug
 cmake-create-debug: clean-build
-	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=$(PICO_BOARD) \
-	      $(if $(OPT_SIGROK),-DOPT_SIGROK=$(OPT_SIGROK)) $(CMAKE_FLAGS) \
-	      -DPICO_CLIB=newlib \
+	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=$(PICO_BOARD)                                 \
+	      $(if $(OPT_SIGROK),-DOPT_SIGROK=$(OPT_SIGROK)) $(CMAKE_FLAGS)                                                \
+	      -DPICO_CLIB=picolibc                                                                                           \
 	      $(CMAKE_FLAGS)
 
 
@@ -66,35 +71,40 @@ cmake-create-release: clean-build
 
 
 # cmake parameter: -DPICO_CLIB=llvm_libc;picolibc;newlib
-#       clang              19.1.5   21.1.1
+#     clang                19.1.5   21.1.1
+#         develop-8fcd
+#              llvm_libc    FAIL     FAIL      (19.1.5: wrong header, 21.1.1: unknown _BEGIN_STD_C)
+#              picolibc      OK      FAIL      (21.1.1: cmake fails, same as -DPICO_CLIB=)
+#              newlib        OK      FAIL      (19.1.5: program claims picolibc, 21.1.1: cmake fails)
+#         new
 #              llvm_libc -  FAIL      OK       (19.1.5: llvm_libc has some incompatibilities)
-#              picolibc  -   OK       OK       (21.1.1: DOES NOT RUN)
+#              picolibc  -   OK       OK
 #              newlib    -   OK       OK       (same as -DPICO_CLIB=)
 .PHONY: cmake-create-debug-clang
 cmake-create-debug-clang: clean-build
-	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin; \
-	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=$(PICO_BOARD) \
-	         $(if $(OPT_SIGROK),-DOPT_SIGROK=$(OPT_SIGROK)) \
-	         -DPICO_CLIB=llvm_libc \
-	         -DPICO_COMPILER=pico_arm_clang \
+	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin;                                                           \
+	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=$(PICO_BOARD)                                 \
+	         $(if $(OPT_SIGROK),-DOPT_SIGROK=$(OPT_SIGROK))                                                            \
+	         -DPICO_CLIB=newlib                                                                                        \
+	         -DPICO_COMPILER=pico_arm_clang                                                                            \
 	         $(CMAKE_FLAGS)
 
 
 .PHONY: cmake-create-release-clang
 cmake-create-release-clang: clean-build
-	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin; \
-	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=$(PICO_BOARD) \
-	         -DPICO_CLIB= \
-	         -DPICO_COMPILER=pico_arm_clang \
+	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin;                                                           \
+	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=$(PICO_BOARD)                               \
+	         -DPICO_CLIB=                                                                                              \
+	         -DPICO_COMPILER=pico_arm_clang                                                                            \
 	         $(CMAKE_FLAGS)
 
 
 .PHONY: cmake-create-minsizerel-clang
 cmake-create-minsizerel-clang: clean-build
-	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin; \
-	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DPICO_BOARD=$(PICO_BOARD) \
-	         -DPICO_CLIB= \
-	         -DPICO_COMPILER=pico_arm_clang \
+	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin;                                                           \
+	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DPICO_BOARD=$(PICO_BOARD)                            \
+	         -DPICO_CLIB=                                                                                              \
+	         -DPICO_COMPILER=pico_arm_clang                                                                            \
 	         $(CMAKE_FLAGS) 
 
 
@@ -153,36 +163,44 @@ show-options:
 # - debugger probe is flashed with the standard procedure
 # - most work is done in the debuggEE
 # 
-DEBUGGER_SERNO ?= E6614C775B333D35
-OPENOCD := /mnt/d/u/pico/arduino-pico/system/openocd/bin/openocd   #/home/hardy/.platformio/packages/tool-openocd-rp2040-earlephilhower/bin/openocd
+DEBUGGER_SERNO ?= 2739E00F30FE67E7
+OPENOCD_R := /home/hardy/.pico-sdk/openocd/0.12.0+dev
+OPENOCD   := $(OPENOCD_R)/openocd
+OPENOCD_S := $(OPENOCD_R)/scripts
+DEBUGGEE_CLIB := picolibc
+#DEBUGGEE_CLIB := newlib
+#DEBUGGEE_CLIB := llvm_libc
 
 .PHONY: debuggEE-flash
 debuggEE-flash:
-	ninja -C $(BUILD_DIR) -v all  &&  $(OPENOCD) -f /mnt/d/u/pico/arduino-pico/lib/picoprobe_cmsis_dap.tcl -c "adapter speed 12000; adapter serial $(DEBUGGER_SERNO)" \
-	        -c "program {$(BUILD_DIR)/$(PROJECT).hex}  verify reset; shutdown;"
-	#$(MAKE) debuggEE-reset
-	pyocd reset -t rp2040_core0 -f 10M --probe $(DEBUGGER_SERNO)
+	$(MAKE) all
+	$(OPENOCD) -s $(OPENOCD_S) -f interface/cmsis-dap.cfg -f target/rp2350.cfg                                         \
+	           -c "adapter speed 10000; adapter serial $(DEBUGGER_SERNO)"                                              \
+	           -c "program {$(BUILD_DIR)/$(PROJECT).hex}  verify reset; exit;"
+	# attention: pyocd hijacks the previous connection (or insert a delay of 1s)
+	sleep 1s
+	pyocd reset -f 1M --probe $(DEBUGGER_SERNO)
 	@echo "ok."
 
 
 .PHONY: debuggEE-reset
 debuggEE-reset:
-	pyocd reset -t rp2040_core1 -f 10M --probe $(DEBUGGER_SERNO)
-	pyocd reset -t rp2040_core0 -f 10M --probe $(DEBUGGER_SERNO)
+	pyocd reset -f 1M --probe $(DEBUGGER_SERNO)
 
 
 .PHONY: cmake-create-debuggEE
 cmake-create-debuggEE: clean-build
-	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin; \
-	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=$(PICO_BOARD) \
-	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang                                                               \
-	         -DOPT_NET=NCM -DOPT_PROBE_DEBUG_OUT=RTT                                                                     \
+	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin;                                                           \
+	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=$(PICO_BOARD)                                 \
+	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang                                                             \
+	         -DPICO_CLIB=$(DEBUGGEE_CLIB)                                                                              \
+	         -DOPT_NET=NCM -DOPT_PROBE_DEBUG_OUT=RTT                                                                   \
 	         -DOPT_SIGROK=0 -DOPT_MSC=0 -DOPT_CMSIS_DAPV1=0 -DOPT_CMSIS_DAPV2=0 -DOPT_TARGET_UART=0
 
 
 .PHONY: cmake-create-debugger
 cmake-create-debugger: clean-build
-	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin; \
-	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=$(PICO_BOARD) \
-	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang                                                                 \
+	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin;                                                           \
+	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=$(PICO_BOARD)                               \
+	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang                                                             \
 	         -DOPT_NET= -DOPT_SIGROK=0 -DOPT_MSC=0
