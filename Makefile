@@ -17,6 +17,9 @@ CMAKE_FLAGS += -DPROJECT=$(PROJECT)
 CMAKE_FLAGS += -DGIT_HASH=$(GIT_HASH)
 CMAKE_FLAGS += -DCMAKE_EXPORT_COMPILE_COMMANDS=1
 
+# speeds up a lot if often switching configurations, see benchmarking of create-images below
+#CMAKE_FLAGS += -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
 ifeq ($(PICO_BOARD),)
     # pico|pico_w|pico_debug_probe|pico2
     PICO_BOARD := pico2
@@ -61,13 +64,16 @@ details: all
 cmake-create-debug: clean-build
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=$(PICO_BOARD)                                 \
 	      $(if $(OPT_SIGROK),-DOPT_SIGROK=$(OPT_SIGROK)) $(CMAKE_FLAGS)                                                \
-	      -DPICO_CLIB=picolibc                                                                                           \
+	      -DPICO_CLIB=newlib                                                                                           \
 	      $(CMAKE_FLAGS)
 
 
 .PHONY: cmake-create-release
 cmake-create-release: clean-build
-	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=$(PICO_BOARD) $(CMAKE_FLAGS)
+	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=$(PICO_BOARD)
+	      $(if $(OPT_SIGROK),-DOPT_SIGROK=$(OPT_SIGROK)) $(CMAKE_FLAGS)                                                \
+	      -DPICO_CLIB=newlib                                                                                           \
+	      $(CMAKE_FLAGS)
 
 
 # cmake parameter: -DPICO_CLIB=llvm_libc;picolibc;newlib
@@ -94,7 +100,8 @@ cmake-create-debug-clang: clean-build
 cmake-create-release-clang: clean-build
 	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin;                                                           \
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=$(PICO_BOARD)                               \
-	         -DPICO_CLIB=                                                                                              \
+	         $(if $(OPT_SIGROK),-DOPT_SIGROK=$(OPT_SIGROK))                                                            \
+	         -DPICO_CLIB=newlib                                                                                        \
 	         -DPICO_COMPILER=pico_arm_clang                                                                            \
 	         $(CMAKE_FLAGS)
 
@@ -103,7 +110,8 @@ cmake-create-release-clang: clean-build
 cmake-create-minsizerel-clang: clean-build
 	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin;                                                           \
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DPICO_BOARD=$(PICO_BOARD)                            \
-	         -DPICO_CLIB=                                                                                              \
+	         $(if $(OPT_SIGROK),-DOPT_SIGROK=$(OPT_SIGROK))                                                            \
+	         -DPICO_CLIB=newlib                                                                                        \
 	         -DPICO_COMPILER=pico_arm_clang                                                                            \
 	         $(CMAKE_FLAGS) 
 
@@ -116,6 +124,13 @@ flash: all
 	@echo "ok."
 
 
+#
+# benchmarking                      first  second
+# clang 21.1.1 / newlib / ccache :   4:50    1:10     (NTFS)
+# clang 21.1.1 / newlib          :   2:42             (NTFS)
+# gcc 15.2.0   / newlib / ccache :  12:06    0:53     (NTFS)
+# gcc 15.2.0   / newlib          :   6:45             (NTFS)
+#
 .PHONY: create-images
 create-images:
 	# with SDK2 clang no longer works.  This is a TODO
@@ -139,13 +154,14 @@ create-images:
 	cp $(BUILD_DIR)/$(PROJECT).uf2 images/yapicoprobe-$(shell printf "%02d%02d" $(VERSION_MAJOR) $(VERSION_MINOR))-pico2-$(GIT_HASH).uf2
 	#
 	# put development environment in a clean state
-	$(MAKE) cmake-create-debug
+	$(MAKE) cmake-create-debug-clang
 
 
 .PHONY: check-clang
 check-clang:
-	# clang-tidy has its limit if another target is used...
-	@cd $(BUILD_DIR) && run-clang-tidy -checks='-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling'
+	find src -type f -iname "*.c*" | xargs run-clang-tidy -p _build -header-filter=.*   \
+	-checks='-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,-clang-analyzer-security.insecureAPI.strcpy'
+
 
 .PHONY: show-options
 show-options:
