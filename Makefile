@@ -68,9 +68,10 @@ cmake-create-debug: clean-build
 	      $(CMAKE_FLAGS)
 
 
+
 .PHONY: cmake-create-release
 cmake-create-release: clean-build
-	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=$(PICO_BOARD)
+	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=$(PICO_BOARD)                               \
 	      $(if $(OPT_SIGROK),-DOPT_SIGROK=$(OPT_SIGROK)) $(CMAKE_FLAGS)                                                \
 	      -DPICO_CLIB=newlib                                                                                           \
 	      $(CMAKE_FLAGS)
@@ -91,7 +92,7 @@ cmake-create-debug-clang: clean-build
 	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin;                                                           \
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=$(PICO_BOARD)                                 \
 	         $(if $(OPT_SIGROK),-DOPT_SIGROK=$(OPT_SIGROK))                                                            \
-	         -DPICO_CLIB=newlib                                                                                        \
+ 	         -DPICO_CLIB=newlib                                                                                        \
 	         -DPICO_COMPILER=pico_arm_clang                                                                            \
 	         $(CMAKE_FLAGS)
 
@@ -130,6 +131,9 @@ flash: all
 # clang 21.1.1 / newlib          :   2:42             (NTFS)
 # gcc 15.2.0   / newlib / ccache :  12:06    0:53     (NTFS)
 # gcc 15.2.0   / newlib          :   6:45             (NTFS)
+#
+# clang 21.1.1 / newlib          :   0:26             (ext4)  !!!!
+# gcc 15.2.0   / newlib          :   0:27             (ext4)  !!!!
 #
 .PHONY: create-images
 create-images:
@@ -218,5 +222,7 @@ cmake-create-debuggEE: clean-build
 cmake-create-debugger: clean-build
 	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin;                                                           \
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=$(PICO_BOARD)                               \
-	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang                                                             \
+	         $(CMAKE_FLAGS)                                                                                            \
+	         -DPICO_COMPILER=pico_arm_clang                                                                            \
+	         -DPICO_CLIB=newlib                                                                                        \
 	         -DOPT_NET= -DOPT_SIGROK=0 -DOPT_MSC=0
