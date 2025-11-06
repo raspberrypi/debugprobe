@@ -186,8 +186,16 @@ void cdc_thread(void *ptr)
     keep_alive = cdc_task();
     if (!keep_alive) {
       delayed = xTaskDelayUntil(&last_wake, interval);
-        if (delayed == pdFALSE)
-          last_wake = xTaskGetTickCount();
+      if (delayed == pdFALSE)
+        last_wake = xTaskGetTickCount();
+      if (autobaud_running) {
+        // Receive baud information from autobaud thread
+        if (xQueueReceive(baudQueue, &baud_info, 0) == pdTRUE) {
+          cdc_uart_set_baudrate(baud_info.baud);
+          // Assume 8N1
+          uart_set_format(PROBE_UART_INTERFACE, 8, 1, UART_PARITY_NONE);
+        }
+      }
     }
   }
 }
