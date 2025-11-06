@@ -22,6 +22,7 @@ add_executable(debugprobe
         src/get_serial.c
         src/sw_dp_pio.c
         src/tusb_edpt_handler.c
+        src/autobaud.c
 )
 
 target_sources(debugprobe PRIVATE
@@ -42,6 +43,7 @@ target_compile_options(debugprobe PRIVATE -Wall)
 
 pico_generate_pio_header(debugprobe ${CMAKE_CURRENT_LIST_DIR}/src/probe.pio)
 pico_generate_pio_header(debugprobe ${CMAKE_CURRENT_LIST_DIR}/src/probe_oen.pio)
+pico_generate_pio_header(debugprobe ${CMAKE_CURRENT_LIST_DIR}/src/autobaud.pio)
 
 target_include_directories(debugprobe PRIVATE src)
 
@@ -75,6 +77,9 @@ target_link_libraries(debugprobe PRIVATE
         tinyusb_device
         tinyusb_board
         hardware_pio
+        hardware_dma
+        hardware_irq
+        hardware_clocks
         FreeRTOS-Kernel
         FreeRTOS-Kernel-Heap1
 )
