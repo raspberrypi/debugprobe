@@ -41,6 +41,7 @@
 #include "probe_config.h"
 #include "probe.h"
 #include "cdc_uart.h"
+#include "autobaud.h"
 #include "get_serial.h"
 #include "tusb_edpt_handler.h"
 #include "DAP.h"
@@ -57,6 +58,8 @@ static uint8_t RxDataBuffer[CFG_TUD_HID_EP_BUFSIZE];
 #define UART_TASK_PRIO (tskIDLE_PRIORITY + 3)
 #define TUD_TASK_PRIO  (tskIDLE_PRIORITY + 2)
 #define DAP_TASK_PRIO  (tskIDLE_PRIORITY + 1)
+
+#define AUTOBAUD_TASK_PRIO  (tskIDLE_PRIORITY + 1)
 
 TaskHandle_t dap_taskhandle, tud_taskhandle, mon_taskhandle;
 
@@ -230,6 +233,9 @@ void tud_suspend_cb(bool remote_wakeup_en)
   if (was_configured) {
 	  vTaskSuspend(uart_taskhandle);
 	  vTaskSuspend(dap_taskhandle);
+    if (autobaud_running)
+      autobaud_wait_stop();
+    vTaskSuspend(autobaud_taskhandle);
   }
   /* slow down clk_sys for power saving ? */
 }
@@ -240,6 +246,7 @@ void tud_resume_cb(void)
   if (was_configured) {
 	  vTaskResume(uart_taskhandle);
 	  vTaskResume(dap_taskhandle);
+    vTaskResume(autobaud_taskhandle);
   }
 }
 
@@ -250,6 +257,10 @@ void tud_unmount_cb(void)
   vTaskSuspend(dap_taskhandle);
   vTaskDelete(uart_taskhandle);
   vTaskDelete(dap_taskhandle);
+  if (autobaud_running)
+    autobaud_wait_stop();
+  vTaskSuspend(autobaud_taskhandle);
+  vTaskDelete(autobaud_taskhandle);
   was_configured = 0;
 }
 
@@ -261,6 +272,9 @@ void tud_mount_cb(void)
     xTaskCreate(cdc_thread, "UART", configMINIMAL_STACK_SIZE, NULL, UART_TASK_PRIO, &uart_taskhandle);
     /* Lowest priority thread is debug - need to shuffle buffers before we can toggle swd... */
     xTaskCreate(dap_thread, "DAP", configMINIMAL_STACK_SIZE, NULL, DAP_TASK_PRIO, &dap_taskhandle);
+    /* Autobaud detection using PIO as a frequency counter */
+    xTaskCreate(autobaud_thread, "ABR", configMINIMAL_STACK_SIZE, NULL, AUTOBAUD_TASK_PRIO, &autobaud_taskhandle);
+    vTaskCoreAffinitySet(autobaud_taskhandle, (1 << 1));
     was_configured = 1;
   }
 }
