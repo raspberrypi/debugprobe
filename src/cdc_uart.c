@@ -27,6 +27,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "tusb.h"
+#include "autobaud.h"
 
 #include "probe_config.h"
 
@@ -49,6 +50,8 @@ static volatile uint tx_led_debounce;
 #ifdef PROBE_UART_RX_LED
 static uint rx_led_debounce;
 #endif
+
+static BaudInfo_t baud_info;
 
 void cdc_uart_init(void) {
     gpio_set_function(PROBE_UART_TX, GPIO_FUNC_UART);
@@ -176,6 +179,22 @@ bool cdc_task(void)
     return keep_alive;
 }
 
+void cdc_uart_set_baudrate(uint32_t baudrate) {
+  /* Set the tick thread interval to the amount of time it takes to
+   * fill up half a FIFO. Millis is too coarse for integer divide.
+   */
+  uint32_t micros = (1000 * 1000 * 16 * 10) / MAX(baudrate, 1);
+  interval = MAX(1, micros / ((1000 * 1000) / configTICK_RATE_HZ));
+  debounce_ticks = MAX(1, configTICK_RATE_HZ / (interval * DEBOUNCE_MS));
+  probe_info("New baud rate %ld micros %ld interval %lu\n",
+              baudrate, micros, interval);
+  uart_deinit(PROBE_UART_INTERFACE);
+  tud_cdc_write_clear();
+  tud_cdc_read_flush();
+
+  uart_init(PROBE_UART_INTERFACE, baudrate);
+}
+
 void cdc_thread(void *ptr)
 {
   BaseType_t delayed;
@@ -202,23 +221,22 @@ void cdc_thread(void *ptr)
 
 void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding)
 {
+  if (line_coding->bit_rate == MAGIC_BAUD) {
+    if (!autobaud_running)
+      autobaud_start();
+    return;
+  }
+  else if (autobaud_running) {
+    autobaud_wait_stop();
+  }
   uart_parity_t parity;
   uint data_bits, stop_bits;
-  /* Set the tick thread interval to the amount of time it takes to
-   * fill up half a FIFO. Millis is too coarse for integer divide.
-   */
-  uint32_t micros = (1000 * 1000 * 16 * 10) / MAX(line_coding->bit_rate, 1);
+
   /* Modifying state, so park the thread before changing it. */
   if (tud_cdc_connected())
     vTaskSuspend(uart_taskhandle);
-  interval = MAX(1, micros / ((1000 * 1000) / configTICK_RATE_HZ));
-  debounce_ticks = MAX(1, configTICK_RATE_HZ / (interval * DEBOUNCE_MS));
-  probe_info("New baud rate %ld micros %ld interval %lu\n",
-                  line_coding->bit_rate, micros, interval);
-  uart_deinit(PROBE_UART_INTERFACE);
-  tud_cdc_write_clear();
-  tud_cdc_read_flush();
-  uart_init(PROBE_UART_INTERFACE, line_coding->bit_rate);
+
+  cdc_uart_set_baudrate(line_coding->bit_rate);
 
   switch (line_coding->parity) {
   case CDC_LINE_CODING_PARITY_ODD:
