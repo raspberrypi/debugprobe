@@ -63,6 +63,17 @@ cd build-pico2
 cmake -DDEBUG_ON_PICO=1 -DPICO_BOARD=pico2 -DPICO_PLATFORM=rp2350 ../
 ```
 
+# AutoBaud
+
+Mode which automatically detects and sets the UART baud rate as data arrives.
+
+To enable AutoBaud, configure the USB CDC port to the following custom baud rate:
+```
+9728 (0x2600)
+```
+> **Note:** Some Linux serial tools cannot set custom baud values. PuTTY on Windows and any terminal that supports arbitrary baud rates works.
+
+Changing the baud rate to any other value disables AutoBaud.
+
 # TODO
-- AutoBaud selection, as PIO is a capable frequency counter
 - Possibly include RTT support
