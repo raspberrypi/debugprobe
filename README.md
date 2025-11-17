@@ -75,5 +75,3 @@ To enable AutoBaud, configure the USB CDC port to the following custom baud rate
 
 Changing the baud rate to any other value disables AutoBaud.
 
-# TODO
-- Possibly include RTT support
