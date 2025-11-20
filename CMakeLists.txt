@@ -47,6 +47,18 @@ pico_generate_pio_header(debugprobe ${CMAKE_CURRENT_LIST_DIR}/src/autobaud.pio)
 
 target_include_directories(debugprobe PRIVATE src)
 
+# add version
+add_custom_target(version
+        ${CMAKE_SOURCE_DIR}/get-version.sh
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+target_include_directories(debugprobe PRIVATE
+        ${CMAKE_BINARY_DIR}/generated
+        )
+
+add_dependencies(debugprobe version)
+
 target_compile_definitions (debugprobe PRIVATE
 	PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
 )
