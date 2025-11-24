@@ -61,6 +61,7 @@ add_dependencies(debugprobe version)
 
 target_compile_definitions (debugprobe PRIVATE
 	PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
+    PICO_STDIO_USB_ENABLE_RESET_VIA_VENDOR_INTERFACE=1
 )
 
 option (DEBUG_ON_PICO "Compile firmware for the Pico instead of Debug Probe" OFF)
@@ -85,6 +86,7 @@ endif ()
 target_link_libraries(debugprobe PRIVATE
         pico_multicore
         pico_stdlib
+        pico_usb_reset_interface
         pico_unique_id
         tinyusb_device
         tinyusb_board
