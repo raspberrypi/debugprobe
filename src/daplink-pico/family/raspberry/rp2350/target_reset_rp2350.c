@@ -50,10 +50,13 @@
 #define DSCSR_CDSKEY               BIT(17)
 #define DSCSR_CDS                  BIT(16)
 
-#define ACCESSCTRL_LOCK_OFFSET     0x40060000u
-#define ACCESSCTRL_LOCK_DEBUG_BITS 0x00000008u
-#define ACCESSCTRL_CFGRESET_OFFSET 0x40060008u
-#define ACCESSCTRL_WRITE_PASSWORD  0xacce0000u
+#define ENABLE_RP2350_ACCESSCTRL   0
+#if ENABLE_RP2350_ACCESSCTRL
+    #define ACCESSCTRL_LOCK_OFFSET     0x40060000u
+    #define ACCESSCTRL_LOCK_DEBUG_BITS 0x00000008u
+    #define ACCESSCTRL_CFGRESET_OFFSET 0x40060008u
+    #define ACCESSCTRL_WRITE_PASSWORD  0xacce0000u
+#endif
 
 extern target_family_descriptor_t g_raspberry_rp2350_family;
 static const uint32_t soft_reset = SYSRESETREQ;
@@ -224,6 +227,7 @@ static bool dp_disable_breakpoints()
 }   // dp_disable_breakpoints
 
 
+#if ENABLE_RP2350_ACCESSCTRL
 static bool rp2350_init_accessctrl(void)
 /**
  * Attempt to reset ACCESSCTRL, in case Secure access to SRAM has been
@@ -257,8 +261,10 @@ static bool rp2350_init_accessctrl(void)
     }
     return true;
 }   // rp2350_init_accessctrl
+#endif
 
 
+#if ENABLE_RP2350_ACCESSCTRL
 static void rp2350_init_arm_core0(void)
 /**
  * Flash algorithms (and the RCP init stub called by this function) must
@@ -279,9 +285,10 @@ static void rp2350_init_arm_core0(void)
         picoprobe_info("Setting Current Domain Secure in DSCSR\n");
         (void)swd_write_word(DCB_DSCSR, (dscsr & ~DSCSR_CDSKEY) | DSCSR_CDS);
         (void)swd_read_word(DCB_DSCSR, &dscsr);
-        picoprobe_info("DSCSR*: %08lx\n", dscsr);
+        picoprobe_info("DSCSR*: %08x\n", dscsr);
     }
-}
+}   // rp2350_init_arm_core0
+#endif
 
 
 /*************************************************************************************************/
@@ -322,7 +329,7 @@ static bool rp2350_swd_init_debug(uint8_t core)
             do_abort = false;
         }
 
-#if 0
+#if ENABLE_RP2350_ACCESSCTRL
 // required or not!?
         if (core == 0) {
             CHECK_ABORT( rp2350_init_accessctrl() );
