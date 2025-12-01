@@ -46,6 +46,7 @@
 #include "tusb_edpt_handler.h"
 #include "DAP.h"
 #include "hardware/structs/usb.h"
+#include "remote_gpio.h"
 
 // UART0 for debugprobe debug
 // UART1 for debugprobe to target device
@@ -194,8 +195,9 @@ extern uint8_t const desc_ms_os_20[];
 
 bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
 {
-  // nothing to with DATA & ACK stage
-  if (stage != CONTROL_STAGE_SETUP) return true;
+  // nothing to with Status stage
+  if (stage == CONTROL_STAGE_ACK)
+    return true;
 
   switch (request->bmRequestType_bit.type)
   {
@@ -203,6 +205,8 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
       switch (request->bRequest)
       {
         case 1:
+          if (stage != CONTROL_STAGE_SETUP)
+            return true;
           if ( request->wIndex == 7 )
           {
             // Get Microsoft OS 2.0 compatible descriptor
@@ -214,7 +218,8 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
           {
             return false;
           }
-
+        case CTRL_REMOTE_GPIO_REQ:
+            return gpio_remote_req(rhport, stage, request);
         default: break;
       }
     break;

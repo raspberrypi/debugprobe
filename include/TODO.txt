@@ -1,0 +1,8 @@
+TODO - add CMake package to build probe_gpio_api applet
+
+In the meanwhile, this oneliner builds on the host platform:
+
+gcc  -static -Os  probe_gpio_api.c -lusb-1.0 -ludev
+
+requires libusb-1.0-dev and libudev-dev
+

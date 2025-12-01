@@ -23,6 +23,7 @@ add_executable(debugprobe
         src/sw_dp_pio.c
         src/tusb_edpt_handler.c
         src/autobaud.c
+        src/remote_gpio.c
 )
 
 target_sources(debugprobe PRIVATE
