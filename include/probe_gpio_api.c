@@ -1,6 +1,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <errno.h>
 #include <string.h>
 #include <stdbool.h>
@@ -73,7 +74,7 @@ int main(int argc, char **argv)
 	int set_fn = -1;
 	unsigned char dummy[4];
 	unsigned char data[4] = {};
-	int glevel, gfunction, gdir, gpull;
+	uint32_t glevel, gfunction, gdir, gpull;
 	
 	if (argc < 2 || argc > 4) {
 		fprintf(stderr, "Need an operation to do.\n");
@@ -140,7 +141,7 @@ int main(int argc, char **argv)
 	rc = libusb_init(&ctx);
 	if (rc < 0) {
 		fprintf(stderr, "Error initializing libusb: %s\n", libusb_error_name(rc));
-		exit(1);
+		exit(rc);
 	}
 
 	/* Set debugging output to max level.
@@ -153,7 +154,7 @@ int main(int argc, char **argv)
 	rc = libusb_get_device_list(ctx, &dlist);
 	if (rc < 0) {
 		fprintf(stderr, "Error retrieving device list: %s\n", libusb_error_name(i));
-		exit(i);
+		exit(rc);
 	}
 	
 
@@ -163,12 +164,12 @@ int main(int argc, char **argv)
 		libusb_device *device = dlist[i];
 		libusb_get_device_descriptor(device, &desc);
 		if (desc.idVendor == VENDOR_ID && desc.idProduct == PRODUCT_ID) {
-			if(desc.bcdDevice == BCDD_VER) {
+			//if(desc.bcdDevice == BCDD_VER) {
 				//printf(stderr, "Found a Debug Probe version %04x - using it\n", desc.bcdDevice);
 				break;
-			} else {
+		//	} else {
 				//fprintf(stderr, "Found a Debug Probe version %04x - incompatible\n", desc.bcdDevice);
-			}
+		//	}
 		}
 	}
 	if (i == rc) {
@@ -177,11 +178,12 @@ int main(int argc, char **argv)
 	}
 
 	rc = libusb_open(dlist[i], &devh);
-	libusb_free_device_list(dlist, 1);
 	if (rc < 0) {
-		fprintf(stderr, "Error: can't open device: %s\n", libusb_error_name(rc));
+		fprintf(stderr, "Error: can't open device at address %u: %s\n", libusb_get_device_address(dlist[i]), libusb_error_name(rc));
 		goto out;
 	}
+
+	libusb_free_device_list(dlist, 1);
 
 	/* Does the it do remote gpio? */
 	rc = libusb_control_transfer(devh, BMREQUEST_GPIO_GET, CTRL_REMOTE_GPIO_REQ, GPIO_GET_FUNCTION,
@@ -190,49 +192,53 @@ int main(int argc, char **argv)
 		fprintf(stderr, "Error: probe doesn't understand REMOTE_GPIO access - wrong fw?\n");
 		goto out;
 	}
+	rc = 0;
 
 	if (op == BMREQUEST_GPIO_GET) {
 		if (gpio == GPIO_ALL) {
 			for (i = 0; i < NR_GPIOS; i++) {
-				libusb_control_transfer(devh, op, CTRL_REMOTE_GPIO_REQ, GPIO_GET,
-								i, (unsigned char *)&glevel, sizeof(glevel), 3000);
-				libusb_control_transfer(devh, op, CTRL_REMOTE_GPIO_REQ, GPIO_GET_FUNCTION,
-								i, (unsigned char *)&gfunction, sizeof(gfunction), 3000);
-				libusb_control_transfer(devh, op, CTRL_REMOTE_GPIO_REQ, GPIO_GET_DIR,
-								i, (unsigned char *)&gdir, sizeof(gdir), 3000);
-				libusb_control_transfer(devh, op, CTRL_REMOTE_GPIO_REQ, GPIO_GET_PULLS,
-								i, (unsigned char *)&gpull, sizeof(gpull), 3000);
+				rc = libusb_control_transfer(devh, op, CTRL_REMOTE_GPIO_REQ, GPIO_GET,
+								i, (unsigned char *)&glevel, sizeof(glevel), 3000); if (rc < 0) goto out;
+				rc = libusb_control_transfer(devh, op, CTRL_REMOTE_GPIO_REQ, GPIO_GET_FUNCTION,
+								i, (unsigned char *)&gfunction, sizeof(gfunction), 3000); if (rc < 0) goto out;
+				rc = libusb_control_transfer(devh, op, CTRL_REMOTE_GPIO_REQ, GPIO_GET_DIR,
+								i, (unsigned char *)&gdir, sizeof(gdir), 3000); if (rc < 0) goto out;
+				rc = libusb_control_transfer(devh, op, CTRL_REMOTE_GPIO_REQ, GPIO_GET_PULLS,
+								i, (unsigned char *)&gpull, sizeof(gpull), 3000); if (rc < 0) goto out;
 				print_gpio_state(i, glevel, gfunction, gdir, gpull);
 			}
 		} else {
-			libusb_control_transfer(devh, op, CTRL_REMOTE_GPIO_REQ, GPIO_GET,
-						gpio, (unsigned char *)&glevel, sizeof(glevel), 3000);
-			libusb_control_transfer(devh, op, CTRL_REMOTE_GPIO_REQ, GPIO_GET_FUNCTION,
-						gpio, (unsigned char *)&gfunction, sizeof(gfunction), 3000);
-			libusb_control_transfer(devh, op, CTRL_REMOTE_GPIO_REQ, GPIO_GET_DIR,
-						gpio, (unsigned char *)&gdir, sizeof(gdir), 3000);
-			libusb_control_transfer(devh, op, CTRL_REMOTE_GPIO_REQ, GPIO_GET_PULLS,
-						gpio, (unsigned char *)&gpull, sizeof(gpull), 3000);
+			rc = libusb_control_transfer(devh, op, CTRL_REMOTE_GPIO_REQ, GPIO_GET,
+						gpio, (unsigned char *)&glevel, sizeof(glevel), 3000); if (rc < 0) goto out;
+			rc = libusb_control_transfer(devh, op, CTRL_REMOTE_GPIO_REQ, GPIO_GET_FUNCTION,
+						gpio, (unsigned char *)&gfunction, sizeof(gfunction), 3000); if (rc < 0) goto out;
+			rc = libusb_control_transfer(devh, op, CTRL_REMOTE_GPIO_REQ, GPIO_GET_DIR,
+						gpio, (unsigned char *)&gdir, sizeof(gdir), 3000); if (rc < 0) goto out;
+			rc = libusb_control_transfer(devh, op, CTRL_REMOTE_GPIO_REQ, GPIO_GET_PULLS,
+						gpio, (unsigned char *)&gpull, sizeof(gpull), 3000); if (rc < 0) goto out;
 			print_gpio_state(gpio, glevel, gfunction, gdir, gpull);
 		}
 	} else if (op == BMREQUEST_GPIO_SET) {
 		// Need to init a gpio before SIO can do anything useful to it. This clobbers output enable, so avoid glitches
-		libusb_control_transfer(devh, BMREQUEST_GPIO_GET, CTRL_REMOTE_GPIO_REQ, GPIO_GET_FUNCTION,
-								gpio, (unsigned char *)dummy, 4, 300);
+		rc = libusb_control_transfer(devh, BMREQUEST_GPIO_GET, CTRL_REMOTE_GPIO_REQ, GPIO_GET_FUNCTION,
+								gpio, (unsigned char *)dummy, 4, 300); if (rc < 0) goto out;
 		if (dummy[0] != 5) {
-			libusb_control_transfer(devh, op, CTRL_REMOTE_GPIO_REQ, GPIO_INIT,
-							gpio, (unsigned char *)data, 4, 3000);
+			rc = libusb_control_transfer(devh, op, CTRL_REMOTE_GPIO_REQ, GPIO_INIT,
+							gpio, (unsigned char *)data, 4, 3000); if (rc < 0) goto out;
 			//printf("fn was %d, setting init\n", gfunction);
 		}
-		libusb_control_transfer(devh, op, CTRL_REMOTE_GPIO_REQ, set_fn,
-						gpio, (unsigned char *)data, 4, 3000);
+		rc = libusb_control_transfer(devh, op, CTRL_REMOTE_GPIO_REQ, set_fn,
+						gpio, (unsigned char *)data, 4, 3000); if (rc < 0) goto out;
 	}
 
 	libusb_release_interface(devh, 0);
 
 out:
+	if (rc < 0) {
+		fprintf(stderr, "libusb error: %s\n", libusb_error_name(rc));
+	}
 	if (devh)
 		libusb_close(devh);
 	libusb_exit(NULL);
-	return rc;
+	return rc < 0 ? rc : 0;
 }

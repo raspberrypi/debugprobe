@@ -30,10 +30,11 @@
 #include "probe_config.h"
 #include "remote_gpio.h"
 
+/* tinyUSB gives you multiple callbacks, one per stage */
+static uint32_t data;
+
 bool gpio_remote_req(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request)
 {
-	/* tinyUSB gives you multiple callbacks, one per stage */
-	static uint32_t data = 0xffffffff;
 	/* Is the host paying attention ? */
 	if (request->bmRequestType_bit.recipient != TUSB_REQ_RCPT_DEVICE)
 		return false;
@@ -81,6 +82,7 @@ bool gpio_remote_req(uint8_t rhport, uint8_t stage, tusb_control_request_t const
 			return false;
 			break;
 		}
+		probe_info("ctrl IN data 0x%08lx\n", data);
 		return tud_control_xfer(rhport, request, &data, sizeof(data));
 	}
 	case TUSB_DIR_OUT:
