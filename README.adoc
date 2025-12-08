@@ -29,7 +29,7 @@ NOTE: Pico2 / RP2350 can also be used as probe hardware.
 ** CMSIS-DAPv2 WinUSB (driver-less vendor-specific bulk) - CMSIS compliant debug channel
 ** CMSIS-DAPv1 HID - CMSIS compliant debug channel as a fallback
 * MSC - drag-n-drop support of UF2 firmware image à la https://github.com/ARMmbed/DAPLink[DAPLink]
-  for RP2040/RP2350 and nRF52832/833/840 targets
+  for RP2040/RP2350, nRF52832/833/840 and nRF54Lxx targets
 * CDC - virtual com port for bidirectional communication with target
 ** UART connection between target and probe is redirected
 ** RTT terminal channel is automatically redirected into this CDC (if there is no
@@ -44,7 +44,7 @@ NOTE: Pico2 / RP2350 can also be used as probe hardware.
 ** on Windows no more Zadig fiddling because the underlying protocols of CMSIS-DAPv1 and v2 are driver-less
 ** easy drag-n-drop (or copy) upload of a firmware image to the target via the probe
 ** no more reset push button (or disconnect/connect cycle)  to put the target into BOOTSEL mode
-** auto detection of RP2040/RP2350/nRF52/Generic targets
+** auto detection of RP2040/RP2350/nRF52/nRF54Lxx/Generic targets
 
 
 
@@ -53,6 +53,7 @@ NOTE: Pico2 / RP2350 can also be used as probe hardware.
 * RP2040 (and its flash "win w25q16jv"), size of the targets flash is automatically detected
 * RP2350, size of the targets flash is (currently) fixed to 16MByte
 * nRF52832/833/840
+* nRF54Lxx (experimental)
 * other SWD compatible (Arm) devices with limitations in MSC access
 
 ### Supported Probe Hardware
@@ -179,7 +180,7 @@ E.g. `pyocd reset -f 5000000 -t rp2040` sets SWCLK to 5MHz.
 
 [NOTE]
 ====
-SWD clock frequency is also limited by the target controller.  For nRF52 targets default clock is set to 6MHz,
+SWD clock frequency is also limited by the target controller.  For nRF5x targets default clock is set to 5MHz,
 for unknown SWD targets 2MHz are used.
 ====
 
@@ -189,8 +190,8 @@ Via MSC the so called "drag-n-drop" supported is implemented.  Actually this als
 
 MSC write access, i.e. flashing of the target, is device dependent and thus works only for a few selected
 devices which are in my range of interest.  Those devices are the RP2040 (and its flash "win w25q16jv"), the RP2350 and the
-Nordic nRF52 family (namely nRF52832/833/840). +
-For the RP2040/RP2350 some special flash routines has been implemented.  For nRF52 flashing
+Nordic nRF5x family (namely nRF52832/833/840 and nRF54Lxx). +
+For the RP2040/RP2350 some special flash routines has been implemented.  For nRF5x flashing
 regular DAPLink modules have been taken.  Which also implies, that extending the probes capabilities shouln't be
 too hard.
 
@@ -199,7 +200,7 @@ too hard.
 * RP2040/RP2350: flash erase takes place on a 64KByte base:  on the first write to a 64 KByte page, 
   the corresponding page is erased.  That means, that multiple UF2 images can be flashed into the 
   target as long as there is no overlapping within 64 KByte boundaries
-* nRF52: whole chip is erased on first write operation of an UF2 image which means that
+* nRF5x: whole chip is erased on first write operation of an UF2 image which means that
   only one UF2 image can be flashed
 ====
 
@@ -665,10 +666,10 @@ Or use simply `make show-options` in the projects root.
 
 ### Notes
 * Frequencies
-** the CPU is overclocked to 168MHz (=7*24MHz)
+** the CPU is overclocked to 144MHz (=6*24MHz)
 ** SWD frequency limits
 *** RP2040/RP2350: 25MHz, actually allowed are 24MHz; default is 10MHz
-*** nRF52xxx: 10MHz, actually allowed are 8MHz; default is 6MHz
+*** nRF52xxx: 8MHz; default is 5MHz
 * sigrok
 ** PIO is running 7x faster in auto trigger mode than the specified sample rate
 

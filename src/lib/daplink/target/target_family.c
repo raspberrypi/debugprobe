@@ -54,6 +54,7 @@ __WEAK const target_family_descriptor_t g_nxp_rapid_iot = {0};
 __WEAK const target_family_descriptor_t g_nxp_lpc55xx_series = {0};
 __WEAK const target_family_descriptor_t g_nordic_nrf51 = {0};
 __WEAK const target_family_descriptor_t g_nordic_nrf52 = {0};
+__WEAK const target_family_descriptor_t g_nordic_nrf54 = {0};
 __WEAK const target_family_descriptor_t g_realtek_rtl8195am = {0};
 __WEAK const target_family_descriptor_t g_renesas_family = {0};
 __WEAK const target_family_descriptor_t g_toshiba_tz_family = {0};
@@ -89,6 +90,7 @@ const target_family_descriptor_t *g_families[] = {
     &g_nxp_rapid_iot,
     &g_nordic_nrf51,
     &g_nordic_nrf52,
+    &g_nordic_nrf54,
     &g_realtek_rtl8195am,
     &g_renesas_family,
     &g_toshiba_tz_family,

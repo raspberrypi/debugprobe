@@ -101,11 +101,26 @@
     #include "RTT/SEGGER_RTT.h"
 #endif
 
-
 #ifdef NDEBUG
     #define BUILD_TYPE "release build"
 #else
     #define BUILD_TYPE "debug build"
+#endif
+
+#if defined(_PICOLIBC_VERSION)
+    // this seems to be defined for older picolibc (e.g. 1.8.6)
+    #define LIB_TYPE "picolibc "  _PICOLIBC_VERSION   "/"  _NEWLIB_VERSION
+#elif defined(__PICOLIBC_VERSION__)
+    // this seems to be defined for newer picolibc (e.g. 1.8.10)
+    #define LIB_TYPE "picolibc " __PICOLIBC_VERSION__ "/" __NEWLIB_VERSION__
+#elif defined(_NEWLIB_VERSION)
+    #define LIB_TYPE "newlib " _NEWLIB_VERSION
+#elif defined(__NEWLIB_VERSION__)
+    #define LIB_TYPE "newlib " __NEWLIB_VERSION__
+#elif defined(LLVM_LIBC_STDIO_H)
+    #define LIB_TYPE "llvm_libc"
+#else
+    #define LIB_TYPE "UNKNOWN LIBC"
 #endif
 
 #if PICO_RP2350
@@ -461,7 +476,6 @@ void usb_thread(void *ptr)
     }
 #endif
 
-    tusb_init();
     for (;;) {
 #if configGENERATE_RUN_TIME_STATS
         ++tusb_count;
@@ -492,6 +506,7 @@ void usb_thread(void *ptr)
 int main(void)
 {
     board_init();
+    tusb_init();
     ini_init();                              // for debugging this must be moved below cdc_debug_init()
 
     // set CPU frequency according to configuration
@@ -517,25 +532,24 @@ int main(void)
     // now we can "print"
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
     picoprobe_info("                     Welcome to Yet Another Picoprobe v" PICOPROBE_VERSION_STRING "-" GIT_HASH "\n");
-    picoprobe_info("Features:\n");
-    picoprobe_info(" %s\n", CONFIG_FEATURES());
-    picoprobe_info("Probe HW:\n");
-    picoprobe_info("  %s (" PROBE_MCU ") @ %uMHz (%s core)\n", CONFIG_BOARD(), (unsigned)((probe_get_cpu_freq_khz() + 500) / 1000),
-                                               (configNUMBER_OF_CORES > 1) ? "dual" : "single");
+    picoprobe_info("\n");
+    picoprobe_info("Features:  %s\n", CONFIG_FEATURES());
+    picoprobe_info("Probe HW:   %s (" PROBE_MCU ") @ %uMHz (%s core)\n", CONFIG_BOARD(), (unsigned)((probe_get_cpu_freq_khz() + 500) / 1000),
+                    (configNUMBER_OF_CORES > 1) ? "dual" : "single");
 #if OPT_NET
-    picoprobe_info("IP:\n");
-    picoprobe_info("  192.168.%d.1\n", (int)ini_getl(MININI_SECTION, MININI_VAR_NET, OPT_NET_192_168, MININI_FILENAME));
+    picoprobe_info("IP:         192.168.%d.1\n", (int)ini_getl(MININI_SECTION, MININI_VAR_NET, OPT_NET_192_168, MININI_FILENAME));
 #endif
-    picoprobe_info("Compiler:\n");
+    picoprobe_info("Compiler:   "
 #if defined(__clang__)
-    picoprobe_info("  clang %d.%d.%d - " BUILD_TYPE "\n", __clang_major__, __clang_minor__, __clang_patchlevel__);
+                   "clang %d.%d.%d - " LIB_TYPE " - " BUILD_TYPE "\n", __clang_major__, __clang_minor__, __clang_patchlevel__);
 #elif defined(__GNUC__)
-    picoprobe_info("  gcc %d.%d.%d - " BUILD_TYPE "\n", __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__);
+                   "gcc %d.%d.%d - " LIB_TYPE " - " BUILD_TYPE "\n", __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__);
 #else
-    picoprobe_info("  UNKNOWN\n");
+                   "UNKNOWN\n");
 #endif
-    picoprobe_info("PICO-SDK:\n");
-    picoprobe_info("  " PICO_SDK_VERSION_STRING "\n");
+    picoprobe_info("PICO-SDK:   " PICO_SDK_VERSION_STRING "\n");
+    picoprobe_info("TinyUSB:    " TUSB_VERSION_STRING "\n");
+    picoprobe_info("CMSIS-DAP:  " DAP_FW_VER "\n");
     picoprobe_info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 
     // it seems that TinyUSB does not like affinity setting in its thread, so the affinity of the USB thread is corrected in the task itself

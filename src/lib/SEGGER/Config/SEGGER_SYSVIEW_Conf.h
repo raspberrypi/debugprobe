@@ -42,7 +42,7 @@
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       SystemView version: 3.56b                                    *
+*       SystemView version: 3.60d                                    *
 *                                                                    *
 **********************************************************************
 -------------------------- END-OF-HEADER -----------------------------
@@ -75,18 +75,26 @@ Additional information:
 */
 
 /*********************************************************************
+*
+*       Define: SEGGER_SYSVIEW_SECTION
+*
+*  Description
+*    Section to place the SystemView RTT Buffer into.
+*  Default
+*    undefined: Do not place into a specific section.
+*  Notes
+*    If SEGGER_RTT_SECTION is defined, the default changes to use
+*    this section for the SystemView RTT Buffer, too.
+*/
+#if !(defined SEGGER_SYSVIEW_SECTION) && (defined SEGGER_RTT_BUFFER_SECTION)
+  #define SEGGER_SYSVIEW_SECTION                  SEGGER_RTT_BUFFER_SECTION
+#endif
+
+
+/*********************************************************************
 * TODO: Add your defines here.                                       *
 **********************************************************************
 */
-
-// the probe expects SysView data in RTT channel #1
-#define SEGGER_SYSVIEW_RTT_CHANNEL         1
-
-// override this setting with "SEGGER_RTT_ConfigUpBuffer(SEGGER_SYSVIEW_RTT_CHANNEL, "SysView", buffer, sizeof(buffer), SEGGER_RTT_MODE_NO_BLOCK_SKIP);"
-#define SEGGER_SYSVIEW_RTT_BUFFER_SIZE     1024
-
-// this offers shorter lock times
-#define SEGGER_SYSVIEW_USE_STATIC_BUFFER   0
 
 
 #endif  // SEGGER_SYSVIEW_CONF_H

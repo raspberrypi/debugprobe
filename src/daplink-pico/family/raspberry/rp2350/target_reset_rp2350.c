@@ -50,10 +50,14 @@
 #define DSCSR_CDSKEY               BIT(17)
 #define DSCSR_CDS                  BIT(16)
 
-#define ACCESSCTRL_LOCK_OFFSET     0x40060000u
-#define ACCESSCTRL_LOCK_DEBUG_BITS 0x00000008u
-#define ACCESSCTRL_CFGRESET_OFFSET 0x40060008u
-#define ACCESSCTRL_WRITE_PASSWORD  0xacce0000u
+#define ENABLE_RP2350_ACCESSCTRL   1
+#if ENABLE_RP2350_ACCESSCTRL
+    // there is a collision without MY_ prefix
+    #define MY_ACCESSCTRL_LOCK_OFFSET     0x40060000u
+    #define MY_ACCESSCTRL_LOCK_DEBUG_BITS 0x00000008u
+    #define MY_ACCESSCTRL_CFGRESET_OFFSET 0x40060008u
+    #define MY_ACCESSCTRL_WRITE_PASSWORD  0xacce0000u
+#endif
 
 extern target_family_descriptor_t g_raspberry_rp2350_family;
 static const uint32_t soft_reset = SYSRESETREQ;
@@ -224,6 +228,7 @@ static bool dp_disable_breakpoints()
 }   // dp_disable_breakpoints
 
 
+#if ENABLE_RP2350_ACCESSCTRL
 static bool rp2350_init_accessctrl(void)
 /**
  * Attempt to reset ACCESSCTRL, in case Secure access to SRAM has been
@@ -235,7 +240,7 @@ static bool rp2350_init_accessctrl(void)
 {
     uint32_t accessctrl_lock_reg;
 
-    if ( !swd_read_word(ACCESSCTRL_LOCK_OFFSET, &accessctrl_lock_reg)) {
+    if ( !swd_read_word(MY_ACCESSCTRL_LOCK_OFFSET, &accessctrl_lock_reg)) {
         picoprobe_error("Failed to read ACCESSCTRL lock register");
         // Failed to read an APB register which should always be readable from
         // any security/privilege level. Something fundamental is wrong. E.g.:
@@ -248,17 +253,19 @@ static bool rp2350_init_accessctrl(void)
 
     picoprobe_debug("ACCESSCTRL_LOCK:  %08lx\n", accessctrl_lock_reg);
 
-    if (accessctrl_lock_reg & ACCESSCTRL_LOCK_DEBUG_BITS) {
+    if (accessctrl_lock_reg & MY_ACCESSCTRL_LOCK_DEBUG_BITS) {
         picoprobe_error("ACCESSCTRL is locked, so can't reset permissions. Following steps might fail.\n");
     }
     else {
         picoprobe_debug("Reset ACCESSCTRL permissions via CFGRESET\n");
-        return swd_write_word(ACCESSCTRL_CFGRESET_OFFSET, ACCESSCTRL_WRITE_PASSWORD | 1u);
+        return swd_write_word(MY_ACCESSCTRL_CFGRESET_OFFSET, MY_ACCESSCTRL_WRITE_PASSWORD | 1u);
     }
     return true;
 }   // rp2350_init_accessctrl
+#endif
 
 
+#if ENABLE_RP2350_ACCESSCTRL
 static void rp2350_init_arm_core0(void)
 /**
  * Flash algorithms (and the RCP init stub called by this function) must
@@ -279,9 +286,10 @@ static void rp2350_init_arm_core0(void)
         picoprobe_info("Setting Current Domain Secure in DSCSR\n");
         (void)swd_write_word(DCB_DSCSR, (dscsr & ~DSCSR_CDSKEY) | DSCSR_CDS);
         (void)swd_read_word(DCB_DSCSR, &dscsr);
-        picoprobe_info("DSCSR*: %08lx\n", dscsr);
+        picoprobe_info("DSCSR*: %08x\n", dscsr);
     }
-}
+}   // rp2350_init_arm_core0
+#endif
 
 
 /*************************************************************************************************/
@@ -322,7 +330,7 @@ static bool rp2350_swd_init_debug(uint8_t core)
             do_abort = false;
         }
 
-#if 0
+#if ENABLE_RP2350_ACCESSCTRL
 // required or not!?
         if (core == 0) {
             CHECK_ABORT( rp2350_init_accessctrl() );

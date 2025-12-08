@@ -69,12 +69,19 @@ endif()
 
 #
 # CMSE must be disabled, otherwise FOR_TARGET_RP2040_CODE does not work
+#
 set(PICO_NO_CMSE true)
 
+#
+# set path for locally installed tools to prevent build of them
+# tools downloaded from https://github.com/raspberrypi/pico-sdk-tools/releases
+#
+set(picotool_DIR $ENV{HOME}/bin/picotool)
+set(pioasm_DIR   $ENV{HOME}/bin/pioasm)
 
-#
+# ------------------------------------
 # below (and above) order is important
-#
+# ------------------------------------
 
 set(PICO_BOARD_HEADER_DIRS  ${CMAKE_CURRENT_LIST_DIR}/include/boards)
 include(pico_sdk_import.cmake)
@@ -192,8 +199,10 @@ target_sources(${PROJECT} PRIVATE
         src/lib/daplink/daplink/interface/swd_host.c
         src/lib/daplink/daplink/interface/target_flash.c
         src/lib/daplink/daplink/settings/settings_rom_stub.c
-        src/lib/daplink/family/nordic/target_reset_nrf52.c
         src/lib/daplink/family/nordic/nrf52/target.c
+        src/lib/daplink/family/nordic/nrf52/target_reset.c
+        src/lib/daplink/family/nordic/nrf54/target.c
+        src/lib/daplink/family/nordic/nrf54/target_reset.c
         src/lib/daplink/target/target_board.c
         src/lib/daplink/target/target_family.c
         
@@ -418,9 +427,6 @@ target_compile_options(${PROJECT} PRIVATE -Wall)
 
 if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
     message(STATUS "Compiling for clang")
-    if(NOT PICO_BOARD STREQUAL "pico2")
-        message(FATAL_ERROR "clang currently works only for pico2/rp2350")
-    endif()
 else()
     message(STATUS "Compiling for gcc")
 endif()

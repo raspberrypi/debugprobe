@@ -1,0 +1,76 @@
+/**
+ * @file    target_reset.c
+ * @brief   Target reset for the nrf54
+ *
+ * DAPLink Interface Firmware
+ * Copyright (c) 2009-2019, ARM Limited, All Rights Reserved
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "DAP_config.h"
+#include "target_family.h"
+#include "target_board.h"
+#include "swd_host.h"
+
+// TODO not sure if this all works
+
+// datasheet, 9.1 Debug access port
+static const uint32_t CTRL_AP = 2 << 24;
+
+// locations of CTRL-AP registers in datasheet, 9.6.5.1 Debug side registers (search for 0x32880000)
+
+
+static void swd_set_target_reset_nrf54(uint8_t asserted)
+{
+    uint32_t ap_idr_return;
+
+    if (asserted) {
+        // swd_init_debug();   leads to a recursion
+
+        swd_read_ap(CTRL_AP + 0xfc, &ap_idr_return);
+        if (ap_idr_return == 0x32880000) {
+            // Have CTRL-AP
+            swd_write_ap(CTRL_AP + 0x00, 1);  // CTRL-AP set SoftReset
+        }
+        else {
+            // No CTRL-AP - Perform a soft reset
+            // 0x05FA0000 = VECTKEY, 0x4 = SYSRESETREQ
+            uint32_t swd_mem_write_data = 0x05FA0000 | 0x4;
+            swd_write_memory(0xE000ED0C, (uint8_t *) &swd_mem_write_data, 4);
+        }
+        if(g_board_info.swd_set_target_reset){ //aditional reset
+            g_board_info.swd_set_target_reset(asserted);
+        }
+    } else {
+        swd_read_ap(CTRL_AP + 0xfc, &ap_idr_return);
+        if (ap_idr_return == 0x32880000) {
+            // Device has CTRL-AP
+            swd_write_ap(CTRL_AP + 0x00, 0);  // CTRL-AP release reset
+        }
+        else {
+            // No CTRL-AP - Soft reset has been performed
+        }
+        if(g_board_info.swd_set_target_reset){
+            g_board_info.swd_set_target_reset(asserted);
+        }
+    }
+}
+
+const target_family_descriptor_t g_nordic_nrf54 = {
+    .family_id = kNordic_Nrf54_FamilyID,
+    .default_reset_type = kSoftwareReset,
+    .soft_reset_type = SYSRESETREQ,
+    .swd_set_target_reset = swd_set_target_reset_nrf54,
+};

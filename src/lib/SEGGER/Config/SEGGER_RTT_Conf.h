@@ -42,7 +42,7 @@
 *                                                                    *
 **********************************************************************
 *                                                                    *
-*       SystemView version: 3.56b                                    *
+*       SystemView version: 3.60d                                    *
 *                                                                    *
 **********************************************************************
 ---------------------------END-OF-HEADER------------------------------
@@ -422,6 +422,17 @@ void OS_SIM_LeaveCriticalSection(void);
 
 #ifndef   SEGGER_RTT_UNLOCK
   #define SEGGER_RTT_UNLOCK()              // Unlock RTT (nestable) (i.e. enable previous interrupt lock state)
+#endif
+
+/*********************************************************************
+*
+*       If SEGGER_RTT_SECTION is defined but SEGGER_RTT_BUFFER_SECTION
+*       is not, use the same section for SEGGER_RTT_BUFFER_SECTION.
+*/
+#ifndef SEGGER_RTT_BUFFER_SECTION
+  #if defined(SEGGER_RTT_SECTION)
+    #define SEGGER_RTT_BUFFER_SECTION SEGGER_RTT_SECTION
+  #endif
 #endif
 
 #endif
