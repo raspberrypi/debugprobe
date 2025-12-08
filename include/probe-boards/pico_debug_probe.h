@@ -4,50 +4,19 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-// -----------------------------------------------------
-// NOTE: THIS HEADER IS ALSO INCLUDED BY ASSEMBLER SO
-//       SHOULD ONLY CONSIST OF PREPROCESSOR DIRECTIVES
-// -----------------------------------------------------
-
-// pico_cmake_set PICO_PLATFORM=rp2040
-
-// This header may be included by other board headers as "boards/pico_debug_probe.h".
-// But normally this is included via "#include <pico/stdlib.h>" if PICO_BOARD is set accordingly.
 // Schematic: https://datasheets.raspberrypi.com/debug/raspberry-pi-debug-probe-schematics.pdf
 
-#ifndef _BOARDS_PICO_DEBUG_PROBE_H
-#define _BOARDS_PICO_DEBUG_PROBE_H
+#ifndef _PROBE_BOARDS_PICO_DEBUG_PROBE_H
+#define _PROBE_BOARDS_PICO_DEBUG_PROBE_H
 
-// For board detection
-#define RASPBERRYPI_PICO_DEBUG_PROBE
+// required to set some paths
+pico_board_cmake_set(PICO_PLATFORM, rp2040)
 
-// --- LED ---
-#ifndef PICO_DEFAULT_LED_PIN
-    #define PICO_DEFAULT_LED_PIN 2
-#endif
-
-
-// --- FLASH ---
-
-#define PICO_BOOT_STAGE2_CHOOSE_W25Q080 1
-
-#ifndef PICO_FLASH_SPI_CLKDIV
-#define PICO_FLASH_SPI_CLKDIV 2
-#endif
-
-#ifndef PICO_FLASH_SIZE_BYTES
-#define PICO_FLASH_SIZE_BYTES (2 * 1024 * 1024)
-#endif
-
-#ifndef PICO_RP2040_B0_SUPPORTED
-#define PICO_RP2040_B0_SUPPORTED 0
-#endif
-
-
+#include "boards/pico.h"
 
 // --- Definitions for YAPicoprobe
 
-#define PICOPROBE_LED            PICO_DEFAULT_LED_PIN
+#define PICOPROBE_LED            2
 #define PICOPROBE_LED_CONNECTED  15
 #define PICOPROBE_LED_RUNNING    16
 #define PICOPROBE_LED_TARGET_RX  7                      // host -> probe -> target UART / RTT data, i.e. target is receiving

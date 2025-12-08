@@ -29,6 +29,7 @@
 
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <ctype.h>
 #include "pico/stdlib.h"
 #include "pico/stdio/driver.h"

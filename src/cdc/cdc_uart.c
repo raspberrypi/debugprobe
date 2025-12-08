@@ -45,6 +45,7 @@
  *   * if that was not successful (no RTT_CB), data is transmitted via UART to the target
  */
 
+#include <stdio.h>
 #include <pico/stdlib.h>
 #include "FreeRTOS.h"
 #include "stream_buffer.h"
