@@ -190,7 +190,7 @@ void probe_set_swclk_freq_khz(uint32_t freq_khz, bool message)
     }
 
     // Worked out with pulseview
-    pio_sm_set_clkdiv_int_frac(PROBE_PIO, PROBE_SM, div_int, div_frac);
+    pio_sm_set_clkdiv_int_frac(PROBE_PIO, PROBE_PIO_SM, div_int, div_frac);
 }   // probe_set_swclk_freq_khz
 
 
@@ -200,18 +200,18 @@ void probe_reset_pin_set(uint32_t state)
  * set state of reset pin
  */
 {
-#if defined(PROBE_PIN_RESET)
+#if defined(PROBE_PIO_PIN_RESET)
     if (state == 0)
     {
         /* Change the direction to out to drive pin to 0 */
-        gpio_put(PROBE_PIN_RESET, 0);
-        gpio_set_dir(PROBE_PIN_RESET, true);
+        gpio_put(PROBE_PIO_PIN_RESET, 0);
+        gpio_set_dir(PROBE_PIO_PIN_RESET, true);
     }
     else
     {
         /* Change the direction to input to emulate open drain */
-        gpio_pull_up(PROBE_PIN_RESET);
-        gpio_set_dir(PROBE_PIN_RESET, false);
+        gpio_pull_up(PROBE_PIO_PIN_RESET);
+        gpio_set_dir(PROBE_PIO_PIN_RESET, false);
     }
 #endif
 }   // probe_reset_pin_set
@@ -220,8 +220,8 @@ void probe_reset_pin_set(uint32_t state)
 
 uint32_t probe_reset_pin_get(void)
 {
-#if defined(PROBE_PIN_RESET)
-    uint32_t r = gpio_get(PROBE_PIN_RESET);
+#if defined(PROBE_PIO_PIN_RESET)
+    uint32_t r = gpio_get(PROBE_PIO_PIN_RESET);
     return r;
 #else
     return 1;
@@ -240,11 +240,11 @@ void __TIME_CRITICAL_FUNCTION(probe_write_bits)(uint bit_count, uint32_t data)
     DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE);
     for (;;) {
         if (bit_count <= 16) {
-            pio_sm_put_blocking(PROBE_PIO, PROBE_SM, CTRL_WORD_WRITE(bit_count - 1, data));
+            pio_sm_put_blocking(PROBE_PIO, PROBE_PIO_SM, CTRL_WORD_WRITE(bit_count - 1, data));
             break;
         }
 
-        pio_sm_put_blocking(PROBE_PIO, PROBE_SM, CTRL_WORD_WRITE(16 - 1, data & 0xffff));
+        pio_sm_put_blocking(PROBE_PIO, PROBE_PIO_SM, CTRL_WORD_WRITE(16 - 1, data & 0xffff));
         data >>= 16;
         bit_count -= 16;
     }
@@ -261,10 +261,10 @@ uint32_t __TIME_CRITICAL_FUNCTION(probe_read_bits)(uint bit_count, bool push, bo
 
     DEBUG_PINS_SET(probe_timing, DBG_PIN_READ);
     if (push) {
-        pio_sm_put_blocking(PROBE_PIO, PROBE_SM, CTRL_WORD_READ(bit_count - 1));
+        pio_sm_put_blocking(PROBE_PIO, PROBE_PIO_SM, CTRL_WORD_READ(bit_count - 1));
     }
     if (pull) {
-        data = pio_sm_get_blocking(PROBE_PIO, PROBE_SM);
+        data = pio_sm_get_blocking(PROBE_PIO, PROBE_PIO_SM);
     }
     DEBUG_PINS_CLR(probe_timing, DBG_PIN_READ);
     data_shifted = data;
@@ -286,20 +286,20 @@ void probe_gpio_init()
 		picoprobe_debug("probe_gpio_init()\n");
 
 		// Funcsel pins
-        pio_gpio_init(PROBE_PIO, PROBE_PIN_SWDIR);
-		pio_gpio_init(PROBE_PIO, PROBE_PIN_SWCLK);
-		pio_gpio_init(PROBE_PIO, PROBE_PIN_SWDIO);
+        pio_gpio_init(PROBE_PIO, PROBE_PIO_PIN_SWDIR);
+		pio_gpio_init(PROBE_PIO, PROBE_PIO_PIN_SWCLK);
+		pio_gpio_init(PROBE_PIO, PROBE_PIO_PIN_SWDIO);
 		// Make sure SWDIO has a pullup on it. Idle state is high
-		gpio_pull_up(PROBE_PIN_SWDIO);
+		gpio_pull_up(PROBE_PIO_PIN_SWDIO);
 
     // Adjusting the GPIO slew and drive strength seems to break connectivity
     // with certain targets, namely the STM32H7xx line of microcontrollers.
     // For the time being, both parameters remain unset to ensure compatibility
 #if 0
-        gpio_set_slew_rate(PROBE_PIN_SWCLK, GPIO_SLEW_RATE_FAST);
-		gpio_set_drive_strength(PROBE_PIN_SWCLK, GPIO_DRIVE_STRENGTH_12MA);
-        gpio_set_slew_rate(PROBE_PIN_SWDIO, GPIO_SLEW_RATE_FAST);
-        gpio_set_drive_strength(PROBE_PIN_SWDIO, GPIO_DRIVE_STRENGTH_12MA);
+        gpio_set_slew_rate(PROBE_PIO_PIN_SWCLK, GPIO_SLEW_RATE_FAST);
+		gpio_set_drive_strength(PROBE_PIO_PIN_SWCLK, GPIO_DRIVE_STRENGTH_12MA);
+        gpio_set_slew_rate(PROBE_PIO_PIN_SWDIO, GPIO_SLEW_RATE_FAST);
+        gpio_set_drive_strength(PROBE_PIO_PIN_SWDIO, GPIO_DRIVE_STRENGTH_12MA);
 #endif
 
 		gpio_debug_pins_init();
@@ -322,11 +322,11 @@ void probe_init()
 {
 //    picoprobe_info("probe_init()\n");
 
-#if defined(PROBE_PIN_RESET)
+#if defined(PROBE_PIO_PIN_RESET)
     // Target reset pin: pull up, input to emulate open drain pin
-    gpio_pull_up(PROBE_PIN_RESET);
+    gpio_pull_up(PROBE_PIO_PIN_RESET);
     // gpio_init will leave the pin cleared and set as input
-    gpio_init(PROBE_PIN_RESET);
+    gpio_init(PROBE_PIO_PIN_RESET);
 #endif
 
     if ( !probe.initted) {
@@ -337,19 +337,19 @@ void probe_init()
         pio_sm_config sm_config = probe_program_get_default_config(offset);
 
         // SWDIR and SWCLK are sideset pins
-        sm_config_set_sideset_pins(&sm_config, PROBE_PIN_SWDIR);
+        sm_config_set_sideset_pins(&sm_config, PROBE_PIO_PIN_SWDIR);
 
         // Set SWDIO offset
-        sm_config_set_out_pins(&sm_config, PROBE_PIN_SWDIO, 1);
-        sm_config_set_set_pins(&sm_config, PROBE_PIN_SWDIO, 1);
-#ifdef PROBE_PIN_SWDIN
-        sm_config_set_in_pins(&sm_config, PROBE_PIN_SWDIN);
+        sm_config_set_out_pins(&sm_config, PROBE_PIO_PIN_SWDIO, 1);
+        sm_config_set_set_pins(&sm_config, PROBE_PIO_PIN_SWDIO, 1);
+#ifdef PROBE_PIO_PIN_SWDIN
+        sm_config_set_in_pins(&sm_config, PROBE_PIO_PIN_SWDIN);
 #else
-        sm_config_set_in_pins(&sm_config, PROBE_PIN_SWDIO);
+        sm_config_set_in_pins(&sm_config, PROBE_PIO_PIN_SWDIO);
 #endif
 
         // Set SWDIR, SWCLK and SWDIO pins as output to start. This will be set in the sm
-        pio_sm_set_consecutive_pindirs(PROBE_PIO, PROBE_SM, PROBE_PIN_OFFSET, PROBE_PIN_COUNT, true);
+        pio_sm_set_consecutive_pindirs(PROBE_PIO, PROBE_PIO_SM, PROBE_PIO_PIN_OFFSET, PROBE_PIO_PIN_COUNT, true);
 
         // shift output right, autopull on, autopull threshold
         sm_config_set_out_shift(&sm_config, true, true, 32);
@@ -357,13 +357,13 @@ void probe_init()
         sm_config_set_in_shift(&sm_config, true, false, 0);
 
         // Init SM with config
-        pio_sm_init(PROBE_PIO, PROBE_SM, offset, &sm_config);
+        pio_sm_init(PROBE_PIO, PROBE_PIO_SM, offset, &sm_config);
 
         // Set up divisor
         probe_set_swclk_freq_khz(probe_freq_khz, true);
 
         // Enable SM
-        pio_sm_set_enabled(PROBE_PIO, PROBE_SM, true);
+        pio_sm_set_enabled(PROBE_PIO, PROBE_PIO_SM, true);
         probe.initted = true;
     }
 }   // probe_init
@@ -373,7 +373,7 @@ void probe_init()
 void probe_deinit(void)
 {
     if (probe.initted) {
-        pio_sm_set_enabled(PROBE_PIO, PROBE_SM, 0);
+        pio_sm_set_enabled(PROBE_PIO, PROBE_PIO_SM, 0);
         pio_remove_program(PROBE_PIO, &probe_program, probe.offset);
         probe.initted = false;
     }
