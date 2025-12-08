@@ -155,7 +155,7 @@ static void cdc_thread(void *ptr)
                 // -> data is going thru UART
                 //    assure that the UART has free buffer, otherwise wait (for a short moment)
                 //
-                if ( !uart_is_writable(PICOPROBE_UART_INTERFACE)) {
+                if ( !uart_is_writable(PROBE_UART_INTERFACE)) {
                     xEventGroupWaitBits(events, EV_TX_COMPLETE | EV_STREAM | EV_RX, pdTRUE, pdFALSE, pdMS_TO_TICKS(1));
                 }
                 else {
@@ -165,7 +165,7 @@ static void cdc_thread(void *ptr)
                     tx_len = tud_cdc_n_read(CDC_UART_N, &ch, sizeof(ch));
                     if (tx_len != 0) {
                         led_state(LS_UART_TX_DATA);
-                        uart_write_blocking(PICOPROBE_UART_INTERFACE, &ch, tx_len);
+                        uart_write_blocking(PROBE_UART_INTERFACE, &ch, tx_len);
                     }
                 }
             }
@@ -177,10 +177,10 @@ static void cdc_thread(void *ptr)
 
 void cdc_uart_line_coding_cb(cdc_line_coding_t const* line_coding)
 /**
- * CDC bitrate updates are reflected on \a PICOPROBE_UART_INTERFACE
+ * CDC bitrate updates are reflected on \a PROBE_UART_INTERFACE
  */
 {
-    uart_set_baudrate(PICOPROBE_UART_INTERFACE, line_coding->bit_rate);
+    uart_set_baudrate(PROBE_UART_INTERFACE, line_coding->bit_rate);
 }   // cdc_uart_line_coding_cb
 
 
@@ -260,8 +260,8 @@ void on_uart_rx(void)
     uint8_t ch;
 
     cnt = 0;
-    while (uart_is_readable(PICOPROBE_UART_INTERFACE)) {
-        ch = (uint8_t)uart_getc(PICOPROBE_UART_INTERFACE);
+    while (uart_is_readable(PROBE_UART_INTERFACE)) {
+        ch = (uint8_t)uart_getc(PROBE_UART_INTERFACE);
         if (cnt < sizeof(buf)) {
             buf[cnt++] = ch;
         }
@@ -318,19 +318,19 @@ void cdc_uart_init(uint32_t task_prio)
         picoprobe_error("cdc_uart_init: cannot create stream_uart\n");
     }
 
-    gpio_set_function(PICOPROBE_UART_TX, GPIO_FUNC_UART);
-    gpio_set_function(PICOPROBE_UART_RX, GPIO_FUNC_UART);
-    gpio_set_pulls(PICOPROBE_UART_TX, 1, 0);
-    gpio_set_pulls(PICOPROBE_UART_RX, 1, 0);
+    gpio_set_function(PROBE_UART_TX, GPIO_FUNC_UART);
+    gpio_set_function(PROBE_UART_RX, GPIO_FUNC_UART);
+    gpio_set_pulls(PROBE_UART_TX, 1, 0);
+    gpio_set_pulls(PROBE_UART_RX, 1, 0);
 
-    uart_init(PICOPROBE_UART_INTERFACE, PICOPROBE_UART_BAUDRATE);
-    uart_set_format(PICOPROBE_UART_INTERFACE, 8, 1, UART_PARITY_NONE);
-    uart_set_fifo_enabled(PICOPROBE_UART_INTERFACE, true);
+    uart_init(PROBE_UART_INTERFACE, PROBE_UART_BAUDRATE);
+    uart_set_format(PROBE_UART_INTERFACE, 8, 1, UART_PARITY_NONE);
+    uart_set_fifo_enabled(PROBE_UART_INTERFACE, true);
 
-    int UART_IRQ = (PICOPROBE_UART_INTERFACE == uart0) ? UART0_IRQ : UART1_IRQ;
+    int UART_IRQ = (PROBE_UART_INTERFACE == uart0) ? UART0_IRQ : UART1_IRQ;
     irq_set_exclusive_handler(UART_IRQ, on_uart_rx);
     irq_set_enabled(UART_IRQ, true);
-    uart_set_irq_enables(PICOPROBE_UART_INTERFACE, true, false);
+    uart_set_irq_enables(PROBE_UART_INTERFACE, true, false);
 
     /* UART needs to preempt USB as if we don't, characters get lost */
     xTaskCreate(cdc_thread, "CDC-TargetUart", configMINIMAL_STACK_SIZE, NULL, task_prio, &task_uart);

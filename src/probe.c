@@ -95,10 +95,13 @@ void probe_set_cpu_freq_khz(uint32_t freq_khz)
         freq_khz = 1000 * PROBE_CPU_CLOCK_MHZ;
     }
 
+#if PICO_RP2040
     if (freq_khz >= 150 * 1000) {
         // increase voltage on higher frequencies
         vreg_set_voltage(VREG_VOLTAGE_1_20);
     }
+#endif
+
     set_sys_clock_khz(freq_khz, true);
 
     cpu_freq_khz = freq_khz;
@@ -300,15 +303,15 @@ void probe_gpio_init()
 #endif
 
 		gpio_debug_pins_init();
-#ifdef PICOPROBE_LED_CONNECTED
-        gpio_init(PICOPROBE_LED_CONNECTED);
-        gpio_set_dir(PICOPROBE_LED_CONNECTED, GPIO_OUT);
-        gpio_put(PICOPROBE_LED_CONNECTED, 0);
+#ifdef PROBE_LED_CONNECTED
+        gpio_init(PROBE_LED_CONNECTED);
+        gpio_set_dir(PROBE_LED_CONNECTED, GPIO_OUT);
+        gpio_put(PROBE_LED_CONNECTED, 0);
 #endif
-#ifdef PICOPROBE_LED_RUNNING
-        gpio_init(PICOPROBE_LED_RUNNING);
-        gpio_set_dir(PICOPROBE_LED_RUNNING, GPIO_OUT);
-        gpio_put(PICOPROBE_LED_RUNNING, 0);
+#ifdef PROBE_LED_RUNNING
+        gpio_init(PROBE_LED_RUNNING);
+        gpio_set_dir(PROBE_LED_RUNNING, GPIO_OUT);
+        gpio_put(PROBE_LED_RUNNING, 0);
 #endif
 	}
 }   // probe_gpio_init

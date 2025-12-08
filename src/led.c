@@ -53,14 +53,14 @@ static uint64_t       rtt_data_trigger;
 
 
 
-#ifdef PICOPROBE_LED_TARGET_TX
+#ifdef PROBE_LED_TARGET_TX
     static TimerHandle_t  timer_led_tx_off;
     static void          *timer_led_tx_off_id;
 
 
     static void led_tx_off(TimerHandle_t xTimer)
     {
-        gpio_put(PICOPROBE_LED_TARGET_TX, false);
+        gpio_put(PROBE_LED_TARGET_TX, false);
     }
 
 
@@ -70,10 +70,10 @@ static uint64_t       rtt_data_trigger;
 
         if ( !initialized) {
             initialized = true;
-            gpio_init(PICOPROBE_LED_TARGET_TX);
-            gpio_set_dir(PICOPROBE_LED_TARGET_TX, GPIO_OUT);
+            gpio_init(PROBE_LED_TARGET_TX);
+            gpio_set_dir(PROBE_LED_TARGET_TX, GPIO_OUT);
         }
-        gpio_put(PICOPROBE_LED_TARGET_TX, true);
+        gpio_put(PROBE_LED_TARGET_TX, true);
         xTimerReset(timer_led_tx_off, 10);
     }   // rx_data_from_target
 
@@ -89,14 +89,14 @@ static uint64_t       rtt_data_trigger;
 
 
 
-#ifdef PICOPROBE_LED_TARGET_RX
+#ifdef PROBE_LED_TARGET_RX
     static TimerHandle_t  timer_led_rx_off;
     static void          *timer_led_rx_off_id;
 
 
     static void led_rx_off(TimerHandle_t xTimer)
     {
-        gpio_put(PICOPROBE_LED_TARGET_RX, false);
+        gpio_put(PROBE_LED_TARGET_RX, false);
     }
 
 
@@ -106,10 +106,10 @@ static uint64_t       rtt_data_trigger;
 
         if ( !initialized) {
             initialized = true;
-            gpio_init(PICOPROBE_LED_TARGET_RX);
-            gpio_set_dir(PICOPROBE_LED_TARGET_RX, GPIO_OUT);
+            gpio_init(PROBE_LED_TARGET_RX);
+            gpio_set_dir(PROBE_LED_TARGET_RX, GPIO_OUT);
         }
-        gpio_put(PICOPROBE_LED_TARGET_RX, true);
+        gpio_put(PROBE_LED_TARGET_RX, true);
         xTimerReset(timer_led_rx_off, 10);
     }   // tx_data_to_target
 
@@ -129,15 +129,15 @@ static void led(uint8_t state)
 {
 #ifdef TARGET_BOARD_PICO_W
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, state);
-#elif defined(PICOPROBE_LED)
+#elif defined(PROBE_LED)
     static bool initialized;
 
     if ( !initialized) {
         initialized = true;
-        gpio_init(PICOPROBE_LED);
-        gpio_set_dir(PICOPROBE_LED, GPIO_OUT);
+        gpio_init(PROBE_LED);
+        gpio_set_dir(PROBE_LED, GPIO_OUT);
     }
-    gpio_put(PICOPROBE_LED, state);
+    gpio_put(PROBE_LED, state);
 #endif
 }   // led
 
