@@ -77,6 +77,7 @@ cmake-create-release: clean-build
 	      $(CMAKE_FLAGS)
 
 
+#
 # cmake parameter: -DPICO_CLIB=llvm_libc;picolibc;newlib
 #     clang                19.1.5   21.1.1
 #         develop-8fcd
@@ -87,6 +88,11 @@ cmake-create-release: clean-build
 #              llvm_libc -  FAIL      OK       (19.1.5: llvm_libc has some incompatibilities)
 #              picolibc  -   OK       OK
 #              newlib    -   OK       OK       (same as -DPICO_CLIB=)
+#
+#     links:
+#     - https://github.com/arm/arm-toolchain/tree/arm-software
+#     - https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm
+#
 .PHONY: cmake-create-debug-clang
 cmake-create-debug-clang: clean-build
 	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin;                                                           \
