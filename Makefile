@@ -193,8 +193,8 @@ DEBUGGER_SERNO ?= 2739E00F30FE67E7
 OPENOCD_R := /home/hardy/.pico-sdk/openocd/0.12.0+dev
 OPENOCD   := $(OPENOCD_R)/openocd
 OPENOCD_S := $(OPENOCD_R)/scripts
-DEBUGGEE_CLIB := picolibc
-#DEBUGGEE_CLIB := newlib
+#DEBUGGEE_CLIB := picolibc
+DEBUGGEE_CLIB := newlib
 #DEBUGGEE_CLIB := llvm_libc
 
 .PHONY: debuggEE-flash
@@ -218,10 +218,10 @@ debuggEE-reset:
 cmake-create-debuggEE: clean-build
 	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin;                                                           \
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=$(PICO_BOARD)                                 \
-	         $(CMAKE_FLAGS) -DPICO_COMPILER=pico_arm_clang                                                             \
+	         $(CMAKE_FLAGS)                                                                                            \
 	         -DPICO_CLIB=$(DEBUGGEE_CLIB)                                                                              \
 	         -DOPT_NET=NCM -DOPT_PROBE_DEBUG_OUT=RTT                                                                   \
-	         -DOPT_SIGROK=0 -DOPT_MSC=0 -DOPT_CMSIS_DAPV1=0 -DOPT_CMSIS_DAPV2=0 -DOPT_TARGET_UART=0
+	         -DOPT_SIGROK=0 -DOPT_MSC=0 -DOPT_CMSIS_DAPV1=0 -DOPT_CMSIS_DAPV2=0 -DOPT_TARGET_UART=1
 
 
 .PHONY: cmake-create-debugger
@@ -229,6 +229,5 @@ cmake-create-debugger: clean-build
 	export PICO_TOOLCHAIN_PATH=~/bin/llvm-arm-none-eabi/bin;                                                           \
 	cmake -B $(BUILD_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=$(PICO_BOARD)                               \
 	         $(CMAKE_FLAGS)                                                                                            \
-	         -DPICO_COMPILER=pico_arm_clang                                                                            \
 	         -DPICO_CLIB=newlib                                                                                        \
 	         -DOPT_NET= -DOPT_SIGROK=0 -DOPT_MSC=0
