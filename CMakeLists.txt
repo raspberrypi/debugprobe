@@ -83,7 +83,7 @@ set(pioasm_DIR   $ENV{HOME}/bin/pioasm)
 # below (and above) order is important
 # ------------------------------------
 
-set(PICO_BOARD_HEADER_DIRS  ${CMAKE_CURRENT_LIST_DIR}/include/boards)
+set(PICO_BOARD_HEADER_DIRS  ${CMAKE_CURRENT_LIST_DIR}/include/probe-boards)
 include(pico_sdk_import.cmake)
 
 
