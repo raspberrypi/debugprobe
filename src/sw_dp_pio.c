@@ -31,8 +31,9 @@
 
 
 
-// obscure macro to calculate back from DAP delay setup to clock frequency
-#define MAKE_KHZ(fast, delay) ((fast) ? 100000 : (CPU_CLOCK / 2000) / ((delay) * DELAY_SLOW_CYCLES + IO_PORT_WRITE_CYCLES))
+// obscure macro to calculate back from DAP delay setup to clock frequency,
+// must do the same calculation as probe_get_swclk_freq_khz()
+#define MAKE_KHZ(fast, delay) ((fast) ? 100000 : (probe_get_cpu_freq_khz() + 2 * delay - 1) / (2 * delay))
 volatile uint32_t cached_delay = 0;
 
 
@@ -47,6 +48,7 @@ void __TIME_CRITICAL_FUNCTION(SWJ_Sequence)(uint32_t count, const uint8_t *data)
     uint32_t n;
 
     if (DAP_Data.clock_delay != cached_delay) {
+//        picoprobe_info("SWJ_Sequence: %d %d\n", DAP_Data.clock_delay, cached_delay);
         probe_set_swclk_freq_khz(MAKE_KHZ(DAP_Data.fast_clock, DAP_Data.clock_delay), true);
         cached_delay = DAP_Data.clock_delay;
     }
@@ -75,6 +77,7 @@ void __TIME_CRITICAL_FUNCTION(SWD_Sequence)(uint32_t info, const uint8_t *swdo, 
     uint32_t n;
 
     if (DAP_Data.clock_delay != cached_delay) {
+//        picoprobe_info("SWD_Sequence: %d %d\n", DAP_Data.clock_delay, cached_delay);
         probe_set_swclk_freq_khz(MAKE_KHZ(DAP_Data.fast_clock, DAP_Data.clock_delay), true);
         cached_delay = DAP_Data.clock_delay;
     }
@@ -138,6 +141,7 @@ uint8_t __TIME_CRITICAL_FUNCTION(SWD_Transfer)(uint32_t request, uint32_t *data)
 	uint8_t ack;
 
 	if (DAP_Data.clock_delay != cached_delay) {
+//        picoprobe_info("SWD_Transfer: %d %d\n", DAP_Data.clock_delay, cached_delay);
 		probe_set_swclk_freq_khz(MAKE_KHZ(DAP_Data.fast_clock, DAP_Data.clock_delay), true);
 		cached_delay = DAP_Data.clock_delay;
 	}
