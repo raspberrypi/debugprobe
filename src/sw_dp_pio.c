@@ -19,7 +19,7 @@
 
 /*
  * This is a shim between the SW_DP functions and the PIO
- * implementation used for Picoprobe. Instead of calling bitbash functions,
+ * implementation used for Picoprobe. Instead of calling bitbang functions,
  * hand off the bit sequences to a SM for asynchronous completion.
  */
 
@@ -31,6 +31,7 @@
 
 
 
+// obscure macro to calculate back from DAP delay setup to clock frequency
 #define MAKE_KHZ(fast, delay) ((fast) ? 100000 : (CPU_CLOCK / 2000) / ((delay) * DELAY_SLOW_CYCLES + IO_PORT_WRITE_CYCLES))
 volatile uint32_t cached_delay = 0;
 
