@@ -113,7 +113,7 @@ target_cfg_t target_device_rp2040 = {
     .rt_uf2_id[0]                   = uf2_id_rp2040,
     .rt_uf2_id[1]                   = 0,
     .rt_max_swd_khz                 = 25000,
-    .rt_swd_khz                     = 10000,
+    .rt_swd_khz                     = 8000,
 };
 
 
@@ -139,7 +139,7 @@ target_cfg_t target_device_rp2350 = {
     .rt_uf2_id[3]                   = uf2_id_rp2,
     .rt_uf2_id[4]                   = 0,
     .rt_max_swd_khz                 = 25000,
-    .rt_swd_khz                     = 10000,
+    .rt_swd_khz                     = 8000,
 };
 
 

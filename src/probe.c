@@ -62,8 +62,9 @@ CU_REGISTER_DEBUG_PINS(probe_timing)
 // Uncomment to enable debug
 //CU_SELECT_DEBUG_PINS(probe_timing)
 
+// obscure DAP calculation, condition: "probe_get_swclk_freq_khz(probe_set_swclk_freq_khz(f)) == f" (integer!)
+static uint32_t probe_dap_delay;
 
-static uint32_t probe_freq_khz;
 static uint32_t cpu_freq_khz;
 
 
@@ -95,10 +96,13 @@ void probe_set_cpu_freq_khz(uint32_t freq_khz)
         freq_khz = 1000 * PROBE_CPU_CLOCK_MHZ;
     }
 
+#if PICO_RP2040
     if (freq_khz >= 150 * 1000) {
         // increase voltage on higher frequencies
         vreg_set_voltage(VREG_VOLTAGE_1_20);
     }
+#endif
+
     set_sys_clock_khz(freq_khz, true);
 
     cpu_freq_khz = freq_khz;
@@ -108,34 +112,58 @@ void probe_set_cpu_freq_khz(uint32_t freq_khz)
 
 uint32_t probe_get_swclk_freq_khz(void)
 /**
- * Return current SWD frequency in kHz.
+ * Return current SWD frequency in kHz derived from CPU clock and delay cycles.
+ * Must do the same calculation as in MAKE_KHZ()
  */
 {
-    return probe_freq_khz;
+    if (probe_dap_delay == 0) {
+        // prevent division by zero
+        return probe_get_cpu_freq_khz() / 2;
+    }
+    return (probe_get_cpu_freq_khz() + 2 * probe_dap_delay - 1) / (2 * probe_dap_delay);
 }   // probe_get_swclk_freq_khz
 
 
 
 /**
  * Set SWD frequency.
- * Frequency is checked against maximum values and stored as a future default.
+ * Due to DAP.c handling of the frequency, namely Set_Clock_Delay(), frequency is calculated as a delay value depending
+ * on CPU frequency.  This reduces resolution of the frequency selection (which does not harm actually), but seems to
+ * be very obscure.  Care must be taken, that all the calculations in DAP.c, sw_dp_pio.c and this file do the same.
+ * There are also some preconditions for the calculations to work.
  *
  * \param freq_khz  new frequency setting
+ *
+ * \note
+ *    Functions calculating frequency:
+ *    - probe_get_swclk_freq_khz() - returns current SWCLK depending on delay value
+ *    - probe_set_swclk_freq_khz() - calculates delay value and sets SWCLK
+ *    - MAKE_KHZ() - macro to do the same calculation as in probe_get_swclk_freq_khz() but with parameters
+ *    - Set_Clock_Delay() - from DAP.c, calculates delay value, several other functions use this value afterwards
  */
-void probe_set_swclk_freq_khz(uint32_t freq_khz, bool message)
+void probe_set_swclk_freq_khz(uint32_t freq_khz, bool show_message)
 {
+#if DELAY_FAST_CYCLES != 1
+    #error "DELAY_FAST_CYCLES must be one for correct calculation"
+#endif
+#if DELAY_SLOW_CYCLES != 1
+    #error "DELAY_SLOW_CYCLES must be one for correct calculation"
+#endif
+#if IO_PORT_WRITE_CYCLES != 0
+    #error "DELAY_SLOW_CYCLES must be zero for correct calculation"
+#endif
+
     uint32_t clk_sys_freq_khz = (clock_get_hz(clk_sys) + 500) / 1000;
     uint32_t div_256;
     uint32_t div_int;
     uint32_t div_frac;
 
-//    printf("probe_set_swclk_freq_khz(%d, %d)\n", freq_khz, message);
 #if OPT_SPECIAL_CLK_FOR_PIO
     // This very defensive frequency setting was introduced by either Max or Earle.  We prefer higher clock rates.
     // Clock rate can be set via tool, e.g. "pyocd reset -f 50000000" to get maximum target SWD frequency.
     if (freq_khz == 1000)
     {
-        freq_khz = probe_freq_khz;
+        freq_khz = probe_get_swclk_freq_khz();
         if (freq_khz >= g_board_info.target_cfg->rt_max_swd_khz  ||  freq_khz == 0)
         {
             freq_khz = g_board_info.target_cfg->rt_swd_khz;                  // take a fair frequency
@@ -151,27 +179,28 @@ void probe_set_swclk_freq_khz(uint32_t freq_khz, bool message)
     {
         freq_khz = g_board_info.target_cfg->rt_swd_khz;
     }
-    probe_freq_khz = freq_khz;
+
+    // calculate the delay so that "probe_get_swclk_freq_khz(probe_set_swclk_freq_khz(f)) == f" (integer!)
+    // same calculation as in Set_Clock_Delay()
+    probe_dap_delay = (probe_get_cpu_freq_khz() / 2 + freq_khz - 1) / freq_khz;
+
+    // reverse calculation (so that successive calls will always do the same setup)
+    freq_khz = probe_get_swclk_freq_khz();
 
     div_256 = (256 * clk_sys_freq_khz + 3 * freq_khz) / (6 * freq_khz);      // SWDCLK goes with PIOCLK / 6
     div_int  = div_256 >> 8;
     div_frac = div_256 & 0xff;
 
     {
-        static uint32_t prev_div_256;
+        if (show_message) {
+            // output diagnose message
+            static uint32_t shown_khz;
 
-        if (div_256 != prev_div_256) {
-            prev_div_256 = div_256;
-            if (message) {
-                // output diagnose message
-                static uint32_t out_khz;
-
-                if (freq_khz != out_khz) {
-                    picoprobe_info("SWD clk req   : %ukHz = %ukHz / (6 * (%u + %u/256)), eff : %ukHz\n",
-                                   (unsigned)freq_khz, (unsigned)clk_sys_freq_khz, (unsigned)div_int, (unsigned)div_frac,
-                                   (unsigned)((256 * clk_sys_freq_khz) / (6 * div_256)));
-                    out_khz = freq_khz;
-                }
+            if (freq_khz != shown_khz) {
+                picoprobe_info("SWD clk req   : %ukHz = %ukHz / (6 * (%u + %u/256)), eff : %ukHz\n",
+                               (unsigned)freq_khz, (unsigned)clk_sys_freq_khz, (unsigned)div_int, (unsigned)div_frac,
+                               (unsigned)((256 * clk_sys_freq_khz) / (6 * div_256)));
+                shown_khz = freq_khz;
             }
         }
     }
@@ -187,7 +216,7 @@ void probe_set_swclk_freq_khz(uint32_t freq_khz, bool message)
     }
 
     // Worked out with pulseview
-    pio_sm_set_clkdiv_int_frac(PROBE_PIO, PROBE_SM, div_int, div_frac);
+    pio_sm_set_clkdiv_int_frac(PROBE_PIO, PROBE_PIO_SM, div_int, div_frac);
 }   // probe_set_swclk_freq_khz
 
 
@@ -197,18 +226,18 @@ void probe_reset_pin_set(uint32_t state)
  * set state of reset pin
  */
 {
-#if defined(PROBE_PIN_RESET)
+#if defined(PROBE_PIO_PIN_RESET)
     if (state == 0)
     {
         /* Change the direction to out to drive pin to 0 */
-        gpio_put(PROBE_PIN_RESET, 0);
-        gpio_set_dir(PROBE_PIN_RESET, true);
+        gpio_put(PROBE_PIO_PIN_RESET, 0);
+        gpio_set_dir(PROBE_PIO_PIN_RESET, true);
     }
     else
     {
         /* Change the direction to input to emulate open drain */
-        gpio_pull_up(PROBE_PIN_RESET);
-        gpio_set_dir(PROBE_PIN_RESET, false);
+        gpio_pull_up(PROBE_PIO_PIN_RESET);
+        gpio_set_dir(PROBE_PIO_PIN_RESET, false);
     }
 #endif
 }   // probe_reset_pin_set
@@ -217,8 +246,8 @@ void probe_reset_pin_set(uint32_t state)
 
 uint32_t probe_reset_pin_get(void)
 {
-#if defined(PROBE_PIN_RESET)
-    uint32_t r = gpio_get(PROBE_PIN_RESET);
+#if defined(PROBE_PIO_PIN_RESET)
+    uint32_t r = gpio_get(PROBE_PIO_PIN_RESET);
     return r;
 #else
     return 1;
@@ -237,11 +266,11 @@ void __TIME_CRITICAL_FUNCTION(probe_write_bits)(uint bit_count, uint32_t data)
     DEBUG_PINS_SET(probe_timing, DBG_PIN_WRITE);
     for (;;) {
         if (bit_count <= 16) {
-            pio_sm_put_blocking(PROBE_PIO, PROBE_SM, CTRL_WORD_WRITE(bit_count - 1, data));
+            pio_sm_put_blocking(PROBE_PIO, PROBE_PIO_SM, CTRL_WORD_WRITE(bit_count - 1, data));
             break;
         }
 
-        pio_sm_put_blocking(PROBE_PIO, PROBE_SM, CTRL_WORD_WRITE(16 - 1, data & 0xffff));
+        pio_sm_put_blocking(PROBE_PIO, PROBE_PIO_SM, CTRL_WORD_WRITE(16 - 1, data & 0xffff));
         data >>= 16;
         bit_count -= 16;
     }
@@ -258,10 +287,10 @@ uint32_t __TIME_CRITICAL_FUNCTION(probe_read_bits)(uint bit_count, bool push, bo
 
     DEBUG_PINS_SET(probe_timing, DBG_PIN_READ);
     if (push) {
-        pio_sm_put_blocking(PROBE_PIO, PROBE_SM, CTRL_WORD_READ(bit_count - 1));
+        pio_sm_put_blocking(PROBE_PIO, PROBE_PIO_SM, CTRL_WORD_READ(bit_count - 1));
     }
     if (pull) {
-        data = pio_sm_get_blocking(PROBE_PIO, PROBE_SM);
+        data = pio_sm_get_blocking(PROBE_PIO, PROBE_PIO_SM);
     }
     DEBUG_PINS_CLR(probe_timing, DBG_PIN_READ);
     data_shifted = data;
@@ -283,32 +312,32 @@ void probe_gpio_init()
 		picoprobe_debug("probe_gpio_init()\n");
 
 		// Funcsel pins
-        pio_gpio_init(PROBE_PIO, PROBE_PIN_SWDIR);
-		pio_gpio_init(PROBE_PIO, PROBE_PIN_SWCLK);
-		pio_gpio_init(PROBE_PIO, PROBE_PIN_SWDIO);
+        pio_gpio_init(PROBE_PIO, PROBE_PIO_PIN_SWDIR);
+		pio_gpio_init(PROBE_PIO, PROBE_PIO_PIN_SWCLK);
+		pio_gpio_init(PROBE_PIO, PROBE_PIO_PIN_SWDIO);
 		// Make sure SWDIO has a pullup on it. Idle state is high
-		gpio_pull_up(PROBE_PIN_SWDIO);
+		gpio_pull_up(PROBE_PIO_PIN_SWDIO);
 
     // Adjusting the GPIO slew and drive strength seems to break connectivity
     // with certain targets, namely the STM32H7xx line of microcontrollers.
     // For the time being, both parameters remain unset to ensure compatibility
 #if 0
-        gpio_set_slew_rate(PROBE_PIN_SWCLK, GPIO_SLEW_RATE_FAST);
-		gpio_set_drive_strength(PROBE_PIN_SWCLK, GPIO_DRIVE_STRENGTH_12MA);
-        gpio_set_slew_rate(PROBE_PIN_SWDIO, GPIO_SLEW_RATE_FAST);
-        gpio_set_drive_strength(PROBE_PIN_SWDIO, GPIO_DRIVE_STRENGTH_12MA);
+        gpio_set_slew_rate(PROBE_PIO_PIN_SWCLK, GPIO_SLEW_RATE_FAST);
+		gpio_set_drive_strength(PROBE_PIO_PIN_SWCLK, GPIO_DRIVE_STRENGTH_12MA);
+        gpio_set_slew_rate(PROBE_PIO_PIN_SWDIO, GPIO_SLEW_RATE_FAST);
+        gpio_set_drive_strength(PROBE_PIO_PIN_SWDIO, GPIO_DRIVE_STRENGTH_12MA);
 #endif
 
 		gpio_debug_pins_init();
-#ifdef PICOPROBE_LED_CONNECTED
-        gpio_init(PICOPROBE_LED_CONNECTED);
-        gpio_set_dir(PICOPROBE_LED_CONNECTED, GPIO_OUT);
-        gpio_put(PICOPROBE_LED_CONNECTED, 0);
+#ifdef PROBE_LED_CONNECTED
+        gpio_init(PROBE_LED_CONNECTED);
+        gpio_set_dir(PROBE_LED_CONNECTED, GPIO_OUT);
+        gpio_put(PROBE_LED_CONNECTED, 0);
 #endif
-#ifdef PICOPROBE_LED_RUNNING
-        gpio_init(PICOPROBE_LED_RUNNING);
-        gpio_set_dir(PICOPROBE_LED_RUNNING, GPIO_OUT);
-        gpio_put(PICOPROBE_LED_RUNNING, 0);
+#ifdef PROBE_LED_RUNNING
+        gpio_init(PROBE_LED_RUNNING);
+        gpio_set_dir(PROBE_LED_RUNNING, GPIO_OUT);
+        gpio_put(PROBE_LED_RUNNING, 0);
 #endif
 	}
 }   // probe_gpio_init
@@ -319,11 +348,11 @@ void probe_init()
 {
 //    picoprobe_info("probe_init()\n");
 
-#if defined(PROBE_PIN_RESET)
+#if defined(PROBE_PIO_PIN_RESET)
     // Target reset pin: pull up, input to emulate open drain pin
-    gpio_pull_up(PROBE_PIN_RESET);
+    gpio_pull_up(PROBE_PIO_PIN_RESET);
     // gpio_init will leave the pin cleared and set as input
-    gpio_init(PROBE_PIN_RESET);
+    gpio_init(PROBE_PIO_PIN_RESET);
 #endif
 
     if ( !probe.initted) {
@@ -334,19 +363,19 @@ void probe_init()
         pio_sm_config sm_config = probe_program_get_default_config(offset);
 
         // SWDIR and SWCLK are sideset pins
-        sm_config_set_sideset_pins(&sm_config, PROBE_PIN_SWDIR);
+        sm_config_set_sideset_pins(&sm_config, PROBE_PIO_PIN_SWDIR);
 
         // Set SWDIO offset
-        sm_config_set_out_pins(&sm_config, PROBE_PIN_SWDIO, 1);
-        sm_config_set_set_pins(&sm_config, PROBE_PIN_SWDIO, 1);
-#ifdef PROBE_PIN_SWDIN
-        sm_config_set_in_pins(&sm_config, PROBE_PIN_SWDIN);
+        sm_config_set_out_pins(&sm_config, PROBE_PIO_PIN_SWDIO, 1);
+        sm_config_set_set_pins(&sm_config, PROBE_PIO_PIN_SWDIO, 1);
+#ifdef PROBE_PIO_PIN_SWDIN
+        sm_config_set_in_pins(&sm_config, PROBE_PIO_PIN_SWDIN);
 #else
-        sm_config_set_in_pins(&sm_config, PROBE_PIN_SWDIO);
+        sm_config_set_in_pins(&sm_config, PROBE_PIO_PIN_SWDIO);
 #endif
 
         // Set SWDIR, SWCLK and SWDIO pins as output to start. This will be set in the sm
-        pio_sm_set_consecutive_pindirs(PROBE_PIO, PROBE_SM, PROBE_PIN_OFFSET, PROBE_PIN_COUNT, true);
+        pio_sm_set_consecutive_pindirs(PROBE_PIO, PROBE_PIO_SM, PROBE_PIO_PIN_OFFSET, PROBE_PIO_PIN_COUNT, true);
 
         // shift output right, autopull on, autopull threshold
         sm_config_set_out_shift(&sm_config, true, true, 32);
@@ -354,13 +383,13 @@ void probe_init()
         sm_config_set_in_shift(&sm_config, true, false, 0);
 
         // Init SM with config
-        pio_sm_init(PROBE_PIO, PROBE_SM, offset, &sm_config);
+        pio_sm_init(PROBE_PIO, PROBE_PIO_SM, offset, &sm_config);
 
         // Set up divisor
-        probe_set_swclk_freq_khz(probe_freq_khz, true);
+        probe_set_swclk_freq_khz(probe_get_swclk_freq_khz(), true);
 
         // Enable SM
-        pio_sm_set_enabled(PROBE_PIO, PROBE_SM, true);
+        pio_sm_set_enabled(PROBE_PIO, PROBE_PIO_SM, true);
         probe.initted = true;
     }
 }   // probe_init
@@ -370,7 +399,7 @@ void probe_init()
 void probe_deinit(void)
 {
     if (probe.initted) {
-        pio_sm_set_enabled(PROBE_PIO, PROBE_SM, 0);
+        pio_sm_set_enabled(PROBE_PIO, PROBE_PIO_SM, 0);
         pio_remove_program(PROBE_PIO, &probe_program, probe.offset);
         probe.initted = false;
     }

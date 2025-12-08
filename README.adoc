@@ -668,7 +668,7 @@ Or use simply `make show-options` in the projects root.
 * Frequencies
 ** the CPU is overclocked to 144MHz (=6*24MHz)
 ** SWD frequency limits
-*** RP2040/RP2350: 25MHz, actually allowed are 24MHz; default is 10MHz
+*** RP2040/RP2350: 25MHz, actually allowed are 24MHz; default is 8MHz
 *** nRF52xxx: 8MHz; default is 5MHz
 * sigrok
 ** PIO is running 7x faster in auto trigger mode than the specified sample rate

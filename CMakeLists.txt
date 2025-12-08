@@ -431,11 +431,6 @@ else()
     message(STATUS "Compiling for gcc")
 endif()
 
-if(DEFINED ENV{PICOPROBE_LED})
-    message(STATUS "PICOPROBE_LED is defined as " $ENV{PICOPROBE_LED})
-    target_compile_definitions(${PROJECT} PRIVATE PICOPROBE_LED=$ENV{PICOPROBE_LED})
-endif()
-
 set(DBG_PIN_COUNT=4)
 
 pico_generate_pio_header(${PROJECT} ${CMAKE_CURRENT_LIST_DIR}/src/probe.pio)

@@ -16,37 +16,41 @@ pico_board_cmake_set(PICO_PLATFORM, rp2040)
 
 // --- Definitions for YAPicoprobe
 
-#define PICOPROBE_LED            2
-#define PICOPROBE_LED_CONNECTED  15
-#define PICOPROBE_LED_RUNNING    16
-#define PICOPROBE_LED_TARGET_RX  7                      // host -> probe -> target UART / RTT data, i.e. target is receiving
-#define PICOPROBE_LED_TARGET_TX  8                      // target -> probe -> host UART / RTT data, i.e. target is transmitting
+// Base value of sys_clk in MHz.  Must be <=125MHz per RP2040 spec and a multiple of 24MHz
+// to support integer divisors of the PIO clock and ADC clock (for sigrok).
+// Can be overridden via configuration.
+#ifdef OPT_MCU_OVERCLOCK_MHZ
+    #define PROBE_CPU_CLOCK_MHZ  OPT_MCU_OVERCLOCK_MHZ
+#else
+    #define PROBE_CPU_CLOCK_MHZ  120
+#endif
+#define PROBE_CPU_CLOCK_MIN_MHZ  (5 * 24)
+#define PROBE_CPU_CLOCK_MAX_MHZ  (12 * 24)
+
+// LED config
+#define PROBE_LED                2
+#define PROBE_LED_CONNECTED      15
+#define PROBE_LED_RUNNING        16
+#define PROBE_LED_TARGET_RX      7                      // host -> probe -> target UART / RTT data, i.e. target is receiving
+#define PROBE_LED_TARGET_TX      8                      // target -> probe -> host UART / RTT data, i.e. target is transmitting
 
 // PIO config
 #define PROBE_PIO                pio0
-#define PROBE_SM                 0
-#define PROBE_PIN_OFFSET         11
-#define PROBE_PIN_COUNT          4
-#define PROBE_PIN_SWDIR          11                     // not used
-#define PROBE_PIN_SWCLK          12
-#define PROBE_PIN_SWDIN          13                     // dedicated input
-#define PROBE_PIN_SWDIO          14                     // used as output
-//#define PROBE_PIN_RESET                              // Target reset config (not connected)
+#define PROBE_PIO_SM             0
+#define PROBE_PIO_PIN_OFFSET     11
+#define PROBE_PIO_PIN_COUNT      4
+#define PROBE_PIO_PIN_SWDIR      11                     // not used
+#define PROBE_PIO_PIN_SWCLK      12
+#define PROBE_PIO_PIN_SWDIN      13                     // dedicated input
+#define PROBE_PIO_PIN_SWDIO      14                     // used as output
+//#define PROBE_PIO_PIN_RESET                              // Target reset config (not connected)
 //#define PROBE_MAX_KHZ         now in g_board_info.target_cfg->rt_max_swd_kHz, setup in pico::pico_prerun_board_config()
 
 // UART config (UART target -> probe)
-#define PICOPROBE_UART_TX        4
-#define PICOPROBE_UART_RX        5                      // or 6
-#define PICOPROBE_UART_INTERFACE uart1
-#define PICOPROBE_UART_BAUDRATE  115200
-
-//
-// Other pin definitions
-// - LED     actual handling is done in led.c, pin definition is PICOPROBE_LED / PICO_DEFAULT_LED_PIN
-// - sigrok  defines are in pico-sigrok/sigrok-int.h
-// - Debug   used in probe.c
-//
-
+#define PROBE_UART_TX            4
+#define PROBE_UART_RX            5                      // or 6
+#define PROBE_UART_INTERFACE     uart1
+#define PROBE_UART_BAUDRATE      115200
 
 // sigrok config
 #define SIGROK_PIO               pio1
