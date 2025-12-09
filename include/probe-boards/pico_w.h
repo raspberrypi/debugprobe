@@ -18,10 +18,10 @@ pico_board_cmake_set(PICO_CYW43_SUPPORTED, 1)
 // Base value of sys_clk in MHz.  Must be <=125MHz per RP2040 spec and a multiple of 24MHz
 // to support integer divisors of the PIO clock and ADC clock (for sigrok).
 // Can be overridden via configuration.
-#ifdef OPT_MCU_OVERCLOCK_MHZ
-    #define PROBE_CPU_CLOCK_MHZ  OPT_MCU_OVERCLOCK_MHZ
+#ifdef OPT_MCU_FORCE_CLOCK_MHZ
+    #define PROBE_CPU_CLOCK_MHZ  OPT_MCU_FORCE_CLOCK_MHZ
 #else
-    #define PROBE_CPU_CLOCK_MHZ  120
+    #define PROBE_CPU_CLOCK_MHZ  192
 #endif
 #define PROBE_CPU_CLOCK_MIN_MHZ  (5 * 24)
 #define PROBE_CPU_CLOCK_MAX_MHZ  (12 * 24)

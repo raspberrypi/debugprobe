@@ -42,7 +42,7 @@ option(OPT_CDC_SYSVIEW         "Enable SysView over CDC"                0)
 option(OPT_SERIAL_CRLF         "Insert carriage returns after debug print statements" 0)
 
 # can be reconfigured
-set(OPT_MCU_OVERCLOCK_MHZ      "144" CACHE STRING "Set processor frequency. Should be a multiple of 24MHz, disable with empty string (=120MHz)")
+set(OPT_MCU_FORCE_CLOCK_MHZ    "" CACHE STRING "Set processor frequency. Should be a multiple of 24MHz, disable with empty string (-> use PROBE_CPU_CLOCK_MHZ)")
 set(OPT_NET_192_168            14 CACHE STRING "Set the subnet of 192.168.x")
 
 # extra
@@ -129,8 +129,8 @@ add_definitions(
         -DTARGET_BOARD_${PICO_BOARD_UPPER}
         -DOPT_SPECIAL_CLK_FOR_PIO=${OPT_SPECIAL_CLK_FOR_PIO}
 )
-if(NOT OPT_MCU_OVERCLOCK_MHZ STREQUAL "")
-    add_compile_definitions(OPT_MCU_OVERCLOCK_MHZ=${OPT_MCU_OVERCLOCK_MHZ})
+if(NOT OPT_MCU_FORCE_CLOCK_MHZ STREQUAL "")
+    add_compile_definitions(OPT_MCU_FORCE_CLOCK_MHZ=${OPT_MCU_FORCE_CLOCK_MHZ})
 endif()
 
 # set version string to "x.yy"
