@@ -150,7 +150,7 @@ void dap_task(void *ptr)
                 swd_connected = false;
                 picoprobe_info("=================================== DAPv2 disconnect target\n");
                 led_state(LS_DAPV2_DISCONNECTED);
-                sw_unlock("DAPv2");
+                sw_unlock(E_SWLOCK_DAPV2);
             }
             swd_disconnect_requested = false;
             dap_packet_count = _DAP_PACKET_COUNT_UNKNOWN;
@@ -216,7 +216,7 @@ void dap_task(void *ptr)
                     // initiate SWD connect / disconnect
                     //
                     if ( !swd_connected  &&  RxDataBuffer[0] != ID_DAP_Info) {
-                        if (sw_lock("DAPv2", true)) {
+                        if (sw_lock(E_SWLOCK_DAPV2)) {
                             swd_connected = true;
                             picoprobe_info("=================================== DAPv2 connect target, host %s, buffer: %dx%dbytes\n",
                                     (tool == E_DAPTOOL_OPENOCD) ? "OpenOCD"    :
@@ -303,7 +303,7 @@ extern uint8_t const desc_ms_os_20[];
 
 bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const * request)
 {
-    // nothing to with DATA & ACK stage
+    // nothing to do with DATA & ACK stage
     if (stage != CONTROL_STAGE_SETUP)
         return true;
 
@@ -351,7 +351,7 @@ static void hid_disconnect(TimerHandle_t xTimer)
         hid_swd_connected = false;
         picoprobe_info("=================================== DAPv1 disconnect target\n");
         led_state(LS_DAPV1_DISCONNECTED);
-        sw_unlock("DAPv1");
+        sw_unlock(E_SWLOCK_DAPV1);
     }
 }   // hid_disconnect
 
@@ -393,7 +393,7 @@ void tud_hid_set_report_cb(uint8_t itf, uint8_t report_id, hid_report_type_t rep
     // initiate SWD connect / disconnect
     //
     if ( !hid_swd_connected  &&  RxDataBuffer[0] != ID_DAP_Info) {
-        if (sw_lock("DAPv1", true)) {
+        if (sw_lock(E_SWLOCK_DAPV1)) {
             hid_swd_connected = true;
             picoprobe_info("=================================== DAPv1 connect target\n");
             led_state(LS_DAPV1_CONNECTED);

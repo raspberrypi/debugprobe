@@ -35,10 +35,17 @@
     extern "C" {
 #endif
 
+typedef enum {
+                 E_SWLOCK_NOT_LOCKED,
+                 E_SWLOCK_RTT,
+                 E_SWLOCK_MSC,
+                 E_SWLOCK_DAPV1,
+                 E_SWLOCK_DAPV2,
+             } E_SWLOCK;
 
 void sw_lock_init(void);
-bool sw_lock(const char *who, bool wait_just_some_ms);
-void sw_unlock(const char *who);
+bool sw_lock(E_SWLOCK who);
+void sw_unlock(E_SWLOCK who);
 bool sw_unlock_requested(void);
 
 
