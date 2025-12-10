@@ -200,12 +200,12 @@ DEBUGGEE_CLIB := newlib
 .PHONY: debuggEE-flash
 debuggEE-flash:
 	$(MAKE) all
-	$(OPENOCD) -s $(OPENOCD_S) -f interface/cmsis-dap.cfg -f target/rp2350.cfg                                         \
-	           -c "adapter speed 10000; adapter serial $(DEBUGGER_SERNO)"                                              \
+	$(OPENOCD) -s $(OPENOCD_S) -f interface/cmsis-dap.cfg -f target/rp2350.cfg                                        \
+	           -c "adapter speed 6000; adapter serial $(DEBUGGER_SERNO)"                                              \
 	           -c "program {$(BUILD_DIR)/$(PROJECT).hex}  verify reset; exit;"
-	# attention: pyocd hijacks the previous connection (or insert a delay of 1s)
-	sleep 1s
-	pyocd reset -f 1M --probe $(DEBUGGER_SERNO)
+	# openocd does much faster flashing
+	#pyocd flash -f 6M --probe $(DEBUGGER_SERNO) $(BUILD_DIR)/$(PROJECT).hex
+	pyocd reset -f 6M --probe $(DEBUGGER_SERNO)
 	@echo "ok."
 
 
