@@ -582,7 +582,7 @@ void rtt_io_thread(void *ptr)
     bool target_online = false;
 
     for (;;) {
-        sw_lock("RTT-IO", false);
+        sw_lock(E_SWLOCK_RTT);
         // post: we have the interface
 
         if ( !target_online) {
@@ -679,7 +679,7 @@ void rtt_io_thread(void *ptr)
             target_disconnect();
             vTaskDelay(pdMS_TO_TICKS(200));        // some guard time after disconnect
         }
-        sw_unlock("RTT-IO");
+        sw_unlock(E_SWLOCK_RTT);
         vTaskDelay(pdMS_TO_TICKS(300));            // give the other task the opportunity to catch sw_lock();
     }
 }   // rtt_io_thread

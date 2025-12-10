@@ -36,54 +36,53 @@ static SemaphoreHandle_t  sema_lock;
 static volatile bool      lock_requested;
 
 
+bool sw_lock(E_SWLOCK who)
 /**
  * Lock SW access.  Idea is, that DAP/MSC access is exclusive, while the RTT console has a low priority and
  * can be superseded by the former.  But RTT console tries to have SW as long as possible.
  * To allow priority to DAP/MSC, the RTT console has to query sw_unlock_requested() periodically.
  *
- * \param who                 name of the caller, just for debugging
- * \param wait_just_some_ms   do not block the caller permanently
- * \return  true -> got the lock.  Note that false might only happen if \a wait_just_some_ms is true
+ * \param who    name of the caller, just for debugging
+ * \return  true -> got the lock.  Note that false might only happen if \a who != \a E_SWLOCK_RTT is true
  */
-bool sw_lock(const char *who, bool wait_just_some_ms)
 {
     BaseType_t r;
 
-    if (wait_just_some_ms) {
-        // wait just a short period and try to supersede RTT console
-        lock_requested = true;
-        picoprobe_debug("sw_lock('%s', %d)...\n", who, wait_just_some_ms);
-        r = xSemaphoreTake(sema_lock, pdMS_TO_TICKS(1000));
-        lock_requested = false;
-    }
-    else {
+    if (who == E_SWLOCK_RTT) {
         // RTT console: wait until SW is free
         r = xSemaphoreTake(sema_lock, portMAX_DELAY);
     }
-    picoprobe_debug("sw_lock('%s', %d) = %ld\n", who, wait_just_some_ms, r);
+    else {
+        // wait just a short period and try to supersede RTT console
+        lock_requested = true;
+        picoprobe_debug("sw_lock(%d)...\n", who);
+        r = xSemaphoreTake(sema_lock, pdMS_TO_TICKS(1000));
+        lock_requested = false;
+    }
+    picoprobe_debug("sw_lock(%d) = %ld\n", who, r);
     return (r == pdTRUE) ? true : false;
 }   // sw_lock
 
 
 
+void sw_unlock(E_SWLOCK who)
 /**
  * Free SW access.
  */
-void sw_unlock(const char *who)
 {
     BaseType_t r;
 
     r = xSemaphoreGive(sema_lock);
     (void)r;  // suppress warning from compiler
-    picoprobe_debug("sw_unlock('%s') = %ld\n", who, r);
+    picoprobe_debug("sw_unlock(%d) = %ld\n", who, r);
 }   // sw_unlock
 
 
 
+bool sw_unlock_requested(void)
 /**
  * Indicate if DAP/MSC want to lock SW.
  */
-bool sw_unlock_requested(void)
 {
     return lock_requested;
 }   // sw_unlock_request

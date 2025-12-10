@@ -113,7 +113,7 @@ static void target_disconnect(TimerHandle_t xTimer)
         }
         have_lock = false;
         xSemaphoreGive(sema_swd_in_use);
-        sw_unlock("MSC");
+        sw_unlock(E_SWLOCK_MSC);
     }
     else {
         xTimerReset(xTimer, pdMS_TO_TICKS(1000));
@@ -133,7 +133,7 @@ bool msc_target_connect(bool write_mode)
     uint64_t now_us;
     bool ok;
 
-    if (have_lock  ||  sw_lock("MSC", true)) {
+    if (have_lock  ||  sw_lock(E_SWLOCK_MSC)) {
         xSemaphoreTake(sema_swd_in_use, portMAX_DELAY);
         have_lock = true;
         now_us = time_us_64();
