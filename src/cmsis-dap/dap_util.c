@@ -419,6 +419,7 @@ daptool_t DAP_FingerprintTool(const uint8_t *request, uint32_t request_len)
         return probed_tool;
     }
     if (request[0] != ID_DAP_Info) {
+//        picoprobe_info("fingerprintxx: %d %02x %02x %d\n", sample_no, request[0], request[1], probed_tool);
         sample_no = 0;
         probed_tool = E_DAPTOOL_UNKNOWN;
         return probed_tool;
@@ -444,9 +445,7 @@ daptool_t DAP_FingerprintTool(const uint8_t *request, uint32_t request_len)
     }
 
     #if 1
-        if (request != NULL) {
-            picoprobe_info("fingerprint: %d %02x %02x %d\n", sample_no, request[0], request[1], probed_tool);
-        }
+        picoprobe_info("fingerprint: %d %02x %02x %d\n", sample_no, request[0], request[1], probed_tool);
     #endif
 
     return (sample_no == 0) ? E_DAPTOOL_UNKNOWN : probed_tool;    // return probe result if fingerprint is complete
