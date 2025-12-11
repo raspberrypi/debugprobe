@@ -132,7 +132,7 @@ uint16_t dap_packet_size  = _DAP_PACKET_SIZE_UNKNOWN;
 #if OPT_CMSIS_DAPV2
 void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize)
 {
-    picoprobe_info("rx: %d, %d\n", itf, bufsize);
+//    picoprobe_info("rx: %d, %d\n", itf, bufsize);
 
     if (itf != 0) {
         return;
@@ -149,9 +149,10 @@ void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize)
 
         request_len = DAP_GetCommandLength(RxDataBuffer, rx_len);
         if (rx_len < request_len) {
-            picoprobe_error("......... %d > %d\n", request_len, rx_len);
+//            picoprobe_error("......... %d > %d\n", request_len, rx_len);
             if (rx_len == 1  &&  RxDataBuffer[0] == 0) {
-                picoprobe_error("#################################\n");
+                // this is a special pyocd hack
+//                picoprobe_error("#################################\n");
                 rx_len = 0;
             }
             return;
@@ -165,7 +166,7 @@ void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize)
         // now we have at least one request in the buffer
         //
         last_request_us = time_us_32();
-        picoprobe_info("<<<(%ld,%ld) %d %d\n", request_len, rx_len, RxDataBuffer[0], RxDataBuffer[1]);
+//        picoprobe_info("<<<(%ld,%ld) %d %d\n", request_len, rx_len, RxDataBuffer[0], RxDataBuffer[1]);
 
 #if 1
         if (tool == E_DAPTOOL_UNKNOWN) {
