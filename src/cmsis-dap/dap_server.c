@@ -66,16 +66,33 @@
  * OpenOCD 0.12: 1024 no longer working, but 512 and 2 buffers is ok
  *
  * 2024-10-13 - confusing... openocd and so on work only with 1 packet
+ *
+ * 2025-12-11            PyOCD 0.41.0      OpenOCD 0.12.0+dev-gebec950-dirty
+ *           64/1             -/-                     +/+                       (flash/debug)
+ *          128/1             +/+                     +/+
+ *          256/1             -/+                     +/+
+ *          512/1             -/+                     +/+
+ *
+ *           64/2             -/-                     +/+
+ *          128/2             +/+                     -/+
+ *          256/2             X/+                     -/+
+ *
+ *           64/4              -                       -
+ *          128/4             +/+                     -/+
+ *          128/8             +/+                     -/+
+ *          256/8             X/+                     -/+
+ *
+ *     - openocd uses full buffer, pyocd only ~400 bytes
+ *     - pyocd transmits obscure zero byte during certain flash phases if buffer >= 256
+ *     - question is if the tools are using more than one buffer for debugging
+ *
  */
 #define _DAP_PACKET_COUNT_OPENOCD   1
 #define _DAP_PACKET_SIZE_OPENOCD    512
 #define _DAP_PACKET_COUNT_PROBERS   8
 #define _DAP_PACKET_SIZE_PROBERS    512
-#define _DAP_PACKET_COUNT_PYOCD     1
-#define _DAP_PACKET_SIZE_PYOCD      128                     // pyocd does not like packets > 128 if COUNT != 1,
-                                                            //    there seems to be also a problem with flashing if
-                                                            //    packet size exceeds flash page size (?)
-                                                            //    see https://github.com/rgrr/yapicoprobe/issues/112
+#define _DAP_PACKET_COUNT_PYOCD     4
+#define _DAP_PACKET_SIZE_PYOCD      512
 #define _DAP_PACKET_COUNT_UNKNOWN   1
 #define _DAP_PACKET_SIZE_UNKNOWN    64
 
@@ -115,7 +132,7 @@ uint16_t dap_packet_size  = _DAP_PACKET_SIZE_UNKNOWN;
 #if OPT_CMSIS_DAPV2
 void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize)
 {
-//    picoprobe_info("rx: %d, %d\n", itf, bufsize);
+    picoprobe_info("rx: %d, %d\n", itf, bufsize);
 
     if (itf != 0) {
         return;
@@ -123,156 +140,169 @@ void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize)
 
     xEventGroupSetBits(dap_events, 0x01);
 
-    rx_len += tud_vendor_read(RxDataBuffer + rx_len, sizeof(RxDataBuffer));
+    rx_len += tud_vendor_read(RxDataBuffer + rx_len, sizeof(RxDataBuffer) - rx_len);
 
-    if (rx_len == 0) {
-        return;
-    }
-
-    request_len = DAP_GetCommandLength(RxDataBuffer, rx_len);
-    if (rx_len < request_len) {
-        return;
-    }
-
-    //
-    // now we have at least one request in the buffer
-    //
-    last_request_us = time_us_32();
-    picoprobe_info("<<<(%lx) %d %d\n", request_len, RxDataBuffer[0], RxDataBuffer[1]);
-
-    if (tool == E_DAPTOOL_UNKNOWN) {
-        //
-        // try to find out which tool is connecting
-        //
-        uint32_t psize;
-        uint32_t pcnt;
-
-        psize = ini_getl(MININI_SECTION, MININI_VAR_DAP_PSIZE, 0, MININI_FILENAME);
-        pcnt  = ini_getl(MININI_SECTION, MININI_VAR_DAP_PCNT,  0, MININI_FILENAME);
-        if (psize != 0  ||  pcnt != 0)
-        {
-            dap_packet_count = (pcnt  != 0) ? pcnt  : _DAP_PACKET_COUNT_UNKNOWN;
-            dap_packet_size  = (psize != 0) ? psize : _DAP_PACKET_SIZE_UNKNOWN;
-            dap_packet_size  = MIN(dap_packet_size, PACKET_MAXSIZE);
-            if (dap_packet_count * dap_packet_size > BUFFER_MAXSIZE) {
-                dap_packet_size  = MIN(dap_packet_size, BUFFER_MAXSIZE);
-                dap_packet_count = BUFFER_MAXSIZE / dap_packet_size;
-            }
-            tool = E_DAPTOOL_USER;
+    for (;;) {
+        if (rx_len == 0) {
+            return;
         }
-        else
-        {
-            tool = DAP_FingerprintTool(RxDataBuffer, request_len);
-            if (tool == E_DAPTOOL_OPENOCD) {
-                dap_packet_count = _DAP_PACKET_COUNT_OPENOCD;
-                dap_packet_size  = _DAP_PACKET_SIZE_OPENOCD;
+
+        request_len = DAP_GetCommandLength(RxDataBuffer, rx_len);
+        if (rx_len < request_len) {
+            picoprobe_error("......... %d > %d\n", request_len, rx_len);
+            if (rx_len == 1  &&  RxDataBuffer[0] == 0) {
+                picoprobe_error("#################################\n");
+                rx_len = 0;
             }
-            else if (tool == E_DAPTOOL_PYOCD) {
-                dap_packet_count = _DAP_PACKET_COUNT_PYOCD;
-                dap_packet_size  = _DAP_PACKET_SIZE_PYOCD;
+            return;
+        }
+
+        if (rx_len != request_len) {
+            picoprobe_error("!!!!!!!!! %d != %d\n", request_len, rx_len);
+        }
+
+        //
+        // now we have at least one request in the buffer
+        //
+        last_request_us = time_us_32();
+        picoprobe_info("<<<(%ld,%ld) %d %d\n", request_len, rx_len, RxDataBuffer[0], RxDataBuffer[1]);
+
+#if 1
+        if (tool == E_DAPTOOL_UNKNOWN) {
+            //
+            // try to find out which tool is connecting
+            //
+            uint32_t psize;
+            uint32_t pcnt;
+
+            psize = ini_getl(MININI_SECTION, MININI_VAR_DAP_PSIZE, 0, MININI_FILENAME);
+            pcnt  = ini_getl(MININI_SECTION, MININI_VAR_DAP_PCNT,  0, MININI_FILENAME);
+            if (psize != 0  ||  pcnt != 0)
+            {
+                dap_packet_count = (pcnt  != 0) ? pcnt  : _DAP_PACKET_COUNT_UNKNOWN;
+                dap_packet_size  = (psize != 0) ? psize : _DAP_PACKET_SIZE_UNKNOWN;
+                dap_packet_size  = MIN(dap_packet_size, PACKET_MAXSIZE);
+                if (dap_packet_count * dap_packet_size > BUFFER_MAXSIZE) {
+                    dap_packet_size  = MIN(dap_packet_size, BUFFER_MAXSIZE);
+                    dap_packet_count = BUFFER_MAXSIZE / dap_packet_size;
+                }
+                tool = E_DAPTOOL_USER;
             }
-            else if (tool == E_DAPTOOL_PROBERS) {
-                dap_packet_count = _DAP_PACKET_COUNT_PROBERS;
-                dap_packet_size  = _DAP_PACKET_SIZE_PROBERS;
+            else
+            {
+                tool = DAP_FingerprintTool(RxDataBuffer, request_len);
+                if (tool == E_DAPTOOL_OPENOCD) {
+                    dap_packet_count = _DAP_PACKET_COUNT_OPENOCD;
+                    dap_packet_size  = _DAP_PACKET_SIZE_OPENOCD;
+                }
+                else if (tool == E_DAPTOOL_PYOCD) {
+                    dap_packet_count = _DAP_PACKET_COUNT_PYOCD;
+                    dap_packet_size  = _DAP_PACKET_SIZE_PYOCD;
+                }
+                else if (tool == E_DAPTOOL_PROBERS) {
+                    dap_packet_count = _DAP_PACKET_COUNT_PROBERS;
+                    dap_packet_size  = _DAP_PACKET_SIZE_PROBERS;
+                }
             }
         }
-    }
+#endif
 
-    //
-    // initiate SWD connect / disconnect
-    //
-    if ( !swd_connected) {
-        if ( !DAP_OfflineCommand(RxDataBuffer)) {
-            if (sw_lock(E_SWLOCK_DAPV2)) {
-                swd_connected = true;
-                picoprobe_info("=================================== DAPv2 connect target, host %s, buffer: %dx%dbytes\n",
-                        (tool == E_DAPTOOL_OPENOCD) ? "OpenOCD"    :
-                         (tool == E_DAPTOOL_PYOCD) ? "pyOCD"       :
-                          (tool == E_DAPTOOL_PROBERS) ? "probe-rs" :
-                           (tool == E_DAPTOOL_USER) ? "user-set"   : "UNKNOWN", dap_packet_count, dap_packet_size);
-                led_state(LS_DAPV2_CONNECTED);
+        //
+        // initiate SWD connect / disconnect
+        //
+        if ( !swd_connected) {
+            if ( !DAP_OfflineCommand(RxDataBuffer)) {
+                if (sw_lock(E_SWLOCK_DAPV2)) {
+                    swd_connected = true;
+                    picoprobe_info("=================================== DAPv2 connect target, host %s, buffer: %dx%dbytes\n",
+                            (tool == E_DAPTOOL_OPENOCD) ? "OpenOCD"    :
+                                    (tool == E_DAPTOOL_PYOCD) ? "pyOCD"       :
+                                            (tool == E_DAPTOOL_PROBERS) ? "probe-rs" :
+                                                    (tool == E_DAPTOOL_USER) ? "user-set"   : "UNKNOWN", dap_packet_count, dap_packet_size);
+                    led_state(LS_DAPV2_CONNECTED);
+                }
+                else {
+                    // did not get lock!
+                }
             }
             else {
-                // did not get lock!
+                // ID_DAP_Info must/can be done without a lock
             }
         }
         else {
-            // ID_DAP_Info must/can be done without a lock
-        }
-    }
-    else {
-        // connected:
-        if (RxDataBuffer[0] == ID_DAP_Disconnect) {
-            swd_connected = false;
-            picoprobe_info("=================================== DAPv2 disconnect target\n");
-            led_state(LS_DAPV2_DISCONNECTED);
-            sw_unlock(E_SWLOCK_DAPV2);
+            // connected:
+            if (RxDataBuffer[0] == ID_DAP_Disconnect) {
+                swd_connected = false;
+                picoprobe_info("=================================== DAPv2 disconnect target\n");
+                led_state(LS_DAPV2_DISCONNECTED);
+                sw_unlock(E_SWLOCK_DAPV2);
 
-            dap_packet_count = _DAP_PACKET_COUNT_UNKNOWN;
-            dap_packet_size  = _DAP_PACKET_SIZE_UNKNOWN;
-            tool = DAP_FingerprintTool(NULL, 0);
+                dap_packet_count = _DAP_PACKET_COUNT_UNKNOWN;
+                dap_packet_size  = _DAP_PACKET_SIZE_UNKNOWN;
+                tool = DAP_FingerprintTool(NULL, 0);
+            }
+            else if (RxDataBuffer[0] == ID_DAP_Info  ||  RxDataBuffer[0] == ID_DAP_HostStatus) {
+                // ignore these commands after an ID_DAP_Disconnect
+                // e.g. openocd issues ID_DAP_HostStatus after ID_DAP_Disconnect
+            }
         }
-        else if (RxDataBuffer[0] == ID_DAP_Info  ||  RxDataBuffer[0] == ID_DAP_HostStatus) {
-            // ignore these commands after an ID_DAP_Disconnect
-            // e.g. openocd issues ID_DAP_HostStatus after ID_DAP_Disconnect
-        }
-    }
 
-    //
-    // execute request and send back response
-    //
-    if (swd_connected  ||  DAP_OfflineCommand(RxDataBuffer))
-    {
-        uint32_t resp_len;
+        //
+        // execute request and send back response
+        //
+        if (swd_connected  ||  DAP_OfflineCommand(RxDataBuffer))
+        {
+            uint32_t resp_len;
 
 #if 0
-        // heavy debug output, set dap_packet_count=2 to stumble into the bug
-        const uint16_t bufsize = 64;
-        picoprobe_info("-----------------------------------------------\n");
-        picoprobe_info("<< (%lx) ", request_len);
-        for (int i = 0;  i < bufsize;  ++i) {
-            picoprobe_info_out(" %02x", RxDataBuffer[i]);
-            if (i == request_len - 1) {
-                picoprobe_info_out(" !!!!");
+            // heavy debug output, set dap_packet_count=2 to stumble into the bug
+            const uint16_t bufsize = 64;
+            picoprobe_info("-----------------------------------------------\n");
+            picoprobe_info("<< (%lx) ", request_len);
+            for (int i = 0;  i < bufsize;  ++i) {
+                picoprobe_info_out(" %02x", RxDataBuffer[i]);
+                if (i == request_len - 1) {
+                    picoprobe_info_out(" !!!!");
+                }
             }
-        }
-        picoprobe_info_out("\n");
-        vTaskDelay(pdMS_TO_TICKS(5));
-        resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
-        picoprobe_info(">> (%lx) ", resp_len);
-        for (int i = 0;  i < bufsize;  ++i) {
-            picoprobe_info_out(" %02x", TxDataBuffer[i]);
-            if (i == (resp_len & 0xffff) - 1) {
-                picoprobe_info_out(" !!!!");
+            picoprobe_info_out("\n");
+            vTaskDelay(pdMS_TO_TICKS(5));
+            resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
+            picoprobe_info(">> (%lx) ", resp_len);
+            for (int i = 0;  i < bufsize;  ++i) {
+                picoprobe_info_out(" %02x", TxDataBuffer[i]);
+                if (i == (resp_len & 0xffff) - 1) {
+                    picoprobe_info_out(" !!!!");
+                }
             }
-        }
-        picoprobe_info_out("\n");
+            picoprobe_info_out("\n");
 #else
-        resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
+            resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
 #endif
 
-//        picoprobe_info(">>>(%d) %d %d %d %d %d\n", request_len, resp_len & 0xffff, TxDataBuffer[0], TxDataBuffer[1], TxDataBuffer[2], TxDataBuffer[3]);
+            //        picoprobe_info(">>>(%d) %d %d %d %d %d\n", request_len, resp_len & 0xffff, TxDataBuffer[0], TxDataBuffer[1], TxDataBuffer[2], TxDataBuffer[3]);
 
-        tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
-        tud_vendor_flush();
+            tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
+            tud_vendor_flush();
 
-        if (request_len != (resp_len >> 16))
-        {
-            // there is a bug in CMSIS-DAP, see https://github.com/ARM-software/CMSIS_5/pull/1503
-            // but we trust our own length calculation
-            picoprobe_error("   !!!!!!!! request (%u) and executed length (%u) differ\n",
-                            (unsigned)request_len, (unsigned)(resp_len >> 16));
+            if (request_len != (resp_len >> 16))
+            {
+                // there is a bug in CMSIS-DAP, see https://github.com/ARM-software/CMSIS_5/pull/1503
+                // but we trust our own length calculation
+                picoprobe_error("   !!!!!!!! request (%u) and executed length (%u) differ\n",
+                        (unsigned)request_len, (unsigned)(resp_len >> 16));
+            }
         }
-    }
 
-    if (rx_len == request_len)
-    {
-        rx_len = 0;
-    }
-    else
-    {
-        memmove(RxDataBuffer, RxDataBuffer + request_len, rx_len - request_len);
-        rx_len -= request_len;
+        if (rx_len == request_len)
+        {
+            rx_len = 0;
+        }
+        else
+        {
+            memmove(RxDataBuffer, RxDataBuffer + request_len, rx_len - request_len);
+            rx_len -= request_len;
+        }
     }
 }   // tud_vendor_rx_cb
 #endif
