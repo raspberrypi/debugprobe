@@ -200,18 +200,32 @@ DEBUGGEE_CLIB := newlib
 .PHONY: debuggEE-flash
 debuggEE-flash:
 	$(MAKE) all
+	pyocd flash -f 6M --probe $(DEBUGGER_SERNO) -e auto $(BUILD_DIR)/$(PROJECT).hex
+	pyocd reset -f 6M --probe $(DEBUGGER_SERNO)
+	@echo "ok."
+
+
+.PHONY: debuggEE-flash-openocd
+debuggEE-flash-openocd:
+	$(MAKE) all
+	# openocd does much faster flashing
 	$(OPENOCD) -s $(OPENOCD_S) -f interface/cmsis-dap.cfg -f target/rp2350.cfg                                        \
 	           -c "adapter speed 6000; adapter serial $(DEBUGGER_SERNO)"                                              \
 	           -c "program {$(BUILD_DIR)/$(PROJECT).hex}  verify reset; exit;"
-	# openocd does much faster flashing
-	#pyocd flash -f 6M --probe $(DEBUGGER_SERNO) $(BUILD_DIR)/$(PROJECT).hex
 	pyocd reset -f 6M --probe $(DEBUGGER_SERNO)
 	@echo "ok."
 
 
 .PHONY: debuggEE-reset
 debuggEE-reset:
-	pyocd reset -f 1M --probe $(DEBUGGER_SERNO)
+	pyocd reset -v -f 1M --probe $(DEBUGGER_SERNO)
+
+
+.PHONY: debuggEE-reset-openocd
+debuggEE-reset-openocd:
+	$(OPENOCD) -s $(OPENOCD_S) -f interface/cmsis-dap.cfg -f target/rp2350.cfg                                        \
+	           -c "adapter speed 6000; adapter serial $(DEBUGGER_SERNO)"                                              \
+	           -c "init; exit;"
 
 
 .PHONY: cmake-create-debuggEE
