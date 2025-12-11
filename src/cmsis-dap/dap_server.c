@@ -116,7 +116,7 @@ uint16_t dap_packet_size  = _DAP_PACKET_SIZE_UNKNOWN;
 #if OPT_CMSIS_DAPV2
 void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize)
 {
-    picoprobe_info("rx: %d, %d\n", itf, bufsize);
+//    picoprobe_info("rx: %d, %d\n", itf, bufsize);
 
     if (itf != 0) {
         return;
@@ -139,7 +139,7 @@ void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize)
     // now we have at least one request in the buffer
     //
     last_request_us = time_us_32();
-    //picoprobe_info("<<<(%lx) %d %d\n", request_len, RxDataBuffer[0], RxDataBuffer[1]);
+    picoprobe_info("<<<(%lx) %d %d\n", request_len, RxDataBuffer[0], RxDataBuffer[1]);
 
     if (tool == E_DAPTOOL_UNKNOWN) {
         //
@@ -183,7 +183,7 @@ void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize)
     // initiate SWD connect / disconnect
     //
     if ( !swd_connected) {
-        if (RxDataBuffer[0] != ID_DAP_Info) {
+        if (RxDataBuffer[0] == ID_DAP_Connect) {
             if (sw_lock(E_SWLOCK_DAPV2)) {
                 swd_connected = true;
                 picoprobe_info("=================================== DAPv2 connect target, host %s, buffer: %dx%dbytes\n",
@@ -204,7 +204,18 @@ void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize)
     else {
         // connected:
         if (RxDataBuffer[0] == ID_DAP_Disconnect) {
+#if 0
             swd_disconnect_requested = true;
+#else
+            swd_connected = false;
+            picoprobe_info("=================================== DAPv2 disconnect target\n");
+            led_state(LS_DAPV2_DISCONNECTED);
+            sw_unlock(E_SWLOCK_DAPV2);
+
+            dap_packet_count = _DAP_PACKET_COUNT_UNKNOWN;
+            dap_packet_size  = _DAP_PACKET_SIZE_UNKNOWN;
+            tool = DAP_FingerprintTool(NULL, 0);
+#endif
         }
         else if (RxDataBuffer[0] == ID_DAP_Info  ||  RxDataBuffer[0] == ID_DAP_HostStatus) {
             // ignore these commands after an ID_DAP_Disconnect
@@ -248,7 +259,7 @@ void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize)
         resp_len = DAP_ExecuteCommand(RxDataBuffer, TxDataBuffer);
 #endif
 
-//                        picoprobe_info(">>>(%lx) %d %d %d %d\n", resp_len, TxDataBuffer[0], TxDataBuffer[1], TxDataBuffer[2], TxDataBuffer[3]);
+//        picoprobe_info(">>>(%d) %d %d %d %d %d\n", request_len, resp_len & 0xffff, TxDataBuffer[0], TxDataBuffer[1], TxDataBuffer[2], TxDataBuffer[3]);
 
         tud_vendor_write(TxDataBuffer, resp_len & 0xffff);
         tud_vendor_flush();
@@ -294,6 +305,8 @@ void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize)
  */
 void dap_task(void *ptr)
 {
+    EventBits_t xx;
+
     dap_packet_count = _DAP_PACKET_COUNT_UNKNOWN;
     dap_packet_size  = _DAP_PACKET_SIZE_UNKNOWN;
     for (;;) {
@@ -312,7 +325,8 @@ void dap_task(void *ptr)
             tool = DAP_FingerprintTool(NULL, 0);
         }
 
-        xEventGroupWaitBits(dap_events, 0x01, pdTRUE, pdFALSE, pdMS_TO_TICKS(1));  // TODO "pyocd reset -f 500000" does otherwise not disconnect
+        xx = xEventGroupWaitBits(dap_events, 0x01, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
+//        picoprobe_info("vvvv %d\n", xx);
     }
 }   // dap_task
 #endif
