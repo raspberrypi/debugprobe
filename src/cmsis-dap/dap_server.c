@@ -104,7 +104,6 @@ uint16_t dap_packet_size  = _DAP_PACKET_SIZE_UNKNOWN;
     static uint8_t RxDataBuffer[BUFFER_MAXSIZE];
 
     static bool swd_connected = false;
-    static bool swd_disconnect_requested = false;
     static uint32_t request_len;
     static uint32_t last_request_us = 0;
     static uint32_t rx_len = 0;
@@ -183,7 +182,7 @@ void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize)
     // initiate SWD connect / disconnect
     //
     if ( !swd_connected) {
-        if (RxDataBuffer[0] == ID_DAP_Connect) {
+        if ( !DAP_OfflineCommand(RxDataBuffer)) {
             if (sw_lock(E_SWLOCK_DAPV2)) {
                 swd_connected = true;
                 picoprobe_info("=================================== DAPv2 connect target, host %s, buffer: %dx%dbytes\n",
@@ -204,9 +203,6 @@ void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize)
     else {
         // connected:
         if (RxDataBuffer[0] == ID_DAP_Disconnect) {
-#if 0
-            swd_disconnect_requested = true;
-#else
             swd_connected = false;
             picoprobe_info("=================================== DAPv2 disconnect target\n");
             led_state(LS_DAPV2_DISCONNECTED);
@@ -215,14 +211,10 @@ void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize)
             dap_packet_count = _DAP_PACKET_COUNT_UNKNOWN;
             dap_packet_size  = _DAP_PACKET_SIZE_UNKNOWN;
             tool = DAP_FingerprintTool(NULL, 0);
-#endif
         }
         else if (RxDataBuffer[0] == ID_DAP_Info  ||  RxDataBuffer[0] == ID_DAP_HostStatus) {
             // ignore these commands after an ID_DAP_Disconnect
             // e.g. openocd issues ID_DAP_HostStatus after ID_DAP_Disconnect
-        }
-        else {
-            swd_disconnect_requested = false;
         }
     }
 
@@ -310,21 +302,6 @@ void dap_task(void *ptr)
     dap_packet_count = _DAP_PACKET_COUNT_UNKNOWN;
     dap_packet_size  = _DAP_PACKET_SIZE_UNKNOWN;
     for (;;) {
-        // disconnect after 10ms without data (or if pyocd immediately)
-        if (    swd_disconnect_requested
-            &&  (time_us_32() - last_request_us > 10000  ||  tool == E_DAPTOOL_PYOCD)) {
-            if (swd_connected) {
-                swd_connected = false;
-                picoprobe_info("=================================== DAPv2 disconnect target\n");
-                led_state(LS_DAPV2_DISCONNECTED);
-                sw_unlock(E_SWLOCK_DAPV2);
-            }
-            swd_disconnect_requested = false;
-            dap_packet_count = _DAP_PACKET_COUNT_UNKNOWN;
-            dap_packet_size  = _DAP_PACKET_SIZE_UNKNOWN;
-            tool = DAP_FingerprintTool(NULL, 0);
-        }
-
         xx = xEventGroupWaitBits(dap_events, 0x01, pdTRUE, pdFALSE, pdMS_TO_TICKS(100));
 //        picoprobe_info("vvvv %d\n", xx);
     }
