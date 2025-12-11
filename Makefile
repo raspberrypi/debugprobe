@@ -204,7 +204,6 @@ debuggEE-flash:
 	pyocd reset -f 6M --probe $(DEBUGGER_SERNO)
 	@echo "ok."
 
-
 .PHONY: debuggEE-flash-openocd
 debuggEE-flash-openocd:
 	$(MAKE) all
@@ -215,17 +214,27 @@ debuggEE-flash-openocd:
 	pyocd reset -f 6M --probe $(DEBUGGER_SERNO)
 	@echo "ok."
 
+.PHONY: debuggEE-flash-probe-rs
+debuggEE-flash-probe-rs:
+	$(MAKE) all
+	#probe-rs run      --speed 6000 --probe 2e8a:000c:$(DEBUGGER_SERNO) --rtt-scan-memory $(BUILD_DIR)/$(PROJECT).elf
+	probe-rs download --speed 6000 --probe 2e8a:000c:$(DEBUGGER_SERNO)                   $(BUILD_DIR)/$(PROJECT).elf
+	@echo "ok."
+
 
 .PHONY: debuggEE-reset
 debuggEE-reset:
 	pyocd reset -v -f 1M --probe $(DEBUGGER_SERNO)
-
 
 .PHONY: debuggEE-reset-openocd
 debuggEE-reset-openocd:
 	$(OPENOCD) -s $(OPENOCD_S) -f interface/cmsis-dap.cfg -f target/rp2350.cfg                                        \
 	           -c "adapter speed 6000; adapter serial $(DEBUGGER_SERNO)"                                              \
 	           -c "init; exit;"
+
+.PHONY: debuggEE-reset-probe-rs
+debuggEE-reset-probe-rs:
+	probe-rs reset --speed 6000 --probe 2e8a:000c:$(DEBUGGER_SERNO)
 
 
 .PHONY: cmake-create-debuggEE
