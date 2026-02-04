@@ -150,6 +150,9 @@ void probe_write_mode(void) {
 
 void probe_init() {
     if (!probe.initted) {
+        // MUST be early, before any SM config/init that uses pins
+        pio_set_gpio_base(pio0,PROBE_PIO_BASE);
+
         probe_gpio_init();
         uint offset = pio_add_program(pio0, &probe_program);
         probe.offset = offset;

@@ -45,6 +45,8 @@
 #define PROBE_PIN_RESET 1
 
 #define PROBE_SM 0
+/* Set PROBE_PIO_BASE base to 16 to use gpio 32 and above */
+#define PROBE_PIO_BASE 0
 #define PROBE_PIN_OFFSET 12
 /* PIO config for PROBE_IO_RAW */
 #if defined(PROBE_IO_RAW)

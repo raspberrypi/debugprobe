@@ -102,15 +102,15 @@ static inline void probe_gpio_deinit()
 static inline void probe_sm_init(pio_sm_config* sm_config) {
 
     // Set SWCLK as a sideset pin
-    sm_config_set_sideset_pins(sm_config, PROBE_PIN_SWCLK);
+    sm_config_set_sideset_pins(sm_config, PIO_PIN(PROBE_PIN_SWCLK));
 
     // Set SWDIO offset
-    sm_config_set_out_pins(sm_config, PROBE_PIN_SWDIO, 1);
-    sm_config_set_set_pins(sm_config, PROBE_PIN_SWDIO, 1);
+    sm_config_set_out_pins(sm_config, PIO_PIN(PROBE_PIN_SWDIO), 1);
+    sm_config_set_set_pins(sm_config, PIO_PIN(PROBE_PIN_SWDIO), 1);
 #ifdef PROBE_IO_SWDI
-    sm_config_set_in_pins(sm_config, PROBE_PIN_SWDI);
+    sm_config_set_in_pins(sm_config, PIO_PIN(PROBE_PIN_SWDI));
 #else
-    sm_config_set_in_pins(sm_config, PROBE_PIN_SWDIO);
+    sm_config_set_in_pins(sm_config, PIO_PIN(PROBE_PIN_SWDIO));
 #endif
 
 
