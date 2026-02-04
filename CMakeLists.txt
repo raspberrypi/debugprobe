@@ -63,6 +63,8 @@ target_compile_definitions (debugprobe PRIVATE
 	PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
 )
 
+set(DEBUG_PROBE_BOARD "debug_probe" CACHE STRING "Debug Probe board to build for")
+
 option (DEBUG_ON_PICO "Compile firmware for the Pico instead of Debug Probe" OFF)
 if (DEBUG_ON_PICO)
     target_compile_definitions (debugprobe PRIVATE
@@ -79,6 +81,10 @@ if (DEBUG_ON_PICO)
     else ()
         message(SEND_ERROR "Unsupported board ${PICO_BOARD}")
     endif ()
+else ()
+    target_compile_definitions(debugprobe PRIVATE
+        BOARD_CONFIG_HEADER=\"board_${DEBUG_PROBE_BOARD}_config.h\"
+    )
 endif ()
 
 
