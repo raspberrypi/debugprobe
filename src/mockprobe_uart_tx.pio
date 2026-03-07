@@ -1,0 +1,38 @@
+;
+; Derived from Raspberry Pi pico-examples pio/uart_tx/uart_tx.pio
+; SPDX-License-Identifier: BSD-3-Clause
+;
+.pio_version 0
+
+.program mockprobe_uart_tx
+.side_set 1 opt
+
+    pull       side 1 [7]
+    set x, 7   side 0 [7]
+bitloop:
+    out pins, 1
+    jmp x-- bitloop [6]
+
+% c-sdk {
+#include "hardware/clocks.h"
+
+static inline void mockprobe_uart_tx_program_init(PIO pio, uint sm, uint offset, uint pin_tx, uint baud) {
+    pio_sm_set_pins_with_mask64(pio, sm, 1ull << pin_tx, 1ull << pin_tx);
+    pio_sm_set_pindirs_with_mask64(pio, sm, 1ull << pin_tx, 1ull << pin_tx);
+    pio_gpio_init(pio, pin_tx);
+
+    pio_sm_config c = mockprobe_uart_tx_program_get_default_config(offset);
+    sm_config_set_out_shift(&c, true, false, 32);
+    sm_config_set_out_pins(&c, pin_tx, 1);
+    sm_config_set_sideset_pins(&c, pin_tx);
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
+    sm_config_set_clkdiv(&c, (float)clock_get_hz(clk_sys) / (8 * baud));
+
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+
+static inline void mockprobe_uart_tx_program_putc(PIO pio, uint sm, char c) {
+    pio_sm_put_blocking(pio, sm, (uint32_t)c);
+}
+%}

@@ -24,12 +24,15 @@
  */
 
 #include <pico/stdlib.h>
+#include <string.h>
 #include "FreeRTOS.h"
 #include "task.h"
 #include "tusb.h"
 #include "autobaud.h"
 
 #include "probe_config.h"
+#include "mockprobe_mode.h"
+#include "mockprobe_transport.h"
 
 TaskHandle_t uart_taskhandle;
 TickType_t last_wake, interval = 100;
@@ -53,12 +56,104 @@ static uint rx_led_debounce;
 
 static BaudInfo_t baud_info;
 
+static void transport_set_break(bool enabled) {
+    if (mockprobe_transport_backend_name()[0] == 'h') {
+        uart_set_break(mockprobe_transport_uart_id() == 0 ? uart0 : uart1, enabled);
+    }
+}
+
+#if MOCKPROBE_EXTENSIONS
+#define MOCKPROBE_PREFIX "!MP "
+#define MOCKPROBE_LINE_BUF 192
+
+typedef enum {
+    HOST_LINE_IDLE = 0,
+    HOST_LINE_CANDIDATE,
+    HOST_LINE_COMMAND,
+    HOST_LINE_RAW
+} host_line_mode_t;
+
+static char mockprobe_line_buf[MOCKPROBE_LINE_BUF];
+static size_t mockprobe_line_len;
+static size_t mockprobe_prefix_len;
+static host_line_mode_t host_line_mode;
+static bool mockprobe_session_active;
+
+static void host_line_reset(void) {
+    mockprobe_line_len = 0;
+    host_line_mode = HOST_LINE_IDLE;
+}
+
+static void uart_write_one(uint8_t byte) {
+    mockprobe_transport_write_byte(byte);
+}
+
+static void flush_candidate_as_raw(void) {
+    if (mockprobe_line_len != 0) {
+        mockprobe_transport_write((const uint8_t *)mockprobe_line_buf, mockprobe_line_len);
+    }
+    host_line_mode = HOST_LINE_RAW;
+}
+
+static void process_host_byte(uint8_t byte) {
+    if (host_line_mode == HOST_LINE_IDLE) {
+        if (byte == MOCKPROBE_PREFIX[0]) {
+            mockprobe_session_active = true;
+            host_line_mode = HOST_LINE_CANDIDATE;
+            mockprobe_line_buf[0] = (char)byte;
+            mockprobe_line_len = 1;
+        } else {
+            host_line_mode = HOST_LINE_RAW;
+            uart_write_one(byte);
+        }
+        return;
+    }
+
+    if (host_line_mode == HOST_LINE_CANDIDATE) {
+        if (mockprobe_line_len < sizeof(mockprobe_line_buf) - 1) {
+            mockprobe_line_buf[mockprobe_line_len++] = (char)byte;
+        } else {
+            flush_candidate_as_raw();
+            return;
+        }
+
+        if (MOCKPROBE_PREFIX[mockprobe_line_len - 1] != (char)byte) {
+            flush_candidate_as_raw();
+            return;
+        }
+
+        if (mockprobe_line_len == mockprobe_prefix_len) {
+            host_line_mode = HOST_LINE_COMMAND;
+            mockprobe_line_len = 0;
+        }
+        return;
+    }
+
+    if (host_line_mode == HOST_LINE_COMMAND) {
+        if (byte == '\r') {
+            return;
+        }
+        if (byte == '\n') {
+            mockprobe_line_buf[mockprobe_line_len] = '\0';
+            mockprobe_handle_command_line(mockprobe_line_buf);
+            host_line_reset();
+            return;
+        }
+        if (mockprobe_line_len < sizeof(mockprobe_line_buf) - 1) {
+            mockprobe_line_buf[mockprobe_line_len++] = (char)byte;
+        }
+        return;
+    }
+
+    uart_write_one(byte);
+    if (byte == '\n') {
+        host_line_reset();
+    }
+}
+#endif
+
 void cdc_uart_init(void) {
-    gpio_set_function(PROBE_UART_TX, GPIO_FUNC_UART);
-    gpio_set_function(PROBE_UART_RX, GPIO_FUNC_UART);
-    gpio_set_pulls(PROBE_UART_TX, 1, 0);
-    gpio_set_pulls(PROBE_UART_RX, 1, 0);
-    uart_init(PROBE_UART_INTERFACE, PROBE_UART_BAUDRATE);
+    mockprobe_transport_init();
 
 #ifdef PROBE_UART_TX_LED
     tx_led_debounce = 0;
@@ -93,6 +188,13 @@ void cdc_uart_init(void) {
     gpio_set_dir(PROBE_UART_DTR, GPIO_OUT);
     gpio_put(PROBE_UART_DTR, 1);
 #endif
+
+#if MOCKPROBE_EXTENSIONS
+    mockprobe_prefix_len = strlen(MOCKPROBE_PREFIX);
+    host_line_reset();
+    mockprobe_mode_init();
+    mockprobe_session_active = false;
+#endif
 }
 
 bool cdc_task(void)
@@ -102,9 +204,10 @@ bool cdc_task(void)
     uint rx_len = 0;
     bool keep_alive = false;
 
-    // Consume uart fifo regardless even if not connected
-    while(uart_is_readable(PROBE_UART_INTERFACE) && (rx_len < sizeof(rx_buf))) {
-        rx_buf[rx_len++] = uart_getc(PROBE_UART_INTERFACE);
+    // In MockProbe session, UART data is consumed by command handlers such as
+    // UART_EXPECT so it does not race with the raw CDC bridge path.
+    if (!mockprobe_session_active) {
+        rx_len = (uint)mockprobe_transport_read(rx_buf, sizeof(rx_buf));
     }
 
     if (tud_cdc_connected()) {
@@ -137,15 +240,20 @@ bool cdc_task(void)
       /* Reading from a firehose and writing to a FIFO. */
       size_t watermark = MIN(tud_cdc_available(), sizeof(tx_buf));
       if (watermark > 0) {
-        size_t tx_len;
 #ifdef PROBE_UART_TX_LED
         gpio_put(PROBE_UART_TX_LED, 1);
         tx_led_debounce = debounce_ticks;
 #endif
         /* Batch up to half a FIFO of data - don't clog up on RX */
         watermark = MIN(watermark, 16);
-        tx_len = tud_cdc_read(tx_buf, watermark);
-        uart_write_blocking(PROBE_UART_INTERFACE, tx_buf, tx_len);
+        size_t tx_len = tud_cdc_read(tx_buf, watermark);
+#if MOCKPROBE_EXTENSIONS
+        for (size_t i = 0; i < tx_len; ++i) {
+            process_host_byte(tx_buf[i]);
+        }
+#else
+        mockprobe_transport_write(tx_buf, tx_len);
+#endif
       } else {
 #ifdef PROBE_UART_TX_LED
           if (tx_led_debounce)
@@ -158,7 +266,7 @@ bool cdc_task(void)
       if (timed_break) {
         if (((int)break_expiry - (int)xTaskGetTickCount()) < 0) {
           timed_break = false;
-          uart_set_break(PROBE_UART_INTERFACE, false);
+          transport_set_break(false);
 #ifdef PROBE_UART_TX_LED
           tx_led_debounce = 0;
 #endif
@@ -168,9 +276,10 @@ bool cdc_task(void)
       }
     } else if (was_connected) {
       tud_cdc_write_clear();
-      uart_set_break(PROBE_UART_INTERFACE, false);
+      transport_set_break(false);
       timed_break = false;
       was_connected = 0;
+      mockprobe_session_active = false;
 #ifdef PROBE_UART_TX_LED
       tx_led_debounce = 0;
 #endif
@@ -188,11 +297,9 @@ void cdc_uart_set_baudrate(uint32_t baudrate) {
   debounce_ticks = MAX(1, configTICK_RATE_HZ / (interval * DEBOUNCE_MS));
   probe_info("New baud rate %ld micros %ld interval %lu\n",
               baudrate, micros, interval);
-  uart_deinit(PROBE_UART_INTERFACE);
   tud_cdc_write_clear();
   tud_cdc_read_flush();
-
-  uart_init(PROBE_UART_INTERFACE, baudrate);
+  mockprobe_transport_set_baudrate(baudrate);
 }
 
 void cdc_thread(void *ptr)
@@ -212,7 +319,7 @@ void cdc_thread(void *ptr)
         if (xQueueReceive(baudQueue, &baud_info, 0) == pdTRUE) {
           cdc_uart_set_baudrate(baud_info.baud);
           // Assume 8N1
-          uart_set_format(PROBE_UART_INTERFACE, 8, 1, UART_PARITY_NONE);
+          mockprobe_transport_set_format(8, 1, UART_PARITY_NONE);
         }
       }
     }
@@ -281,7 +388,7 @@ void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* line_coding)
   break;
   }
 
-  uart_set_format(PROBE_UART_INTERFACE, data_bits, stop_bits, parity);
+  mockprobe_transport_set_format(data_bits, stop_bits, parity);
   /* Windows likes to arbitrarily set/get line coding after dtr/rts changes, so
    * don't resume if we shouldn't */
   if(tud_cdc_connected())
@@ -316,14 +423,14 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
 void tud_cdc_send_break_cb(uint8_t itf, uint16_t wValue) {
   switch(wValue) {
     case 0:
-    uart_set_break(PROBE_UART_INTERFACE, false);
+    transport_set_break(false);
     timed_break = false;
 #ifdef PROBE_UART_TX_LED
     tx_led_debounce = 0;
 #endif
     break;
     case 0xffff:
-    uart_set_break(PROBE_UART_INTERFACE, true);
+    transport_set_break(true);
     timed_break = false;
 #ifdef PROBE_UART_TX_LED
     gpio_put(PROBE_UART_TX_LED, 1);
@@ -331,7 +438,7 @@ void tud_cdc_send_break_cb(uint8_t itf, uint16_t wValue) {
 #endif
     break;
     default:
-    uart_set_break(PROBE_UART_INTERFACE, true);
+    transport_set_break(true);
     timed_break = true;
 #ifdef PROBE_UART_TX_LED
     gpio_put(PROBE_UART_TX_LED, 1);

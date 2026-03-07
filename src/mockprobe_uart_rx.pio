@@ -1,0 +1,50 @@
+;
+; Derived from Raspberry Pi pico-examples pio/uart_rx/uart_rx.pio
+; SPDX-License-Identifier: BSD-3-Clause
+;
+.pio_version 0
+
+.program mockprobe_uart_rx
+
+start:
+    wait 0 pin 0
+    set x, 7    [10]
+bitloop:
+    in pins, 1
+    jmp x-- bitloop [6]
+    jmp pin good_stop
+
+    irq 4 rel
+    wait 1 pin 0
+    jmp start
+
+good_stop:
+    push
+
+% c-sdk {
+#include "hardware/clocks.h"
+#include "hardware/gpio.h"
+
+static inline void mockprobe_uart_rx_program_init(PIO pio, uint sm, uint offset, uint pin, uint baud) {
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);
+    pio_gpio_init(pio, pin);
+    gpio_pull_up(pin);
+
+    pio_sm_config c = mockprobe_uart_rx_program_get_default_config(offset);
+    sm_config_set_in_pins(&c, pin);
+    sm_config_set_jmp_pin(&c, pin);
+    sm_config_set_in_shift(&c, true, false, 32);
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
+    sm_config_set_clkdiv(&c, (float)clock_get_hz(clk_sys) / (8 * baud));
+
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+
+static inline char mockprobe_uart_rx_program_getc(PIO pio, uint sm) {
+    io_rw_8 *rxfifo_shift = (io_rw_8 *)&pio->rxf[sm] + 3;
+    while (pio_sm_is_rx_fifo_empty(pio, sm))
+        tight_loop_contents();
+    return (char)*rxfifo_shift;
+}
+%}

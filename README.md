@@ -2,6 +2,12 @@
 
 Firmware source for the Raspberry Pi Debug Probe SWD/UART accessory. Can also be run on a Raspberry Pi Pico or Pico 2.
 
+This working copy is used by MockProbe and includes a small extension on the USB CDC UART bridge:
+
+- lines prefixed with `!MP ` are executed locally by the Pico 2
+- unprefixed traffic continues to behave like the normal debugprobe UART bridge
+- the DAP/SWD path stays intact
+
 [Raspberry Pi Debug Probe product page](https://www.raspberrypi.com/products/debug-probe/)
 
 [Raspberry Pi Pico product page](https://www.raspberrypi.com/products/raspberry-pi-pico/)
