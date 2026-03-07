@@ -18,6 +18,8 @@ endif ()
 add_executable(debugprobe
         src/probe_config.c
         src/main.c
+        src/mockprobe_mode.c
+        src/mockprobe_transport.c
         src/usb_descriptors.c
         src/probe.c
         src/cdc_uart.c
@@ -46,26 +48,53 @@ target_compile_options(debugprobe PRIVATE -Wall)
 pico_generate_pio_header(debugprobe ${CMAKE_CURRENT_LIST_DIR}/src/probe.pio)
 pico_generate_pio_header(debugprobe ${CMAKE_CURRENT_LIST_DIR}/src/probe_oen.pio)
 pico_generate_pio_header(debugprobe ${CMAKE_CURRENT_LIST_DIR}/src/autobaud.pio)
+pico_generate_pio_header(debugprobe ${CMAKE_CURRENT_LIST_DIR}/src/mockprobe_uart_tx.pio)
+pico_generate_pio_header(debugprobe ${CMAKE_CURRENT_LIST_DIR}/src/mockprobe_uart_rx.pio)
 
 target_include_directories(debugprobe PRIVATE src)
 
-# add version
-add_custom_target(version
-        ${CMAKE_SOURCE_DIR}/get-version.sh
-        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+find_package(Git QUIET)
+set(PROBE_VERSION "unknown")
+if (GIT_FOUND)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} -C ${CMAKE_SOURCE_DIR} describe --exact-match --tags
+        OUTPUT_VARIABLE PROBE_VERSION
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+    if (PROBE_VERSION STREQUAL "")
+        execute_process(
+            COMMAND ${GIT_EXECUTABLE} -C ${CMAKE_SOURCE_DIR} rev-parse --short HEAD
+            OUTPUT_VARIABLE PROBE_VERSION
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+        )
+    endif ()
+endif ()
+
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/generated/probe)
+configure_file(
+    ${CMAKE_CURRENT_LIST_DIR}/include/probe_version.h.in
+    ${CMAKE_BINARY_DIR}/generated/probe/version.h
+    @ONLY
 )
 
 target_include_directories(debugprobe PRIVATE
         ${CMAKE_BINARY_DIR}/generated
         )
 
-add_dependencies(debugprobe version)
-
 target_compile_definitions (debugprobe PRIVATE
 	PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
 )
 
 option (DEBUG_ON_PICO "Compile firmware for the Pico instead of Debug Probe" OFF)
+option (MOCKPROBE_EXTENSIONS "Enable MockProbe command executor on the CDC UART" ON)
+if (MOCKPROBE_EXTENSIONS)
+    target_compile_definitions(debugprobe PRIVATE
+        MOCKPROBE_EXTENSIONS=1
+    )
+endif ()
+
 if (DEBUG_ON_PICO)
     target_compile_definitions (debugprobe PRIVATE
 	DEBUG_ON_PICO=1
@@ -76,7 +105,7 @@ if (DEBUG_ON_PICO)
         )
     elseif (PICO_BOARD STREQUAL "pico2")
         set_target_properties(debugprobe PROPERTIES
-            OUTPUT_NAME "debugprobe_on_pico2"
+            OUTPUT_NAME "mockprobe_on_pico2"
         )
     else ()
         message(SEND_ERROR "Unsupported board ${PICO_BOARD}")

@@ -26,8 +26,11 @@
 #ifndef CDC_UART_H
 #define CDC_UART_H
 
+#include <stdint.h>
+
 void cdc_thread(void *ptr);
 void cdc_uart_init(void);
+void cdc_uart_set_baudrate(uint32_t baudrate);
 bool cdc_task(void);
 
 extern TaskHandle_t uart_taskhandle;
