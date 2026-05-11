@@ -174,6 +174,7 @@ int main(int argc, char **argv)
 	}
 	if (i == rc) {
 		fprintf(stderr, "Error: no compatible Debug Probes found - wrong fw?\n");
+		rc = LIBUSB_ERROR_NO_DEVICE;
 		goto out;
 	}
 
