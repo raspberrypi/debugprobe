@@ -45,9 +45,9 @@ Done! You should now have a `debugprobe.uf2` that you can upload to your Debug P
 
 ## Building for the Pico 1
 
-If you want to create the version that runs on the Pico, then you need to invoke `cmake` in the sequence above with the `DEBUG_ON_PICO=ON` option:
+If you want to create the version that runs on the Pico, then you need to invoke `cmake` in the sequence above with the `-DPICO_BOARD=pico` option:
 ```bash
-cmake -DDEBUG_ON_PICO=ON ..
+cmake -DPICO_BOARD=pico ..
 ```
 
 This will build with the configuration for the Pico and call the output program `debugprobe_on_pico.uf2`, as opposed to `debugprobe.uf2` for the accessory hardware.
@@ -66,7 +66,7 @@ git submodule sync
 git submodule update --init --recursive
 mkdir build-pico2
 cd build-pico2
-cmake -DDEBUG_ON_PICO=1 -DPICO_BOARD=pico2 ../
+cmake -DPICO_BOARD=pico2 ../
 ```
 
 This will build with the configuration for the Pico 2 and call the output program `debugprobe_on_pico2.uf2`.

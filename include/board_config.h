@@ -26,13 +26,14 @@
 #ifndef BOARD_CONFIG_H_
 #define BOARD_CONFIG_H_
 
-// TODO tie this up with PICO_BOARD defines in the main SDK
-
-#ifdef DEBUG_ON_PICO
+#include "pico/stdlib.h"
+#if defined(RASPBERRYPI_DEBUG_PROBE)
+#include "board_debug_probe_config.h"
+#elif defined(RASPBERRYPI_PICO) || defined(RASPBERRYPI_PICO2)
 #include "board_pico_config.h"
 #else
-#include "board_debug_probe_config.h"
-#endif
+#error Unsupported board
 //#include "board_example_config.h"
+#endif
 
 #endif
