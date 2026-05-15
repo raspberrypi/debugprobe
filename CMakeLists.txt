@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.12)
 
+# build for the Raspberry Pi Debug Probe by default
+set(PICO_BOARD debug_probe CACHE STRING "Board type")
+
 set(CMAKE_BUILD_TYPE RelWithDebInfo)
 
 include(pico_sdk_import.cmake)
@@ -66,24 +69,11 @@ target_compile_definitions (debugprobe PRIVATE
     PICO_ENABLE_USB_RESET_VIA_VENDOR_INTERFACE=1
 )
 
-option (DEBUG_ON_PICO "Compile firmware for the Pico instead of Debug Probe" OFF)
-if (DEBUG_ON_PICO)
-    target_compile_definitions (debugprobe PRIVATE
-	DEBUG_ON_PICO=1
+if (NOT PICO_BOARD STREQUAL "debug_probe")
+    set_target_properties(debugprobe PROPERTIES
+        OUTPUT_NAME "debugprobe_on_${PICO_BOARD}"
     )
-    if (PICO_BOARD STREQUAL "pico")
-        set_target_properties(debugprobe PROPERTIES
-            OUTPUT_NAME "debugprobe_on_pico"
-        )
-    elseif (PICO_BOARD STREQUAL "pico2")
-        set_target_properties(debugprobe PROPERTIES
-            OUTPUT_NAME "debugprobe_on_pico2"
-        )
-    else ()
-        message(SEND_ERROR "Unsupported board ${PICO_BOARD}")
-    endif ()
 endif ()
-
 
 target_link_libraries(debugprobe PRIVATE
         pico_multicore
