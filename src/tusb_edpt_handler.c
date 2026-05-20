@@ -37,21 +37,40 @@ bool buffer_empty(buffer_t *buffer)
 	return (buffer->wptr == buffer->rptr);
 }
 
+// Defer setup to .reset() / .open()
 void dap_edpt_init(void) {
 	edpt_spoon = xSemaphoreCreateMutex();
 	xSemaphoreGive(edpt_spoon);
 }
 
+// This only gets called if the SOF watchdog times out
 bool dap_edpt_deinit(void)
 {
-	memset(&USBRequestBuffer, 0, sizeof(USBRequestBuffer));
-	memset(&USBResponseBuffer, 0, sizeof(USBResponseBuffer));
-	vSemaphoreDelete(edpt_spoon);
+	if (edpt_spoon != NULL)
+		vSemaphoreDelete(edpt_spoon);
+	edpt_spoon = NULL;
 	return true;
 }
 
 void dap_edpt_reset(uint8_t __unused rhport)
 {
+	probe_info("dap_edpt_reset\n");
+	memset(&USBRequestBuffer, 0, sizeof(USBRequestBuffer));
+	memset(&USBResponseBuffer, 0, sizeof(USBResponseBuffer));
+
+	//  Initialise circular buffer indices
+	USBResponseBuffer.wptr = 0;
+	USBResponseBuffer.rptr = 0;
+	USBRequestBuffer.wptr = 0;
+	USBRequestBuffer.rptr = 0;
+
+	// Initialse full/empty flags
+	USBResponseBuffer.wasFull = false;
+	USBResponseBuffer.wasEmpty = true;
+	USBRequestBuffer.wasFull = false;
+	USBRequestBuffer.wasEmpty = true;
+	// Linux resets us twice in succession
+
 	itf_num = 0;
 }
 
@@ -89,22 +108,10 @@ char * dap_cmd_string[] = {
 
 uint16_t dap_edpt_open(uint8_t __unused rhport, tusb_desc_interface_t const *itf_desc, uint16_t max_len)
 {
-
+	// This has an *implicit return* if fails. .open() is called for each interface on the device on usb SET_CONFIGURATION(nr)
 	TU_VERIFY(TUSB_CLASS_VENDOR_SPECIFIC == itf_desc->bInterfaceClass &&
 			DAP_INTERFACE_SUBCLASS == itf_desc->bInterfaceSubClass &&
 			DAP_INTERFACE_PROTOCOL == itf_desc->bInterfaceProtocol, 0);
-
-	//  Initialise circular buffer indices
-	USBResponseBuffer.wptr = 0;
-	USBResponseBuffer.rptr = 0;
-	USBRequestBuffer.wptr = 0;
-	USBRequestBuffer.rptr = 0;
-
-	// Initialse full/empty flags
-	USBResponseBuffer.wasFull = false;
-	USBResponseBuffer.wasEmpty = true;
-	USBRequestBuffer.wasFull = false;
-	USBRequestBuffer.wasEmpty = true;
 
 	uint16_t const drv_len = sizeof(tusb_desc_interface_t) + (itf_desc->bNumEndpoints * sizeof(tusb_desc_endpoint_t));
 	TU_VERIFY(max_len >= drv_len, 0);
@@ -227,7 +234,7 @@ void dap_thread(void *ptr)
 			// Read a single packet from the USB buffer into the DAP Request buffer
 			probe_info("%lu %lu DAP cmd %s len %02x\n",
 					   USBRequestBuffer.wptr, USBRequestBuffer.rptr,
-					   dap_cmd_string[RD_SLOT_PTR(USBRequestBuffer)[0], RD_SLOT_PTR(USBRequestBuffer)[1]]);
+					   dap_cmd_string[*RD_SLOT_PTR(USBRequestBuffer)], *(RD_SLOT_PTR(USBRequestBuffer)+1));
 
 			// If the buffer was full in the out callback, we need to queue up another buffer for the endpoint to consume, now that we know there is space in the buffer.
 			xSemaphoreTake(edpt_spoon, portMAX_DELAY); // Suspend the scheduler to safely update the write index
@@ -243,7 +250,7 @@ void dap_thread(void *ptr)
 			USBRequestBuffer.rptr++;
 			probe_info("%lu %lu DAP resp %s len %u\n",
 					   USBResponseBuffer.wptr, USBResponseBuffer.rptr,
-					   dap_cmd_string[WR_SLOT_PTR(USBResponseBuffer)[0], resp_len);
+					   dap_cmd_string[*WR_SLOT_PTR(USBResponseBuffer)], resp_len);
 
 			USBResponseBuffer.data_len[WR_IDX(USBResponseBuffer)] = resp_len;
 			//  Suspend the scheduler to avoid stale values/race conditions between threads
