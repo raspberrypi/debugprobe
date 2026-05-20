@@ -106,6 +106,8 @@ void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr)
   }
 }
 
+void tud_unmount_cb(void);
+
 void usb_thread(void *ptr)
 {
   uint32_t cmd;
@@ -123,7 +125,11 @@ void usb_thread(void *ptr)
         else
             gpio_put(PROBE_USB_CONNECTED_LED, 0);
 #endif
-        // If suspended or disconnected, delay for 1ms (20 ticks)
+        // implied bus-reset detection
+        if (!tud_connected() && was_configured)
+            tud_unmount_cb();
+
+        // If suspended or disconnected, unconditional delay for 1ms (20 ticks)
         if (tud_suspended() || !tud_connected())
             xTaskDelayUntil(&wake, 20);
         // Go to sleep if nothing to do
@@ -264,15 +270,15 @@ void tud_resume_cb(void)
 {
   probe_info("Resumed\n");
   if (was_configured) {
-	  vTaskResume(uart_taskhandle);
-	  vTaskResume(dap_taskhandle);
+    vTaskResume(uart_taskhandle);
+    vTaskResume(dap_taskhandle);
     vTaskResume(autobaud_taskhandle);
   }
 }
 
 void tud_unmount_cb(void)
 {
-  probe_info("Disconnected\n");
+  probe_info("Disconnected/reset\n");
   vTaskSuspend(uart_taskhandle);
   vTaskSuspend(dap_taskhandle);
   vTaskDelete(uart_taskhandle);
@@ -286,7 +292,7 @@ void tud_unmount_cb(void)
 
 void tud_mount_cb(void)
 {
-  probe_info("Connected, Configured\n");
+  probe_info("Connected, Configured: %d\n", !!was_configured);
   if (!was_configured) {
     /* UART needs to preempt USB as if we don't, characters get lost */
     xTaskCreate(cdc_thread, "UART", configMINIMAL_STACK_SIZE, NULL, UART_TASK_PRIO, &uart_taskhandle);
