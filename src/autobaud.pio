@@ -1,0 +1,42 @@
+.program autobaud
+
+.wrap_target
+
+falling_edge:
+    wait 0 pin 0                    ; falling edge detected
+    set x, 0                        ; set cycle counter to 0
+    mov x, ~x                       ; x = 0xFFFFFFFF, to decrement x
+
+count_cycles:
+    jmp pin rising_edge             ; if line went high, save current cycle count
+    jmp x-- count_cycles            ; otherwise, decrement and enter loop again
+
+rising_edge:
+    mov isr, x                      ; save elapsed cycle count in ISR
+    push noblock                    ; nonblocking push of the ISR content
+    jmp falling_edge                ; repeat sampling process
+
+.wrap
+
+% c-sdk {
+
+// Helper function (for use in C program) to initialize this PIO program
+void autobaud_program_init(PIO pio, uint sm, uint offset, uint rx_pin, float div) {
+
+    // Sets up state machine and wrap target. This function is automatically
+    // generated in autobaud.pio.h.
+    pio_sm_config c = autobaud_program_get_default_config(offset);
+
+    // No need to set PIO funcsel, as this program is receive-only
+    sm_config_set_in_pins(&c, rx_pin);
+    sm_config_set_jmp_pin(&c, rx_pin);
+    pio_sm_set_consecutive_pindirs(pio, sm, rx_pin, 1, false);
+
+    // Set the clock divider for the state machine
+    sm_config_set_clkdiv(&c, div);
+
+    // Load configuration and jump to start of the program
+    pio_sm_init(pio, sm, offset, &c);
+}
+
+%}

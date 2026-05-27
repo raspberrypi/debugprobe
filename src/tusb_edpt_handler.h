@@ -19,6 +19,7 @@
 
 typedef struct {
 	uint8_t data[DAP_PACKET_COUNT][DAP_PACKET_SIZE];
+	uint16_t data_len[DAP_PACKET_COUNT];
 	volatile uint32_t wptr;
 	volatile uint32_t rptr;
 	volatile bool wasEmpty;
