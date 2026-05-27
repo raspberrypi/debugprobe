@@ -28,7 +28,7 @@
 #include "tusb.h"
 #include "get_serial.h"
 #include "probe_config.h"
-#include "pico/usb_reset_interface_device.h"
+#include "pico/usb_reset.h"
 
 //--------------------------------------------------------------------+
 // Device Descriptors
