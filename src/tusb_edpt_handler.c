@@ -29,12 +29,12 @@ static SemaphoreHandle_t edpt_spoon;
 
 bool buffer_full(buffer_t *buffer)
 {
-	return ((buffer->wptr + 1) % DAP_PACKET_COUNT == buffer->rptr);
+	return (buffer->wptr + 1) % DAP_PACKET_COUNT == buffer->rptr % DAP_PACKET_COUNT;
 }
 
 bool buffer_empty(buffer_t *buffer)
 {
-	return (buffer->wptr == buffer->rptr);
+	return buffer->wptr == buffer->rptr;
 }
 
 // Defer setup to .reset() / .open()
