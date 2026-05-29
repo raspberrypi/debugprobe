@@ -107,7 +107,7 @@ bool cdc_task(void)
         rx_buf[rx_len++] = uart_getc(PROBE_UART_INTERFACE);
     }
 
-    if (tud_cdc_connected()) {
+    if (tud_ready()) {
         was_connected = 1;
         int written = 0;
         /* Implicit overflow if we don't write all the bytes to the host.
