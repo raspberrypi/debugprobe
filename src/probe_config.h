@@ -71,6 +71,11 @@ do { \
 #include "board_debug_probe_config.h"
 #endif
 //#include "board_example_config.h"
+#if !defined(PROBE_PIO_BASE)
+#define PROBE_PIO_BASE 0
+#endif
+#define PIO_PIN(gpio) ((gpio) - PROBE_PIO_BASE)
+
 
 // Add the configuration to binary information
 void bi_decl_config();

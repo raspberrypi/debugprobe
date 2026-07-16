@@ -81,12 +81,13 @@ static inline void probe_gpio_deinit()
 static inline void probe_sm_init(pio_sm_config* sm_config) {
 
     // Set SWDIOEN and SWCLK as sideset pins
-    sm_config_set_sideset_pins(sm_config, PROBE_PIN_SWDIOEN);
+    sm_config_set_sideset_pins(sm_config, PIO_PIN(PROBE_PIN_SWDIOEN));
 
     // Set SWDIO offset
-    sm_config_set_out_pins(sm_config, PROBE_PIN_SWDIO, 1);
-    sm_config_set_set_pins(sm_config, PROBE_PIN_SWDIO, 1);
-    sm_config_set_in_pins(sm_config, PROBE_PIN_SWDI);
+    sm_config_set_out_pins(sm_config, PIO_PIN(PROBE_PIN_SWDIO), 1);
+    sm_config_set_set_pins(sm_config, PIO_PIN(PROBE_PIN_SWDIO), 1);
+    
+    sm_config_set_in_pins(sm_config, PIO_PIN(PROBE_PIN_SWDI));
 
     // Set SWDIOEN, SWD and SWDIO pins as output to start. This will be set in the sm
     pio_sm_set_consecutive_pindirs(pio0, PROBE_SM, PROBE_PIN_OFFSET, 3, true);
