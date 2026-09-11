@@ -71,4 +71,18 @@ endif ()
 
 set(PICO_SDK_PATH ${PICO_SDK_PATH} CACHE PATH "Path to the Raspberry Pi Pico SDK" FORCE)
 
+# We need to include the Pico SDK version file and test the SDK's
+# version *before* including the standard SDK init file. If the SDK is
+# old and PICO_BOARD is set to "debug_probe" (the default), including
+# the standard init file fails because it can't find a board definition
+# for "debug_probe" (which doesn't exist prior to SDK version 2.3.0).
+if (NOT EXISTS ${PICO_SDK_PATH}/pico_sdk_version.cmake)
+    message(FATAL_ERROR "Directory '${PICO_SDK_PATH}' does not contain a Raspberry Pi Pico SDK version file")
+endif ()
+
+include(${PICO_SDK_PATH}/pico_sdk_version.cmake)
+if (${PICO_SDK_VERSION_STRING} VERSION_LESS "2.3.0")
+    message(FATAL_ERROR "Version 2.3.0 of the Pico SDK is required to compile this project. Please update your installation at ${PICO_SDK_PATH}")
+endif ()
+
 include(${PICO_SDK_INIT_CMAKE_FILE})
