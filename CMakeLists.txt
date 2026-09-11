@@ -14,10 +14,6 @@ project(debugprobe)
 
 pico_sdk_init()
 
-if (${PICO_SDK_VERSION_MAJOR} LESS 2)
-	message(SEND_ERROR "Version 2 of the Pico SDK is required to compile this project. Please update your installation at ${PICO_SDK_PATH}")
-endif ()
-
 add_executable(debugprobe
         src/probe_config.c
         src/main.c
