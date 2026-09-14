@@ -33,7 +33,7 @@ Then create and switch to the build directory:
  cd build
 ```
 
-If your environment doesn't contain `PICO_SDK_PATH`, then either add it to your environment variables with `export PICO_SDK_PATH=/path/to/sdk` or add `-DPICO_SDK_PATH=/path/to/sdk` to the arguments to CMake below.
+If your environment doesn't contain `PICO_SDK_PATH`, then either add it to your environment variables with `export PICO_SDK_PATH=/path/to/sdk` or add `-DPICO_SDK_PATH=/path/to/sdk` to the arguments to CMake below. `PICO_SDK_PATH` must point to a version 2.3.0 or greater install.
 
 Run cmake and build the code:
 ```bash
@@ -59,7 +59,6 @@ Note that if you first ran through the whole sequence to compile for the Debug P
 If using an existing debugprobe clone:
 - You must completely regenerate your build directory, or use a different one.
 - You must also sync and update submodules.
-- `PICO_SDK_PATH` must point to a version 2.0.0 or greater install.
 
 ```bash
 git submodule sync
