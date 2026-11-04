@@ -55,8 +55,8 @@ For the purpose of making changes or studying of the code, you may want to compi
 
 First, clone the repository:
 ```
-git clone https://github.com/raspberrypi/debugprobe
-cd debugprobe
+git clone https://github.com/tchv71/debugprobe_rp2040-zero.git
+cd debugprobe_rp2040-zero
 ```
 Initialize and update the submodules:
 ```
