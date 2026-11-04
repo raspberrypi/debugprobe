@@ -104,7 +104,9 @@
 /* SMP port only */
 #define configNUMBER_OF_CORES                   2
 #define configTICK_CORE                         0
+#if (configNUMBER_OF_CORES > 1)
 #define configUSE_CORE_AFFINITY                 1
+#endif
 #define configRUN_MULTIPLE_PRIORITIES           1
 #define configUSE_PASSIVE_IDLE_HOOK             0
 

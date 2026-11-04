@@ -4,9 +4,9 @@ if(WIN32)
 else()
     set(USERHOME $ENV{HOME})
 endif()
-set(sdkVersion 2.2.0)
-set(toolchainVersion 14_2_Rel1)
-set(picotoolVersion 2.2.0-a4)
+set(sdkVersion 2.3.1)
+set(toolchainVersion 15_2_Rel1)
+set(picotoolVersion 2.3.1)
 set(picoVscode ${USERHOME}/.pico-sdk/cmake/pico-vscode.cmake)
 if (EXISTS ${picoVscode})
     include(${picoVscode})
@@ -72,7 +72,8 @@ target_include_directories(debugprobe PRIVATE
 
 target_compile_definitions (debugprobe PRIVATE
 	PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
-        PICO_XOSC_STARTUP_DELAY_MULTIPLIER=32  #Fix for rp2040-zero board
+    PICO_ENABLE_USB_RESET_VIA_VENDOR_INTERFACE=1
+    PICO_XOSC_STARTUP_DELAY_MULTIPLIER=32  #Fix for rp2040-zero board
 )
 
 option (DEBUG_ON_PICO "Compile firmware for the Pico instead of Debug Probe" OFF)
@@ -106,6 +107,7 @@ endif ()
 target_link_libraries(debugprobe PRIVATE
         pico_multicore
         pico_stdlib
+        pico_usb_reset
         pico_unique_id
         tinyusb_device
         tinyusb_board

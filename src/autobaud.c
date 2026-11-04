@@ -194,7 +194,7 @@ bool dma_configure(PIO pio, uint sm) {
 
 // Compare rounded integer parts of baud rates
 // Tolerance of 0.5% in detected versus set
-inline bool baud_changed(float new_baud, float baud) {
+static inline bool baud_changed(float new_baud, float baud) {
     uint32_t hi = (uint32_t)(baud * 1.005f);
     uint32_t lo = (uint32_t)(baud * 0.995f);
     uint32_t new = (uint32_t)new_baud;

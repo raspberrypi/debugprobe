@@ -12,11 +12,14 @@
 #include "device/usbd_pvt.h"
 #include "DAP_config.h"
 
+#include "pico/usb_reset.h"
+
 #define DAP_INTERFACE_SUBCLASS 0x00
 #define DAP_INTERFACE_PROTOCOL 0x00
 
 typedef struct {
 	uint8_t data[DAP_PACKET_COUNT][DAP_PACKET_SIZE];
+	uint16_t data_len[DAP_PACKET_COUNT];
 	volatile uint32_t wptr;
 	volatile uint32_t rptr;
 	volatile bool wasEmpty;
