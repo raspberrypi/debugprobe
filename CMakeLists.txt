@@ -16,6 +16,11 @@ set(PICO_BOARD pico CACHE STRING "Board type")
 
 cmake_minimum_required(VERSION 3.12)
 
+# build for the Raspberry Pi Debug Probe by default
+set(PICO_BOARD debug_probe CACHE STRING "Board type")
+
+set(CMAKE_BUILD_TYPE RelWithDebInfo)
+
 include(pico_sdk_import.cmake)
 
 set(FREERTOS_KERNEL_PATH ${CMAKE_CURRENT_LIST_DIR}/freertos)
@@ -24,10 +29,6 @@ include(FreeRTOS_Kernel_import.cmake)
 project(debugprobe)
 
 pico_sdk_init()
-
-if (${PICO_SDK_VERSION_MAJOR} LESS 2)
-	message(SEND_ERROR "Version 2 of the Pico SDK is required to compile this project. Please update your installation at ${PICO_SDK_PATH}")
-endif ()
 
 add_executable(debugprobe
         src/probe_config.c
@@ -76,22 +77,10 @@ target_compile_definitions (debugprobe PRIVATE
     PICO_XOSC_STARTUP_DELAY_MULTIPLIER=32  #Fix for rp2040-zero board
 )
 
-option (DEBUG_ON_PICO "Compile firmware for the Pico instead of Debug Probe" OFF)
-if (DEBUG_ON_PICO)
-    target_compile_definitions (debugprobe PRIVATE
-	DEBUG_ON_PICO=1
+if (NOT PICO_BOARD STREQUAL "debug_probe")
+    set_target_properties(debugprobe PROPERTIES
+        OUTPUT_NAME "debugprobe_on_${PICO_BOARD}"
     )
-    if (PICO_BOARD STREQUAL "pico")
-        set_target_properties(debugprobe PROPERTIES
-            OUTPUT_NAME "debugprobe_on_pico"
-        )
-    elseif (PICO_BOARD STREQUAL "pico2")
-        set_target_properties(debugprobe PROPERTIES
-            OUTPUT_NAME "debugprobe_on_pico2"
-        )
-    else ()
-        message(SEND_ERROR "Unsupported board ${PICO_BOARD}")
-    endif ()
 endif ()
 
 option (DEBUG_ON_ZERO "Compile firmware for the RP2040-Zero instead of Debug Probe" OFF)

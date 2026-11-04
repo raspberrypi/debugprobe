@@ -23,8 +23,8 @@
  *
  */
 
-#ifndef BOARD_EXAMPLE_H_
-#define BOARD_EXAMPLE_H_
+#ifndef BOARD_EXAMPLE_CONFIG_H_
+#define BOARD_EXAMPLE_CONFIG_H_
 #error "Example board configuration requested - specify PICO_BOARD and re-run CMake."
 
 /* Select one of these. */

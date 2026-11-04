@@ -132,7 +132,7 @@ static uint8_t DAP_Info(uint8_t id, uint8_t *info) {
       length = 2U;
       break;
     case DAP_ID_PACKET_COUNT:
-      info[0] = DAP_PACKET_COUNT;
+      info[0] = DAP_PACKET_COUNT - 2; // HACK to avoid ring buffer fullness
       length = 1U;
       break;
     default:

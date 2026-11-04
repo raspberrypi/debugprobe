@@ -23,8 +23,8 @@
  *
  */
 
-#ifndef BOARD_PICO_H_
-#define BOARD_PICO_H_
+#ifndef BOARD_PICO_CONFIG_H_
+#define BOARD_PICO_CONFIG_H_
 
 #define PROBE_IO_RAW
 #define PROBE_CDC_UART
