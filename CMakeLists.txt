@@ -1,7 +1,22 @@
+# == DO NOT EDIT THE FOLLOWING LINES for the Raspberry Pi Pico VS Code Extension to work ==
+if(WIN32)
+    set(USERHOME $ENV{USERPROFILE})
+else()
+    set(USERHOME $ENV{HOME})
+endif()
+set(sdkVersion 2.3.1)
+set(toolchainVersion 15_2_Rel1)
+set(picotoolVersion 2.3.1)
+set(picoVscode ${USERHOME}/.pico-sdk/cmake/pico-vscode.cmake)
+if (EXISTS ${picoVscode})
+    include(${picoVscode})
+endif()
+# ====================================================================================
 cmake_minimum_required(VERSION 3.12)
 
 # build for the Raspberry Pi Debug Probe by default
 set(PICO_BOARD debug_probe CACHE STRING "Board type")
+set(DEBUG_ON_PICO ON CACHE BOOL "Включить отладочный режим")
 
 set(CMAKE_BUILD_TYPE RelWithDebInfo)
 
@@ -63,6 +78,7 @@ add_dependencies(debugprobe version)
 target_compile_definitions (debugprobe PRIVATE
 	PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1
     PICO_ENABLE_USB_RESET_VIA_VENDOR_INTERFACE=1
+    PICO_XOSC_STARTUP_DELAY_MULTIPLIER=32  #Fix for rp2040-zero board
 )
 
 if (NOT PICO_BOARD STREQUAL "debug_probe")
