@@ -47,8 +47,9 @@ static uint debounce_ticks = 5;
 static volatile uint tx_led_debounce;
 #endif
 
-#ifdef PROBE_UART_RX_LED
+#if defined(PROBE_UART_RX_LED) || defined(DEBUG_ON_ZERO)
 static uint rx_led_debounce;
+extern void led_blue_set(uint8_t set);
 #endif
 
 static BaudInfo_t baud_info;
@@ -116,6 +117,14 @@ bool cdc_task(void)
 #ifdef PROBE_UART_RX_LED
           gpio_put(PROBE_UART_RX_LED, 1);
           rx_led_debounce = debounce_ticks;
+#endif 
+#ifdef DEBUG_ON_ZERO
+          led_blue_set(0x80);
+          rx_led_debounce = debounce_ticks;
+#endif
+#ifdef DEBUG_ON_ZERO
+          led_blue_set(0xFF);
+          rx_led_debounce = debounce_ticks;
 #endif
           written = MIN(tud_cdc_write_available(), rx_len);
           if (rx_len > written)
@@ -132,6 +141,12 @@ bool cdc_task(void)
           else
             gpio_put(PROBE_UART_RX_LED, 0);
 #endif
+#ifdef DEBUG_ON_ZERO
+          if (rx_led_debounce)
+            rx_led_debounce--;
+          else
+            led_blue_set(0x00);
+#endif 
         }
 
       /* Reading from a firehose and writing to a FIFO. */
@@ -303,6 +318,10 @@ void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts)
     vTaskSuspend(uart_taskhandle);
 #ifdef PROBE_UART_RX_LED
     gpio_put(PROBE_UART_RX_LED, 0);
+    rx_led_debounce = 0;
+#endif
+#ifdef DEBUG_ON_ZERO
+    led_blue_set(0x00);
     rx_led_debounce = 0;
 #endif
 #ifdef PROBE_UART_TX_LED

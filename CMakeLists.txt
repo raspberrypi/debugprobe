@@ -32,6 +32,7 @@ pico_sdk_init()
 add_executable(debugprobe
         src/probe_config.c
         src/main.c
+        src/led.c
         src/usb_descriptors.c
         src/probe.c
         src/cdc_uart.c
@@ -60,6 +61,7 @@ target_compile_options(debugprobe PRIVATE -Wall)
 pico_generate_pio_header(debugprobe ${CMAKE_CURRENT_LIST_DIR}/src/probe.pio)
 pico_generate_pio_header(debugprobe ${CMAKE_CURRENT_LIST_DIR}/src/probe_oen.pio)
 pico_generate_pio_header(debugprobe ${CMAKE_CURRENT_LIST_DIR}/src/autobaud.pio)
+pico_generate_pio_header(debugprobe ${CMAKE_CURRENT_LIST_DIR}/src/ws2812.pio OUTPUT_DIR ${CMAKE_CURRENT_LIST_DIR}/generated)
 
 target_include_directories(debugprobe PRIVATE src)
 

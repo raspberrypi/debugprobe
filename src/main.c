@@ -47,6 +47,10 @@
 #include "DAP.h"
 #include "hardware/structs/usb.h"
 
+#ifdef DEBUG_ON_ZERO
+#include "led.h"
+#endif
+
 // UART0 for debugprobe debug
 // UART1 for debugprobe to target device
 
@@ -114,6 +118,12 @@ void usb_thread(void *ptr)
 #ifdef PROBE_USB_CONNECTED_LED
     gpio_init(PROBE_USB_CONNECTED_LED);
     gpio_set_dir(PROBE_USB_CONNECTED_LED, GPIO_OUT);
+#endif
+#ifdef DEBUG_ON_ZERO
+        if (tud_ready())
+            led_red_set(0x80);
+        else
+            led_red_set(0x10);
 #endif
     TickType_t wake;
     wake = xTaskGetTickCount();

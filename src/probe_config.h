@@ -76,4 +76,6 @@ void bi_decl_config();
 #define PROBE_DEBUG_PROTOCOL PROTO_DAP_V2
 #endif
 
+#define DEBUG_ON_ZERO DEBUG_ON_PICO
+
 #endif
